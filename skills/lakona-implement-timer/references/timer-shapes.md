@@ -128,7 +128,9 @@ generation. Renaming or removing an active callback therefore requires a
 compatible lifecycle or migration decision; do not casually rename callback
 methods while timers using them may still exist.
 
-Propagate cancellation. Let failures reach the project's timer diagnostics or
+Ticks provide no cancellation token. If downstream work uses an application-owned
+cancellation token, propagate it deliberately; do not infer one from timer destruction.
+Let failures reach the project's timer diagnostics or
 handle them where a concrete retry, disable, or state-repair policy exists. Do
 not swallow missing actors, serialization errors, or callback exceptions as
 successful ticks.

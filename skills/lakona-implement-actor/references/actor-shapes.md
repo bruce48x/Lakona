@@ -9,6 +9,7 @@ Declare a business key and an actor state shell in `Server.App`:
 
 ```csharp
 using Lakona.Game.Server;
+using Lakona.Game.Server.Actors;
 
 public readonly record struct RoomId(string Value);
 

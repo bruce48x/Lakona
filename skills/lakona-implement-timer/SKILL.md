@@ -35,7 +35,9 @@ active Hotfix generation and long-lived ownership remains in stable state.
    timers automatically. Store IDs only for early cancellation or duplicate
    prevention, and clear stored IDs before explicit cancellation.
 10. Access mutable Actor state directly through `self` in the callback. Do not
-    forward a call to the same Actor. Propagate the tick cancellation token.
+    forward a call to the same Actor. Ticks expose no cancellation token;
+    timer destruction prevents pending and future callbacks without interrupting
+    a callback already running. Choose any downstream cancellation policy explicitly.
 11. Build the Hotfix project and run timer, actor lifecycle, and domain tests
     that cover creation, dispatch, repetition, and cleanup.
 

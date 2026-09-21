@@ -70,12 +70,14 @@ Connect, probe, publish, and force provider ownership in `StartAsync`:
 
 ```csharp
 ConnectionMultiplexer? candidate = null;
+var providerOwnsCandidate = false;
 try
 {
+    cancellationToken.ThrowIfCancellationRequested();
     candidate = await ConnectionMultiplexer
         .ConnectAsync(options)
-        .WaitAsync(cancellationToken)
         .ConfigureAwait(false);
+    cancellationToken.ThrowIfCancellationRequested();
     _ = await candidate.GetDatabase()
         .PingAsync()
         .WaitAsync(cancellationToken)
@@ -84,19 +86,36 @@ try
     Volatile.Write(ref connection, candidate);
     var registered = context.Services
         .GetRequiredService<ConnectionMultiplexer>();
-    if (!ReferenceEquals(candidate, registered))
+    providerOwnsCandidate = ReferenceEquals(candidate, registered);
+    if (!providerOwnsCandidate)
     {
         throw new InvalidOperationException(
             "The DI singleton does not match the connected instance.");
     }
 }
-catch
+catch (Exception startupError)
 {
     if (candidate is not null)
     {
         _ = Interlocked.CompareExchange(ref connection, null, candidate);
-        await candidate.CloseAsync(false).ConfigureAwait(false);
-        candidate.Dispose();
+        try
+        {
+            try
+            {
+                await candidate.CloseAsync(false).ConfigureAwait(false);
+            }
+            finally
+            {
+                if (!providerOwnsCandidate)
+                {
+                    candidate.Dispose();
+                }
+            }
+        }
+        catch (Exception cleanupError)
+        {
+            throw new AggregateException(startupError, cleanupError);
+        }
     }
 
     throw;
@@ -116,8 +135,17 @@ public async Task StopAsync(CancellationToken cancellationToken)
 }
 ```
 
-The root provider performs final `Dispose`. Startup failure disposes the
-candidate directly because provider ownership may not have been established.
+Configure finite connection timeouts and retry limits in `options`. This example
+awaits the non-cancellable connection operation to completion before observing
+cancellation, so any successfully created connection is assigned and cleaned up.
+Do not wrap resource creation in `WaitAsync(cancellationToken)` and abandon the
+underlying task: it can later return a disposable resource nobody owns. If prompt
+cancellation is required, explicitly own and drain the pending creation task.
+The probe can use `WaitAsync` because the candidate is already owned.
+
+The root provider performs final `Dispose` after ownership is established.
+Before that point, startup failure disposes the candidate even if graceful close
+throws. Cleanup errors retain the original startup error in an aggregate.
 
 ## Role-scoped resource
 

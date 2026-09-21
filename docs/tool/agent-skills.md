@@ -317,7 +317,7 @@ scheduler or Store.
 
 Use this Skill when a developer defines what happens when a resumable Lakona
 Game Session disconnects, reconnects, expires, or is explicitly terminated. It
-owns the unique `IGameSessionLifecycle` Hotfix binding, stale-event protection,
+owns per-session `IGameSessionLifecycle` handler selection, disconnect/resume/expiration callbacks, stale-event protection,
 application-defined session ownership, durable cleanup routing, and lifecycle
 tests.
 
@@ -325,6 +325,11 @@ It must distinguish an RPC connection from a Game Session and a product Player
 Session, retain recoverable state during the resume window, and perform
 irreversible cleanup only under an explicit product policy. It must not treat
 application traffic roles such as control or realtime as Lakona Session types.
+Handlers implement `IGameSessionLifecycle` and carry parameterless
+`[HotfixLifecycle]`. Multiple implementations are supported; creation through
+`StartSessionAsync<TLifecycle>` selects one, while non-generic creation selects
+no business handler. Recovery preserves that selection. Lifecycle calls expose
+only the event request, not session items or service-provider properties.
 
 ## Acceptance Criteria
 

@@ -11,10 +11,11 @@ Implement product cleanup policy around Lakona's resumable Game Session. Keep co
 
 1. Read the repository instructions and the project's session, Hotfix, actor, and testing documentation before editing.
 2. Locate the existing `IGameSessionLifecycle` binding, session configuration, current framework-session ownership and application-defined mappings, business actors, room or matchmaking cleanup paths, and lifecycle tests.
-3. Update the unique existing lifecycle implementation in place. Create one only when no binding exists; never add a second `[HotfixLifecycle(typeof(IGameSessionLifecycle))]` class.
+3. Locate the handler selected at each affected `StartSessionAsync<TLifecycle>` call. Update that implementation in place, or add a handler when the requested policy needs one. Multiple `IGameSessionLifecycle` implementations are supported; there is no global default. Non-generic session creation selects no business lifecycle handler.
 4. Read [references/session-lifecycle-shapes.md](references/session-lifecycle-shapes.md) before designing event behavior.
 5. Write down the intended policy for each event before changing code:
    - disconnected inside the resume window
+   - resumed after a replacement connection completes the recovery heartbeat replay step
    - expired after the resume window
    - effects on any other application sessions linked by product policy
    - stale events for a superseded session
@@ -29,19 +30,22 @@ Implement product cleanup policy around Lakona's resumable Game Session. Keep co
 
 ## Required Binding
 
-Use the project's current API shape. A current binding has one class annotated with:
+Use the project's current API shape. Each selected handler implements the framework interface and carries a parameterless attribute:
 
 ```csharp
-[HotfixLifecycle(typeof(IGameSessionLifecycle))]
-internal sealed class GameSessionLifecycle
+[HotfixLifecycle]
+public sealed class GameSessionLifecycle : IGameSessionLifecycle
 ```
 
-Its handlers accept `HotfixLifecycleCall<GameSessionDisconnectedRequest>` and `HotfixLifecycleCall<GameSessionExpiredRequest>`. Do not expose this contract in Shared or name the class as an RPC `*Service`.
+Implement all three methods: `SessionDisconnectedAsync`, `SessionResumedAsync`, and `SessionExpiredAsync`, accepting `HotfixLifecycleCall<TRequest>` with the corresponding framework request type. Select the handler through `StartSessionAsync<GameSessionLifecycle>` at session creation. Do not expose this contract in Shared or name the class as an RPC `*Service`.
+
+Recovery preserves the selected handler identity. Active sessions and pending expiration callbacks prevent publishing a generation that removes or renames their handler. Keep per-session state out of generation-owned handler fields.
 
 ## Lifecycle Boundaries
 
 - An RPC Session is one live connection. A Game Session can outlive that connection and resume during its recovery window. A product Player Session is a separate domain concept.
 - `SessionDisconnectedAsync` means the connection was lost but the Game Session remains resumable. Avoid durable removal or user-visible offline transitions that would make recovery inconsistent.
+- `SessionResumedAsync` runs once per committed replacement binding after its recovery heartbeat completes the replay send step. Initial login and failed recovery do not trigger it; replay completion does not imply client acknowledgement. Restore matching product presence idempotently.
 - `SessionExpiredAsync` means the recovery window ended and Lakona removed framework session state. Perform durable product cleanup here, subject to explicit product policy.
 - Explicit administrative or product termination uses `ILakonaGameServer.TerminateSessionAsync`. Do not simulate it by invoking a lifecycle handler or closing a raw RPC connection.
 - Names such as control and realtime describe optional application traffic roles, not Lakona Session types, identity fields, configuration values, or routing semantics.
@@ -50,7 +54,8 @@ Its handlers accept `HotfixLifecycleCall<GameSessionDisconnectedRequest>` and `H
 ## Safety Rules
 
 - Do not subscribe directly to `RpcSession.Disconnected`, depend on endpoint names, add an App-to-Hotfix bridge, or duplicate the framework lifecycle contract.
-- Do not store callbacks, transports, actor references, or durable game state in session items. Session items are a small scalar cache and lifecycle calls expose only an immutable snapshot.
+- Do not store callbacks, transports, actor references, or durable game state in session items. Session items are a small scalar cache. Lifecycle calls expose only `Request`, containing `OwnerKey`, `SessionId`, and `ConnectionId`; they provide no item snapshot or call-context services. Constructor-inject dependencies.
+- Lifecycle callbacks are in-process notifications, not durable events. Failures are logged and contained without automatic retry or rollback of recovery. Use an application-owned durable mechanism when cleanup must survive callback failure or process loss.
 - Make cleanup idempotent. Missing actors, already-left rooms, repeated events, and superseded sessions need deliberate behavior.
 - Do not swallow cancellation or concrete cleanup failures. Follow project logging policy and avoid reporting success for incomplete durable cleanup.
 - Keep Hotfix lifecycle methods thin. Route business mutations through their owning actor or application service.
@@ -71,6 +76,7 @@ for the following affected contracts; add tests only where coverage is missing:
 - disconnect retaining resumable state
 - expiration performing the intended durable cleanup
 - reconnection before expiration
+- per-session handler selection, no handler for non-generic creation, and resumed callback behavior
 - a stale event not clearing a replacement session
 - application-defined multi-session handling, when the product has it
 - repeated cleanup and missing-state behavior

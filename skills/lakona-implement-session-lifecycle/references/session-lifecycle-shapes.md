@@ -15,13 +15,20 @@ Do not infer that these lifetimes begin or end together.
 ## Lifecycle Binding
 
 ```csharp
-[HotfixLifecycle(typeof(IGameSessionLifecycle))]
-internal sealed class GameSessionLifecycle
+[HotfixLifecycle]
+public sealed class GameSessionLifecycle : IGameSessionLifecycle
 {
     public ValueTask SessionDisconnectedAsync(
         HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
     {
         // Retain resumable domain state unless product policy says otherwise.
+        return default;
+    }
+
+    public ValueTask SessionResumedAsync(
+        HotfixLifecycleCall<GameSessionResumedRequest> call)
+    {
+        // Restore matching product presence after recovery replay.
         return default;
     }
 
@@ -34,16 +41,27 @@ internal sealed class GameSessionLifecycle
 }
 ```
 
-The request identifies framework state through `OwnerKey`, `SessionId`, and `ConnectionId`. Do not assume it contains arbitrary product context. Resolve product ownership through established actor keys or application services.
+Select the handler when creating the session:
+
+```csharp
+var session = await gameServer.StartSessionAsync<GameSessionLifecycle>(
+    ownerKey, connectionId, cancellationToken);
+```
+
+Multiple handler classes are allowed. Non-generic `StartSessionAsync` selects no business lifecycle handler. Recovery retains the selection; callbacks resolve it in the active Hotfix generation. Do not remove or rename a handler while live sessions or pending expiration callbacks reference it: publication rejects that change. Handler instances may serve multiple sessions concurrently, so keep session state in its business owner.
+
+The call exposes only `Request`, identifying framework state through `OwnerKey`, `SessionId`, and `ConnectionId`. It has no item snapshot, cancellation token, or service-provider properties. Constructor-inject dependencies and resolve product ownership through established actor keys or application services.
 
 ## Default Policy Matrix
 
 | Event | Framework meaning | Typical product action |
 | --- | --- | --- |
 | Disconnected | Connection lost; Game Session retained | Keep room and actor state; optionally mark a temporary connection condition |
-| Reconnected | New connection attached inside recovery window | Restore connection-specific bindings without recreating durable identity |
+| Resumed | Replacement connection's recovery heartbeat completed the replay send step | Restore matching presence without recreating durable identity |
 | Expired | Recovery window ended; framework session removed | Clear matching session ownership and leave rooms, matchmaking, or presence as product policy requires |
 | Explicit termination | Product or administrator ends a session | Call `ILakonaGameServer.TerminateSessionAsync`; the framework handles the termination notice |
+
+`SessionResumedAsync` runs once per committed replacement binding, independently of reliable push being enabled. Initial login, failed recovery, and repeated heartbeats do not trigger it. Replay completion does not mean the client acknowledged every message. Explicit termination does not invoke `SessionExpiredAsync`.
 
 The project may choose a different visible-presence policy, but it must state and test that choice. Avoid presence flicker by default when short disconnects are recoverable.
 
@@ -87,9 +105,13 @@ roles belong to application state and policy. When such mappings exist:
 Use the stable server API when the product intentionally terminates a Game Session:
 
 ```csharp
-await gameServer.TerminateSessionAsync(sessionKey, cancellationToken);
+await gameServer.TerminateSessionAsync(
+    sessionKey,
+    SessionTerminationReason.Policy,
+    cancellationToken: cancellationToken);
 ```
 
+Use the product-appropriate `SessionTerminationReason` from `Lakona.Game.Abstractions`.
 The framework sends the termination notice through its own notification channel;
 application code does not need to send it or bind a business callback for it.
 The notice is best-effort and must not become the durable authority for
@@ -99,11 +121,12 @@ connection close as equivalent.
 ## State, Cancellation, And Failures
 
 - Use session items only for small scalar values supported by the current API, such as strings, integers, and booleans.
-- Lifecycle calls expose an immutable item snapshot; they are not a durable database.
+- Lifecycle calls carry only the event request; they do not expose session items.
 - Use actors or application services to serialize ownership changes; keep
   business state which must survive process loss in an application Store.
 - Cleanup that must survive request cancellation may deliberately use `CancellationToken.None` when established project policy requires it.
 - Do not swallow `OperationCanceledException` accidentally or convert concrete cleanup failures into silent success.
 - Make repeated expiration and missing-state paths safe and observable according to repository conventions.
+- Callback failures are logged and contained without automatic retry or recovery rollback. Use an application-owned durable mechanism for cleanup that must survive callback failure or process loss.
 
 Validate failure paths as well as the happy path: unavailable actor, already-left room, partial cleanup, repeated event, and stale replacement event.

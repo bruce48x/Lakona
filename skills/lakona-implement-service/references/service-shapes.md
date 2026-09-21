@@ -170,16 +170,20 @@ contracts:
 5. For an asynchronously connected resource such as Agar Redis, register a
    gated singleton factory first. In `StartAsync`, create and probe a candidate,
    publish it, resolve it from `context.Services`, and verify reference
-   identity. On startup failure, unpublish, gracefully close, and dispose the
-   candidate before rethrowing.
+   identity. On startup failure, unpublish and gracefully close the candidate;
+   guarantee disposal even if close fails when provider ownership has not been
+   established. Otherwise leave final disposal to the provider. Preserve the
+   startup error if cleanup also fails. Do not abandon a non-cancellable
+   connection task through `WaitAsync`; await and own its result with bounded
+   connection settings, or explicitly drain and clean up late completion.
 6. In `StopAsync`, tolerate partial or repeated calls. Atomically unpublish and
    gracefully close the provider-owned asynchronous client, then let final root
    provider shutdown perform `Dispose`. Do not let the adapter or Hotfix
    consumer dispose it.
 
-The Agar PostgreSQL pattern registers `NpgsqlDataSource` through a DI factory,
+The PostgreSQL pattern registers `NpgsqlDataSource` through a DI factory,
 initializes the store and probes `SELECT 1` in `StartAsync`, leaves
-`StopAsync` empty, and relies on root-provider disposal. The Agar Redis pattern
+`StopAsync` empty, and relies on root-provider disposal. The Redis pattern
 connects and pings a candidate, exposes the exact instance through the final
 provider, cleans up a failed candidate directly, closes the published
 multiplexer during module stop, and relies on provider shutdown for final
