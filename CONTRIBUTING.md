@@ -4,10 +4,12 @@ This file is the single entry point for contributors, maintainers, and AI
 agents working on the Lakona repository. Rules are split into focused authority
 documents so they remain discoverable without making this entry point bulky.
 
-Lakona is an early-stage monorepo for the RPC runtime, process-local actor
-runtime, and game-server framework. Treat them as one product line with explicit
-package boundaries. Prefer elegant, thorough fixes over compatibility-preserving
-patches when a cleaner long-term design requires a breaking change.
+Lakona is a monorepo for the RPC runtime, process-local actor runtime, and
+game-server framework. Treat them as one product line with explicit package
+boundaries. Its public APIs are approaching stability. Preserve compatibility
+by default and evaluate public API changes carefully. A breaking change needs
+a clear justification, an assessment of affected consumers, and an explicit
+migration and release plan; a cleaner internal design alone is not sufficient.
 
 ## Required Reading
 

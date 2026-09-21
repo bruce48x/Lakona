@@ -46,11 +46,11 @@ Users should not hand-write session loops or `(serviceId, methodId)` handler dic
 generated clients, Game sessions, and Actor request context propagation; they
 are not additional application scheduling or callback APIs.
 
-The current `0.x` release line has not reached a hard API freeze. In this
-document, **stable** identifies the intended long-term commitment boundary and
-the preferred supported surface; it does not promise that every signature will
-remain unchanged. Before a hard freeze, deliberate breaking changes may
-still be made under the repository's engineering and release-version rules.
+In this document, **stable** identifies the long-term commitment boundary and
+the preferred supported surface. Changes follow the compatibility policy in
+[CONTRIBUTING.md](../../CONTRIBUTING.md): preserve compatibility by default and
+justify any breaking change with consumer-impact analysis and a migration and
+release plan. The `0.x` version number does not waive that policy.
 
 ### Stable User API
 
@@ -318,7 +318,5 @@ caller-owned.
   user extension points.
 - Breaking changes in generated-support APIs must mention analyzer/runtime
   version coupling.
-- Stable extension APIs must receive focused tests throughout the `0.x` release
-  line and before a hard freeze.
-- A hard freeze must be declared explicitly in current authority and release
-  documentation; it is not implied by a **stable** layer heading.
+- Changes to stable extension APIs must receive focused tests for affected
+  behavior and compatibility, regardless of the release version number.

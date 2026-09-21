@@ -15,10 +15,12 @@ This document does not define:
 - payload serializer formats, such as JSON or MemoryPack DTO bytes
 - optional security transforms, such as compression and encryption wrapping
 
-The current envelope format has no explicit version field. The framework is
-still early, so this document describes the current package-set contract rather
-than a backwards-compatible public wire standard. Do not mix RPC packages that
-were built against different versions of this document in one deployment.
+The current envelope format has no explicit version field. Changes to its
+encoding must be assessed for wire compatibility under the compatibility policy
+in [CONTRIBUTING.md](../../CONTRIBUTING.md). This document describes the current
+package-set contract; it does not guarantee interoperability across different
+envelope formats. Do not mix RPC packages that were built against different
+versions of this document in one deployment.
 
 ## Primitive Encoding
 
