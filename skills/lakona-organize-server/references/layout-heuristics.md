@@ -11,6 +11,13 @@ These constraints follow runtime ownership rather than directory taste:
 - `Server.Hotfix` owns reloadable product behavior: RPC handlers, complete HTTP
   service declarations and handlers, actor behavior, timer callbacks, and
   lifecycle policy.
+- Business exceptions deriving directly or indirectly from `System.Exception`
+  may stay beside Hotfix business logic. They are created with `new` from runtime
+  data, require no role or DI registration, and must not use `[HotfixComponent]`.
+  Remove a mistaken marker (`LKNHOTFIX060`); do not move exceptions to stable App
+  merely to satisfy old `LKNHOTFIX037` guidance. Upgrade affected framework
+  versions and validate compilation and Hotfix loading before removing temporary
+  suppressions. Ordinary helpers still require their appropriate framework role.
 - Generated code remains generator-owned. Change its source contract or
   generator rather than editing generated output.
 - Project references must keep the stable-to-reloadable dependency direction;

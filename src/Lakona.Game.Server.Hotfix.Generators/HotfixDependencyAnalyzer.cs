@@ -35,7 +35,7 @@ public sealed class HotfixDependencyAnalyzer : DiagnosticAnalyzer
         {
             context.CancellationToken.ThrowIfCancellationRequested();
             if (type.TypeKind == TypeKind.Class && type.IsSealed && !type.IsStatic && type.Arity == 0 &&
-                type.ContainingType is null && HasAttribute(type, ComponentAttribute) &&
+                type.ContainingType is null && !IsException(type) && HasAttribute(type, ComponentAttribute) &&
                 HotfixActorBoundaryAnalyzer.ResolveActivationConstructor(type) is { } constructor)
                 constructors.Add(type, constructor);
         }

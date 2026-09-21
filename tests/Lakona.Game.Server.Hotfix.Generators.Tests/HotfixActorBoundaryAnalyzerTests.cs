@@ -654,6 +654,46 @@ public sealed class HotfixActorBoundaryAnalyzerTests
     }
 
     [Fact]
+    public async Task Allows_direct_and_indirect_business_exceptions_without_component_role()
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync("""
+            using System;
+            internal enum ErrorCode { Failed }
+            internal abstract class BusinessError : Exception
+            {
+                protected BusinessError(ErrorCode code, Exception inner) : base(code.ToString(), inner) { }
+            }
+            internal sealed class SessionError : BusinessError
+            {
+                public SessionError(ErrorCode code, Exception inner) : base(code, inner) { }
+            }
+            internal sealed class ChatError : Exception
+            {
+                public ChatError(ErrorCode code, Exception inner) : base(code.ToString(), inner) { }
+            }
+            """);
+
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public async Task Rejects_component_marker_on_business_exception()
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync("""
+            using System;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            [HotfixComponent]
+            internal sealed class BusinessError : Exception
+            {
+                public BusinessError(Exception inner) : base("Failed", inner) { }
+            }
+            """);
+        var diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("LKNHOTFIX060", diagnostic.Id);
+        Assert.Contains("remove the attribute", diagnostic.GetMessage());
+    }
+
+    [Fact]
     public async Task Reports_unclassified_abstract_class_in_hotfix_project()
     {
         var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync("""

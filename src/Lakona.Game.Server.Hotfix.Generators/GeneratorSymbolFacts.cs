@@ -8,6 +8,17 @@ namespace Lakona.Game.Server.Hotfix.Generators
 {
     internal static class GeneratorSymbolFacts
     {
+        internal static bool IsException(INamedTypeSymbol type)
+        {
+            for (var current = type.BaseType; current is not null; current = current.BaseType)
+            {
+                if (current.SpecialType == SpecialType.System_Object) break;
+                if (current.ToDisplayString() == "System.Exception") return true;
+            }
+
+            return false;
+        }
+
         internal static bool HasFileModifier(TypeDeclarationSyntax declaration)
         {
             return declaration.Modifiers.Any(static modifier =>

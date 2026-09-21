@@ -38,6 +38,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 HotfixGeneratorDiagnostics.HotfixConcreteTypeRequiresRole,
                 HotfixGeneratorDiagnostics.HotfixStaticStateForbidden,
                 HotfixGeneratorDiagnostics.HotfixComponentModuleShape,
+                HotfixGeneratorDiagnostics.ExceptionCannotBeComponent,
                 HotfixGeneratorDiagnostics.HotfixMethodSelectorShape,
                 HotfixGeneratorDiagnostics.InvalidProjectRole);
 
@@ -251,7 +252,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 return;
             }
 
-            if (IsHotfixModule(type, hotfixModuleAttributes))
+            if (GeneratorSymbolFacts.IsException(type) || IsHotfixModule(type, hotfixModuleAttributes))
             {
                 return;
             }
@@ -314,6 +315,15 @@ namespace Lakona.Game.Server.Hotfix.Generators
         {
             if (!HasAttribute(type, hotfixComponentAttribute))
             {
+                return;
+            }
+
+            if (GeneratorSymbolFacts.IsException(type))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    HotfixGeneratorDiagnostics.ExceptionCannotBeComponent,
+                    type.Locations.FirstOrDefault(static item => item.IsInSource),
+                    type.ToDisplayString()));
                 return;
             }
 

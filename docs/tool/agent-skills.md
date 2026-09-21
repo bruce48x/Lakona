@@ -96,6 +96,15 @@ applies to reading steps in Skills, without waiving applicable project rules.
 
 ## Shared Validation Policy
 
+Service and layout guidance distinguishes DI-owned `[HotfixComponent]` helpers
+from business exceptions. Direct and indirect `System.Exception` subclasses may
+remain in Hotfix without a role; construct them with runtime data using `new`.
+Do not suggest component markers, DI registration, or moving exceptions to App
+to resolve old `LKNHOTFIX037` guidance. Upgrade affected framework packages,
+remove mistaken markers (`LKNHOTFIX060`) and temporary suppressions, and verify
+compilation and Hotfix loading. This exception does not relax ordinary class
+roles or dependency checks for real components.
+
 Each public Skill must remain usable in a generated project without this
 repository's contributor docs. Its validation guidance selects checks for the
 affected contracts, reuses existing coverage, and adds tests only where

@@ -11,6 +11,74 @@ namespace Lakona.Game.Server.Hotfix.Tests;
 public sealed class HotfixComponentDependencyPrecheckTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Business_exceptions_load_without_DI_and_misapplied_markers_get_actionable_errors(bool marked)
+    {
+        var directory = Directory.CreateTempSubdirectory("lakona-business-errors-");
+        try
+        {
+            var source = $$"""
+                using System;
+                using Lakona.Game.Server.Hotfix.Abstractions;
+                using Microsoft.Extensions.DependencyInjection;
+                internal enum ErrorCode { Failed }
+                internal abstract class BusinessError : Exception
+                {
+                    protected BusinessError(ErrorCode code, Exception inner) : base(code.ToString(), inner) { }
+                }
+                {{(marked ? "[HotfixComponent]" : "")}}
+                internal sealed class SessionError : BusinessError
+                {
+                    public SessionError(ErrorCode code, Exception inner) : base(code, inner) { }
+                }
+                {{(marked ? "[HotfixComponent]" : "")}}
+                internal sealed class ChatError : Exception
+                {
+                    public ChatError(ErrorCode code, Exception inner) : base(code.ToString(), inner) { }
+                }
+                [HotfixStartup] public static class Startup
+                {
+                    [HotfixConfigureServices] public static void Configure(IServiceCollection services)
+                    {
+                        var inner = new Exception("original");
+                        if (new SessionError(ErrorCode.Failed, inner).InnerException != inner ||
+                            new ChatError(ErrorCode.Failed, inner).Message != "Failed")
+                            throw new Exception("Business exception construction failed");
+                    }
+                }
+                """;
+            var compilation = CSharpCompilation.Create("BusinessErrorsHotfix", [CSharpSyntaxTree.ParseText(source, cancellationToken: TestContext.Current.CancellationToken)],
+                HotfixTestMetadataReferences.CreateDefaultReferences(typeof(HotfixManager), typeof(IServiceCollection)),
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            Compilation candidate = compilation;
+            // Mis-marked candidates model older binaries built without the updated compiler checks.
+            if (!marked)
+            {
+                CSharpGeneratorDriver.Create(new HotfixGenerator()).RunGeneratorsAndUpdateCompilation(compilation, out candidate, out var diagnostics, TestContext.Current.CancellationToken);
+                Assert.DoesNotContain(diagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+                Assert.DoesNotContain(candidate.SyntaxTrees, tree => tree.ToString().Contains("TryAddSingleton"));
+            }
+            var emit = candidate.Emit(Path.Combine(directory.FullName, "Hotfix.dll"), cancellationToken: TestContext.Current.CancellationToken);
+            Assert.True(emit.Success, string.Join(Environment.NewLine, emit.Diagnostics));
+            await using var manager = new HotfixManager(new CurrentDirectoryHotfixAssemblySource(directory.FullName, "Hotfix.dll"), participants: []);
+            var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(!marked, result.Succeeded);
+            if (marked)
+            {
+                Assert.Contains("remove the attribute", result.ErrorMessage);
+                Assert.Contains("SessionError", result.ErrorMessage);
+                Assert.Contains("ChatError", result.ErrorMessage);
+                Assert.DoesNotContain("service is not registered", result.ErrorMessage);
+            }
+        }
+        finally
+        {
+            directory.Delete(true);
+        }
+    }
+
+    [Theory]
     [InlineData("missing", false, false)]
     [InlineData("transitive", false, false)]
     [InlineData("enumerable", false, false)]

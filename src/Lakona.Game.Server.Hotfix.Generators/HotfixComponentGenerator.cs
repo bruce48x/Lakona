@@ -48,6 +48,15 @@ namespace Lakona.Game.Server.Hotfix.Generators
             var supported = new List<INamedTypeSymbol>();
             foreach (var component in components)
             {
+                if (IsException(component))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        HotfixGeneratorDiagnostics.ExceptionCannotBeComponent,
+                        component.Locations.FirstOrDefault(static location => location.IsInSource),
+                        component.ToDisplayString()));
+                    continue;
+                }
+
                 var declaration = component.DeclaringSyntaxReferences
                     .Select(static reference => reference.GetSyntax())
                     .OfType<TypeDeclarationSyntax>()

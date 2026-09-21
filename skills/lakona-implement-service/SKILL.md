@@ -61,6 +61,13 @@ service instances.
   that the installed Lakona version uses it.
 - Use constructor injection for dependencies. Do not resolve ordinary
   dependencies from a global service locator.
+- Business exceptions deriving directly or indirectly from `System.Exception`
+  may live in Hotfix and are created with `new`. Error codes and inner exceptions
+  are runtime data, not DI dependencies. Do not add `[HotfixComponent]` or DI
+  registrations for them. On versions with this fix, remove obsolete
+  `LKNHOTFIX037` suppressions; `LKNHOTFIX060` means remove the component marker.
+  If an older package rejects unmarked exceptions, upgrade the framework rather
+  than marking them as components. Verify both compilation and Hotfix loading.
 - Depend on stable business interfaces such as `IUserStore` or
   `ILeaderboardStore`, not `NpgsqlDataSource`, `ConnectionMultiplexer`,
   `IDatabase`, or an `ILakonaModule` implementation.

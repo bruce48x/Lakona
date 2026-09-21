@@ -125,11 +125,20 @@ unloads its collectible load context, and releases the process dispatch
 provider. The debug file watcher cancels and awaits reloads it has already
 started before host shutdown continues.
 
-`Server.Hotfix` is a closed code assembly. Every user-defined class declares a
+`Server.Hotfix` is a closed code assembly. Ordinary user-defined classes declare a
 framework role; dependency-only helpers use `[HotfixComponent]` and are
 automatically registered once per generation. DTOs, timer arguments, and
 mutable state stay in stable assemblies. Pure static policy classes may remain
 in Hotfix, but they may not own static fields, auto-properties, or events.
+Business exceptions directly or indirectly deriving from `System.Exception`
+may stay in Hotfix without a role, including abstract exception bases. They are
+created with `new`; error codes and inner exceptions are runtime data, not DI
+dependencies. `LKNHOTFIX037` excludes these types. Do not annotate them with
+`[HotfixComponent]`: `LKNHOTFIX060` asks for removal of that marker and no
+component registration is generated. Runtime validation rejects the same
+misuse in older binaries with removal advice, without resolving their constructor
+parameters. Ordinary roleless classes and real component dependencies retain
+their existing checks.
 It is the paired behavior assembly of `Server.App`, not an untrusted plugin or
 capability-security boundary. Revisit explicit service export only if that
 trust or isolation model changes.

@@ -171,6 +171,14 @@ drift, and mismatched handlers prevent publication.
 
 ### Hotfix Service Dependencies
 
+Constructor injection applies to container-owned services and components.
+Business exceptions deriving directly or indirectly from `System.Exception`
+are constructed with `new` using runtime data; they need neither
+`[HotfixComponent]` nor DI registration and may remain in Hotfix.
+Adding that marker is an error (`LKNHOTFIX060`); remove it instead of registering
+error codes or inner exceptions as services. Unmarked exception types do not
+enter automatic component registration or component dependency precheck.
+
 Hotfix service implementations express dependencies through constructors:
 
 ```csharp

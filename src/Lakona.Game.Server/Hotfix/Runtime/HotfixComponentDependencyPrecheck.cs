@@ -17,6 +17,11 @@ internal static class HotfixComponentDependencyPrecheck
         foreach (var component in assembly.GetTypes().Where(type => type.IsDefined(typeof(HotfixComponentAttribute), false))
                      .OrderByDescending(type => type.FullName, StringComparer.Ordinal))
         {
+            if (typeof(Exception).IsAssignableFrom(component))
+            {
+                errors.Add($"Exception type '{component.FullName}' must not use [HotfixComponent]; remove the attribute and create exceptions with new using runtime data.");
+                continue;
+            }
             Resolve(component, null, optional: false);
         }
 

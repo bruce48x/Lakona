@@ -200,7 +200,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         public static readonly DiagnosticDescriptor HotfixConcreteTypeRequiresRole = new DiagnosticDescriptor(
             "LKNHOTFIX037",
             "Class in a hotfix project must declare a hotfix role",
-            "Class '{0}' belongs to a hotfix project but has no hotfix role; annotate it with [HotfixComponent] or move it to a stable assembly",
+            "Class '{0}' belongs to a hotfix project but has no hotfix role; declare the appropriate role, use [HotfixComponent] only for DI-owned helpers, or move stable data to a stable assembly",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -281,6 +281,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
             "LKNHOTFIX047",
             "Actor method cannot also be ignored",
             "Hotfix behavior method '{0}' cannot declare both [ActorMethod] and [ActorIgnore]",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor ExceptionCannotBeComponent = new DiagnosticDescriptor(
+            "LKNHOTFIX060",
+            "Business exceptions are not Hotfix components",
+            "Exception type '{0}' must not use [HotfixComponent]; remove the attribute and create exceptions with new using runtime data",
             "Lakona.Game.Hotfix",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);

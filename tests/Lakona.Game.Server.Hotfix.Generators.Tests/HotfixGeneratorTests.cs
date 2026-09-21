@@ -11,6 +11,22 @@ namespace Lakona.Game.Server.Hotfix.Generators.Tests;
 
 public sealed class HotfixGeneratorTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Exception_components_are_rejected_without_generating_registration(bool indirect)
+    {
+        var result = GeneratorTestHost.Run($$"""
+            using System;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            internal abstract class BusinessError : Exception { }
+            [HotfixComponent]
+            internal sealed class SessionError : {{(indirect ? "BusinessError" : "Exception")}} { }
+            """);
+        Assert.Contains(result.GeneratorDiagnostics, diagnostic => diagnostic.Id == "LKNHOTFIX060");
+        Assert.DoesNotContain("TryAddSingleton", result.GeneratedSource);
+    }
+
     [Fact]
     public void Actor_timer_selector_compiles_and_callback_is_not_exported_as_rpc()
     {
