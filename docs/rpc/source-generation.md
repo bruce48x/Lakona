@@ -183,3 +183,24 @@ Generated server binders use `RpcConnectionInfo`, `RpcNotificationChannel`, and
 typed registration. They must not reference `RpcSession`, which stays behind
 the runtime-internal boundary described in
 [public-api-boundaries.md](public-api-boundaries.md).
+
+## Generator Source Layout
+
+`src/Lakona.Rpc.Analyzers/SourceGeneration` keeps the generator entry point in
+`LakonaRpcSourceGenerator.cs`: it reads options, discovers contracts, coordinates
+output, and reports generation failures. Its existing private helpers are grouped
+by responsibility in partial-class files; this does not add extension points or
+change their visibility.
+
+| File suffix | Responsibility |
+| --- | --- |
+| `.Options.cs` | Configuration precedence, project roles, and automatic mode selection |
+| `.SymbolReader.cs` | Contract discovery, symbol reading, and validation |
+| `.ClientEmitter.cs` | RPC clients, facades, notification binders, and the Game client wrapper |
+| `.ServerEmitter.cs` | Service binders, notification proxies, and the existing Game control-notification adaptation |
+| `.Models.cs` | Contract and facade data passed between reading and emission |
+| `.Naming.cs` | Generated identifiers and parameter signatures |
+| `.SourceWriter.cs` | Source text formatting and indentation |
+
+All suffixes belong to `LakonaRpcSourceGenerator`. Game-specific output remains
+in the corresponding client and server emitters.
