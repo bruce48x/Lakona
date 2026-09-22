@@ -163,9 +163,8 @@ assembly so consumers cannot select an incompatible analyzer package.
 - `RpcMethod<TArg, TResult>`.
 - `RpcNotificationMethod<TArg>`.
 - `RpcVoid`.
-- `IRpcNotificationDispatchTarget`, `RpcNotificationPayloadHandler`, and
-  `RpcNotificationDispatchMiddleware` for generated or framework-owned
-  notification dispatch.
+- `IRpcNotificationDispatchTarget` and `RpcNotificationPayloadHandler` for
+  generated or framework-owned notification dispatch.
 - `RpcClientRuntime.CallRawAsync(...)` and
   `RpcClientRuntime.RegisterRawNotificationHandler(...)` only for
   framework-owned generated or Lakona.Game control paths.

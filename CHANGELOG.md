@@ -7,7 +7,7 @@ date and package versions of important releases are retained.
 ## 2026-09-22 — Unified RPC dispatch and client lifecycle ownership
 
 **Key releases:** `Lakona.Rpc.Core 0.14.2`, `Lakona.Rpc.Server 0.17.4`,
-`Lakona.Game.Client 0.5.2`, and `Lakona.Tool 0.43.7`.
+`Lakona.Rpc.Client 0.14.0`, `Lakona.Game.Client 0.5.7`, and `Lakona.Tool 0.43.16`.
 
 - RPC Host cleanup now covers acceptor failures and canceled admission, and all
   server handlers share the registry dispatch path used by production and tests.
@@ -15,6 +15,11 @@ date and package versions of important releases are retained.
   into the client runtime. Generated typed APIs remain compatible; upgrade the
   matching packages and rebuild clients. Disposal also cancels and joins an
   initial connection still in progress.
+- Removed `RpcClientRuntime.SetNotificationDispatchMiddleware` and
+  `RpcNotificationDispatchMiddleware` in Rpc.Client 0.14.0. Custom callers must
+  remove the hook and rebuild; any needed handler wrapping belongs in their
+  notification implementation. Generated clients and Game receive admission
+  remain unchanged.
 
 ## 2026-09-21 — Explicit Actor cancellation and unified diagnostics
 
