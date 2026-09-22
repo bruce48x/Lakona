@@ -212,9 +212,8 @@ request is disposed immediately rather than retained until finalization.
 This layer is assembly-internal and is not a user extension surface.
 
 - `RpcSession`.
-- `RpcHandler`.
 - `RpcSessionHandler`.
-- Direct `(serviceId, methodId)` handler registration.
+- Direct `RpcServiceRegistry.Register` frame-handler registration.
 - `RpcSession.GetOrAddScopedService`.
 - Low-level `RpcSession.SendNotificationAsync(serviceId, methodId, payload)`.
 

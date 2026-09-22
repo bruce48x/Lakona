@@ -25,23 +25,21 @@ public sealed class RpcRequestLoggingTests
             logging.AddProvider(loggerProvider);
         });
         var requestLogger = loggerFactory.CreateLogger("Lakona.Rpc.Server.Request");
+        var registry = new RpcServiceRegistry();
         var server = new RpcSession(
             serverTransport,
             serializer,
-            registry: null,
+            registry: registry,
             connectionId: "request-log-test",
             ownsTransport: false,
             requestLogger: requestLogger);
-        server.Register(1, 1, (req, ct) =>
+        registry.Register(1, 1, (_, req, ct) =>
         {
-            var arg = serializer.Deserialize<string>(req.Payload);
+            var arg = serializer.Deserialize<string>(req.Payload.Memory);
             using var payload = serializer.SerializeFrame($"echo:{arg}");
-            return ValueTask.FromResult(new RpcResponseEnvelope
-            {
-                RequestId = req.RequestId,
-                Status = RpcStatus.Ok,
-                Payload = payload.ToArray()
-            });
+            return new ValueTask<TransportFrame>(
+                RpcEnvelopeCodec.EncodeResponse(
+                    req.RequestId, RpcStatus.Ok, payload.ToArray()));
         });
 
         await server.StartAsync();
@@ -81,7 +79,7 @@ public sealed class RpcRequestLoggingTests
         var server = new RpcSession(
             serverTransport,
             serializer,
-            registry: null,
+            registry: new RpcServiceRegistry(),
             connectionId: Guid.NewGuid().ToString("N"),
             ownsTransport: false,
             requestLogger: loggerFactory.CreateLogger("Lakona.Rpc.Server.Request"));
@@ -192,7 +190,7 @@ public sealed class RpcRequestLoggingTests
         var server = new RpcSession(
             serverTransport,
             serverSerializer,
-            registry: null,
+            registry: new RpcServiceRegistry(),
             connectionId: Guid.NewGuid().ToString("N"),
             ownsTransport: false,
             requestLogger: loggerFactory.CreateLogger("Lakona.Rpc.Server.Request"));
@@ -308,16 +306,14 @@ public sealed class RpcRequestLoggingTests
             logging.SetMinimumLevel(LogLevel.Trace);
             logging.AddProvider(loggerProvider);
         });
-        var server = new RpcSession(serverTransport, serializer);
-        server.Register(1, 1, (req, ct) =>
+        var registry = new RpcServiceRegistry();
+        var server = new RpcSession(serverTransport, serializer, registry);
+        registry.Register(1, 1, (_, req, ct) =>
         {
             using var payload = serializer.SerializeFrame("ok");
-            return ValueTask.FromResult(new RpcResponseEnvelope
-            {
-                RequestId = req.RequestId,
-                Status = RpcStatus.Ok,
-                Payload = payload.ToArray()
-            });
+            return new ValueTask<TransportFrame>(
+                RpcEnvelopeCodec.EncodeResponse(
+                    req.RequestId, RpcStatus.Ok, payload.ToArray()));
         });
 
         await server.StartAsync();
@@ -352,22 +348,20 @@ public sealed class RpcRequestLoggingTests
             logging.SetMinimumLevel(LogLevel.Debug);
             logging.AddProvider(loggerProvider);
         });
+        var registry = new RpcServiceRegistry();
         var server = new RpcSession(
             serverTransport,
             serializer,
-            registry: null,
+            registry: registry,
             connectionId: "debug-filter-test",
             ownsTransport: false,
             requestLogger: loggerFactory.CreateLogger("Lakona.Rpc.Server.Request"));
-        server.Register(1, 1, (req, ct) =>
+        registry.Register(1, 1, (_, req, ct) =>
         {
             using var payload = serializer.SerializeFrame("ok");
-            return ValueTask.FromResult(new RpcResponseEnvelope
-            {
-                RequestId = req.RequestId,
-                Status = RpcStatus.Ok,
-                Payload = payload.ToArray()
-            });
+            return new ValueTask<TransportFrame>(
+                RpcEnvelopeCodec.EncodeResponse(
+                    req.RequestId, RpcStatus.Ok, payload.ToArray()));
         });
 
         await server.StartAsync();

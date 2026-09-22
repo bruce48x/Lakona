@@ -32,17 +32,13 @@ public class RpcClientRuntimeTests
         var serverSerializer = new JsonRpcSerializer();
         var clientSerializer = new DestinationTrackingRpcSerializer();
 
-        var server = new RpcSession(serverTransport, serverSerializer);
-        server.Register(1, 1, (req, ct) =>
+        var registry = new RpcServiceRegistry();
+        var server = new RpcSession(serverTransport, serverSerializer, registry);
+        registry.Register(1, 1, (_, req, ct) =>
         {
-            var arg = serverSerializer.Deserialize<string>(req.Payload);
+            var arg = serverSerializer.Deserialize<string>(req.Payload.Memory);
             var result = SerializeBytes(serverSerializer, $"Hello {arg}");
-            return ValueTask.FromResult(new RpcResponseEnvelope
-            {
-                RequestId = req.RequestId,
-                Status = RpcStatus.Ok,
-                Payload = result
-            });
+            return new ValueTask<TransportFrame>(RpcEnvelopeCodec.EncodeResponse(req.RequestId, RpcStatus.Ok, result));
         });
 
         await server.StartAsync();
@@ -69,16 +65,14 @@ public class RpcClientRuntimeTests
             CompressionThresholdBytes = 0
         };
 
-        var server = new RpcSession(new TransformingTransport(rawServerTransport, security), serializer);
-        server.Register(1, 1, (req, ct) =>
+        var registry = new RpcServiceRegistry();
+        var server = new RpcSession(new TransformingTransport(rawServerTransport, security), serializer, registry);
+        registry.Register(1, 1, (_, req, ct) =>
         {
-            var arg = serializer.Deserialize<string>(req.Payload);
-            return ValueTask.FromResult(new RpcResponseEnvelope
-            {
-                RequestId = req.RequestId,
-                Status = RpcStatus.Ok,
-                Payload = SerializeBytes(serializer, arg + "-secured")
-            });
+            var arg = serializer.Deserialize<string>(req.Payload.Memory);
+            return new ValueTask<TransportFrame>(
+                RpcEnvelopeCodec.EncodeResponse(
+                    req.RequestId, RpcStatus.Ok, SerializeBytes(serializer, arg + "-secured")));
         });
 
         await server.StartAsync();
@@ -105,13 +99,12 @@ public class RpcClientRuntimeTests
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
 
-        var server = new RpcSession(serverTransport, serializer);
-        server.Register(1, 1, (req, ct) => ValueTask.FromResult(new RpcResponseEnvelope
-        {
-            RequestId = req.RequestId,
-            Status = RpcStatus.Ok,
-            Payload = Array.Empty<byte>()
-        }));
+        var registry = new RpcServiceRegistry();
+        var server = new RpcSession(serverTransport, serializer, registry);
+        registry.Register(1, 1, (_, req, ct) =>
+            new ValueTask<TransportFrame>(
+                RpcEnvelopeCodec.EncodeResponse(
+                    req.RequestId, RpcStatus.Ok, Array.Empty<byte>())));
 
         await server.StartAsync();
 
@@ -131,8 +124,9 @@ public class RpcClientRuntimeTests
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
 
-        var server = new RpcSession(serverTransport, serializer);
-        server.Register(1, 1, (req, ct) =>
+        var registry = new RpcServiceRegistry();
+        var server = new RpcSession(serverTransport, serializer, registry);
+        registry.Register(1, 1, (_, req, ct) =>
             throw new InvalidOperationException("handler exploded"));
 
         await server.StartAsync();
@@ -330,16 +324,14 @@ public class RpcClientRuntimeTests
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
 
-        var server = new RpcSession(serverTransport, serializer);
-        server.Register(1, 1, (req, ct) =>
+        var registry = new RpcServiceRegistry();
+        var server = new RpcSession(serverTransport, serializer, registry);
+        registry.Register(1, 1, (_, req, ct) =>
         {
-            var arg = serializer.Deserialize<string>(req.Payload);
-            return ValueTask.FromResult(new RpcResponseEnvelope
-            {
-                RequestId = req.RequestId,
-                Status = RpcStatus.Ok,
-                Payload = SerializeBytes(serializer, arg.ToUpperInvariant())
-            });
+            var arg = serializer.Deserialize<string>(req.Payload.Memory);
+            return new ValueTask<TransportFrame>(
+                RpcEnvelopeCodec.EncodeResponse(
+                    req.RequestId, RpcStatus.Ok, SerializeBytes(serializer, arg.ToUpperInvariant())));
         });
 
         await server.StartAsync();
@@ -547,16 +539,14 @@ public class RpcClientRuntimeTests
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
 
-        var server = new RpcSession(serverTransport, serializer);
-        server.Register(1, 1, (req, ct) =>
+        var registry = new RpcServiceRegistry();
+        var server = new RpcSession(serverTransport, serializer, registry);
+        registry.Register(1, 1, (_, req, ct) =>
         {
-            var arg = serializer.Deserialize<string>(req.Payload);
-            return ValueTask.FromResult(new RpcResponseEnvelope
-            {
-                RequestId = req.RequestId,
-                Status = RpcStatus.Ok,
-                Payload = SerializeBytes(serializer, arg + "-reply")
-            });
+            var arg = serializer.Deserialize<string>(req.Payload.Memory);
+            return new ValueTask<TransportFrame>(
+                RpcEnvelopeCodec.EncodeResponse(
+                    req.RequestId, RpcStatus.Ok, SerializeBytes(serializer, arg + "-reply")));
         });
 
         await server.StartAsync();
@@ -615,17 +605,13 @@ public class RpcClientRuntimeTests
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
 
-        var server = new RpcSession(serverTransport, serializer);
-        server.Register(1, 1, async (req, ct) =>
+        var registry = new RpcServiceRegistry();
+        var server = new RpcSession(serverTransport, serializer, registry);
+        registry.Register(1, 1, async (_, req, ct) =>
         {
-            var arg = serializer.Deserialize<int>(req.Payload);
+            var arg = serializer.Deserialize<int>(req.Payload.Memory);
             await Task.Delay(10, ct);
-            return new RpcResponseEnvelope
-            {
-                RequestId = req.RequestId,
-                Status = RpcStatus.Ok,
-                Payload = SerializeBytes(serializer, arg * 2)
-            };
+            return RpcEnvelopeCodec.EncodeResponse(req.RequestId, RpcStatus.Ok, SerializeBytes(serializer, arg * 2));
         });
 
         await server.StartAsync();

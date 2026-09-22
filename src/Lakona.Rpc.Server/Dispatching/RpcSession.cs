@@ -12,19 +12,6 @@ using Lakona.Rpc.Server.Observability;
 namespace Lakona.Rpc.Server
 {
     /// <summary>
-    ///     Low-level handler for a decoded RPC request.
-    /// </summary>
-    /// <param name="req">Request envelope.</param>
-    /// <param name="ct">Cancellation token for request processing.</param>
-    /// <returns>Response envelope to send back to the client.</returns>
-    /// <remarks>
-    ///     Runtime-internal handler wiring. Regular applications should define RPC contracts and service
-    ///     implementations, then let generated binders register handlers.
-    /// </remarks>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    internal delegate ValueTask<RpcResponseEnvelope> RpcHandler(RpcRequestEnvelope req, CancellationToken ct);
-
-    /// <summary>
     ///     Runtime for one accepted client connection.
     /// </summary>
     /// <remarks>
@@ -36,7 +23,6 @@ namespace Lakona.Rpc.Server
     [EditorBrowsable(EditorBrowsableState.Never)]
     internal sealed class RpcSession : IAsyncDisposable
     {
-        private readonly System.Collections.Concurrent.ConcurrentDictionary<(int serviceId, int methodId), RpcHandler> _handlers = new();
         private readonly TrackedTaskCollection _inflightRequests = new();
         private readonly System.Collections.Concurrent.ConcurrentDictionary<int, Lazy<object>> _scopedServices = new();
         private readonly RpcConnectionChannel _connection;
@@ -66,7 +52,7 @@ namespace Lakona.Rpc.Server
         /// <param name="transport">Transport for this connection.</param>
         /// <param name="serializer">Serializer used for RPC payloads.</param>
         public RpcSession(ITransport transport, IRpcSerializer serializer)
-            : this(transport, serializer, registry: null, Guid.NewGuid().ToString("N"), false, keepAlive: null)
+            : this(transport, serializer, registry: new RpcServiceRegistry(), Guid.NewGuid().ToString("N"), false, keepAlive: null)
         {
         }
 
@@ -77,7 +63,7 @@ namespace Lakona.Rpc.Server
         /// <param name="serializer">Serializer used for RPC payloads.</param>
         /// <param name="ownsTransport">Whether disposing the session also disposes the transport.</param>
         public RpcSession(ITransport transport, IRpcSerializer serializer, bool ownsTransport)
-            : this(transport, serializer, registry: null, Guid.NewGuid().ToString("N"), ownsTransport, keepAlive: null)
+            : this(transport, serializer, registry: new RpcServiceRegistry(), Guid.NewGuid().ToString("N"), ownsTransport, keepAlive: null)
         {
         }
 
@@ -88,7 +74,7 @@ namespace Lakona.Rpc.Server
         /// <param name="serializer">Serializer used for RPC payloads.</param>
         /// <param name="connectionId">Stable connection id used in logs and scoped services.</param>
         public RpcSession(ITransport transport, IRpcSerializer serializer, string connectionId)
-            : this(transport, serializer, registry: null, connectionId, false, keepAlive: null)
+            : this(transport, serializer, registry: new RpcServiceRegistry(), connectionId, false, keepAlive: null)
         {
         }
 
@@ -96,7 +82,7 @@ namespace Lakona.Rpc.Server
         ///     Creates a session with an explicit connection id and transport ownership setting.
         /// </summary>
         public RpcSession(ITransport transport, IRpcSerializer serializer, string connectionId, bool ownsTransport)
-            : this(transport, serializer, registry: null, connectionId, ownsTransport, keepAlive: null)
+            : this(transport, serializer, registry: new RpcServiceRegistry(), connectionId, ownsTransport, keepAlive: null)
         {
         }
 
@@ -129,7 +115,7 @@ namespace Lakona.Rpc.Server
         /// </summary>
         /// <param name="transport">Transport for this connection.</param>
         /// <param name="serializer">Serializer used for RPC payloads.</param>
-        /// <param name="registry">Optional generated service registry.</param>
+        /// <param name="registry">Service registry used for all request dispatch.</param>
         /// <param name="connectionId">Stable connection id used in logs and scoped services.</param>
         /// <param name="ownsTransport">Whether disposing the session also disposes the transport.</param>
         /// <param name="keepAlive">Optional keepalive configuration.</param>
@@ -141,7 +127,7 @@ namespace Lakona.Rpc.Server
         public RpcSession(
             ITransport transport,
             IRpcSerializer serializer,
-            RpcServiceRegistry? registry,
+            RpcServiceRegistry registry,
             string connectionId,
             bool ownsTransport,
             RpcKeepAliveOptions? keepAlive = null,
@@ -170,7 +156,7 @@ namespace Lakona.Rpc.Server
                 _requestBudget = new SemaphoreSlim(requestBudget, requestBudget);
             }
             _connection = new RpcConnectionChannel(_transport, _keepAlive);
-            _requestDispatcher = new ServerRequestDispatcher(_handlers, registry, requestGates, _connection, _requestLogger);
+            _requestDispatcher = new ServerRequestDispatcher(registry, requestGates, _connection, _requestLogger);
             ConnectionId = connectionId ?? throw new ArgumentNullException(nameof(connectionId));
             RemoteEndPoint = remoteEndPoint ?? ResolveRemoteEndPoint(_transport);
         }
@@ -219,19 +205,6 @@ namespace Lakona.Rpc.Server
         ///     Raised when the session receive loop ends.
         /// </summary>
         public event Action<Exception?>? Disconnected;
-
-        /// <summary>
-        ///     Registers a low-level request handler for one service method.
-        /// </summary>
-        /// <param name="serviceId">Stable service id.</param>
-        /// <param name="methodId">Stable method id.</param>
-        /// <param name="handler">Request handler.</param>
-        public void Register(int serviceId, int methodId, RpcHandler handler)
-        {
-            ThrowIfDisposed();
-            if (handler is null) throw new ArgumentNullException(nameof(handler));
-            _handlers[(serviceId, methodId)] = handler;
-        }
 
         /// <summary>
         ///     Gets or creates a service instance scoped to this session and service id.

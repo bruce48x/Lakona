@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Lakona.Rpc.Core;
@@ -9,21 +8,18 @@ internal sealed class ServerRequestDispatcher
 {
     private const string InternalErrorMessage = "RPC server failed to process the request.";
 
-    private readonly ConcurrentDictionary<(int serviceId, int methodId), RpcHandler> _handlers;
     private readonly ILogger _logger;
-    private readonly RpcServiceRegistry? _registry;
+    private readonly RpcServiceRegistry _registry;
     private readonly IReadOnlyList<IRpcSessionRequestGate> _requestGates;
     private readonly RpcConnectionChannel _connection;
 
     public ServerRequestDispatcher(
-        ConcurrentDictionary<(int serviceId, int methodId), RpcHandler> handlers,
-        RpcServiceRegistry? registry,
+        RpcServiceRegistry registry,
         IReadOnlyList<IRpcSessionRequestGate>? requestGates,
         RpcConnectionChannel connection,
         ILogger logger)
     {
-        _handlers = handlers ?? throw new ArgumentNullException(nameof(handlers));
-        _registry = registry;
+        _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _requestGates = requestGates ?? Array.Empty<IRpcSessionRequestGate>();
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -44,14 +40,7 @@ internal sealed class ServerRequestDispatcher
             return gateResult.Status;
         }
 
-        if (_handlers.TryGetValue((req.ServiceId, req.MethodId), out var handler))
-        {
-            var work = DispatchUserHandlerAsync(session, req, handler, ct, startedAt);
-            onEntered?.Invoke();
-            return await work.ConfigureAwait(false);
-        }
-
-        if (_registry is not null && _registry.TryGetHandler(req.ServiceId, req.MethodId, out var sessionHandler))
+        if (_registry.TryGetHandler(req.ServiceId, req.MethodId, out var sessionHandler))
         {
             var work = DispatchRegistryHandlerAsync(session, req, sessionHandler, ct, startedAt);
             onEntered?.Invoke();
@@ -162,69 +151,6 @@ internal sealed class ServerRequestDispatcher
         await _connection.SendAsync(respBytes.Memory, ct).ConfigureAwait(false);
     }
 
-    private async Task<RpcStatus?> DispatchUserHandlerAsync(
-        RpcSession session,
-        RpcRequestFrame req,
-        RpcHandler handler,
-        CancellationToken ct,
-        long startedAt)
-    {
-        using var publications = new RpcResponsePublicationScope(session.ConnectionId);
-        RpcResponseEnvelope resp;
-        try
-        {
-            resp = await CompletePublicationsAsync(() => handler(new RpcRequestEnvelope
-            {
-                RequestId = req.RequestId,
-                ServiceId = req.ServiceId,
-                MethodId = req.MethodId,
-                Payload = req.Payload.Memory
-            }, ct), publications, ct).ConfigureAwait(false);
-            if (resp is null)
-            {
-                resp = new RpcResponseEnvelope
-                {
-                    RequestId = req.RequestId,
-                    Status = RpcStatus.InternalError,
-                    Payload = Array.Empty<byte>(),
-                    ErrorMessage = "RPC handler returned null response."
-                };
-                _logger.LogWarning(
-                    "RPC handler returned null response for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId}.",
-                    req.RequestId,
-                    ResolveRpcMethod(req),
-                    req.ServiceId,
-                    req.MethodId,
-                    session.ConnectionId);
-            }
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            LogHandlerFailure(session, req, ex);
-            resp = new RpcResponseEnvelope
-            {
-                RequestId = req.RequestId,
-                Status = RpcStatus.InternalError,
-                Payload = Array.Empty<byte>(),
-                ErrorMessage = InternalErrorMessage
-            };
-        }
-
-        using var respBytes = RpcEnvelopeCodec.EncodeResponse(resp);
-        await _connection.SendAsync(respBytes.Memory, ct).ConfigureAwait(false);
-        LogRequestCompleted(
-            session,
-            req,
-            resp.Status,
-            GetElapsedTime(startedAt),
-            resp.ErrorMessage);
-        return resp.Status;
-    }
-
     private async Task<RpcStatus?> DispatchRegistryHandlerAsync(
         RpcSession session,
         RpcRequestFrame req,
@@ -318,10 +244,10 @@ internal sealed class ServerRequestDispatcher
         }
     }
 
-    private static async ValueTask<T> CompletePublicationsAsync<T>(Func<ValueTask<T>> invoke,
+    private static async ValueTask<TransportFrame> CompletePublicationsAsync(Func<ValueTask<TransportFrame>> invoke,
         RpcResponsePublicationScope publications, CancellationToken ct)
     {
-        T result;
+        TransportFrame result;
         try { result = await invoke().ConfigureAwait(false); }
         catch
         {
@@ -331,7 +257,7 @@ internal sealed class ServerRequestDispatcher
         try { await publications.WaitAsync(ct).ConfigureAwait(false); }
         catch
         {
-            if (result is IDisposable owned) owned.Dispose();
+            result.Dispose();
             throw;
         }
         return result;
@@ -400,7 +326,7 @@ internal sealed class ServerRequestDispatcher
 
     private string ResolveRpcMethod(RpcRequestFrame req)
     {
-        return _registry is not null && _registry.TryGetDescriptor(req.ServiceId, req.MethodId, out var descriptor)
+        return _registry.TryGetDescriptor(req.ServiceId, req.MethodId, out var descriptor)
             ? descriptor.DisplayName
             : $"{req.ServiceId}:{req.MethodId}";
     }

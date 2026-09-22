@@ -19,19 +19,22 @@ public class RpcOrderedDispatchTests
         var serializer = new JsonRpcSerializer();
         var gate = new PausedAdmissionGate();
         await using var client = new RpcClientRuntime(transport, serializer);
-        await using var server = new RpcSession(peer, serializer, null, "ordered", true, requestGates: [gate]);
+        var registry = new RpcServiceRegistry();
+        await using var server = new RpcSession(peer, serializer, registry, "ordered", true, requestGates: [gate]);
         var entries = new ConcurrentQueue<int>();
         var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        server.Register(1, 1, async (request, ct) =>
+        registry.Register(1, 1, async (_, request, ct) =>
         {
             entries.Enqueue(1);
             await releaseFirst.Task.WaitAsync(ct);
-            return new RpcResponseEnvelope { RequestId = request.RequestId, Status = RpcStatus.Ok };
+            return RpcEnvelopeCodec.EncodeResponse(request.RequestId, RpcStatus.Ok, ReadOnlyMemory<byte>.Empty);
         });
-        server.Register(1, 2, (request, _) =>
+        registry.Register(1, 2, (_, request, _) =>
         {
             entries.Enqueue(2);
-            return new ValueTask<RpcResponseEnvelope>(new RpcResponseEnvelope { RequestId = request.RequestId, Status = RpcStatus.Ok });
+            return new ValueTask<TransportFrame>(
+                RpcEnvelopeCodec.EncodeResponse(
+                    request.RequestId, RpcStatus.Ok, ReadOnlyMemory<byte>.Empty));
         });
         await server.StartAsync();
         await client.StartAsync();
@@ -71,14 +74,15 @@ public class RpcOrderedDispatchTests
         LoopbackTransport.CreatePair(out var transport, out var peer);
         var serializer = new JsonRpcSerializer();
         await using var client = new RpcClientRuntime(transport, serializer);
-        await using var server = new RpcSession(peer, serializer);
+        var registry = new RpcServiceRegistry();
+        await using var server = new RpcSession(peer, serializer, registry);
         var releaseResponse = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var events = new ConcurrentQueue<string>();
-        server.Register(1, 1, async (request, ct) =>
+        registry.Register(1, 1, async (_, request, ct) =>
         {
             await releaseResponse.Task.WaitAsync(ct);
-            return new RpcResponseEnvelope { RequestId = request.RequestId, Status = RpcStatus.Ok };
+            return RpcEnvelopeCodec.EncodeResponse(request.RequestId, RpcStatus.Ok, ReadOnlyMemory<byte>.Empty);
         });
         client.RegisterNotificationHandler<int>(new RpcNotificationMethod<int>(1, 2), async value =>
         {

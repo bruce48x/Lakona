@@ -518,7 +518,7 @@ public class RpcServerHostBuilderTests
         var session = new RpcSession(
             transport,
             new JsonRpcSerializer(),
-            registry: null,
+            registry: new RpcServiceRegistry(),
             connectionId: "keepalive-race-client",
             ownsTransport: true,
             keepAlive: new RpcKeepAliveOptions

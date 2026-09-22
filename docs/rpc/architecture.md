@@ -86,6 +86,11 @@ frames. Server applications should use high-level host configuration and
 generated binders. They should not hand-write `RpcSession` loops or
 `serviceId:methodId` dispatch dictionaries.
 
+All server request handlers resolve through `RpcServiceRegistry`. Generated
+typed binders and raw handlers share the same admission, response publication,
+error handling, logging, and frame ownership path. Low-level dispatch tests
+register handlers in that registry as well.
+
 For typed requests, responses, and notifications, the runtime reserves the
 envelope header and gives the configured serializer an `IBufferWriter<byte>`
 positioned at the business payload. The serializer writes directly into that

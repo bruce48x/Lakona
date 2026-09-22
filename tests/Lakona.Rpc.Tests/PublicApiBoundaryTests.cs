@@ -11,7 +11,6 @@ public class PublicApiBoundaryTests
     public void SessionRuntimeTypes_AreAssemblyInternal()
     {
         Assert.False(typeof(RpcSession).IsPublic);
-        Assert.False(typeof(RpcHandler).IsPublic);
         Assert.False(typeof(RpcSessionHandler).IsPublic);
     }
 
@@ -52,7 +51,6 @@ public class PublicApiBoundaryTests
     public static IEnumerable<object[]> HiddenRuntimeSupportTypes()
     {
         yield return [typeof(RpcSession)];
-        yield return [typeof(RpcHandler)];
         yield return [typeof(RpcSessionHandler)];
         yield return [typeof(RpcRawHandler)];
         yield return [typeof(RpcServiceRegistry)];
