@@ -14,6 +14,11 @@ time and emits:
 - server binders
 - generated binder assembly metadata
 
+Contract discovery traverses namespaces and nested types once in both the current
+compilation and referenced contract assemblies. Public service and notification
+interfaces nested in public non-generic classes are supported. Nesting does not
+create a separate service-id scope: distinct services must still use unique ids.
+
 Generated service calls return runtime ValueTasks directly. Void methods use
 `RpcVoidTask.FromResult` to discard RpcVoid without adding an async task layer
 which could reorder response continuations. See

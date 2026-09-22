@@ -362,13 +362,12 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
         {
             foreach (var member in symbol.GetMembers())
             {
-                if (member is INamespaceOrTypeSymbol namespaceOrType)
+                if (member is INamespaceSymbol namespaceSymbol)
                 {
-                    foreach (var type in EnumerateTypes(namespaceOrType))
+                    foreach (var type in EnumerateTypes(namespaceSymbol))
                         yield return type;
                 }
-
-                if (member is INamedTypeSymbol namedType)
+                else if (member is INamedTypeSymbol namedType)
                 {
                     yield return namedType;
                     foreach (var nested in EnumerateTypes(namedType))
