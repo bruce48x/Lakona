@@ -127,14 +127,14 @@ internal static class GodotClientAssetTemplates
         [node name="Hud" type="PanelContainer" parent="Ui"]
         visible = false
         layout_mode = 0
-        anchor_left = 0.0
+        anchor_left = 0.1
         anchor_top = 1.0
-        anchor_right = 1.0
+        anchor_right = 0.9
         anchor_bottom = 1.0
-        offset_left = 32.0
-        offset_top = -118.0
-        offset_right = -32.0
-        offset_bottom = -24.0
+        offset_left = 0.0
+        offset_top = -88.0
+        offset_right = 0.0
+        offset_bottom = -16.0
         grow_horizontal = 2
         grow_vertical = 0
         mouse_filter = 2
@@ -142,22 +142,22 @@ internal static class GodotClientAssetTemplates
 
         [node name="HBox" type="HBoxContainer" parent="Ui/Hud"]
         layout_mode = 2
-        theme_override_constants/separation = 20
+        theme_override_constants/separation = 10
 
         [node name="Player" type="Label" parent="Ui/Hud/HBox"]
-        custom_minimum_size = Vector2(180, 0)
+        custom_minimum_size = Vector2(130, 0)
         layout_mode = 2
         theme_override_colors/font_color = Color(0.745, 0.89, 0.11, 1)
-        theme_override_font_sizes/font_size = 20
+        theme_override_font_sizes/font_size = 16
         text = "LAKONA_01"
         clip_text = true
         vertical_alignment = 1
 
         [node name="Score" type="Label" parent="Ui/Hud/HBox"]
-        custom_minimum_size = Vector2(110, 0)
+        custom_minimum_size = Vector2(95, 0)
         layout_mode = 2
         theme_override_colors/font_color = Color(0.957, 0.945, 0.886, 1)
-        theme_override_font_sizes/font_size = 18
+        theme_override_font_sizes/font_size = 14
         text = "SCORE 12,540"
         vertical_alignment = 1
 
@@ -165,25 +165,26 @@ internal static class GodotClientAssetTemplates
         custom_minimum_size = Vector2(0, 0)
         layout_mode = 2
         size_flags_horizontal = 3
-        theme_override_constants/separation = 6
+        theme_override_constants/separation = 4
 
         [node name="Health" type="Label" parent="Ui/Hud/HBox/HealthBox"]
         layout_mode = 2
         theme_override_colors/font_color = Color(0.957, 0.945, 0.886, 1)
+        theme_override_font_sizes/font_size = 12
         text = "HEALTH 100 / 100"
 
         [node name="HealthBar" type="ProgressBar" parent="Ui/Hud/HBox/HealthBox"]
-        custom_minimum_size = Vector2(0, 20)
+        custom_minimum_size = Vector2(0, 14)
         layout_mode = 2
         theme_type_variation = &"ArenaHealth"
         value = 100.0
         show_percentage = false
 
         [node name="Hint" type="Label" parent="Ui/Hud/HBox"]
-        custom_minimum_size = Vector2(170, 0)
+        custom_minimum_size = Vector2(135, 0)
         layout_mode = 2
         theme_override_colors/font_color = Color(0.745, 0.89, 0.11, 1)
-        theme_override_font_sizes/font_size = 16
+        theme_override_font_sizes/font_size = 12
         text = "[ W ] [ A ] [ S ] [ D ]\nMOVE · AUTO FIRE"
         horizontal_alignment = 2
         vertical_alignment = 1
@@ -236,16 +237,16 @@ internal static class GodotClientAssetTemplates
         content_margin_right = 18.0
 
         [sub_resource type="StyleBoxFlat" id="12"]
-        bg_color = Color(0.039, 0.047, 0.047, 0.97)
+        bg_color = Color(0.039, 0.047, 0.047, 0.78)
         border_width_left = 2
         border_width_top = 2
         border_width_right = 2
         border_width_bottom = 2
         border_color = Color(0.745, 0.89, 0.11, 1)
-        content_margin_left = 22.0
-        content_margin_right = 22.0
-        content_margin_top = 14.0
-        content_margin_bottom = 14.0
+        content_margin_left = 12.0
+        content_margin_right = 12.0
+        content_margin_top = 8.0
+        content_margin_bottom = 8.0
 
         [sub_resource type="StyleBoxFlat" id="13"]
         bg_color = Color(0.212, 0.224, 0.208, 1)

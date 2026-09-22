@@ -428,15 +428,16 @@ internal static class UnityClientAssetTemplates
         .hud {
             display: none;
             position: absolute;
-            left: 32px;
-            right: 32px;
-            bottom: 24px;
-            height: 94px;
-            padding-left: 22px;
-            padding-right: 22px;
+            left: 50%;
+            width: 80%;
+            translate: -50% 0;
+            bottom: 16px;
+            height: 72px;
+            padding-left: 12px;
+            padding-right: 12px;
             flex-direction: row;
             align-items: center;
-            background-color: rgba(10, 12, 12, 0.96);
+            background-color: rgba(10, 12, 12, 0.78);
             border-left-width: 2px;
             border-right-width: 2px;
             border-top-width: 2px;
@@ -447,20 +448,20 @@ internal static class UnityClientAssetTemplates
             border-bottom-color: rgb(190, 226, 28);
         }
 
-        .player-badge { width: 58px; height: 58px; margin-right: 16px; align-items: center; justify-content: center; border-radius: 29px; border-left-width: 3px; border-right-width: 3px; border-top-width: 3px; border-bottom-width: 3px; border-left-color: rgb(190, 226, 28); border-right-color: rgb(190, 226, 28); border-top-color: rgb(190, 226, 28); border-bottom-color: rgb(190, 226, 28); }
-        .player-core { width: 28px; height: 28px; border-radius: 14px; background-color: rgb(190, 226, 28); }
-        .identity-group { width: 210px; }
-        .player-name { font-size: 19px; color: rgb(190, 226, 28); -unity-font-style: bold; letter-spacing: 1px; }
-        .score-label { margin-top: 3px; font-size: 17px; color: rgb(244, 241, 226); -unity-font-style: bold; }
-        .hud-divider { width: 1px; height: 58px; margin-left: 18px; margin-right: 24px; background-color: rgb(88, 91, 84); }
-        .health-group { flex-grow: 1; max-width: 430px; }
-        .metric-label { margin-bottom: 8px; color: rgb(244, 241, 226); -unity-font-style: bold; letter-spacing: 1px; }
-        .health-track { height: 20px; background-color: rgb(54, 57, 53); }
-        .health-fill { width: 100%; height: 20px; background-color: rgb(190, 226, 28); }
-        .controls-group { width: 260px; align-items: center; }
+        .player-badge { width: 42px; height: 42px; margin-right: 10px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 21px; border-left-width: 3px; border-right-width: 3px; border-top-width: 3px; border-bottom-width: 3px; border-left-color: rgb(190, 226, 28); border-right-color: rgb(190, 226, 28); border-top-color: rgb(190, 226, 28); border-bottom-color: rgb(190, 226, 28); }
+        .player-core { width: 20px; height: 20px; border-radius: 10px; background-color: rgb(190, 226, 28); }
+        .identity-group { width: 130px; flex-shrink: 0; }
+        .player-name { font-size: 16px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: rgb(190, 226, 28); -unity-font-style: bold; letter-spacing: 1px; }
+        .score-label { margin-top: 3px; font-size: 14px; color: rgb(244, 241, 226); -unity-font-style: bold; }
+        .hud-divider { width: 1px; height: 42px; margin-left: 10px; margin-right: 12px; flex-shrink: 0; background-color: rgb(88, 91, 84); }
+        .health-group { flex-grow: 1; min-width: 100px; max-width: 340px; }
+        .metric-label { margin-bottom: 5px; font-size: 12px; color: rgb(244, 241, 226); -unity-font-style: bold; letter-spacing: 1px; }
+        .health-track { height: 14px; background-color: rgb(54, 57, 53); }
+        .health-fill { width: 100%; height: 14px; background-color: rgb(190, 226, 28); }
+        .controls-group { width: 140px; flex-shrink: 0; align-items: center; }
         .key-row { flex-direction: row; }
-        .key-chip { width: 34px; height: 30px; margin-left: 3px; margin-right: 3px; -unity-text-align: middle-center; color: rgb(244, 241, 226); border-left-width: 1px; border-right-width: 1px; border-top-width: 1px; border-bottom-width: 1px; border-left-color: rgb(244, 241, 226); border-right-color: rgb(244, 241, 226); border-top-color: rgb(244, 241, 226); border-bottom-color: rgb(244, 241, 226); border-radius: 4px; -unity-font-style: bold; }
-        .hint { margin-top: 5px; color: rgb(190, 226, 28); -unity-font-style: bold; letter-spacing: 1px; }
+        .key-chip { width: 26px; height: 24px; margin-left: 2px; margin-right: 2px; -unity-text-align: middle-center; color: rgb(244, 241, 226); border-left-width: 1px; border-right-width: 1px; border-top-width: 1px; border-bottom-width: 1px; border-left-color: rgb(244, 241, 226); border-right-color: rgb(244, 241, 226); border-top-color: rgb(244, 241, 226); border-bottom-color: rgb(244, 241, 226); border-radius: 4px; -unity-font-style: bold; }
+        .hint { margin-top: 3px; font-size: 11px; color: rgb(190, 226, 28); -unity-font-style: bold; letter-spacing: 1px; }
         """;
     }
 

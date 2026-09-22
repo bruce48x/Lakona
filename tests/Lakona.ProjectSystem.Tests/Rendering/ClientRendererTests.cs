@@ -567,6 +567,11 @@ public sealed class ClientRendererTests
                         require(abs(action.get_center().x - size.x / 2.0) < 1, "Login action must be centered")
                         require(abs(field.get_global_rect().end.x - play.get_global_rect().position.x) < 1, "Input and play button must join")
                         require(viewport.encloses(hud.get_global_rect()), "HUD outside viewport %s" % size)
+                        require(abs(hud.size.x - size.x * 0.8) < 1, "HUD must leave room beside combat")
+                        require(abs(hud.size.y - 72) < 1, "HUD must remain compact")
+                        require(abs(hud.get_theme_stylebox("panel").bg_color.a - 0.78) < 0.01, "HUD background must reveal the arena")
+                        for child in scene.get_node("Ui/Hud/HBox").get_children():
+                            require(hud.get_global_rect().encloses(child.get_global_rect()), "HUD content overflow: " + child.name)
                         for state in ["normal", "hover", "pressed", "disabled"]:
                             var color = play.get_theme_stylebox(state).bg_color
                             require(color.r > 0.9 and color.g < 0.45, "Play must use coral arena style: " + state)

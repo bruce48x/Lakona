@@ -606,7 +606,10 @@ superseded; events that require individual observation must use a distinct
 notification contract instead of being encoded as snapshot-delivery history.
 
 Godot and Unity share the arena's cream text, lime accents, coral play button,
-centered callsign row, and bottom HUD. Godot starts in a resizable 800×600
+centered callsign row, and bottom HUD. The combat HUD occupies 80% of the
+window width and 72 pixels of height, with a 16-pixel bottom inset. Its dark
+background uses 0.78 alpha while text and health indicators remain opaque.
+Godot starts in a resizable 800×600
 window. Its file-backed scene uses a full-rect `Control` root so UI anchors
 resolve against the viewport, and theme variations declare `base_type` so
 controls resolve arena styles instead of falling back to engine defaults.
