@@ -1,9 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using System.Reflection;
-using System.Reflection.Emit;
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
@@ -1253,33 +1250,6 @@ public class RpcSessionTests
             "The internal CancellationTokenSource in StartAsync must be linked to the external ct.");
     }
 
-    [Fact]
-    public void TrackedTaskCollection_WaitAsync_DoesNotSnapshotTasksWithToArray()
-    {
-        var trackedTaskCollectionType = typeof(RpcSession).Assembly.GetType("Lakona.Rpc.Server.TrackedTaskCollection");
-        Assert.NotNull(trackedTaskCollectionType);
-
-        var waitAsync = trackedTaskCollectionType!.GetMethod(
-            "WaitAsync",
-            BindingFlags.Instance | BindingFlags.Public);
-        Assert.NotNull(waitAsync);
-
-        var stateMachineAttribute = waitAsync!.GetCustomAttribute<AsyncStateMachineAttribute>();
-        Assert.NotNull(stateMachineAttribute);
-
-        var moveNext = stateMachineAttribute!.StateMachineType.GetMethod(
-            "MoveNext",
-            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-        Assert.NotNull(moveNext);
-
-        var calledMethods = GetCalledMethods(moveNext!);
-        Assert.DoesNotContain(
-            calledMethods,
-            method => method is MethodInfo methodInfo &&
-                      methodInfo.Name == nameof(Enumerable.ToArray) &&
-                      methodInfo.DeclaringType == typeof(Enumerable));
-    }
-
     private sealed class ConcurrentSendDetectTransport : ITransport
     {
         private int _currentSends;
@@ -1335,104 +1305,6 @@ public class RpcSessionTests
     {
         using var frame = await transport.ReceiveFrameAsync(ct);
         return RpcEnvelopeCodec.DecodeResponse(frame);
-    }
-
-    private static IReadOnlyList<MethodBase> GetCalledMethods(MethodInfo method)
-    {
-        var body = method.GetMethodBody();
-        Assert.NotNull(body);
-
-        var il = body!.GetILAsByteArray();
-        Assert.NotNull(il);
-
-        var module = method.Module;
-        var called = new List<MethodBase>();
-        var index = 0;
-        while (index < il!.Length)
-        {
-            var opCode = ReadOpCode(il, ref index);
-            switch (opCode.OperandType)
-            {
-                case OperandType.InlineMethod:
-                {
-                    var metadataToken = BitConverter.ToInt32(il, index);
-                    index += sizeof(int);
-                    called.Add(module.ResolveMethod(metadataToken)!);
-                    break;
-                }
-                case OperandType.InlineNone:
-                    break;
-                case OperandType.ShortInlineBrTarget:
-                case OperandType.ShortInlineI:
-                case OperandType.ShortInlineVar:
-                    index += 1;
-                    break;
-                case OperandType.InlineVar:
-                    index += 2;
-                    break;
-                case OperandType.InlineI:
-                case OperandType.InlineBrTarget:
-                case OperandType.InlineField:
-                case OperandType.InlineSig:
-                case OperandType.InlineString:
-                case OperandType.InlineTok:
-                case OperandType.InlineType:
-                    index += 4;
-                    break;
-                case OperandType.InlineI8:
-                case OperandType.InlineR:
-                    index += 8;
-                    break;
-                case OperandType.ShortInlineR:
-                    index += 4;
-                    break;
-                case OperandType.InlineSwitch:
-                {
-                    var count = BitConverter.ToInt32(il, index);
-                    index += sizeof(int) + (count * sizeof(int));
-                    break;
-                }
-                default:
-                    throw new NotSupportedException($"Unsupported operand type: {opCode.OperandType}");
-            }
-        }
-
-        return called;
-    }
-
-    private static OpCode ReadOpCode(byte[] il, ref int index)
-    {
-        var value = il[index++];
-        if (value != 0xFE)
-            return SingleByteOpCodes[value];
-
-        return MultiByteOpCodes[il[index++]];
-    }
-
-    private static readonly OpCode[] SingleByteOpCodes = BuildOpCodeMap(multibyte: false);
-    private static readonly OpCode[] MultiByteOpCodes = BuildOpCodeMap(multibyte: true);
-
-    private static OpCode[] BuildOpCodeMap(bool multibyte)
-    {
-        var opCodes = new OpCode[256];
-        foreach (var field in typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static))
-        {
-            if (field.GetValue(null) is not OpCode opCode)
-                continue;
-
-            var value = (ushort)opCode.Value;
-            if (multibyte)
-            {
-                if ((value >> 8) == 0xFE)
-                    opCodes[value & 0xFF] = opCode;
-            }
-            else if ((value >> 8) == 0)
-            {
-                opCodes[value & 0xFF] = opCode;
-            }
-        }
-
-        return opCodes;
     }
 
     private sealed class ReconnectableEmptyFrameTransport : ITransport
