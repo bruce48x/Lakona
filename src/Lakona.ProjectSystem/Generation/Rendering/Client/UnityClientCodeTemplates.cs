@@ -298,14 +298,26 @@ internal static class UnityClientCodeTemplates
                     }
                 }
 
-                private static void DrawArenaBackdrop(Painter2D painter, Rect arena)
+                private void DrawArenaBackdrop(Painter2D painter, Rect arena)
                 {
                     DrawRect(painter, arena, new Color(0.045f, 0.052f, 0.05f, 1f));
-                    const float spacing = 48f;
-                    for (var x = 0f; x < arena.width; x += spacing) DrawRect(painter, new Rect(x, 0f, 1f, arena.height), new Color(1f, 1f, 1f, 0.035f));
-                    for (var y = 0f; y < arena.height; y += spacing) DrawRect(painter, new Rect(0f, y, arena.width, 1f), new Color(1f, 1f, 1f, 0.035f));
+                    var spacing = 48f;
+                    var origin = arena.position;
                     var center = arena.center;
                     var radius = Mathf.Min(arena.width, arena.height) * 0.43f;
+                    if (_world != null && _localPlayerId != 0)
+                    {
+                        // Ground markings share the entity transform, including camera clamping.
+                        origin = WorldToScreen(arena, 0f, 0f, _world);
+                        var unit = WorldToScreen(arena, 1f, 0f, _world);
+                        spacing = unit.x - origin.x;
+                        center = WorldToScreen(arena, _world.Width * 0.5f, _world.Height * 0.5f, _world);
+                        radius = Mathf.Min(_world.Width, _world.Height) * spacing * 0.43f;
+                    }
+                    var firstX = arena.xMin + ((origin.x - arena.xMin) % spacing + spacing) % spacing;
+                    var firstY = arena.yMin + ((origin.y - arena.yMin) % spacing + spacing) % spacing;
+                    for (var x = firstX; x < arena.xMax; x += spacing) DrawRect(painter, new Rect(x, arena.yMin, 1f, arena.height), new Color(1f, 1f, 1f, 0.035f));
+                    for (var y = firstY; y < arena.yMax; y += spacing) DrawRect(painter, new Rect(arena.xMin, y, arena.width, 1f), new Color(1f, 1f, 1f, 0.035f));
                     DrawRing(painter, center, radius, new Color(1f, 1f, 1f, 0.12f), 8f);
                     DrawRing(painter, center, radius * 0.58f, new Color(1f, 1f, 1f, 0.1f), 4f);
                     DrawLine(painter, new Vector2(center.x, center.y - radius), new Vector2(center.x, center.y - radius * 0.72f), new Color(1f, 1f, 1f, 0.16f), 4f);

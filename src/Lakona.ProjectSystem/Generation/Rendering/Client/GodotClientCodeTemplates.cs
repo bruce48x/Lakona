@@ -210,11 +210,23 @@ internal static class GodotClientCodeTemplates
             private void DrawArenaBackdrop(Rect2 arena)
             {
                 DrawRect(arena, new Color("0c0e0e"));
-                const float spacing = 48f;
-                for (var x = 0f; x < arena.Size.X; x += spacing) DrawLine(new Vector2(x, 0f), new Vector2(x, arena.Size.Y), new Color(1f, 1f, 1f, 0.035f));
-                for (var y = 0f; y < arena.Size.Y; y += spacing) DrawLine(new Vector2(0f, y), new Vector2(arena.Size.X, y), new Color(1f, 1f, 1f, 0.035f));
+                var spacing = 48f;
+                var origin = arena.Position;
                 var center = arena.GetCenter();
                 var radius = MathF.Min(arena.Size.X, arena.Size.Y) * 0.43f;
+                if (_world is not null && _localPlayerId != 0)
+                {
+                    // Ground markings share the entity transform, including camera clamping.
+                    origin = WorldToScreen(arena, 0f, 0f);
+                    var unit = WorldToScreen(arena, 1f, 0f);
+                    spacing = unit.X - origin.X;
+                    center = WorldToScreen(arena, _world.Width * 0.5f, _world.Height * 0.5f);
+                    radius = MathF.Min(_world.Width, _world.Height) * spacing * 0.43f;
+                }
+                var firstX = arena.Position.X + ((origin.X - arena.Position.X) % spacing + spacing) % spacing;
+                var firstY = arena.Position.Y + ((origin.Y - arena.Position.Y) % spacing + spacing) % spacing;
+                for (var x = firstX; x < arena.End.X; x += spacing) DrawLine(new Vector2(x, arena.Position.Y), new Vector2(x, arena.End.Y), new Color(1f, 1f, 1f, 0.035f));
+                for (var y = firstY; y < arena.End.Y; y += spacing) DrawLine(new Vector2(arena.Position.X, y), new Vector2(arena.End.X, y), new Color(1f, 1f, 1f, 0.035f));
                 DrawArc(center, radius, 0f, MathF.Tau, 96, new Color(1f, 1f, 1f, 0.13f), 8f);
                 DrawArc(center, radius * 0.58f, 0f, MathF.Tau, 72, new Color(1f, 1f, 1f, 0.1f), 4f);
                 DrawLine(new Vector2(center.X, center.Y - radius), new Vector2(center.X, center.Y - radius * 0.72f), new Color(1f, 1f, 1f, 0.16f), 4f);

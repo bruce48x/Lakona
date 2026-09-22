@@ -614,6 +614,12 @@ The optional engine layout regression test uses `LAKONA_TEST_GODOT_EXECUTABLE`
 (the console executable on Windows) to verify colors and bounds across window
 sizes without starting a server.
 
+During gameplay, both engine renderers anchor the one-world-unit ground grid
+and arena rings to world coordinates through the same camera transform as
+entities. Grid spacing scales with the viewport; grid phase and arena markings
+follow the clamped camera, so moving players have a stable ground reference.
+The disconnected login preview retains its screen-space decorative background.
+
 Godot UI should be file-backed. The default scene must not use C# `BuildUi`
 methods. Unity and Godot game visuals must use engine-provided drawing
 primitives and generated runtime textures only; default projects do not pack
