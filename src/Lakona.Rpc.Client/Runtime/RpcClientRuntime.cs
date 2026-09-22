@@ -36,6 +36,11 @@ namespace Lakona.Rpc.Client
         private const long NotificationQueueBytesWarningThreshold = 1024 * 1024;
 
         private readonly CancellationTokenSource _cts = new();
+        // Network termination drains received messages; explicit disposal also cancels dispatch.
+        private readonly CancellationTokenSource _dispatchCts = new();
+        private readonly object _lifecycleGate = new();
+        private Task? _startupCompletion;
+        private Task? _disposal;
         private readonly RpcConnectionChannel _connection;
         private readonly RpcPendingRequestCollection _pending = new();
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int serviceId, int methodId), RegisteredNotificationHandler> _notificationHandlers = new();
@@ -59,7 +64,6 @@ namespace Lakona.Rpc.Client
         private int _disposed;
         private int _nextId;
         private int _started;
-        private long _disconnectReasonSet;
         private long _nextNotificationQueueBytesWarning =
             NotificationQueueBytesWarningThreshold;
         private long _nextNotificationQueueCountWarning =
@@ -122,7 +126,7 @@ namespace Lakona.Rpc.Client
         }
 
         /// <summary>
-        ///     Raised when the receive loop ends.
+        ///     Raised after receive and keepalive stop and queued message dispatch ends.
         /// </summary>
         /// <remarks>
         ///     The event argument is the disconnect reason when one is available. A null value means a normal or
@@ -171,30 +175,45 @@ namespace Lakona.Rpc.Client
         ///     Connects the transport and starts background runtime loops.
         /// </summary>
         /// <param name="ct">Cancellation token for the initial transport connection.</param>
+        /// <remarks>Disposal cancels and joins an outstanding connection attempt.</remarks>
         /// <exception cref="InvalidOperationException">Thrown when the runtime has already been started.</exception>
         /// <exception cref="ObjectDisposedException">Thrown when the runtime has been disposed.</exception>
         public async ValueTask StartAsync(CancellationToken ct = default)
         {
-            ThrowIfDisposed();
-            if (Interlocked.CompareExchange(ref _started, 1, 0) != 0)
-                throw new InvalidOperationException("RpcClient already started.");
-            _dispatchContext = (_hasConfiguredDispatchContext ? _configuredDispatchContext : SynchronizationContext.Current)
-                ?? new RpcDispatchSynchronizationContext();
+            var startup = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_lifecycleGate)
+            {
+                ThrowIfDisposed();
+                if (Interlocked.CompareExchange(ref _started, 1, 0) != 0)
+                    throw new InvalidOperationException("RpcClient already started.");
+                _startupCompletion = startup.Task;
+                _dispatchContext = (_hasConfiguredDispatchContext ? _configuredDispatchContext : SynchronizationContext.Current)
+                    ?? new RpcDispatchSynchronizationContext();
+            }
 
             try
             {
-                await _transport.ConnectAsync(ct);
-                _connection.ResetActivity();
-                _dispatchLoop = Task.Run(ProcessMessagesAsync);
-                _recvLoop = Task.Run(ReceiveLoopAsync);
-                if (_keepAlive.Enabled)
-                    _keepAliveLoop = Task.Run(KeepAliveLoopAsync);
+                using var connecting = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
+                await _transport.ConnectAsync(connecting.Token).ConfigureAwait(false);
+                lock (_lifecycleGate)
+                {
+                    // A transport may finish connecting after cancellation. Never publish that connection.
+                    connecting.Token.ThrowIfCancellationRequested();
+                    if (Volatile.Read(ref _disposed) != 0)
+                        throw new OperationCanceledException("RPC client was disposed during connection.", connecting.Token);
+                    _connection.ResetActivity();
+                    _dispatchLoop = Task.Run(ProcessMessagesAsync);
+                    _recvLoop = Task.Run(ReceiveLoopAsync);
+                    if (_keepAlive.Enabled)
+                        _keepAliveLoop = Task.Run(KeepAliveLoopAsync);
+                }
             }
             catch
             {
                 Interlocked.Exchange(ref _started, 0);
                 throw;
             }
+            finally { startup.TrySetResult(true); }
         }
 
         /// <inheritdoc />
@@ -290,6 +309,8 @@ namespace Lakona.Rpc.Client
             Func<uint, TransportFrame> encode, Func<RpcResponseFrame, T> convert, CancellationToken ct)
         {
             ThrowIfDisposed();
+            if (_cts.IsCancellationRequested)
+                throw new InvalidOperationException("RPC connection has ended.", _disconnectReason);
             var startedAt = Stopwatch.GetTimestamp();
             var call = new RpcPendingRequestCollection.PendingCall<T>(response =>
             {
@@ -300,6 +321,7 @@ namespace Lakona.Rpc.Client
                 return convert(response);
             });
             var id = _pending.Reserve(ref _nextId, call);
+            if (call.Task.IsCompleted) return call.Task;
             TransportFrame? frame = null;
             try
             {
@@ -313,9 +335,6 @@ namespace Lakona.Rpc.Client
             }
             catch (Exception error) { _pending.Fail(id, error); }
             finally { frame?.Dispose(); }
-            // Close the admission race with Dispose, which may have swept pending calls before Reserve.
-            if (Volatile.Read(ref _disposed) != 0)
-                _pending.Fail(id, new ObjectDisposedException(nameof(RpcClientRuntime)));
             return call.Task;
         }
 
@@ -331,45 +350,52 @@ namespace Lakona.Rpc.Client
         /// <summary>
         ///     Stops background loops, fails pending requests, and disposes the transport.
         /// </summary>
-        public async ValueTask DisposeAsync()
+        /// <remarks>Concurrent callers await the same cleanup; running business handlers are not joined.</remarks>
+        public ValueTask DisposeAsync()
         {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0)
-                return;
+            TaskCompletionSource<bool> completion;
+            lock (_lifecycleGate)
+            {
+                if (_disposal is not null) return new ValueTask(_disposal);
+                Volatile.Write(ref _disposed, 1);
+                completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                _disposal = completion.Task;
+            }
+            // Publish the shared completion before invoking any cancellation or transport callbacks.
+            _ = DisposeCoreAsync(completion);
+            return new ValueTask(completion.Task);
+        }
 
-            try { _cts.Cancel(); } catch (ObjectDisposedException) { }
-            _pending.FailAll(new ObjectDisposedException(nameof(RpcClientRuntime)));
-            Interlocked.Exchange(ref _started, 0);
-            if (_recvLoop is not null)
-                try
+        private async Task DisposeCoreAsync(TaskCompletionSource<bool> completion)
+        {
+            try
+            {
+                StopConnection();
+                _dispatchCts.Cancel();
+                _pending.Close(new ObjectDisposedException(nameof(RpcClientRuntime)));
+                if (_startupCompletion is not null)
+                    await _startupCompletion.ConfigureAwait(false);
+                await JoinLoopAsync(_recvLoop).ConfigureAwait(false);
+                await JoinLoopAsync(_keepAliveLoop).ConfigureAwait(false);
+                _messageQueue.Writer.TryComplete();
+                await JoinLoopAsync(_dispatchLoop).ConfigureAwait(false);
+                try { await _transport.DisposeAsync().ConfigureAwait(false); }
+                finally
                 {
-                    await _recvLoop.ConfigureAwait(false);
+                    _connection.Dispose();
+                    _cts.Dispose();
+                    _dispatchCts.Dispose();
                 }
-                catch
-                {
-                }
+                completion.TrySetResult(true);
+            }
+            catch (Exception error) { completion.TrySetException(error); }
+        }
 
-            if (_keepAliveLoop is not null)
-                try
-                {
-                    await _keepAliveLoop.ConfigureAwait(false);
-                }
-                catch
-                {
-                }
-
-            _messageQueue.Writer.TryComplete();
-            if (_dispatchLoop is not null)
-                try
-                {
-                    await _dispatchLoop.ConfigureAwait(false);
-                }
-                catch
-                {
-                }
-
-            await _transport.DisposeAsync().ConfigureAwait(false);
-            _connection.Dispose();
-            try { _cts.Dispose(); } catch (ObjectDisposedException) { }
+        private static async Task JoinLoopAsync(Task? loop)
+        {
+            if (loop is null) return;
+            try { await loop.ConfigureAwait(false); }
+            catch { } // The loop's terminal reason is published through Disconnected.
         }
 
         private async Task ReceiveLoopAsync()
@@ -425,7 +451,7 @@ namespace Lakona.Rpc.Client
                     }
                 }
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
             }
             catch (Exception ex)
@@ -435,9 +461,8 @@ namespace Lakona.Rpc.Client
             }
             finally
             {
-                if (err is null)
-                    err = _disconnectReason;
-                _messageQueue.Writer.TryComplete(err);
+                StopConnection(err);
+                _messageQueue.Writer.TryComplete();
             }
         }
 
@@ -446,26 +471,32 @@ namespace Lakona.Rpc.Client
             Exception? error = null;
             try
             {
-                await foreach (var message in _messageQueue.Reader.ReadAllAsync(_cts.Token).ConfigureAwait(false))
+                await foreach (var message in _messageQueue.Reader.ReadAllAsync(_dispatchCts.Token).ConfigureAwait(false))
                 {
                     if (message is RpcPushFrame queuedPush) TrackNotificationDequeued(queuedPush);
                     try { await DispatchOnContextAsync(() => DispatchMessage(message)).ConfigureAwait(false); }
                     catch { message.Dispose(); throw; }
                 }
             }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException) when (_dispatchCts.IsCancellationRequested) { }
             catch (Exception ex) { error = ex; }
             finally
             {
+                StopConnection(error);
+                if (_startupCompletion is not null)
+                    await _startupCompletion.ConfigureAwait(false);
+                // Stop the producer before releasing queued frames or publishing the terminal event.
+                await JoinLoopAsync(_recvLoop).ConfigureAwait(false);
+                await JoinLoopAsync(_keepAliveLoop).ConfigureAwait(false);
                 while (_messageQueue.Reader.TryRead(out var message))
                 {
                     if (message is RpcPushFrame push) TrackNotificationDequeued(push);
                     message.Dispose();
                 }
-                _pending.FailAll(Volatile.Read(ref _disposed) != 0
+                _pending.Close(Volatile.Read(ref _disposed) != 0
                     ? new ObjectDisposedException(nameof(RpcClientRuntime))
-                    : error ?? _disconnectReason ?? new InvalidOperationException("Transport closed."));
-                Disconnected?.Invoke(error ?? _disconnectReason);
+                    : _disconnectReason ?? new InvalidOperationException("Transport closed."));
+                Disconnected?.Invoke(_disconnectReason);
             }
         }
 
@@ -473,7 +504,7 @@ namespace Lakona.Rpc.Client
         {
             var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var state = 0;
-            using var canceled = _cts.Token.Register(() =>
+            using var canceled = _dispatchCts.Token.Register(() =>
             {
                 if (Interlocked.CompareExchange(ref state, 2, 0) == 0) completion.TrySetCanceled();
             });
@@ -488,7 +519,7 @@ namespace Lakona.Rpc.Client
 
         private void DispatchMessage(IDisposable message)
         {
-            if (_cts.IsCancellationRequested) { message.Dispose(); return; }
+            if (_dispatchCts.IsCancellationRequested) { message.Dispose(); return; }
             if (message is RpcResponseFrame response) { _pending.Complete(response); return; }
             var task = ProcessPushAsync((RpcPushFrame)message);
             if (!task.IsCompleted)
@@ -573,20 +604,14 @@ namespace Lakona.Rpc.Client
 
         private async Task KeepAliveLoopAsync()
         {
-            await _connection.RunKeepAliveAsync(
-                "RPC keepalive timed out.",
-                ex =>
-                {
-                    SetDisconnectReason(ex);
-                    try
-                    {
-                        _cts.Cancel();
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                    }
-                },
-                _cts.Token).ConfigureAwait(false);
+            try
+            {
+                await _connection.RunKeepAliveAsync(
+                    "RPC keepalive timed out.", StopConnection, _cts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (_cts.IsCancellationRequested) { }
+            catch (Exception error) { StopConnection(error); }
+            finally { StopConnection(); }
         }
 
         private ValueTask SendFrameAsyncSerialized(ReadOnlyMemory<byte> frame, CancellationToken ct)
@@ -688,10 +713,12 @@ namespace Lakona.Rpc.Client
                 elapsedTicks / (double)Stopwatch.Frequency);
         }
 
-        private void SetDisconnectReason(Exception ex)
+        private void StopConnection(Exception? error = null)
         {
-            if (Interlocked.CompareExchange(ref _disconnectReasonSet, 1, 0) == 0)
-                _disconnectReason = ex;
+            if (error is not null)
+                Interlocked.CompareExchange(ref _disconnectReason, error, null);
+            try { _cts.Cancel(); }
+            catch (ObjectDisposedException) { }
         }
 
         private void ThrowIfDisposed()

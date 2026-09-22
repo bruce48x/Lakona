@@ -42,7 +42,18 @@ Game notification publication participates in a
 FIFO transport writing alone cannot order
 notifications still waiting in a higher-level delivery queue.
 
-Client disposal stops framework intake and dispatch and cancels pending RPCs.
+Client startup links the caller's initial-connect cancellation with runtime
+shutdown. Disposal cancels and joins an outstanding connection attempt before
+releasing the transport; a late successful connect cannot start background loops.
+Concurrent disposal calls share the same cleanup completion.
+
+Client receive and keepalive loops share a connection lifetime. Failure in either
+stops and joins both before `Disconnected` is raised, preserving the original
+failure. Connection termination rejects new calls and drains already-received
+messages in order before failing remaining calls. Custom transports must cooperate
+with I/O cancellation.
+
+Explicit client disposal stops framework intake and dispatch and cancels pending RPCs.
 It does not wait for arbitrary business handlers, including the handler calling
 DisposeAsync itself. An already-started handler retains its frame until it exits;
 queued context callbacks are canceled without returning memory still in use by

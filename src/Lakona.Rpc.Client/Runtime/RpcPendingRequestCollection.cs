@@ -7,13 +7,20 @@ namespace Lakona.Rpc.Client;
 internal sealed class RpcPendingRequestCollection
 {
     private readonly ConcurrentDictionary<uint, PendingCall> _pending = new();
+    private Exception? _terminalError;
 
     public uint Reserve(ref int nextRequestId, PendingCall call)
     {
         for (uint attempts = 0; attempts < uint.MaxValue; attempts++)
         {
             var id = unchecked((uint)Interlocked.Increment(ref nextRequestId));
-            if (id != 0 && _pending.TryAdd(id, call)) return id;
+            if (id != 0 && _pending.TryAdd(id, call))
+            {
+                // Close may have swept the dictionary just before this reservation.
+                var error = Volatile.Read(ref _terminalError);
+                if (error is not null) Fail(id, error);
+                return id;
+            }
         }
         throw new InvalidOperationException("No RPC request id available; too many pending requests.");
     }
@@ -35,8 +42,9 @@ internal sealed class RpcPendingRequestCollection
         else response.Dispose();
     }
 
-    public void FailAll(Exception error)
+    public void Close(Exception error)
     {
+        error = Interlocked.CompareExchange(ref _terminalError, error, null) ?? error;
         foreach (var item in _pending) Fail(item.Key, error);
     }
 
