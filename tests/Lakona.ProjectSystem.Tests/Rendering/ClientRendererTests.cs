@@ -178,6 +178,7 @@ public sealed class ClientRendererTests
         var plan = Render(new GodotClientRenderer(), Spec(ClientEngine.Godot, TransportKind.WebSocket, SerializerKind.Json));
         AssertPath(plan, "Client/Game.tscn");
         var scene = AssertPath(plan, "Client/Game.tscn").Content;
+        Assert.Contains("[node name=\"Game\" type=\"Control\"]", scene, StringComparison.Ordinal);
         Assert.Contains("[node name=\"LoginPanel\"", scene, StringComparison.Ordinal);
         Assert.Contains("[node name=\"Hud\"", scene, StringComparison.Ordinal);
         Assert.Contains("res://Scripts/Game/GameScene.cs", scene, StringComparison.Ordinal);
@@ -228,10 +229,10 @@ public sealed class ClientRendererTests
         Assert.Contains("new WsTransport", code, StringComparison.Ordinal);
         Assert.Contains("new JsonRpcSerializer()", code, StringComparison.Ordinal);
         Assert.Contains("2166136261", code, StringComparison.Ordinal);
-        Assert.Contains("LineEdit/colors/font_color = Color(0, 1, 0.4, 1)", AssertPath(plan, "Client/Theme/LakonaTheme.tres").Content, StringComparison.Ordinal);
-        Assert.Contains("ArenaInput/type = \"LineEdit\"", AssertPath(plan, "Client/Theme/LakonaTheme.tres").Content, StringComparison.Ordinal);
-        Assert.Contains("ArenaButton/type = \"Button\"", AssertPath(plan, "Client/Theme/LakonaTheme.tres").Content, StringComparison.Ordinal);
-        Assert.Contains("ArenaHud/type = \"PanelContainer\"", AssertPath(plan, "Client/Theme/LakonaTheme.tres").Content, StringComparison.Ordinal);
+        Assert.Contains("ArenaInput/colors/font_color = Color(0.957, 0.945, 0.886, 1)", AssertPath(plan, "Client/Theme/LakonaTheme.tres").Content, StringComparison.Ordinal);
+        Assert.Contains("ArenaInput/base_type = \"LineEdit\"", AssertPath(plan, "Client/Theme/LakonaTheme.tres").Content, StringComparison.Ordinal);
+        Assert.Contains("ArenaButton/base_type = \"Button\"", AssertPath(plan, "Client/Theme/LakonaTheme.tres").Content, StringComparison.Ordinal);
+        Assert.Contains("ArenaHud/base_type = \"PanelContainer\"", AssertPath(plan, "Client/Theme/LakonaTheme.tres").Content, StringComparison.Ordinal);
         Assert.DoesNotContain(plan.Files, file => IsExternalArt(file.RelativePath));
         Assert.DoesNotContain(plan.Files, file => file.RelativePath.Contains("Chat", StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("Chat", StringComparison.Ordinal));
@@ -521,6 +522,91 @@ public sealed class ClientRendererTests
         var archive = Assert.Single(plan.Archives!);
         Assert.Equal("Client/Packages", archive.RelativeDestinationPath);
         Assert.Contains("m_TuanjieEditorVersion", AssertPath(plan, "Client/ProjectSettings/ProjectVersion.txt").Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GodotClientRenderer_EngineResolvesArenaThemeAndKeepsControlsInViewport()
+    {
+        var godot = Environment.GetEnvironmentVariable("LAKONA_TEST_GODOT_EXECUTABLE");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(godot), "Set LAKONA_TEST_GODOT_EXECUTABLE to run the Godot layout check.");
+        var plan = Render(new GodotClientRenderer(), Spec(ClientEngine.Godot, TransportKind.WebSocket, SerializerKind.Json));
+        var directory = Path.Combine(Path.GetTempPath(), "lakona-godot-ui-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(directory, "Theme"));
+        try
+        {
+            // Layout and theme are file-backed; remove only the network script so this
+            // engine check does not need a server, NuGet restore, or a C# game build.
+            var scene = AssertPath(plan, "Client/Game.tscn").Content
+                .Replace("[ext_resource type=\"Script\" path=\"res://Scripts/Game/GameScene.cs\" id=\"1_game\"]", "", StringComparison.Ordinal)
+                .Replace("script = ExtResource(\"1_game\")", "", StringComparison.Ordinal);
+            await File.WriteAllTextAsync(Path.Combine(directory, "Game.tscn"), scene, TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(Path.Combine(directory, "Theme", "LakonaTheme.tres"), AssertPath(plan, "Client/Theme/LakonaTheme.tres").Content, TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(Path.Combine(directory, "project.godot"), AssertPath(plan, "Client/project.godot").Content, TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(Path.Combine(directory, "check.gd"), """
+                extends SceneTree
+                var failures = []
+                func require(condition, message):
+                    if not condition:
+                        failures.append(message)
+                func _initialize():
+                    call_deferred("check")
+                func check():
+                    var scene = load("res://Game.tscn").instantiate()
+                    root.add_child(scene)
+                    var play = scene.get_node("Ui/LoginPanel/VBox/Action/Play")
+                    var field = scene.get_node("Ui/LoginPanel/VBox/Action/Name")
+                    var hud = scene.get_node("Ui/Hud")
+                    for size in [Vector2i(800, 600), Vector2i(1200, 800), Vector2i(1600, 900)]:
+                        root.size = size
+                        hud.show()
+                        await process_frame
+                        await process_frame
+                        var viewport = Rect2(Vector2.ZERO, Vector2(size))
+                        var action = field.get_global_rect().merge(play.get_global_rect())
+                        require(viewport.encloses(action), "Login action outside viewport %s: %s" % [size, action])
+                        require(abs(action.get_center().x - size.x / 2.0) < 1, "Login action must be centered")
+                        require(abs(field.get_global_rect().end.x - play.get_global_rect().position.x) < 1, "Input and play button must join")
+                        require(viewport.encloses(hud.get_global_rect()), "HUD outside viewport %s" % size)
+                        for state in ["normal", "hover", "pressed", "disabled"]:
+                            var color = play.get_theme_stylebox(state).bg_color
+                            require(color.r > 0.9 and color.g < 0.45, "Play must use coral arena style: " + state)
+                        require(field.get_theme_color("font_color").r > 0.9, "Input must use cream arena text")
+                        require(hud.get_theme_stylebox("panel").border_color.r > 0.7, "HUD must use lime arena border")
+                        var before = play.get_global_rect()
+                        play.disabled = true
+                        play.text = "CONNECTING..."
+                        await process_frame
+                        await process_frame
+                        require(play.get_global_rect() == before, "Connecting must not shift button")
+                        play.text = "PLAY NOW"
+                        play.disabled = false
+                        print("Checked arena UI at ", size)
+                    for failure in failures:
+                        push_error(failure)
+                    quit(0 if failures.is_empty() else 1)
+                """, TestContext.Current.CancellationToken);
+            var start = new System.Diagnostics.ProcessStartInfo(godot!)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            foreach (var argument in new[] { "--headless", "--path", directory, "--script", "check.gd" })
+                start.ArgumentList.Add(argument);
+            using var process = System.Diagnostics.Process.Start(start)!;
+            var output = process.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);
+            var error = process.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(30));
+            try { await process.WaitForExitAsync(timeout.Token); }
+            catch (OperationCanceledException) { process.Kill(entireProcessTree: true); throw; }
+            Assert.True(process.ExitCode == 0, await output + await error);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     private static string PlayerPaletteSource(string source)

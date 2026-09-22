@@ -605,6 +605,15 @@ consumes at most one snapshot per frame. Older pending snapshots are
 superseded; events that require individual observation must use a distinct
 notification contract instead of being encoded as snapshot-delivery history.
 
+Godot and Unity share the arena's cream text, lime accents, coral play button,
+centered callsign row, and bottom HUD. Godot starts in a resizable 800×600
+window. Its file-backed scene uses a full-rect `Control` root so UI anchors
+resolve against the viewport, and theme variations declare `base_type` so
+controls resolve arena styles instead of falling back to engine defaults.
+The optional engine layout regression test uses `LAKONA_TEST_GODOT_EXECUTABLE`
+(the console executable on Windows) to verify colors and bounds across window
+sizes without starting a server.
+
 Godot UI should be file-backed. The default scene must not use C# `BuildUi`
 methods. Unity and Godot game visuals must use engine-provided drawing
 primitives and generated runtime textures only; default projects do not pack

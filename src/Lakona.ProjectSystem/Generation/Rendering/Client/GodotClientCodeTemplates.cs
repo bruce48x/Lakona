@@ -81,7 +81,7 @@ internal static class GodotClientCodeTemplates
 
         namespace Client.Game;
 
-        public partial class GameScene : Node2D
+        public partial class GameScene : Control
         {
             // Replace this provider to use Serilog, a game-engine logger, or another project-specific logger.
             private static readonly ILoggerFactory ClientLoggerFactory = LoggerFactory.Create(static logging =>

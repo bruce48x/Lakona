@@ -66,6 +66,12 @@ internal sealed class GodotClientRenderer : IClientRenderer
         run/main_scene="res://Game.tscn"
         config/features=PackedStringArray("{{ClientEngineVersions.Godot}}", "C#")
 
+        [display]
+
+        window/size/viewport_width=800
+        window/size/viewport_height=600
+        window/size/resizable=true
+
         [dotnet]
 
         project/assembly_name="Client"
