@@ -52,7 +52,7 @@ public sealed class RpcServerHost
         _serverLifecycleObservers = serverLifecycleObservers ?? Array.Empty<IRpcServerLifecycleObserver>();
     }
 
-    /// <summary>Runs the host until cancellation and then drains active Sessions.</summary>
+    /// <summary>Runs the host and drains active Sessions on cancellation or failure.</summary>
     /// <exception cref="RpcServerShutdownTimeoutException">
     ///     Thrown when cooperative Session cleanup exceeds the configured shutdown timeout.
     /// </exception>
@@ -61,6 +61,7 @@ public sealed class RpcServerHost
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var connectionTasks = new TrackedTaskCollection();
         var shutdownTimedOut = false;
+        Exception? runError = null;
 
         try
         {
@@ -102,38 +103,53 @@ public sealed class RpcServerHost
                     _logger.LogWarning(
                         "[{DisplayName}] Rejected because the active RPC connection limit is full.",
                         connection.DisplayName);
-                    await DisposeRejectedConnectionAsync(connection).ConfigureAwait(false);
+                    await DisposeRejectedTransportAsync(connection.Transport, connection.DisplayName).ConfigureAwait(false);
                     continue;
                 }
 
                 var connectionTask = RunAdmittedConnectionAsync(connection, cts.Token);
                 connectionTasks.Track(connectionTask);
             }
-
-            cts.Cancel();
-            using var shutdownDeadline = new CancellationTokenSource(_shutdownTimeout);
-            try
-            {
-                await connectionTasks.WaitAsync(shutdownDeadline.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (shutdownDeadline.IsCancellationRequested)
-            {
-                shutdownTimedOut = true;
-                var activeSessions = _activeSessions.Values.ToArray();
-                _logger.LogError(
-                    "RPC server shutdown exceeded {ShutdownTimeout}; aborting {ActiveSessionCount} active Session transport(s).",
-                    _shutdownTimeout,
-                    activeSessions.Length);
-                await AbortSessionsAsync(activeSessions, _shutdownTimeout).ConfigureAwait(false);
-                throw new RpcServerShutdownTimeoutException(_shutdownTimeout, activeSessions.Length);
-            }
+        }
+        catch (Exception exception)
+        {
+            runError = exception;
+            throw;
         }
         finally
         {
-            if (shutdownTimedOut)
-                _logger.LogWarning("Server run ended with incomplete Session cleanup after shutdown timeout.");
-            else
-                _logger.LogInformation("Server stopped.");
+            try
+            {
+                cts.Cancel();
+                using var shutdownDeadline = new CancellationTokenSource(_shutdownTimeout);
+                try
+                {
+                    await connectionTasks.WaitAsync(shutdownDeadline.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (shutdownDeadline.IsCancellationRequested)
+                {
+                    shutdownTimedOut = true;
+                    var activeSessions = _activeSessions.Values.ToArray();
+                    _logger.LogError(
+                        "RPC server shutdown exceeded {ShutdownTimeout}; aborting {ActiveSessionCount} active Session transport(s).",
+                        _shutdownTimeout,
+                        activeSessions.Length);
+                    await AbortSessionsAsync(activeSessions, _shutdownTimeout).ConfigureAwait(false);
+                    throw new RpcServerShutdownTimeoutException(_shutdownTimeout, activeSessions.Length);
+                }
+            }
+            catch (Exception cleanupError) when (runError is not null)
+            {
+                // Cleanup must not replace the failure that stopped the accept loop.
+                _logger.LogError(cleanupError, "RPC server cleanup failed after the host run failed.");
+            }
+            finally
+            {
+                if (shutdownTimedOut)
+                    _logger.LogWarning("Server run ended with incomplete Session cleanup after shutdown timeout.");
+                else
+                    _logger.LogInformation("Server stopped.");
+            }
         }
     }
 
@@ -203,18 +219,18 @@ public sealed class RpcServerHost
         _logger.LogInformation("[{DisplayName}] disconnected.", connection.DisplayName);
     }
 
-    private async ValueTask DisposeRejectedConnectionAsync(RpcAcceptedConnection connection)
+    private async ValueTask DisposeRejectedTransportAsync(ITransport transport, string displayName)
     {
         try
         {
-            await connection.Transport.DisposeAsync().ConfigureAwait(false);
+            await transport.DisposeAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             _logger.LogDebug(
                 ex,
                 "[{DisplayName}] Failed to dispose a rejected RPC connection.",
-                connection.DisplayName);
+                displayName);
         }
     }
 
@@ -241,6 +257,7 @@ public sealed class RpcServerHost
         var lifetimeTokens = new List<CancellationToken>(_sessionAdmissionGates.Count + 1) { hostCt };
         RpcSessionLifecycleContext? lifecycleContext = null;
         Exception? disconnectError = null;
+        ITransport? hostOwnedTransport = connection.Transport;
 
         try
         {
@@ -262,7 +279,6 @@ public sealed class RpcServerHost
                         ex,
                         "[{DisplayName}] RPC session admission gate failed.",
                         connection.DisplayName);
-                    await DisposeRejectedConnectionAsync(connection).ConfigureAwait(false);
                     return null;
                 }
 
@@ -272,7 +288,6 @@ public sealed class RpcServerHost
                         "[{DisplayName}] RPC session admission rejected: {Reason}.",
                         connection.DisplayName,
                         result.RejectionReason);
-                    await DisposeRejectedConnectionAsync(connection).ConfigureAwait(false);
                     return null;
                 }
 
@@ -287,6 +302,7 @@ public sealed class RpcServerHost
                 : CancellationTokenSource.CreateLinkedTokenSource(lifetimeTokens.ToArray());
             var sessionCt = sessionCts?.Token ?? hostCt;
             var transport = WrapSecurity(connection.Transport);
+            hostOwnedTransport = transport;
             var session = new RpcSession(
                 transport,
                 _serializer,
@@ -299,6 +315,7 @@ public sealed class RpcServerHost
                 limits: _limits,
                 requestGates: _requestGates,
                 remoteEndPoint: connection.RemoteEndPoint);
+            hostOwnedTransport = null; // The Session now owns transport cleanup.
             var sessionRegistered = false;
             try
             {
@@ -333,6 +350,9 @@ public sealed class RpcServerHost
         }
         finally
         {
+            if (hostOwnedTransport is not null)
+                await DisposeRejectedTransportAsync(hostOwnedTransport, connection.DisplayName).ConfigureAwait(false);
+
             for (var index = admissionLeases.Count - 1; index >= 0; index--)
             {
                 try

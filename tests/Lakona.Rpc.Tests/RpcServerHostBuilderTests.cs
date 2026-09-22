@@ -10,6 +10,139 @@ namespace Lakona.Rpc.Tests;
 
 public class RpcServerHostBuilderTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RunAsync_WhenAcceptorFails_CleansUpAndPreservesError(bool ignoreReceiveCancellation)
+    {
+        var transport = new BlockingTransport(ignoreReceiveCancellation);
+        var acceptor = new FailingConnectionAcceptor(transport);
+        var observer = new RecordingSessionLifecycleObserver();
+        using var cts = new CancellationTokenSource();
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(acceptor))
+            .UseSessionLifecycleObserver(observer)
+            .UseShutdownTimeout(TimeSpan.FromMilliseconds(100))
+            .ConfigureServices(_ => { })
+            .Build();
+        var run = host.RunAsync(cts.Token).AsTask();
+        try
+        {
+            await transport.ReceiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            acceptor.Fail.TrySetResult();
+
+            var error = await Assert.ThrowsAsync<IOException>(() => run.WaitAsync(TimeSpan.FromSeconds(2)));
+
+            Assert.Same(acceptor.Error, error);
+            Assert.Equal(1, transport.DisposeCount);
+            await observer.Disconnected.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Single(observer.DisconnectedContexts);
+        }
+        finally
+        {
+            cts.Cancel();
+            transport.CompleteReceive();
+        }
+    }
+
+    [Theory]
+    [InlineData("cancel")]
+    [InlineData("deny")]
+    [InlineData("throw")]
+    [InlineData("allow")]
+    public async Task RunAsync_AdmissionExit_ReleasesTransportAndLeaseExactlyOnce(string outcome)
+    {
+        var transport = new BlockingTransport();
+        var lease = new AdmissionLease();
+        var gate = new ControlledAdmissionGate(outcome);
+        var observer = new RecordingSessionLifecycleObserver();
+        using var cts = new CancellationTokenSource();
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(new JsonRpcSerializer())
+            .UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(
+                new HoldingSingleConnectionAcceptor(transport, "admission")))
+            .UseSessionAdmissionGate(new LeaseAdmissionGate(lease))
+            .UseSessionAdmissionGate(gate)
+            .UseSessionLifecycleObserver(observer)
+            .ConfigureServices(_ => { })
+            .Build();
+        var run = host.RunAsync(cts.Token).AsTask();
+        try
+        {
+            await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            if (outcome == "allow")
+                await transport.ReceiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            else if (outcome != "cancel")
+                await transport.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            cts.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.Equal(1, transport.DisposeCount);
+            Assert.Equal(1, lease.DisposeCount);
+            Assert.Equal(outcome == "allow" ? 1 : 0, observer.StartedContexts.Count);
+            Assert.Equal(outcome == "allow" ? 1 : 0, observer.DisconnectedContexts.Count);
+        }
+        finally
+        {
+            cts.Cancel();
+            transport.CompleteReceive();
+        }
+    }
+
+    private sealed class FailingConnectionAcceptor(ITransport transport) : IRpcConnectionAcceptor
+    {
+        private bool _accepted;
+        public string ListenAddress => "test://failing";
+        public IOException Error { get; } = new("Acceptor failed.");
+        public TaskCompletionSource Fail { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async ValueTask<RpcAcceptedConnection> AcceptAsync(CancellationToken ct = default)
+        {
+            if (!_accepted)
+            {
+                _accepted = true;
+                return new RpcAcceptedConnection(transport, "failing");
+            }
+            await Fail.Task.WaitAsync(ct);
+            throw Error;
+        }
+
+        public ValueTask DisposeAsync() => default;
+    }
+
+    private sealed class AdmissionLease : IAsyncDisposable
+    {
+        public int DisposeCount { get; private set; }
+        public ValueTask DisposeAsync()
+        {
+            DisposeCount++;
+            return default;
+        }
+    }
+
+    private sealed class LeaseAdmissionGate(AdmissionLease lease) : IRpcSessionAdmissionGate
+    {
+        public ValueTask<RpcSessionAdmissionResult> EvaluateAsync(
+            RpcSessionAdmissionContext context, CancellationToken cancellationToken = default) =>
+            new ValueTask<RpcSessionAdmissionResult>(RpcSessionAdmissionResult.Allow(lease: lease));
+    }
+
+    private sealed class ControlledAdmissionGate(string outcome) : IRpcSessionAdmissionGate
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async ValueTask<RpcSessionAdmissionResult> EvaluateAsync(
+            RpcSessionAdmissionContext context, CancellationToken cancellationToken = default)
+        {
+            Entered.TrySetResult();
+            if (outcome == "cancel")
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            if (outcome == "throw")
+                throw new IOException("Admission failed.");
+            return outcome == "deny" ? RpcSessionAdmissionResult.Deny("test") : RpcSessionAdmissionResult.Allow();
+        }
+    }
+
     [Fact]
     public void UseCommandLine_ParsesPortCompressionAndEncryption()
     {
@@ -190,7 +323,7 @@ public class RpcServerHostBuilderTests
     {
         var builder = RpcServerHostBuilder.Create()
             .UseSerializer(new JsonRpcSerializer())
-            .UseAcceptor(_ => ValueTask.FromResult<IRpcConnectionAcceptor>(new NoopConnectionAcceptor()))
+            .UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(new NoopConnectionAcceptor()))
             .ConfigureServices(_ => { });
 
         var host = builder.Build();
@@ -358,7 +491,7 @@ public class RpcServerHostBuilderTests
 
         var host = RpcServerHostBuilder.Create()
             .UseSerializer(new JsonRpcSerializer())
-            .UseAcceptor(_ => ValueTask.FromResult<IRpcConnectionAcceptor>(acceptor))
+            .UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(acceptor))
             .UseSessionLifecycleObserver(observer)
             .ConfigureServices(_ => { })
             .Build();
@@ -1042,8 +1175,9 @@ public class RpcServerHostBuilderTests
         }
     }
 
-    private sealed class BlockingTransport : ITransport
+    private sealed class BlockingTransport(bool ignoreReceiveCancellation = false) : ITransport
     {
+        public int DisposeCount { get; private set; }
         private readonly TaskCompletionSource<TransportFrame> _receiveCompletion =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -1069,7 +1203,7 @@ public class RpcServerHostBuilderTests
         public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
         {
             ReceiveStarted.TrySetResult();
-            return await _receiveCompletion.Task.WaitAsync(ct);
+            return await _receiveCompletion.Task.WaitAsync(ignoreReceiveCancellation ? CancellationToken.None : ct);
         }
 
         public void CompleteReceive()
@@ -1079,7 +1213,10 @@ public class RpcServerHostBuilderTests
 
         public ValueTask DisposeAsync()
         {
+            DisposeCount++;
             IsConnected = false;
+            if (ignoreReceiveCancellation)
+                CompleteReceive();
             Disposed.TrySetResult();
             return default;
         }

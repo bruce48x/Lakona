@@ -161,7 +161,7 @@ unexpected keepalive failure cancels the receive loop and becomes the terminal
 disconnect reason. No Session-owned task handle is discarded while its task can
 still access Session resources.
 
-Host cancellation starts a cooperative Session drain under one host-wide
+Host cancellation or failure starts a cooperative Session drain under one host-wide
 shutdown deadline. `RpcServerHostBuilder.UseShutdownTimeout` configures that
 deadline; the default is 15 seconds. If active Sessions do not finish in time,
 the host aborts their transports and throws `RpcServerShutdownTimeoutException`
@@ -172,6 +172,12 @@ forced transport-abort join uses the same configured duration as its maximum
 cleanup window, so a transport that also refuses disposal cannot restore an
 unbounded wait. The application composition root treats the timeout as terminal
 and owns any final process-termination policy.
+
+When the host has already failed, it preserves the original exception after
+cleanup and logs any additional shutdown failure, including a drain timeout.
+The host owns each accepted transport until a Session takes ownership; admission
+cancellation, rejection, and failure all dispose the transport and release any
+previously acquired admission leases without emitting Session lifecycle events.
 
 Protocol-specific meanings such as "Game Handshake complete" remain above RPC.
 RPC supplies the enforcement and cancellation mechanism; Lakona.Game owns its
