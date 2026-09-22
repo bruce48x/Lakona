@@ -3,7 +3,6 @@ namespace Lakona.Rpc.Core;
 internal sealed class RpcKeepAliveCoordinator
 {
     private readonly RpcKeepAliveOptions _keepAlive;
-    private readonly bool _markTimedOut;
     private readonly Action<Exception> _onTimedOut;
     private readonly SerializedFrameSender _sender;
     private readonly RpcKeepAliveState _state;
@@ -16,8 +15,7 @@ internal sealed class RpcKeepAliveCoordinator
         RpcKeepAliveState state,
         RpcKeepAliveOptions keepAlive,
         string timeoutMessage,
-        Action<Exception> onTimedOut,
-        bool markTimedOut)
+        Action<Exception> onTimedOut)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         _sender = sender ?? throw new ArgumentNullException(nameof(sender));
@@ -25,7 +23,6 @@ internal sealed class RpcKeepAliveCoordinator
         _keepAlive = keepAlive ?? throw new ArgumentNullException(nameof(keepAlive));
         _timeoutMessage = timeoutMessage ?? throw new ArgumentNullException(nameof(timeoutMessage));
         _onTimedOut = onTimedOut ?? throw new ArgumentNullException(nameof(onTimedOut));
-        _markTimedOut = markTimedOut;
     }
 
     public async Task RunAsync(CancellationToken ct)
@@ -52,8 +49,7 @@ internal sealed class RpcKeepAliveCoordinator
                 case RpcKeepAliveAction.None:
                     continue;
                 case RpcKeepAliveAction.TimedOut:
-                    if (_markTimedOut)
-                        _state.MarkTimedOut();
+                    _state.MarkTimedOut();
                     _onTimedOut(new TimeoutException(_timeoutMessage));
                     return;
                 case RpcKeepAliveAction.SendPing:

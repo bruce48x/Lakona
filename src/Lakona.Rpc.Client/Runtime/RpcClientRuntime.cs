@@ -86,7 +86,6 @@ namespace Lakona.Rpc.Client
             _configuredDispatchContext = context;
             _hasConfiguredDispatchContext = true;
         }
-        private readonly System.Collections.Concurrent.ConcurrentDictionary<Task, byte> _activePushes = new();
         private Exception? _disconnectReason;
 
         /// <summary>
@@ -521,18 +520,8 @@ namespace Lakona.Rpc.Client
         {
             if (_dispatchCts.IsCancellationRequested) { message.Dispose(); return; }
             if (message is RpcResponseFrame response) { _pending.Complete(response); return; }
-            var task = ProcessPushAsync((RpcPushFrame)message);
-            if (!task.IsCompleted)
-            {
-                _activePushes.TryAdd(task, 0);
-                _ = ObservePushAsync(task);
-            }
-        }
-
-        private async Task ObservePushAsync(Task task)
-        {
-            try { await task.ConfigureAwait(false); }
-            finally { _activePushes.TryRemove(task, out _); }
+            // Processing owns the frame and reports handler failures; disposal does not join business handlers.
+            _ = ProcessPushAsync((RpcPushFrame)message);
         }
 
         private async Task ProcessPushAsync(RpcPushFrame push)

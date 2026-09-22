@@ -116,8 +116,7 @@ public sealed class RpcConnectionChannel : IDisposable
             _keepAliveState,
             _keepAlive,
             timeoutMessage,
-            onTimedOut,
-            markTimedOut: true);
+            onTimedOut);
         return coordinator.RunAsync(ct);
     }
 

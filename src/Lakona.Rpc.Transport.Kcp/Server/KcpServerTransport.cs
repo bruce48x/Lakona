@@ -22,7 +22,6 @@ namespace Lakona.Rpc.Transport.Kcp
         private readonly EndPoint _remote;
         private readonly Socket _socket;
         private readonly LengthPrefixedFrameAccumulator _accumulator = new();
-        private readonly CancellationTokenSource _cts = new();
         private IKcpUpdateRegistration? _updateRegistration;
         private ExceptionDispatchInfo? _terminalFailure;
         private int _isConnected;
@@ -138,14 +137,6 @@ namespace Lakona.Rpc.Transport.Kcp
             if (Interlocked.Exchange(ref _disposed, 1) != 0)
                 return;
 
-            try
-            {
-                _cts.Cancel();
-            }
-            catch (ObjectDisposedException)
-            {
-            }
-
             _updateRegistration?.Dispose();
             _updateRegistration = null;
             lock (_kcpGate)
@@ -155,14 +146,6 @@ namespace Lakona.Rpc.Transport.Kcp
                 _receiveSignal.Release();
             }
             catch (SemaphoreFullException)
-            {
-            }
-
-            try
-            {
-                _cts.Dispose();
-            }
-            catch (ObjectDisposedException)
             {
             }
 
