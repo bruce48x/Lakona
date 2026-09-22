@@ -97,8 +97,6 @@ public sealed partial class LakonaRpcSourceGenerator
         public List<RpcParameterModel> Parameters { get; }
         public bool ReturnsValueTask { get; }
         public bool AcceptsCancellationToken => Parameters.Count == 2 && Parameters[1].IsCancellationToken;
-        public bool HasTrailingDefaultCancellationToken =>
-            AcceptsCancellationToken && Parameters[1].HasDefaultValue;
         public string PayloadType => Parameters[0].TypeName;
         public string PayloadValue => Parameters[0].Name;
     }
@@ -108,19 +106,16 @@ public sealed partial class LakonaRpcSourceGenerator
         public RpcParameterModel(
             string typeName,
             string name,
-            bool isCancellationToken,
-            bool hasDefaultValue)
+            bool isCancellationToken)
         {
             TypeName = typeName;
             Name = name;
             IsCancellationToken = isCancellationToken;
-            HasDefaultValue = hasDefaultValue;
         }
 
         public string TypeName { get; }
         public string Name { get; }
         public bool IsCancellationToken { get; }
-        public bool HasDefaultValue { get; }
     }
 
     private sealed class FacadeGroupModel

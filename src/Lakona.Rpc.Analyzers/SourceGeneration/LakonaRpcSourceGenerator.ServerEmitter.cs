@@ -76,8 +76,6 @@ public sealed partial class LakonaRpcSourceGenerator
 
         public static string GenerateNotificationProxy(RpcServiceModel service, string generatedNamespace)
         {
-            var emitsFrameworkTerminationNotification = service.NotificationMethods
-                .Any(method => IsFrameworkSessionTerminationNotification(service, method));
             var writer = new SourceWriter();
             writer.Header();
             writer.Line("using System;");
@@ -85,11 +83,6 @@ public sealed partial class LakonaRpcSourceGenerator
             writer.Line("using System.Threading.Tasks;");
             writer.Line("using System.Text.Json;");
             writer.Line("using Lakona.Rpc.Core;");
-            if (emitsFrameworkTerminationNotification)
-            {
-                writer.Line("using Lakona.Game.Abstractions;");
-                writer.Line("using Lakona.Game.Abstractions.Sessions;");
-            }
             writer.Line($"using {ServerRuntimeUsing};");
             writer.Line();
             writer.OpenBlock($"namespace {generatedNamespace}");
@@ -106,18 +99,7 @@ public sealed partial class LakonaRpcSourceGenerator
                 else
                     writer.OpenBlock($"public void {method.Name}({Naming.GetParameterSignature(method.Parameters)})");
 
-                if (IsFrameworkSessionTerminationNotification(service, method))
-                {
-                    writer.Line($"var payload = LakonaInternalCodec.EncodeSessionTerminationNotice({method.PayloadValue});");
-                    writer.Line("return _notifications.SendRawAsync(");
-                    writer.Line("    GameSessionNotificationRpcIds.ServiceId,");
-                    writer.Line("    GameSessionNotificationRpcIds.TerminatedNotificationId,");
-                    writer.Line("    payload,");
-                    writer.Line(method.AcceptsCancellationToken
-                        ? "    metadata: null, cancellationToken: cancellationToken);"
-                        : "    metadata: null, cancellationToken: default);");
-                }
-                else if (method.ReturnsValueTask)
+                if (method.ReturnsValueTask)
                     writer.Line(method.AcceptsCancellationToken
                         ? $"return _notifications.SendAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue}, cancellationToken: cancellationToken);"
                         : $"return _notifications.SendAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue});");
@@ -136,16 +118,7 @@ public sealed partial class LakonaRpcSourceGenerator
             {
                 writer.Line($"case {method.MethodId}:");
                 writer.Indent();
-                if (IsFrameworkSessionTerminationNotification(service, method))
-                {
-                    writer.Line($"var typedPayload{method.MethodId} = ({method.PayloadType})(object)payload!;");
-                    writer.Line($"var encodedPayload{method.MethodId} = LakonaInternalCodec.EncodeSessionTerminationNotice(typedPayload{method.MethodId});");
-                    writer.Line($"return _notifications.SendRawAsync(GameSessionNotificationRpcIds.ServiceId, GameSessionNotificationRpcIds.TerminatedNotificationId, encodedPayload{method.MethodId}, metadata, cancellationToken);");
-                }
-                else
-                {
-                    writer.Line($"return _notifications.SendAsync<{method.PayloadType}>(serviceId, methodId, ({method.PayloadType})(object)payload!, metadata, cancellationToken);");
-                }
+                writer.Line($"return _notifications.SendAsync<{method.PayloadType}>(serviceId, methodId, ({method.PayloadType})(object)payload!, metadata, cancellationToken);");
                 writer.Unindent();
             }
 
@@ -166,15 +139,7 @@ public sealed partial class LakonaRpcSourceGenerator
                 writer.Line($"case {method.MethodId}:");
                 writer.Indent();
                 writer.Line($"var {payloadVariable} = JsonSerializer.Deserialize<{method.PayloadType}>(payload.Span)!;");
-                if (IsFrameworkSessionTerminationNotification(service, method))
-                {
-                    writer.Line($"var encodedPayload{method.MethodId} = LakonaInternalCodec.EncodeSessionTerminationNotice({payloadVariable});");
-                    writer.Line($"return _notifications.SendRawAsync(GameSessionNotificationRpcIds.ServiceId, GameSessionNotificationRpcIds.TerminatedNotificationId, encodedPayload{method.MethodId}, metadata, cancellationToken);");
-                }
-                else
-                {
-                    writer.Line($"return _notifications.SendAsync<{method.PayloadType}>(serviceId, methodId, {payloadVariable}, metadata, cancellationToken);");
-                }
+                writer.Line($"return _notifications.SendAsync<{method.PayloadType}>(serviceId, methodId, {payloadVariable}, metadata, cancellationToken);");
                 writer.Unindent();
             }
 
@@ -188,28 +153,6 @@ public sealed partial class LakonaRpcSourceGenerator
             writer.CloseBlock();
             return writer.ToString();
         }
-
-        private static bool IsFrameworkSessionTerminationNotification(
-            RpcServiceModel service,
-            RpcNotificationMethodModel method)
-        {
-            return method.ReturnsValueTask &&
-                method.HasTrailingDefaultCancellationToken &&
-                string.Equals(
-                    NormalizeGlobalName(service.NotificationContractFullName),
-                    "Lakona.Game.Abstractions.ILakonaGameSessionCallback",
-                    StringComparison.Ordinal) &&
-                string.Equals(method.Name, "OnSessionTerminatedAsync", StringComparison.Ordinal) &&
-                string.Equals(
-                    NormalizeGlobalName(method.PayloadType),
-                    "Lakona.Game.Abstractions.SessionTerminationNotice",
-                    StringComparison.Ordinal);
-        }
-
-        private static string? NormalizeGlobalName(string? typeName) =>
-            typeName is not null && typeName.StartsWith("global::", StringComparison.Ordinal)
-                ? typeName.Substring("global::".Length)
-                : typeName;
 
         public static string GenerateAllServicesBinder(List<RpcServiceModel> services, string generatedNamespace)
         {

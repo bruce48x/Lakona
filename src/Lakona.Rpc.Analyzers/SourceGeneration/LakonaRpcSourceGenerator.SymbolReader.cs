@@ -183,8 +183,7 @@ public sealed partial class LakonaRpcSourceGenerator
                 .Select(static parameter => new RpcParameterModel(
                     TypeName(parameter.Type),
                     parameter.Name,
-                    isCancellationToken: IsCancellationToken(parameter.Type),
-                    hasDefaultValue: parameter.IsOptional || parameter.HasExplicitDefaultValue))
+                    isCancellationToken: IsCancellationToken(parameter.Type)))
                 .ToList();
         }
 
@@ -200,8 +199,7 @@ public sealed partial class LakonaRpcSourceGenerator
                 .Select(static parameter => new RpcParameterModel(
                     TypeName(parameter.Type),
                     parameter.Name,
-                    isCancellationToken: IsCancellationToken(parameter.Type),
-                    hasDefaultValue: parameter.IsOptional || parameter.HasExplicitDefaultValue))
+                    isCancellationToken: IsCancellationToken(parameter.Type)))
                 .ToList();
         }
 

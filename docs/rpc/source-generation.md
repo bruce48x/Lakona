@@ -197,10 +197,19 @@ change their visibility.
 | `.Options.cs` | Configuration precedence, project roles, and automatic mode selection |
 | `.SymbolReader.cs` | Contract discovery, symbol reading, and validation |
 | `.ClientEmitter.cs` | RPC clients, facades, notification binders, and the Game client wrapper |
-| `.ServerEmitter.cs` | Service binders, notification proxies, and the existing Game control-notification adaptation |
+| `.ServerEmitter.cs` | Service binders and notification proxies |
 | `.Models.cs` | Contract and facade data passed between reading and emission |
 | `.Naming.cs` | Generated identifiers and parameter signatures |
 | `.SourceWriter.cs` | Source text formatting and indentation |
 
-All suffixes belong to `LakonaRpcSourceGenerator`. Game-specific output remains
-in the corresponding client and server emitters.
+All suffixes belong to `LakonaRpcSourceGenerator`. The opt-in Game client wrapper
+remains in the client emitter.
+
+Notification proxies use the declared service and notification ids and the
+configured RPC serializer, regardless of interface names or whether a trailing
+cancellation token has a default value. The JSON command-dispatch entry point
+still deserializes the command payload before using the same typed send path.
+Game framework control notifications are owned by Game: the server sends their
+fixed ids and `LakonaInternalCodec` payloads through `SendRawAsync`, and the Game
+client registers the matching raw handlers. The RPC generator does not infer
+this protocol from callback type or method names.

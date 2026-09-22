@@ -345,11 +345,15 @@ public sealed class LakonaRpcSourceGeneratorTests
 
     }
 
-    [Fact]
-    public void SourceGenerator_FrameworkSessionCallbackProxy_UsesInternalCodecForTerminationNotice()
+    [Theory]
+    [InlineData(FrameworkSessionCallbackContractSource, true)]
+    [InlineData(FrameworkSessionCallbackWithoutCancellationTokenSource, false)]
+    [InlineData(FrameworkSessionCallbackRequiredCancellationTokenSource, true)]
+    public void SourceGenerator_NotificationProxy_UsesDeclaredContractEvenForFrameworkTypeNames(
+        string source, bool acceptsCancellationToken)
     {
         var runResult = AnalyzerTestHelpers.RunGenerator(
-            AnalyzerTestHelpers.CreateCompilation(FrameworkSessionCallbackContractSource),
+            AnalyzerTestHelpers.CreateCompilation(source),
             new Dictionary<string, string>
             {
                 ["build_property.LakonaRpcGenerateServer"] = "true",
@@ -361,60 +365,13 @@ public sealed class LakonaRpcSourceGeneratorTests
         Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
 
         var proxy = GetGeneratedSource(runResult, "LakonaGameSessionCallbackProxy.g.cs");
-        Assert.Contains("using Lakona.Game.Abstractions;", proxy);
-        Assert.Contains("using Lakona.Game.Abstractions.Sessions;", proxy);
-        Assert.Contains(
-            "var payload = LakonaInternalCodec.EncodeSessionTerminationNotice(notice);",
-            proxy);
-        Assert.Contains("_notifications.SendRawAsync(", proxy);
-        Assert.Contains("GameSessionNotificationRpcIds.ServiceId", proxy);
-        Assert.Contains("GameSessionNotificationRpcIds.TerminatedNotificationId", proxy);
-        Assert.DoesNotContain("SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>", proxy);
-    }
-
-    [Fact]
-    public void SourceGenerator_FrameworkSessionCallbackProxy_DoesNotUseInternalCodecForNonExactTerminationSignature()
-    {
-        var runResult = AnalyzerTestHelpers.RunGenerator(
-            AnalyzerTestHelpers.CreateCompilation(FrameworkSessionCallbackWithoutCancellationTokenSource),
-            new Dictionary<string, string>
-            {
-                ["build_property.LakonaRpcGenerateServer"] = "true",
-                ["build_property.LakonaRpcServerGeneratedNamespace"] = "Server.Generated"
-            },
-            out var outputCompilation);
-
-        Assert.Empty(runResult.Diagnostics);
-        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
-
-        var proxy = GetGeneratedSource(runResult, "LakonaGameSessionCallbackProxy.g.cs");
-        Assert.Contains(
-            "return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(ServiceId, 9, notice);",
-            proxy);
-        Assert.DoesNotContain("SendRawAsync", proxy);
-        Assert.DoesNotContain("LakonaInternalCodec", proxy);
-        Assert.DoesNotContain("GameSessionNotificationRpcIds", proxy);
-    }
-
-    [Fact]
-    public void SourceGenerator_FrameworkSessionCallbackProxy_DoesNotUseInternalCodecForRequiredCancellationToken()
-    {
-        var runResult = AnalyzerTestHelpers.RunGenerator(
-            AnalyzerTestHelpers.CreateCompilation(FrameworkSessionCallbackRequiredCancellationTokenSource),
-            new Dictionary<string, string>
-            {
-                ["build_property.LakonaRpcGenerateServer"] = "true",
-                ["build_property.LakonaRpcServerGeneratedNamespace"] = "Server.Generated"
-            },
-            out var outputCompilation);
-
-        Assert.Empty(runResult.Diagnostics);
-        Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
-
-        var proxy = GetGeneratedSource(runResult, "LakonaGameSessionCallbackProxy.g.cs");
-        Assert.Contains(
-            "return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(ServiceId, 9, notice, cancellationToken: cancellationToken);",
-            proxy);
+        Assert.Contains("private const int ServiceId = 5;", proxy);
+        Assert.Contains(acceptsCancellationToken
+            ? "return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(ServiceId, 9, notice, cancellationToken: cancellationToken);"
+            : "return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(ServiceId, 9, notice);", proxy);
+        Assert.Contains("return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(serviceId, methodId, (global::Lakona.Game.Abstractions.SessionTerminationNotice)(object)payload!, metadata, cancellationToken);", proxy);
+        Assert.Contains("JsonSerializer.Deserialize<global::Lakona.Game.Abstractions.SessionTerminationNotice>(payload.Span)", proxy);
+        Assert.Contains("return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(serviceId, methodId, notificationPayload9, metadata, cancellationToken);", proxy);
         Assert.DoesNotContain("SendRawAsync", proxy);
         Assert.DoesNotContain("LakonaInternalCodec", proxy);
         Assert.DoesNotContain("GameSessionNotificationRpcIds", proxy);
