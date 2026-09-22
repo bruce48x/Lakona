@@ -117,11 +117,12 @@ namespace Lakona.Rpc.Core
             ValidateFieldLength(payloadLen);
             EnsureRemaining(span, offset, payloadLen);
 
-            var payload = data.Slice(offset, payloadLen);
+            var payloadOffset = offset;
             offset += payloadLen;
             if (offset != data.Length)
                 throw new InvalidOperationException("Request envelope has extra trailing bytes.");
 
+            var payload = data.Slice(payloadOffset, payloadLen);
             return new RpcRequestFrame(requestId, serviceId, methodId, payload);
         }
 
@@ -281,7 +282,7 @@ namespace Lakona.Rpc.Core
             var payloadLen = ReadInt32(span, ref offset);
             ValidateFieldLength(payloadLen);
             EnsureRemaining(span, offset, payloadLen);
-            var payload = data.Slice(offset, payloadLen);
+            var payloadOffset = offset;
             offset += payloadLen;
 
             var hasError = ReadByte(span, ref offset) != 0;
@@ -294,6 +295,7 @@ namespace Lakona.Rpc.Core
             if (offset != data.Length)
                 throw new InvalidOperationException("Response envelope has extra trailing bytes.");
 
+            var payload = data.Slice(payloadOffset, payloadLen);
             return new RpcResponseFrame(requestId, status, payload, error);
         }
 

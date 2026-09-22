@@ -118,6 +118,11 @@ final owned frame; it does not allocate a standalone payload frame for the
 runtime to copy. Decoded payload and push-metadata bytes remain owned slices of
 the received frame for the lifetime of their decoded frame object.
 
+Envelope decoders borrow their input and validate the complete envelope before
+creating owned slices. Rejected input must not retain any new buffer lease or
+consume the caller's frame. Successful results retain their slices independently
+until disposed, even when the caller has already released the input frame.
+
 Each non-empty `TransportFrame` instance owns one lease over its shared buffer.
 `Slice` creates an independent lease, and disposing either handle releases only
 that handle once. Access through a disposed non-empty handle throws
