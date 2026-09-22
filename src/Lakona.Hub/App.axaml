@@ -20,6 +20,8 @@
           <SolidColorBrush x:Key="HubBrush.Overlay" Color="#B8000000" />
           <SolidColorBrush x:Key="HubBrush.Accent" Color="#EFBE3E" />
           <SolidColorBrush x:Key="HubBrush.AccentHover" Color="#F7CE62" />
+          <!-- Text on surfaces: keep brand gold on dark; light uses HubBrush.TextAccent. -->
+          <SolidColorBrush x:Key="HubBrush.TextAccent" Color="#EFBE3E" />
           <SolidColorBrush x:Key="HubBrush.TextPrimary" Color="#F2F1ED" />
           <SolidColorBrush x:Key="HubBrush.TextSecondary" Color="#ECEAE3" />
           <SolidColorBrush x:Key="HubBrush.TextMuted" Color="#B0AFAA" />
@@ -48,39 +50,42 @@
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Light">
-          <SolidColorBrush x:Key="HubBrush.Window" Color="#F7F8FA" />
-          <SolidColorBrush x:Key="HubBrush.Sidebar" Color="#EEF1F4" />
+          <!-- Light: warm paper canvas so white cards lift and brand gold stays cohesive. -->
+          <SolidColorBrush x:Key="HubBrush.Window" Color="#F2EFE8" />
+          <SolidColorBrush x:Key="HubBrush.Sidebar" Color="#E9E4DA" />
           <SolidColorBrush x:Key="HubBrush.Surface" Color="#FFFFFF" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceRaised" Color="#F1F3F5" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceHover" Color="#E9EDF1" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceListHover" Color="#F3F5F7" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceSelected" Color="#FFF6DC" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceRaised" Color="#EDE8DE" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceHover" Color="#E8E2D6" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceListHover" Color="#EDE7DB" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceSelected" Color="#F8ECC8" />
           <SolidColorBrush x:Key="HubBrush.SurfaceFeedback" Color="#FFF8E7" />
           <SolidColorBrush x:Key="HubBrush.SurfaceAccentMuted" Color="#FFF3CC" />
           <SolidColorBrush x:Key="HubBrush.Overlay" Color="#73000000" />
           <SolidColorBrush x:Key="HubBrush.Accent" Color="#EFBE3E" />
           <SolidColorBrush x:Key="HubBrush.AccentHover" Color="#F7CE62" />
-          <SolidColorBrush x:Key="HubBrush.TextPrimary" Color="#191B1F" />
-          <SolidColorBrush x:Key="HubBrush.TextSecondary" Color="#30343A" />
-          <SolidColorBrush x:Key="HubBrush.TextMuted" Color="#69717B" />
+          <!-- Brand gold stays on Accent fills; text uses a darker gold for AA contrast. -->
+          <SolidColorBrush x:Key="HubBrush.TextAccent" Color="#7A5C12" />
+          <SolidColorBrush x:Key="HubBrush.TextPrimary" Color="#1C1814" />
+          <SolidColorBrush x:Key="HubBrush.TextSecondary" Color="#3A342C" />
+          <SolidColorBrush x:Key="HubBrush.TextMuted" Color="#5C5348" />
           <SolidColorBrush x:Key="HubBrush.TextOnAccent" Color="#17130A" />
           <SolidColorBrush x:Key="HubBrush.TextError" Color="#A52A2A" />
           <SolidColorBrush x:Key="HubBrush.Danger" Color="#B3261E" />
-          <SolidColorBrush x:Key="HubBrush.BorderSidebar" Color="#D8DDE3" />
-          <SolidColorBrush x:Key="HubBrush.BorderCard" Color="#DCE1E7" />
-          <SolidColorBrush x:Key="HubBrush.BorderSubtle" Color="#E3E7EB" />
-          <SolidColorBrush x:Key="HubBrush.BorderDefault" Color="#B8C0C9" />
+          <SolidColorBrush x:Key="HubBrush.BorderSidebar" Color="#C9C0B0" />
+          <SolidColorBrush x:Key="HubBrush.BorderCard" Color="#C4BBA8" />
+          <SolidColorBrush x:Key="HubBrush.BorderSubtle" Color="#D0C8B8" />
+          <SolidColorBrush x:Key="HubBrush.BorderDefault" Color="#7A7264" />
           <SolidColorBrush x:Key="HubBrush.BorderAccentMuted" Color="#6F5923" />
           <SolidColorBrush x:Key="HubBrush.BorderAccent" Color="#B68E2F" />
           <SolidColorBrush x:Key="HubBrush.WindowBorderActive" Color="#C7EFBE3E" />
           <SolidColorBrush x:Key="HubBrush.WindowBorderInactive" Color="#52EFBE3E" />
           <LinearGradientBrush x:Key="HubBrush.SidebarGradient" StartPoint="0%,0%" EndPoint="0%,100%">
-            <GradientStop Color="#F4F6F8" Offset="0" />
-            <GradientStop Color="#E9EDF1" Offset="1" />
+            <GradientStop Color="#EDE8DE" Offset="0" />
+            <GradientStop Color="#E2DCCF" Offset="1" />
           </LinearGradientBrush>
           <RadialGradientBrush x:Key="HubBrush.DialogGradient">
             <GradientStop Color="#FFFFFF" Offset="0" />
-            <GradientStop Color="#F4F6F8" Offset="1" />
+            <GradientStop Color="#F2EFE8" Offset="1" />
           </RadialGradientBrush>
           <Color x:Key="SystemAccentColor">#EFBE3E</Color>
           <Color x:Key="SystemAccentColorLight1">#F7CE62</Color>

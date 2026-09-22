@@ -45,7 +45,7 @@
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextMuted}" />
     </Style>
     <Style Selector="TextBlock.gold">
-      <Setter Property="Foreground" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextAccent}" />
     </Style>
     <Style Selector="TextBlock.metadata">
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Metadata}" />
@@ -177,7 +177,7 @@
     </Style>
     <Style Selector="Button.nav.selected">
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceSelected}" />
-      <Setter Property="Foreground" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextAccent}" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
       <Setter Property="BorderThickness" Value="4,0,0,0" />
@@ -220,7 +220,7 @@
       <Setter Property="Background" Value="{DynamicResource HubBrush.AccentHover}" />
     </Style>
     <Style Selector="Button:disabled">
-      <Setter Property="Opacity" Value="0.58" />
+      <Setter Property="Opacity" Value="0.72" />
     </Style>
     <Style Selector="Button:focus-visible /template/ ContentPresenter">
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
@@ -308,7 +308,7 @@
       <Setter Property="Width" Value="{DynamicResource HubControl.Width.Browse}" />
       <Setter Property="Height" Value="{DynamicResource HubControl.Height.Field}" />
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceRaised}" />
-      <Setter Property="Foreground" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextAccent}" />
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderAccentMuted}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Control}" />
@@ -331,7 +331,7 @@
     <Style Selector="Button.back:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceHover}" />
       <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
-      <Setter Property="Foreground" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextAccent}" />
     </Style>
     <Style Selector="ListBox.project-list">
       <Setter Property="Background" Value="Transparent" />
