@@ -15,6 +15,18 @@ service implementation classes, and notification contracts.
 This distinction keeps the ecosystem open where official packages are
 necessarily limited without exposing low-level server runtime internals.
 
+## Reading By Task
+
+| Task | Relevant layers |
+| --- | --- |
+| Build an application or service | [Stable User API](#stable-user-api) |
+| Implement a transport, serializer, or acceptor | [Stable Extension API](#stable-extension-api); [Protocol and Infrastructure API](#protocol-and-infrastructure-api) for framing tools |
+| Integrate a higher-level framework | [Framework Integration API](#framework-integration-api) |
+| Maintain runtime packages or generated glue | [Runtime Package Cooperation API](#runtime-package-cooperation-api), [Generated-Support API](#generated-support-api), and [Runtime Internal API](#runtime-internal-api) |
+
+Visibility alone does not identify a supported application extension point;
+the layer below defines the compatibility commitment and intended use.
+
 ## Rationale
 
 Official transport and serializer packages cannot cover every project

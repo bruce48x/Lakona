@@ -66,4 +66,4 @@ var assignedConv = new KcpTransport("127.0.0.1", 20001, conversationId: 1234);
 
 Pass a cancellation token to `ConnectAsync` to cancel establishment early.
 Bootstrap deadlines, rejection errors, and connection identity are defined in
-the [transport lifecycle contract](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/architecture.md#transport-and-serializer-are-replaceable).
+the [transport lifecycle contract](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/transport-contract.md#kcp).

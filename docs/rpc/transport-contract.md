@@ -60,6 +60,64 @@ Transport-specific behavior remains relevant:
 | KCP | Client performs the bounded bootstrap; accepted server initialization may already have occurred in the listener. UDP supplies no peer-close signal, so silent peer loss needs RPC keepalive. Sending synchronously queues owned bytes into KCP. |
 | Loopback | Initialization activates an endpoint of one shared pair. Disposing either endpoint closes both directions and wakes waiting readers/writers. A closed pair cannot become a new connection. |
 
+## Official Transport Behavior
+
+### KCP
+
+The KCP server listener shares one UDP receive loop across connections, but it
+must not eagerly drain decoded KCP messages into a separate application frame
+queue. Datagram input remains in KCP's bounded per-connection receive window
+until that connection's `ReceiveFrameAsync` caller requests the next frame. A
+slow RPC Session therefore closes its advertised KCP receive window without
+blocking the shared listener, retaining an unbounded number of decoded frames,
+or delaying unrelated connections. The listener also does not invoke arbitrary
+application admission while receiving datagrams, so new handshakes cannot hold
+up traffic for established connections.
+
+KCP background faults are terminal at their smallest owner. An unexpected
+listener receive-loop failure closes the listener's accept boundary with the
+original cause so endpoint supervision can stop cleanly. A scheduled update
+failure removes only that connection's registration, transitions its transport
+to disconnected, and wakes pending receive work with the original cause.
+Schedulers do not retry or log transport failures; RPC Session and host owners
+provide the single diagnostic boundary.
+
+KCP update scheduling follows the protocol's `Check` deadline instead of
+unconditionally queuing every connection on each scheduler scan. `Send`
+submits the next deadline after its immediate update, while datagram input
+invalidates the previous deadline and makes that connection due again. Each
+registration remains isolated and non-overlapping, so a delayed update cannot
+serialize unrelated connections behind it.
+
+KCP client bootstrap is finite even when callers do not supply a cancellation
+token. One connection attempt owns a ten-second deadline and retransmits the
+same conversation request every 250 milliseconds until a matching response
+arrives. Pending-capacity exhaustion returns a fixed, low-cardinality
+`ServerBusy` rejection without creating a transport or RPC Session; a lost
+request or response falls back to bounded retransmission and ultimately a
+`TimeoutException`. Explicit rejection surfaces as
+`KcpConnectionRejectedException`, and caller cancellation as
+`OperationCanceledException`. Transport
+rejection does not represent RPC Session admission or Game Session recovery.
+
+One KCP transport connection is identified by remote UDP address, remote UDP
+port, and conversation id together. The listener uses that complete identity
+for handshake deduplication, KCP datagram routing, failure containment, and
+cleanup. Repeated handshakes for the same identity are idempotent. A reused
+endpoint with a new conversation id creates a separate RPC
+Session within the existing pending and active connection limits; it never
+replaces or terminates another conversation. Whether the new RPC Session
+recovers an existing Game Session remains a Lakona.Game decision.
+
+### Loopback
+
+The Loopback transport models one connection pair with one shared lifecycle
+owner. Each direction uses a bounded frame queue with wait-based backpressure;
+callers may select a smaller capacity for deterministic pressure tests.
+Disposing either endpoint closes both directions, wakes pending I/O, rejects
+new sends, and releases queued owned frames. Loopback must not report one peer
+connected after the other peer has closed.
+
 ## Verification Boundary
 
 `tests/Lakona.Rpc.Transport.Tests/TransportLifecycleContractTests.cs` applies the

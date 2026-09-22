@@ -42,23 +42,6 @@ Game notification publication participates in a
 FIFO transport writing alone cannot order
 notifications still waiting in a higher-level delivery queue.
 
-Client startup links the caller's initial-connect cancellation with runtime
-shutdown. Disposal cancels and joins an outstanding connection attempt before
-releasing the transport; a late successful connect cannot start background loops.
-Concurrent disposal calls share the same cleanup completion.
-
-Client receive and keepalive loops share a connection lifetime. Failure in either
-stops and joins both before `Disconnected` is raised, preserving the original
-failure. Connection termination rejects new calls and drains already-received
-messages in order before failing remaining calls. Custom transports must cooperate
-with I/O cancellation.
-
-Explicit client disposal stops framework intake and dispatch and cancels pending RPCs.
-It does not wait for arbitrary business handlers, including the handler calling
-DisposeAsync itself. An already-started handler retains its frame until it exits;
-queued context callbacks are canceled without returning memory still in use by
-a running handler. Await disposal asynchronously on an engine thread.
-
 ## Design Principles
 
 ### Contracts Own Semantics
@@ -139,11 +122,35 @@ that handle once. Access through a disposed non-empty handle throws
 other live slices remain valid. The shared `TransportFrame.Empty` value owns no
 buffer and remains reusable after disposal.
 
+The client pending-request module consumes ownership of every decoded response.
+It transfers a matched response to its waiting caller and immediately disposes
+an unmatched response, including one that arrives after caller cancellation,
+so pooled payload retention never depends on GC or finalization.
+
 Frame size enforcement follows the shared envelope budget and derived transport
 limits defined in [Resource Limits](wire-protocol-v1.md#resource-limits).
 
 Public API commitment boundaries are documented in
 [public-api-boundaries.md](public-api-boundaries.md).
+
+#### Client Lifetime
+
+Client startup links the caller's initial-connect cancellation with runtime
+shutdown. Disposal cancels and joins an outstanding connection attempt before
+releasing the transport; a late successful connect cannot start background loops.
+Concurrent disposal calls share the same cleanup completion.
+
+Client receive and keepalive loops share a connection lifetime. Failure in either
+stops and joins both before `Disconnected` is raised, preserving the original
+failure. Connection termination rejects new calls and drains already-received
+messages in order before failing remaining calls. Custom transports must cooperate
+with I/O cancellation.
+
+Explicit client disposal stops framework intake and dispatch and cancels pending RPCs.
+It does not wait for arbitrary business handlers, including the handler calling
+DisposeAsync itself. An already-started handler retains its frame until it exits;
+queued context callbacks are canceled without returning memory still in use by
+a running handler. Await disposal asynchronously on an engine thread.
 
 #### Host And Session Lifetime
 
@@ -185,6 +192,12 @@ requests waiting for a concurrency slot. When that budget is full, the receive
 loop awaits the `Overloaded` response before reading another application frame.
 A stalled response transport therefore applies receive backpressure instead of
 creating an unbounded family of overload-send tasks outside the request budget.
+
+The client notification receive queue is an intentional exception to bounded
+queueing: slow notification handlers must not block response reception. Its
+[resource tradeoff and conditions for reconsideration](../performance.md#client-notification-queue)
+are defined in the performance guidance. Server request admission and client
+notification delivery have different pressure policies.
 
 Session request gates fail closed. Denial and exception classification follow
 the [Status and Error Model](status-error-model.md#implementation-mapping).
@@ -234,59 +247,8 @@ extension interfaces such as `ITransport`, `IRpcConnectionAcceptor`, and
 
 The [Transport Contract](transport-contract.md) defines initialization,
 concurrency, cancellation, memory ownership, shutdown, and reconnection
-responsibilities, along with implementation differences and verification limits.
-
-The KCP server listener shares one UDP receive loop across connections, but it
-must not eagerly drain decoded KCP messages into a separate application frame
-queue. Datagram input remains in KCP's bounded per-connection receive window
-until that connection's `ReceiveFrameAsync` caller requests the next frame. A
-slow RPC Session therefore closes its advertised KCP receive window without
-blocking the shared listener, retaining an unbounded number of decoded frames,
-or delaying unrelated connections. The listener also does not invoke arbitrary
-application admission while receiving datagrams, so new handshakes cannot hold
-up traffic for established connections.
-
-The Loopback transport models one connection pair with one shared lifecycle
-owner. Each direction uses a bounded frame queue with wait-based backpressure;
-callers may select a smaller capacity for deterministic pressure tests.
-Disposing either endpoint closes both directions, wakes pending I/O, rejects
-new sends, and releases queued owned frames. Loopback must not report one peer
-connected after the other peer has closed.
-
-KCP background faults are terminal at their smallest owner. An unexpected
-listener receive-loop failure closes the listener's accept boundary with the
-original cause so endpoint supervision can stop cleanly. A scheduled update
-failure removes only that connection's registration, transitions its transport
-to disconnected, and wakes pending receive work with the original cause.
-Schedulers do not retry or log transport failures; RPC Session and host owners
-provide the single diagnostic boundary.
-
-KCP update scheduling follows the protocol's `Check` deadline instead of
-unconditionally queuing every connection on each scheduler scan. `Send`
-submits the next deadline after its immediate update, while datagram input
-invalidates the previous deadline and makes that connection due again. Each
-registration remains isolated and non-overlapping, so a delayed update cannot
-serialize unrelated connections behind it.
-
-KCP client bootstrap is finite even when callers do not supply a cancellation
-token. One connection attempt owns a ten-second deadline and retransmits the
-same conversation request every 250 milliseconds until a matching response
-arrives. Pending-capacity exhaustion returns a fixed, low-cardinality
-`ServerBusy` rejection without creating a transport or RPC Session; a lost
-request or response falls back to bounded retransmission and ultimately a
-`TimeoutException`. Explicit rejection surfaces as
-`KcpConnectionRejectedException`, and caller cancellation as
-`OperationCanceledException`. Transport
-rejection does not represent RPC Session admission or Game Session recovery.
-
-One KCP transport connection is identified by remote UDP address, remote UDP
-port, and conversation id together. The listener uses that complete identity
-for handshake deduplication, KCP datagram routing, failure containment, and
-cleanup. Repeated handshakes for the same identity are idempotent. A reused
-endpoint with a new conversation id creates a separate RPC
-Session within the existing pending and active connection limits; it never
-replaces or terminates another conversation. Whether the new RPC Session
-recovers an existing Game Session remains a Lakona.Game decision.
+responsibilities, along with [official transport behavior](transport-contract.md#official-transport-behavior)
+and verification limits.
 
 `IRpcSerializer.Serialize<T>` is writer-first: implementations synchronously
 write only the serialized DTO bytes to the supplied `IBufferWriter<byte>` and
@@ -322,11 +284,6 @@ each subscriber independently; a subscriber failure is logged through the
 application-owned client logger and cannot stop later subscribers or the
 notification consumer.
 
-The client pending-request module consumes ownership of every decoded response.
-It transfers a matched response to its waiting caller and immediately disposes
-an unmatched response, including one that arrives after caller cancellation,
-so pooled payload retention never depends on GC or finalization.
-
 ### Framework Status Is Not Business Failure
 
 `RpcStatus` describes framework outcomes such as missing handlers, handler
@@ -339,6 +296,7 @@ for status semantics.
 
 ## Maintainer References
 
+- [transport-contract.md](transport-contract.md)
 - [source-generation.md](source-generation.md)
 - [wire-protocol-v1.md](wire-protocol-v1.md)
 - [status-error-model.md](status-error-model.md)

@@ -56,7 +56,7 @@ changed without new measurements:
 - RPC request concurrency gates and serialized frame senders are scoped to one
   session or connection.
 - KCP transport locks and deadline-aware update scheduling follow the
-  [RPC transport contract](./rpc/architecture.md#transport-and-serializer-are-replaceable).
+  [RPC transport contract](./rpc/transport-contract.md#kcp).
   Do not trade isolated, non-overlapping registration execution for a central
   sequential update loop without representative measurements.
 - The KCP server listener inputs datagrams into each connection's bounded KCP
@@ -80,12 +80,15 @@ changed without new measurements:
   are unchanged. This is a structural allocation invariant, not a quantified
   throughput claim; any claimed performance gain still requires a focused
   benchmark.
-- The client notification receive queue is intentionally unbounded. A slow
-  notification handler must not cause the receive loop to drop notifications,
-  disconnect the client, or block frame reception. The runtime emits
-  logarithmically coalesced warnings when queued notification count or retained
-  wire bytes cross new high-water thresholds, beginning at 256 notifications
-  or 1 MiB. Do not propose a bounded queue, dropping, forced disconnect, or
-  receive-loop backpressure again without a representative stress/soak test
-  that measures notification rate, handler latency, queue growth, retained
-  memory, request latency, and recovery after the burst.
+
+### Client Notification Queue
+
+The client notification receive queue is intentionally unbounded. A slow
+notification handler must not cause the receive loop to drop notifications,
+disconnect the client, or block frame reception. The runtime emits
+logarithmically coalesced warnings when queued notification count or retained
+wire bytes cross new high-water thresholds, beginning at 256 notifications
+or 1 MiB. Do not propose a bounded queue, dropping, forced disconnect, or
+receive-loop backpressure again without a representative stress/soak test
+that measures notification rate, handler latency, queue growth, retained
+memory, request latency, and recovery after the burst.
