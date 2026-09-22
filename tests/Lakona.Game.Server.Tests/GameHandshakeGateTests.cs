@@ -570,7 +570,7 @@ public sealed class GameHandshakeGateTests
                 {
                     var value = session.Serializer.Deserialize<string>(request.Payload.Memory);
                     using var payload = session.Serializer.SerializeFrame(value + ":ok");
-                    return ValueTask.FromResult(RpcEnvelopeCodec.EncodeResponse(
+                    return ValueTask.FromResult(RpcServerResponse.Encode(
                         request.RequestId,
                         RpcStatus.Ok,
                         payload.Memory));

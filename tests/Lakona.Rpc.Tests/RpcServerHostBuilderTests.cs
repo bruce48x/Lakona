@@ -1484,6 +1484,6 @@ public static class TestGeneratedBinder
     public static void BindAll(RpcServiceRegistry registry)
     {
         registry.Register(7, 9, static (session, request, ct) => ValueTask.FromResult(
-            RpcEnvelopeCodec.EncodeResponse(request.RequestId, RpcStatus.Ok, ReadOnlyMemory<byte>.Empty)));
+            RpcServerResponse.Encode(request.RequestId, RpcStatus.Ok, ReadOnlyMemory<byte>.Empty)));
     }
 }

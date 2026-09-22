@@ -27,7 +27,7 @@ Application outcomes such as login failure, insufficient inventory space, room n
 `InternalError` (`2`)
 : The server failed internally while processing the request. This includes an
 unexpected request-gate exception, a handler exception, or an invalid framework
-response such as null. The server logs the full exception and failure phase.
+response such as an uninitialized internal result. The server logs the full exception and failure phase.
 The client receives a stable sanitized message through `RpcException`.
 
 `Overloaded` (`3`)

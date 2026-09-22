@@ -25,7 +25,7 @@ internal sealed class ServerRequestDispatcher
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<RpcStatus?> DispatchAsync(
+    public async Task<RpcStatus> DispatchAsync(
         RpcSession session,
         RpcRequestFrame req,
         CancellationToken ct,
@@ -34,11 +34,9 @@ internal sealed class ServerRequestDispatcher
     {
         LogRequestReceived(session, req);
 
-        var gateResult = await IsAllowedAsync(session, req, ct, startedAt).ConfigureAwait(false);
-        if (!gateResult.Allowed)
-        {
-            return gateResult.Status;
-        }
+        var rejection = await EvaluateGatesAsync(session, req, ct).ConfigureAwait(false);
+        if (rejection.HasValue)
+            return await SendResponseAsync(session, req, rejection.Value, ct, startedAt).ConfigureAwait(false);
 
         if (_registry.TryGetHandler(req.ServiceId, req.MethodId, out var sessionHandler))
         {
@@ -47,36 +45,19 @@ internal sealed class ServerRequestDispatcher
             return await work.ConfigureAwait(false);
         }
 
-        using var notFoundFrame = RpcEnvelopeCodec.EncodeResponse(
-            req.RequestId,
-            RpcStatus.NotFound,
-            ReadOnlyMemory<byte>.Empty,
+        var notFound = RpcServerResponse.Encode(
+            req.RequestId, RpcStatus.NotFound, ReadOnlyMemory<byte>.Empty,
             $"No handler for {req.ServiceId}:{req.MethodId}");
-        await _connection.SendAsync(notFoundFrame.Memory, ct).ConfigureAwait(false);
-        LogRequestCompleted(
-            session,
-            req,
-            RpcStatus.NotFound,
-            GetElapsedTime(startedAt),
-            $"No handler for {req.ServiceId}:{req.MethodId}");
-        return RpcStatus.NotFound;
+        return await SendResponseAsync(session, req, notFound, ct, startedAt).ConfigureAwait(false);
     }
 
-    private async ValueTask<(bool Allowed, RpcStatus? Status)> IsAllowedAsync(
-        RpcSession session,
-        RpcRequestFrame req,
-        CancellationToken ct,
-        long startedAt)
+    private async ValueTask<RpcServerResponse?> EvaluateGatesAsync(
+        RpcSession session, RpcRequestFrame req, CancellationToken ct)
     {
         if (_requestGates.Count == 0)
-        {
-            return (true, null);
-        }
+            return null;
 
-        var context = new RpcSessionRequestGateContext(
-            session.ConnectionInfo,
-            req.ServiceId,
-            req.MethodId);
+        var context = new RpcSessionRequestGateContext(session.ConnectionInfo, req.ServiceId, req.MethodId);
         foreach (var gate in _requestGates)
         {
             RpcSessionRequestGateResult result;
@@ -99,59 +80,27 @@ internal sealed class ServerRequestDispatcher
                     req.ServiceId,
                     req.MethodId,
                     session.ConnectionId);
-                using var errorFrame = RpcEnvelopeCodec.EncodeResponse(
-                    req.RequestId,
-                    RpcStatus.InternalError,
-                    ReadOnlyMemory<byte>.Empty,
-                    InternalErrorMessage);
-                await _connection.SendAsync(errorFrame.Memory, ct).ConfigureAwait(false);
-                LogRequestCompleted(
-                    session,
-                    req,
-                    RpcStatus.InternalError,
-                    GetElapsedTime(startedAt),
-                    InternalErrorMessage);
-                return (false, RpcStatus.InternalError);
+                return RpcServerResponse.Encode(
+                    req.RequestId, RpcStatus.InternalError, ReadOnlyMemory<byte>.Empty, InternalErrorMessage);
             }
 
-            if (result.Allowed)
-            {
-                continue;
-            }
-
-            using var frame = RpcEnvelopeCodec.EncodeResponse(
-                req.RequestId,
-                result.Status,
-                ReadOnlyMemory<byte>.Empty,
-                result.ErrorMessage);
-            await _connection.SendAsync(frame.Memory, ct).ConfigureAwait(false);
-            LogRequestCompleted(
-                session,
-                req,
-                result.Status,
-                GetElapsedTime(startedAt),
-                result.ErrorMessage);
-            return (false, result.Status);
+            if (!result.Allowed)
+                return RpcServerResponse.Encode(
+                    req.RequestId, result.Status, ReadOnlyMemory<byte>.Empty, result.ErrorMessage);
         }
 
-        return (true, null);
+        return null;
     }
 
     public async Task SendOverloadedResponseAsync(uint requestId, CancellationToken ct)
     {
-        var response = new RpcResponseEnvelope
-        {
-            RequestId = requestId,
-            Status = RpcStatus.Overloaded,
-            Payload = Array.Empty<byte>(),
-            ErrorMessage = "RPC server is overloaded; request queue is full."
-        };
-
-        using var respBytes = RpcEnvelopeCodec.EncodeResponse(response);
-        await _connection.SendAsync(respBytes.Memory, ct).ConfigureAwait(false);
+        using var response = RpcServerResponse.Encode(
+            requestId, RpcStatus.Overloaded, ReadOnlyMemory<byte>.Empty,
+            "RPC server is overloaded; request queue is full.");
+        await _connection.SendAsync(response.Memory, ct).ConfigureAwait(false);
     }
 
-    private async Task<RpcStatus?> DispatchRegistryHandlerAsync(
+    private async Task<RpcStatus> DispatchRegistryHandlerAsync(
         RpcSession session,
         RpcRequestFrame req,
         RpcSessionHandler sessionHandler,
@@ -159,102 +108,68 @@ internal sealed class ServerRequestDispatcher
         long startedAt)
     {
         using var publications = new RpcResponsePublicationScope(session.ConnectionId);
-        TransportFrame? respFrame = null;
-        RpcStatus status = RpcStatus.InternalError;
-        string? errorMessage = null;
+        RpcServerResponse response;
         try
         {
-            try
-            {
-                respFrame = await CompletePublicationsAsync(() => sessionHandler(session, req, ct), publications, ct).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (RpcBadRequestException exception)
-            {
-                _logger.LogWarning(
-                    "RPC request content was invalid for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId}; payload length {PayloadLength}; exception {ExceptionType}.",
-                    req.RequestId,
-                    ResolveRpcMethod(req),
-                    req.ServiceId,
-                    req.MethodId,
-                    session.ConnectionId,
-                    req.Payload.Length,
-                    exception.GetType().Name);
-                using var badRequestFrame = RpcEnvelopeCodec.EncodeResponse(
-                    req.RequestId,
-                    RpcStatus.BadRequest,
-                    ReadOnlyMemory<byte>.Empty,
-                    "RPC request payload is invalid.");
-                await _connection.SendAsync(badRequestFrame.Memory, ct).ConfigureAwait(false);
-                LogRequestCompleted(
-                    session,
-                    req,
-                    RpcStatus.BadRequest,
-                    GetElapsedTime(startedAt),
-                    "RPC request payload is invalid.");
-                return RpcStatus.BadRequest;
-            }
-            catch (Exception ex)
-            {
-                LogHandlerFailure(session, req, ex);
-                using var errFrame = RpcEnvelopeCodec.EncodeResponse(
-                    req.RequestId,
-                    RpcStatus.InternalError,
-                    ReadOnlyMemory<byte>.Empty,
-                    InternalErrorMessage);
-                await _connection.SendAsync(errFrame.Memory, ct).ConfigureAwait(false);
-                LogRequestCompleted(
-                    session,
-                    req,
-                    RpcStatus.InternalError,
-                    GetElapsedTime(startedAt),
-                    InternalErrorMessage);
-                return RpcStatus.InternalError;
-            }
-
-            if (TryReadResponseStatus(respFrame, out status, out errorMessage))
-            {
-                await _connection.SendAsync(respFrame.Memory, ct).ConfigureAwait(false);
-                LogRequestCompleted(
-                    session,
-                    req,
-                    status,
-                    GetElapsedTime(startedAt),
-                    errorMessage);
-                return status;
-            }
-
-            await _connection.SendAsync(respFrame.Memory, ct).ConfigureAwait(false);
-            _logger.LogTrace(
-                "RPC request completed {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId} in {ElapsedMs}ms.",
+            response = await CompletePublicationsAsync(
+                () => sessionHandler(session, req, ct), publications, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (RpcBadRequestException exception)
+        {
+            _logger.LogWarning(
+                "RPC request content was invalid for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId}; payload length {PayloadLength}; exception {ExceptionType}.",
                 req.RequestId,
                 ResolveRpcMethod(req),
                 req.ServiceId,
                 req.MethodId,
                 session.ConnectionId,
-                GetElapsedTime(startedAt).TotalMilliseconds);
-            return null;
+                req.Payload.Length,
+                exception.GetType().Name);
+            response = RpcServerResponse.Encode(
+                req.RequestId, RpcStatus.BadRequest, ReadOnlyMemory<byte>.Empty,
+                "RPC request payload is invalid.");
         }
-        finally
+        catch (Exception ex)
         {
-            respFrame?.Dispose();
+            LogHandlerFailure(session, req, ex);
+            response = RpcServerResponse.Encode(
+                req.RequestId, RpcStatus.InternalError, ReadOnlyMemory<byte>.Empty, InternalErrorMessage);
+        }
+
+        // A send failure must propagate, never become a second response.
+        return await SendResponseAsync(session, req, response, ct, startedAt).ConfigureAwait(false);
+    }
+
+    private async Task<RpcStatus> SendResponseAsync(
+        RpcSession session, RpcRequestFrame req, RpcServerResponse response, CancellationToken ct, long startedAt)
+    {
+        using (response)
+        {
+            await _connection.SendAsync(response.Memory, ct).ConfigureAwait(false);
+            LogRequestCompleted(session, req, response.Status, GetElapsedTime(startedAt), response.ErrorMessage);
+            return response.Status;
         }
     }
 
-    private static async ValueTask<TransportFrame> CompletePublicationsAsync(Func<ValueTask<TransportFrame>> invoke,
-        RpcResponsePublicationScope publications, CancellationToken ct)
+    private static async ValueTask<RpcServerResponse> CompletePublicationsAsync(
+        Func<ValueTask<RpcServerResponse>> invoke, RpcResponsePublicationScope publications, CancellationToken ct)
     {
-        TransportFrame result;
+        RpcServerResponse result;
         try { result = await invoke().ConfigureAwait(false); }
         catch
         {
             await publications.WaitAsync(ct).ConfigureAwait(false);
             throw;
         }
-        try { await publications.WaitAsync(ct).ConfigureAwait(false); }
+        try
+        {
+            await publications.WaitAsync(ct).ConfigureAwait(false);
+            _ = result.Memory; // Reject an uninitialized internal response before sending.
+        }
         catch
         {
             result.Dispose();
@@ -331,23 +246,4 @@ internal sealed class ServerRequestDispatcher
             : $"{req.ServiceId}:{req.MethodId}";
     }
 
-    private static bool TryReadResponseStatus(TransportFrame frame, out RpcStatus status, out string? errorMessage)
-    {
-        status = RpcStatus.InternalError;
-        errorMessage = null;
-        if (frame.IsEmpty)
-        {
-            return false;
-        }
-
-        if (RpcEnvelopeCodec.PeekFrameType(frame.Span) != RpcFrameType.Response)
-        {
-            return false;
-        }
-
-        using var response = RpcEnvelopeCodec.DecodeResponse(frame);
-        status = response.Status;
-        errorMessage = response.ErrorMessage;
-        return true;
-    }
 }

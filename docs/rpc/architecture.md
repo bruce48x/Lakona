@@ -100,6 +100,15 @@ typed binders and raw handlers share the same admission, response publication,
 error handling, logging, and frame ownership path. Low-level dispatch tests
 register handlers in that registry as well.
 
+Internally, registrations return an owned response containing the final encoded
+frame, status, and error message. Response factories encode the frame and retain
+its completion metadata together; the dispatcher does not decode outbound frames
+for logging. Gate rejections, missing methods, and handler results use one send
+and completion-log path. Handler errors are translated before sending, so a send
+failure cannot trigger a second error response. A completed handler response stays
+owned while notification publications drain and is disposed if that barrier fails
+or is canceled, as well as after the send completes or fails.
+
 Registrations reject duplicate method ids. Connection-scoped activation uses
 single-publication semantics. Factory-created services are released after
 in-flight requests drain; explicitly bound singleton instances remain

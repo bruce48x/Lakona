@@ -31,8 +31,8 @@ public class RpcSessionTests
         registry.Register(1, 1, (_, req, ct) =>
         {
             receivedRequestId = req.RequestId;
-            return new ValueTask<TransportFrame>(
-                RpcEnvelopeCodec.EncodeResponse(
+            return new ValueTask<RpcServerResponse>(
+                RpcServerResponse.Encode(
                     req.RequestId, RpcStatus.Ok, Array.Empty<byte>()));
         });
 
@@ -182,14 +182,14 @@ public class RpcSessionTests
     {
         var registry = new RpcServiceRegistry();
         registry.Register(1, 1, static (_, _, _) =>
-            new ValueTask<TransportFrame>(RpcEnvelopeCodec.EncodeResponse(
+            new ValueTask<RpcServerResponse>(RpcServerResponse.Encode(
                 1,
                 RpcStatus.Ok,
                 ReadOnlyMemory<byte>.Empty)));
 
         var error = Assert.Throws<InvalidOperationException>(() =>
             registry.Register(1, 1, static (_, _, _) =>
-                new ValueTask<TransportFrame>(RpcEnvelopeCodec.EncodeResponse(
+                new ValueTask<RpcServerResponse>(RpcServerResponse.Encode(
                     1,
                     RpcStatus.Ok,
                     ReadOnlyMemory<byte>.Empty))));
@@ -504,8 +504,8 @@ public class RpcSessionTests
         var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
 
         registry.Register(1, 1, (_, req, ct) =>
-            new ValueTask<TransportFrame>(
-                RpcEnvelopeCodec.EncodeResponse(
+            new ValueTask<RpcServerResponse>(
+                RpcServerResponse.Encode(
                     req.RequestId, RpcStatus.Ok, Array.Empty<byte>())));
 
         await server.StartAsync();
@@ -516,8 +516,8 @@ public class RpcSessionTests
             for (int i = 0; i < 100; i++)
             {
                 registry.Register(100 + i, 1, (_, req, ct) =>
-                    new ValueTask<TransportFrame>(
-                        RpcEnvelopeCodec.EncodeResponse(
+                    new ValueTask<RpcServerResponse>(
+                        RpcServerResponse.Encode(
                             req.RequestId, RpcStatus.Ok, Array.Empty<byte>())));
             }
         });
@@ -556,7 +556,7 @@ public class RpcSessionTests
         {
             Interlocked.Increment(ref handledConnections);
             using var payload = server.Serializer.SerializeFrame(server.ConnectionId);
-            return ValueTask.FromResult(RpcEnvelopeCodec.EncodeResponse(
+            return ValueTask.FromResult(RpcServerResponse.Encode(
                 req.RequestId,
                 RpcStatus.Ok,
                 payload.Memory));
@@ -610,8 +610,8 @@ public class RpcSessionTests
         var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
 
         registry.Register(1, 1, (_, req, ct) =>
-            new ValueTask<TransportFrame>(
-                RpcEnvelopeCodec.EncodeResponse(
+            new ValueTask<RpcServerResponse>(
+                RpcServerResponse.Encode(
                     req.RequestId, RpcStatus.Ok, Array.Empty<byte>())));
 
         using var startCts = new CancellationTokenSource();
@@ -715,12 +715,12 @@ public class RpcSessionTests
         registry.Register(1, 1, async (_, req, ct) =>
         {
             await Task.Delay(300, ct);
-            return RpcEnvelopeCodec.EncodeResponse(req.RequestId, RpcStatus.Ok, Array.Empty<byte>());
+            return RpcServerResponse.Encode(req.RequestId, RpcStatus.Ok, Array.Empty<byte>());
         });
 
         registry.Register(1, 2, (_, req, ct) =>
-            new ValueTask<TransportFrame>(
-                RpcEnvelopeCodec.EncodeResponse(
+            new ValueTask<RpcServerResponse>(
+                RpcServerResponse.Encode(
                     req.RequestId, RpcStatus.Ok, Array.Empty<byte>())));
 
         await server.StartAsync();
@@ -804,7 +804,7 @@ public class RpcSessionTests
         {
             firstRequestStarted.TrySetResult();
             await releaseFirstRequest.Task.WaitAsync(ct);
-            return RpcEnvelopeCodec.EncodeResponse(req.RequestId, RpcStatus.Ok, Array.Empty<byte>());
+            return RpcServerResponse.Encode(req.RequestId, RpcStatus.Ok, Array.Empty<byte>());
         });
 
         await server.StartAsync();
@@ -1080,7 +1080,7 @@ public class RpcSessionTests
                 throw;
             }
 
-            return RpcEnvelopeCodec.EncodeResponse(req.RequestId, RpcStatus.Ok, Array.Empty<byte>());
+            return RpcServerResponse.Encode(req.RequestId, RpcStatus.Ok, Array.Empty<byte>());
         });
 
         await server.StartAsync();
@@ -1219,8 +1219,8 @@ public class RpcSessionTests
             });
 
         registry.Register(1, 1, (_, req, ct) =>
-            new ValueTask<TransportFrame>(
-                RpcEnvelopeCodec.EncodeResponse(
+            new ValueTask<RpcServerResponse>(
+                RpcServerResponse.Encode(
                     req.RequestId, RpcStatus.Ok, SerializeBytes(serializer, "alive"))));
 
         var disconnected = 0;

@@ -27,13 +27,13 @@ public class RpcOrderedDispatchTests
         {
             entries.Enqueue(1);
             await releaseFirst.Task.WaitAsync(ct);
-            return RpcEnvelopeCodec.EncodeResponse(request.RequestId, RpcStatus.Ok, ReadOnlyMemory<byte>.Empty);
+            return RpcServerResponse.Encode(request.RequestId, RpcStatus.Ok, ReadOnlyMemory<byte>.Empty);
         });
         registry.Register(1, 2, (_, request, _) =>
         {
             entries.Enqueue(2);
-            return new ValueTask<TransportFrame>(
-                RpcEnvelopeCodec.EncodeResponse(
+            return new ValueTask<RpcServerResponse>(
+                RpcServerResponse.Encode(
                     request.RequestId, RpcStatus.Ok, ReadOnlyMemory<byte>.Empty));
         });
         await server.StartAsync();
@@ -82,7 +82,7 @@ public class RpcOrderedDispatchTests
         registry.Register(1, 1, async (_, request, ct) =>
         {
             await releaseResponse.Task.WaitAsync(ct);
-            return RpcEnvelopeCodec.EncodeResponse(request.RequestId, RpcStatus.Ok, ReadOnlyMemory<byte>.Empty);
+            return RpcServerResponse.Encode(request.RequestId, RpcStatus.Ok, ReadOnlyMemory<byte>.Empty);
         });
         client.RegisterNotificationHandler<int>(new RpcNotificationMethod<int>(1, 2), async value =>
         {

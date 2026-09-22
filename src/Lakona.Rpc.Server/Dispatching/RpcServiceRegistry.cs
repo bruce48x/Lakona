@@ -13,7 +13,7 @@ namespace Lakona.Rpc.Server;
 ///     implementations, then let generated binders register handlers.
 /// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
-internal delegate ValueTask<TransportFrame> RpcSessionHandler(RpcSession session, RpcRequestFrame req, CancellationToken ct);
+internal delegate ValueTask<RpcServerResponse> RpcSessionHandler(RpcSession session, RpcRequestFrame req, CancellationToken ct);
 
 [EditorBrowsable(EditorBrowsableState.Never)]
 public delegate ValueTask<RpcRawResult> RpcRawHandler(
@@ -125,7 +125,7 @@ public sealed class RpcServiceRegistry
                         request.Payload.Memory,
                         cancellationToken)
                     .ConfigureAwait(false);
-                return RpcEnvelopeCodec.EncodeResponse(
+                return RpcServerResponse.Encode(
                     request.RequestId,
                     result.Status,
                     result.Payload,
@@ -147,20 +147,14 @@ public sealed class RpcServiceRegistry
         Register(
             serviceId,
             methodId,
-            async (session, request, cancellationToken) =>
-            {
-                using var response = RpcEnvelopeCodec.BeginResponsePayload(
-                    request.RequestId,
-                    RpcStatus.Ok);
-                await handler(
-                        session.ConnectionInfo,
-                        new RpcNotificationChannel(session),
-                        request.Payload.Memory,
-                        response,
-                    cancellationToken)
-                    .ConfigureAwait(false);
-                return RpcEnvelopeCodec.CompletePayload(response);
-            },
+            (session, request, cancellationToken) => RpcServerResponse.WriteAsync(
+                request.RequestId,
+                response => handler(
+                    session.ConnectionInfo,
+                    new RpcNotificationChannel(session),
+                    request.Payload.Memory,
+                    response,
+                    cancellationToken)),
             serviceName,
             methodName);
     }

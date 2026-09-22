@@ -38,7 +38,7 @@ public class RpcClientRuntimeTests
         {
             var arg = serverSerializer.Deserialize<string>(req.Payload.Memory);
             var result = SerializeBytes(serverSerializer, $"Hello {arg}");
-            return new ValueTask<TransportFrame>(RpcEnvelopeCodec.EncodeResponse(req.RequestId, RpcStatus.Ok, result));
+            return new ValueTask<RpcServerResponse>(RpcServerResponse.Encode(req.RequestId, RpcStatus.Ok, result));
         });
 
         await server.StartAsync();
@@ -74,8 +74,8 @@ public class RpcClientRuntimeTests
         registry.Register(1, 1, (_, req, ct) =>
         {
             var arg = serializer.Deserialize<string>(req.Payload.Memory);
-            return new ValueTask<TransportFrame>(
-                RpcEnvelopeCodec.EncodeResponse(
+            return new ValueTask<RpcServerResponse>(
+                RpcServerResponse.Encode(
                     req.RequestId, RpcStatus.Ok, SerializeBytes(serializer, arg + "-secured")));
         });
 
@@ -106,8 +106,8 @@ public class RpcClientRuntimeTests
         var registry = new RpcServiceRegistry();
         var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
         registry.Register(1, 1, (_, req, ct) =>
-            new ValueTask<TransportFrame>(
-                RpcEnvelopeCodec.EncodeResponse(
+            new ValueTask<RpcServerResponse>(
+                RpcServerResponse.Encode(
                     req.RequestId, RpcStatus.Ok, Array.Empty<byte>())));
 
         await server.StartAsync();
@@ -333,8 +333,8 @@ public class RpcClientRuntimeTests
         registry.Register(1, 1, (_, req, ct) =>
         {
             var arg = serializer.Deserialize<string>(req.Payload.Memory);
-            return new ValueTask<TransportFrame>(
-                RpcEnvelopeCodec.EncodeResponse(
+            return new ValueTask<RpcServerResponse>(
+                RpcServerResponse.Encode(
                     req.RequestId, RpcStatus.Ok, SerializeBytes(serializer, arg.ToUpperInvariant())));
         });
 
@@ -548,8 +548,8 @@ public class RpcClientRuntimeTests
         registry.Register(1, 1, (_, req, ct) =>
         {
             var arg = serializer.Deserialize<string>(req.Payload.Memory);
-            return new ValueTask<TransportFrame>(
-                RpcEnvelopeCodec.EncodeResponse(
+            return new ValueTask<RpcServerResponse>(
+                RpcServerResponse.Encode(
                     req.RequestId, RpcStatus.Ok, SerializeBytes(serializer, arg + "-reply")));
         });
 
@@ -615,7 +615,7 @@ public class RpcClientRuntimeTests
         {
             var arg = serializer.Deserialize<int>(req.Payload.Memory);
             await Task.Delay(10, ct);
-            return RpcEnvelopeCodec.EncodeResponse(req.RequestId, RpcStatus.Ok, SerializeBytes(serializer, arg * 2));
+            return RpcServerResponse.Encode(req.RequestId, RpcStatus.Ok, SerializeBytes(serializer, arg * 2));
         });
 
         await server.StartAsync();

@@ -47,10 +47,7 @@ public sealed class RpcServiceRegistration<TService>
 
                 var service = _activate(session);
                 await invoke(service, argument, cancellationToken).ConfigureAwait(false);
-                using var response = RpcEnvelopeCodec.BeginResponsePayload(
-                    request.RequestId,
-                    RpcStatus.Ok);
-                return RpcEnvelopeCodec.CompletePayload(response);
+                return RpcServerResponse.Encode(request.RequestId, RpcStatus.Ok, ReadOnlyMemory<byte>.Empty);
             },
             _serviceName,
             methodName);
@@ -75,11 +72,7 @@ public sealed class RpcServiceRegistration<TService>
 
                 var service = _activate(session);
                 var result = await invoke(service, argument, cancellationToken).ConfigureAwait(false);
-                using var response = RpcEnvelopeCodec.BeginResponsePayload(
-                    request.RequestId,
-                    RpcStatus.Ok);
-                session.Serializer.Serialize(response, result);
-                return RpcEnvelopeCodec.CompletePayload(response);
+                return RpcServerResponse.Serialize(request.RequestId, session.Serializer, result);
             },
             _serviceName,
             methodName);
@@ -89,20 +82,20 @@ public sealed class RpcServiceRegistration<TService>
         RpcSession session,
         RpcRequestFrame request,
         out TRequest argument,
-        out TransportFrame badRequestResponse)
+        out RpcServerResponse badRequestResponse)
     {
         try
         {
             argument = session.Serializer.Deserialize<TRequest>(request.Payload.Memory)
                 ?? throw new InvalidOperationException("The RPC request payload deserialized to null.");
-            badRequestResponse = null!;
+            badRequestResponse = default;
             return true;
         }
         catch (Exception exception)
         {
             session.LogInvalidRequestPayload(request, exception);
             argument = default!;
-            badRequestResponse = RpcEnvelopeCodec.EncodeResponse(
+            badRequestResponse = RpcServerResponse.Encode(
                 request.RequestId,
                 RpcStatus.BadRequest,
                 ReadOnlyMemory<byte>.Empty,

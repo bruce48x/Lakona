@@ -37,8 +37,8 @@ public sealed class RpcRequestLoggingTests
         {
             var arg = serializer.Deserialize<string>(req.Payload.Memory);
             using var payload = serializer.SerializeFrame($"echo:{arg}");
-            return new ValueTask<TransportFrame>(
-                RpcEnvelopeCodec.EncodeResponse(
+            return new ValueTask<RpcServerResponse>(
+                RpcServerResponse.Encode(
                     req.RequestId, RpcStatus.Ok, payload.ToArray()));
         });
 
@@ -311,8 +311,8 @@ public sealed class RpcRequestLoggingTests
         registry.Register(1, 1, (_, req, ct) =>
         {
             using var payload = serializer.SerializeFrame("ok");
-            return new ValueTask<TransportFrame>(
-                RpcEnvelopeCodec.EncodeResponse(
+            return new ValueTask<RpcServerResponse>(
+                RpcServerResponse.Encode(
                     req.RequestId, RpcStatus.Ok, payload.ToArray()));
         });
 
@@ -359,8 +359,8 @@ public sealed class RpcRequestLoggingTests
         registry.Register(1, 1, (_, req, ct) =>
         {
             using var payload = serializer.SerializeFrame("ok");
-            return new ValueTask<TransportFrame>(
-                RpcEnvelopeCodec.EncodeResponse(
+            return new ValueTask<RpcServerResponse>(
+                RpcServerResponse.Encode(
                     req.RequestId, RpcStatus.Ok, payload.ToArray()));
         });
 
