@@ -108,8 +108,8 @@ public sealed class HubArchitectureSourceTests
         Assert.Equal(
             2,
             app.Split("<SolidColorBrush x:Key=\"HubBrush.Accent\" Color=\"#EFBE3E\" />", StringSplitOptions.None).Length - 1);
-        Assert.Contains("<SolidColorBrush x:Key=\"HubBrush.Window\" Color=\"#F7F8FA\" />", app, StringComparison.Ordinal);
-        Assert.Contains("<GradientStop Color=\"#F4F6F8\" Offset=\"0\" />", app, StringComparison.Ordinal);
+        Assert.Contains("<SolidColorBrush x:Key=\"HubBrush.Window\" Color=\"#F2EFE8\" />", app, StringComparison.Ordinal);
+        Assert.Contains("<GradientStop Color=\"#EDE8DE\" Offset=\"0\" />", app, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ThemeSettingsCard\"", window, StringComparison.Ordinal);
         Assert.Contains("HubThemePreference.System", settings, StringComparison.Ordinal);
         Assert.Contains("HubThemePreference.Dark", settings, StringComparison.Ordinal);
