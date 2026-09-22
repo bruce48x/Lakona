@@ -51,7 +51,7 @@ a document leaves the current contributor path.
 | Application resource lifecycle | [Application Modules](./docs/application-modules.md) |
 | Diagnostic IDs and runtime validation | [Guardrails](./docs/guardrails.md) |
 | Runtime performance | [Performance](./docs/performance.md), [Cross-Framework Benchmarking](./docs/framework-benchmarking.md) |
-| RPC | [Architecture](./docs/rpc/architecture.md), [Source Generation](./docs/rpc/source-generation.md), [Public API Boundaries](./docs/rpc/public-api-boundaries.md), [Wire Protocol](./docs/rpc/wire-protocol-v1.md), [Status Model](./docs/rpc/status-error-model.md) |
+| RPC | [Architecture](./docs/rpc/architecture.md), [Transport Contract](./docs/rpc/transport-contract.md), [Source Generation](./docs/rpc/source-generation.md), [Public API Boundaries](./docs/rpc/public-api-boundaries.md), [Wire Protocol](./docs/rpc/wire-protocol-v1.md), [Status Model](./docs/rpc/status-error-model.md) |
 | Hotfix generation and service binding | [Architecture](./docs/hotfix/architecture.md), [Service Binding](./docs/hotfix/service-binding.md) |
 | Packaging and deployment | [Packaging and Deployment](./docs/deployment.md) |
 | Project tooling | [Default Experience](./docs/tool/default-experience.md), [Generation Architecture](./docs/tool/generation-architecture.md), [Lakona Hub](./docs/tool/lakona-hub.md), [Agent Skills](./docs/tool/agent-skills.md), [Package Version Graph](./docs/tool/package-version-graph.md) |

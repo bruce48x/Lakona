@@ -232,6 +232,10 @@ Custom transports, connection acceptors, and serializers belong behind stable
 extension interfaces such as `ITransport`, `IRpcConnectionAcceptor`, and
 `IRpcSerializer`.
 
+The [Transport Contract](transport-contract.md) defines initialization,
+concurrency, cancellation, memory ownership, shutdown, and reconnection
+responsibilities, along with implementation differences and verification limits.
+
 The KCP server listener shares one UDP receive loop across connections, but it
 must not eagerly drain decoded KCP messages into a separate application frame
 queue. Datagram input remains in KCP's bounded per-connection receive window

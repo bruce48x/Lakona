@@ -84,7 +84,7 @@ Regular application projects should build against this layer.
   identity or optional remote endpoint metadata.
 - Official transport constructors and `KcpConnectionRejectedException`.
   Transport establishment and connection identity follow the
-  [transport lifecycle contract](architecture.md#transport-and-serializer-are-replaceable).
+  [transport lifecycle contract](transport-contract.md).
   Framework admission uses `RpcServerHostBuilder.UseSessionAdmissionGate`.
 - Official serializer constructors, including:
   - `Lakona.Rpc.Serializer.MemoryPack.MemoryPackRpcSerializer()`
@@ -105,7 +105,7 @@ Regular application projects should build against this layer.
 
 Extension authors can rely on this layer for custom transports, serializers, and connection acceptors.
 
-- `ITransport`.
+- `ITransport`, with the [lifecycle and ownership contract](transport-contract.md).
 - `IRpcSerializer`, with the
   [writer ownership contract](architecture.md#transport-and-serializer-are-replaceable).
 - `IRpcConnectionAcceptor`, with the

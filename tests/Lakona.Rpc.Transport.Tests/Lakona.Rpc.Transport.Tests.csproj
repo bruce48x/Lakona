@@ -29,6 +29,8 @@
     <ProjectReference Include="..\..\src\Lakona.Rpc.Core\Lakona.Rpc.Core.csproj" />
     <ProjectReference Include="..\..\src\Lakona.Rpc.Transport.Kcp\Lakona.Rpc.Transport.Kcp.csproj" />
     <ProjectReference Include="..\..\src\Lakona.Rpc.Transport.WebSocket\Lakona.Rpc.Transport.WebSocket.csproj" />
+    <ProjectReference Include="..\..\src\Lakona.Rpc.Transport.Tcp\Lakona.Rpc.Transport.Tcp.csproj" />
+    <ProjectReference Include="..\..\src\Lakona.Rpc.Transport.Loopback\Lakona.Rpc.Transport.Loopback.csproj" />
   </ItemGroup>
 
   <ItemGroup>
