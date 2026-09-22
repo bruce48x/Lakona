@@ -32,7 +32,7 @@ internal sealed class TestFrameworkNotificationConnection : IAsyncDisposable
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var client = new RpcClientRuntime(clientTransport, new JsonRpcSerializer());
-        var server = new RpcSession(serverTransport, new JsonRpcSerializer(), connectionId);
+        var server = TestRpcSession.Create(serverTransport, new JsonRpcSerializer(), ownsTransport: false, connectionId: connectionId);
         var terminationNotice = SessionTerminationNoticeCapture.Register(client);
 
         try

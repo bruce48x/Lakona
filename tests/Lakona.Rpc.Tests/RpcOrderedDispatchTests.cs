@@ -75,7 +75,7 @@ public class RpcOrderedDispatchTests
         var serializer = new JsonRpcSerializer();
         await using var client = new RpcClientRuntime(transport, serializer);
         var registry = new RpcServiceRegistry();
-        await using var server = new RpcSession(peer, serializer, registry);
+        await using var server = TestRpcSession.Create(peer, serializer, ownsTransport: false, registry: registry);
         var releaseResponse = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var events = new ConcurrentQueue<string>();

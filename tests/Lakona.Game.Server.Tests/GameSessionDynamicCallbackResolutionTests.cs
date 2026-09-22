@@ -17,14 +17,16 @@ public sealed class GameSessionDynamicCallbackResolutionTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         LoopbackTransport.CreatePair(out var unusedClientTransport, out var serverTransport);
-        await using var unusedClientSession = new RpcSession(
+        await using var unusedClientSession = TestRpcSession.Create(
             unusedClientTransport,
             new JsonRpcSerializer(),
-            "unused-client");
-        await using var serverSession = new RpcSession(
+            ownsTransport: false,
+            connectionId: "unused-client");
+        await using var serverSession = TestRpcSession.Create(
             serverTransport,
             new JsonRpcSerializer(),
-            ConnectionId);
+            ownsTransport: false,
+            connectionId: ConnectionId);
         var first = new FirstCallback();
         var second = new SecondCallback();
 

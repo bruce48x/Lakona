@@ -32,8 +32,12 @@ internal sealed class TestCallbackConnection : IAsyncDisposable
         params object[] callbacks)
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
-        clientSession = new RpcSession(clientTransport, new JsonRpcSerializer(), $"{connectionId}-client");
-        serverSession = new RpcSession(serverTransport, new JsonRpcSerializer(), connectionId);
+        clientSession = TestRpcSession.Create(
+            clientTransport,
+            new JsonRpcSerializer(),
+            ownsTransport: false,
+            connectionId: $"{connectionId}-client");
+        serverSession = TestRpcSession.Create(serverTransport, new JsonRpcSerializer(), ownsTransport: false, connectionId: connectionId);
 
         connections.Set(connectionId, new RpcNotificationChannel(serverSession));
         callbackProxies.Add(new CallbackBinder(callbacks));

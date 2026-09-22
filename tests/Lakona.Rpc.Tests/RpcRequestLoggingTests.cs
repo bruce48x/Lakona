@@ -234,7 +234,7 @@ public sealed class RpcRequestLoggingTests
             logging.SetMinimumLevel(LogLevel.Warning);
             logging.AddProvider(loggerProvider);
         });
-        var server = new RpcSession(serverTransport, serializer);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false);
         var firstStarted = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseFirst = new TaskCompletionSource(
@@ -307,7 +307,7 @@ public sealed class RpcRequestLoggingTests
             logging.AddProvider(loggerProvider);
         });
         var registry = new RpcServiceRegistry();
-        var server = new RpcSession(serverTransport, serializer, registry);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
         registry.Register(1, 1, (_, req, ct) =>
         {
             using var payload = serializer.SerializeFrame("ok");

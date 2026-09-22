@@ -158,7 +158,7 @@ public sealed partial class HotfixActorClusterHandlerTests
         ClusterActorRpcBinder.Bind(registry, fixture.Handler);
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new MemoryPackRpcSerializer();
-        await using var server = new RpcSession(serverTransport, serializer, registry);
+        await using var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
         await using var client = new RpcClientRuntime(clientTransport, serializer);
         await server.StartAsync(TestContext.Current.CancellationToken);
         await client.StartAsync(TestContext.Current.CancellationToken);

@@ -25,7 +25,7 @@ public class RpcSessionTests
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
         var registry = new RpcServiceRegistry();
-        var server = new RpcSession(serverTransport, serializer, registry);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
 
         uint? receivedRequestId = null;
         registry.Register(1, 1, (_, req, ct) =>
@@ -62,7 +62,7 @@ public class RpcSessionTests
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
-        var server = new RpcSession(serverTransport, serializer);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false);
 
         await server.StartAsync();
         await clientTransport.ConnectAsync();
@@ -223,10 +223,11 @@ public class RpcSessionTests
                 implementation.ExecuteAsync(request, cancellationToken),
             methodName: "ExecuteAsync");
 
-        var server = new RpcSession(
+        var server = TestRpcSession.Create(
             serverTransport,
             serializer,
-            registry,
+            ownsTransport: false,
+            registry: registry,
             connectionId: "typed-connection");
         await server.StartAsync();
         await clientTransport.ConnectAsync();
@@ -269,7 +270,12 @@ public class RpcSessionTests
                 instance.ExecuteAsync(request, cancellationToken),
             methodName: "ExecuteAsync");
 
-        var server = new RpcSession(serverTransport, serializer, registry, connectionId: "singleton-connection");
+        var server = TestRpcSession.Create(
+            serverTransport,
+            serializer,
+            ownsTransport: false,
+            registry: registry,
+            connectionId: "singleton-connection");
         await server.StartAsync();
         await clientTransport.ConnectAsync();
         await clientTransport.SendFrameAsync(RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
@@ -307,7 +313,12 @@ public class RpcSessionTests
                 instance.ExecuteAsync(request, cancellationToken),
             methodName: "ExecuteAsync");
 
-        var server = new RpcSession(serverTransport, serializer, registry, connectionId: "drain-connection");
+        var server = TestRpcSession.Create(
+            serverTransport,
+            serializer,
+            ownsTransport: false,
+            registry: registry,
+            connectionId: "drain-connection");
         await server.StartAsync();
         await clientTransport.ConnectAsync();
         await clientTransport.SendFrameAsync(RpcEnvelopeCodec.EncodeRequest(new RpcRequestEnvelope
@@ -349,10 +360,11 @@ public class RpcSessionTests
             serviceName: "ControlService",
             methodName: "Echo");
 
-        var server = new RpcSession(
+        var server = TestRpcSession.Create(
             serverTransport,
             new JsonRpcSerializer(),
-            registry,
+            ownsTransport: false,
+            registry: registry,
             connectionId: "raw-connection");
         await server.StartAsync();
         await clientTransport.ConnectAsync();
@@ -394,10 +406,11 @@ public class RpcSessionTests
             serviceName: "ControlService",
             methodName: "EchoWriter");
 
-        var server = new RpcSession(
+        var server = TestRpcSession.Create(
             serverTransport,
             new JsonRpcSerializer(),
-            registry,
+            ownsTransport: false,
+            registry: registry,
             connectionId: "raw-writer-connection");
         await server.StartAsync();
         await clientTransport.ConnectAsync();
@@ -438,7 +451,7 @@ public class RpcSessionTests
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
-        var server = new RpcSession(serverTransport, serializer);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false);
 
         await server.StartAsync();
 
@@ -453,7 +466,7 @@ public class RpcSessionTests
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
-        var server = new RpcSession(serverTransport, serializer);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false);
 
         await server.StartAsync();
         await server.StopAsync();
@@ -468,13 +481,13 @@ public class RpcSessionTests
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
-        var server = new RpcSession(serverTransport, serializer);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false);
 
         await server.StartAsync();
         await server.StopAsync();
 
         LoopbackTransport.CreatePair(out var clientTransport2, out var serverTransport2);
-        var server2 = new RpcSession(serverTransport2, serializer);
+        var server2 = TestRpcSession.Create(serverTransport2, serializer, ownsTransport: false);
         await server2.StartAsync();
         await server2.StopAsync();
 
@@ -488,7 +501,7 @@ public class RpcSessionTests
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
         var registry = new RpcServiceRegistry();
-        var server = new RpcSession(serverTransport, serializer, registry);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
 
         registry.Register(1, 1, (_, req, ct) =>
             new ValueTask<TransportFrame>(
@@ -551,8 +564,8 @@ public class RpcSessionTests
 
         LoopbackTransport.CreatePair(out var clientTransport1, out var serverTransport1);
         LoopbackTransport.CreatePair(out var clientTransport2, out var serverTransport2);
-        var server1 = new RpcSession(serverTransport1, serializer, registry);
-        var server2 = new RpcSession(serverTransport2, serializer, registry);
+        var server1 = TestRpcSession.Create(serverTransport1, serializer, ownsTransport: false, registry: registry);
+        var server2 = TestRpcSession.Create(serverTransport2, serializer, ownsTransport: false, registry: registry);
 
         await server1.StartAsync();
         await server2.StartAsync();
@@ -594,7 +607,7 @@ public class RpcSessionTests
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
         var registry = new RpcServiceRegistry();
-        var server = new RpcSession(serverTransport, serializer, registry);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
 
         registry.Register(1, 1, (_, req, ct) =>
             new ValueTask<TransportFrame>(
@@ -631,7 +644,7 @@ public class RpcSessionTests
     public async Task ScopedServiceCache_IsPerConnectionAndClearedOnStop()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
-        var server = new RpcSession(serverTransport, new JsonRpcSerializer());
+        var server = TestRpcSession.Create(serverTransport, new JsonRpcSerializer(), ownsTransport: false);
 
         var first = server.GetOrAddScopedService(1, _ => new object());
         var second = server.GetOrAddScopedService(1, _ => new object());
@@ -650,7 +663,7 @@ public class RpcSessionTests
     public async Task ScopedServiceCache_ConcurrentFirstAccess_InvokesFactoryExactlyOnce()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
-        var server = new RpcSession(serverTransport, new JsonRpcSerializer());
+        var server = TestRpcSession.Create(serverTransport, new JsonRpcSerializer(), ownsTransport: false);
         var factoryCalls = 0;
         using var start = new ManualResetEventSlim();
 
@@ -681,14 +694,14 @@ public class RpcSessionTests
     public void Constructor_NullTransport_Throws()
     {
         Assert.Throws<ArgumentNullException>(() =>
-            new RpcSession(null!, new JsonRpcSerializer()));
+            new RpcSession(null!, new JsonRpcSerializer(), new RpcServiceRegistry(), "constructor-test", ownsTransport: false));
     }
 
     [Fact]
     public void Constructor_NullSerializer_Throws()
     {
         LoopbackTransport.CreatePair(out var client, out var server);
-        Assert.Throws<ArgumentNullException>(() => new RpcSession(client, null!));
+        Assert.Throws<ArgumentNullException>(() => new RpcSession(client, null!, new RpcServiceRegistry(), "constructor-test", ownsTransport: false));
     }
 
     [Fact]
@@ -697,7 +710,7 @@ public class RpcSessionTests
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
         var registry = new RpcServiceRegistry();
-        var server = new RpcSession(serverTransport, serializer, registry);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
 
         registry.Register(1, 1, async (_, req, ct) =>
         {
@@ -736,7 +749,7 @@ public class RpcSessionTests
     public async Task SendNotificationAsync_ConcurrentCalls_AreSerializedOnTransport()
     {
         var transport = new ConcurrentSendDetectTransport();
-        var server = new RpcSession(transport, new JsonRpcSerializer());
+        var server = TestRpcSession.Create(transport, new JsonRpcSerializer(), ownsTransport: false);
 
         var sends = Enumerable.Range(0, 24)
             .Select(i => server.SendNotificationAsync(1, 1, i).AsTask())
@@ -1022,7 +1035,7 @@ public class RpcSessionTests
     public async Task RemoteClose_ResetsServerStateAndRaisesDisconnected()
     {
         var transport = new ReconnectableEmptyFrameTransport();
-        var server = new RpcSession(transport, new JsonRpcSerializer());
+        var server = TestRpcSession.Create(transport, new JsonRpcSerializer(), ownsTransport: false);
 
         var disconnectedCount = 0;
         server.Disconnected += ex =>
@@ -1051,7 +1064,7 @@ public class RpcSessionTests
         var requestStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var handlerCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var registry = new RpcServiceRegistry();
-        var server = new RpcSession(serverTransport, serializer, registry);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
 
         registry.Register(1, 1, async (_, req, ct) =>
         {
@@ -1094,7 +1107,7 @@ public class RpcSessionTests
     public async Task DisposeAsync_WhenOwningTransport_DisposesTransportOnce()
     {
         var transport = new ConcurrentSendDetectTransport();
-        var server = new RpcSession(transport, new JsonRpcSerializer(), ownsTransport: true);
+        var server = TestRpcSession.Create(transport, new JsonRpcSerializer(), ownsTransport: true);
 
         await server.DisposeAsync();
         await server.DisposeAsync();
@@ -1106,7 +1119,7 @@ public class RpcSessionTests
     public async Task DisposeAsync_DuringPendingReceive_Completes()
     {
         var transport = new IdleSessionTransport();
-        var server = new RpcSession(transport, new JsonRpcSerializer());
+        var server = TestRpcSession.Create(transport, new JsonRpcSerializer(), ownsTransport: false);
 
         await server.StartAsync();
 
@@ -1117,7 +1130,7 @@ public class RpcSessionTests
     public async Task SendNotificationAsync_WhenSendFails_PropagatesAndDisposeStillCompletes()
     {
         var transport = new ThrowingSendSessionTransport();
-        var server = new RpcSession(transport, new JsonRpcSerializer());
+        var server = TestRpcSession.Create(transport, new JsonRpcSerializer(), ownsTransport: false);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             server.SendNotificationAsync(1, 1, "send-fail").AsTask());
@@ -1132,7 +1145,7 @@ public class RpcSessionTests
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
-        var server = new RpcSession(serverTransport, serializer);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false);
 
         await server.StartAsync();
         await clientTransport.ConnectAsync();
@@ -1235,7 +1248,7 @@ public class RpcSessionTests
         // to the external ct passed to RunAsync/StartAsync. With a no-EOF transport (KCP/UDP),
         // cancelling the external ct has no effect on the internal LoopAsync — RunAsync hangs.
         var transport = new IdleSessionTransport();
-        var server = new RpcSession(transport, new JsonRpcSerializer());
+        var server = TestRpcSession.Create(transport, new JsonRpcSerializer(), ownsTransport: false);
 
         using var cts = new CancellationTokenSource();
         var runTask = server.RunAsync(cts.Token).AsTask();

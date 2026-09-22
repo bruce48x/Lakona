@@ -20,10 +20,11 @@ public sealed class SessionTerminationNotificationRpcTests
         var endpointSerializer = new SessionTerminationNoticeRejectingSerializer(new JsonRpcSerializer());
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
 
-        await using var serverSession = new RpcSession(
+        await using var serverSession = TestRpcSession.Create(
             serverTransport,
             endpointSerializer,
-            ConnectionId);
+            ownsTransport: false,
+            connectionId: ConnectionId);
         await using var client = new RpcClientRuntime(clientTransport, endpointSerializer);
         var received = SessionTerminationNoticeCapture.Register(client);
 

@@ -35,7 +35,7 @@ public sealed class ClientNotificationDirectRoutingTests
             return new ValueTask<RpcRawResult>(RpcRawResult.Ok(ReadOnlyMemory<byte>.Empty));
         });
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
-        await using var server = new RpcSession(serverTransport, new JsonRpcSerializer(), registry);
+        await using var server = TestRpcSession.Create(serverTransport, new JsonRpcSerializer(), ownsTransport: false, registry: registry);
         await using var client = new RpcClientRuntime(clientTransport, new JsonRpcSerializer());
         await server.StartAsync(TestContext.Current.CancellationToken);
         await client.StartAsync(TestContext.Current.CancellationToken);

@@ -33,7 +33,7 @@ public class RpcClientRuntimeTests
         var clientSerializer = new DestinationTrackingRpcSerializer();
 
         var registry = new RpcServiceRegistry();
-        var server = new RpcSession(serverTransport, serverSerializer, registry);
+        var server = TestRpcSession.Create(serverTransport, serverSerializer, ownsTransport: false, registry: registry);
         registry.Register(1, 1, (_, req, ct) =>
         {
             var arg = serverSerializer.Deserialize<string>(req.Payload.Memory);
@@ -66,7 +66,11 @@ public class RpcClientRuntimeTests
         };
 
         var registry = new RpcServiceRegistry();
-        var server = new RpcSession(new TransformingTransport(rawServerTransport, security), serializer, registry);
+        var server = TestRpcSession.Create(
+            new TransformingTransport(rawServerTransport, security),
+            serializer,
+            ownsTransport: false,
+            registry: registry);
         registry.Register(1, 1, (_, req, ct) =>
         {
             var arg = serializer.Deserialize<string>(req.Payload.Memory);
@@ -100,7 +104,7 @@ public class RpcClientRuntimeTests
         var serializer = new JsonRpcSerializer();
 
         var registry = new RpcServiceRegistry();
-        var server = new RpcSession(serverTransport, serializer, registry);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
         registry.Register(1, 1, (_, req, ct) =>
             new ValueTask<TransportFrame>(
                 RpcEnvelopeCodec.EncodeResponse(
@@ -125,7 +129,7 @@ public class RpcClientRuntimeTests
         var serializer = new JsonRpcSerializer();
 
         var registry = new RpcServiceRegistry();
-        var server = new RpcSession(serverTransport, serializer, registry);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
         registry.Register(1, 1, (_, req, ct) =>
             throw new InvalidOperationException("handler exploded"));
 
@@ -291,7 +295,7 @@ public class RpcClientRuntimeTests
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
 
-        var server = new RpcSession(serverTransport, serializer);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false);
         await server.StartAsync();
 
         var client = new RpcClientRuntime(clientTransport, serializer);
@@ -325,7 +329,7 @@ public class RpcClientRuntimeTests
         var serializer = new JsonRpcSerializer();
 
         var registry = new RpcServiceRegistry();
-        var server = new RpcSession(serverTransport, serializer, registry);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
         registry.Register(1, 1, (_, req, ct) =>
         {
             var arg = serializer.Deserialize<string>(req.Payload.Memory);
@@ -356,7 +360,7 @@ public class RpcClientRuntimeTests
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
 
-        var server = new RpcSession(serverTransport, serializer);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false);
         await server.StartAsync();
 
         var client = new RpcClientRuntime(clientTransport, serializer);
@@ -385,7 +389,7 @@ public class RpcClientRuntimeTests
         var loggerProvider = new RecordingLoggerProvider();
         using var loggerFactory = LoggerFactory.Create(logging => logging.AddProvider(loggerProvider));
 
-        var server = new RpcSession(serverTransport, serializer);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false);
         await server.StartAsync();
 
         var diagnosticObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -422,7 +426,7 @@ public class RpcClientRuntimeTests
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
 
-        var server = new RpcSession(serverTransport, serializer);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false);
         await server.StartAsync();
 
         var client = new RpcClientRuntime(clientTransport, serializer);
@@ -449,7 +453,7 @@ public class RpcClientRuntimeTests
         var loggerProvider = new RecordingLoggerProvider();
         using var loggerFactory = LoggerFactory.Create(logging => logging.AddProvider(loggerProvider));
 
-        var server = new RpcSession(serverTransport, serializer);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false);
         await server.StartAsync();
 
         var observedCount = 0;
@@ -495,7 +499,7 @@ public class RpcClientRuntimeTests
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
 
-        var server = new RpcSession(serverTransport, serializer);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false);
         await server.StartAsync();
 
         var handled = new ConcurrentQueue<string>();
@@ -540,7 +544,7 @@ public class RpcClientRuntimeTests
         var serializer = new JsonRpcSerializer();
 
         var registry = new RpcServiceRegistry();
-        var server = new RpcSession(serverTransport, serializer, registry);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
         registry.Register(1, 1, (_, req, ct) =>
         {
             var arg = serializer.Deserialize<string>(req.Payload.Memory);
@@ -606,7 +610,7 @@ public class RpcClientRuntimeTests
         var serializer = new JsonRpcSerializer();
 
         var registry = new RpcServiceRegistry();
-        var server = new RpcSession(serverTransport, serializer, registry);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
         registry.Register(1, 1, async (_, req, ct) =>
         {
             var arg = serializer.Deserialize<int>(req.Payload.Memory);
@@ -692,7 +696,7 @@ public class RpcClientRuntimeTests
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
         var serializer = new JsonRpcSerializer();
 
-        var server = new RpcSession(serverTransport, serializer);
+        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false);
         await server.StartAsync();
 
         var client = new RpcClientRuntime(clientTransport, serializer, new RpcKeepAliveOptions

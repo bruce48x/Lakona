@@ -1120,11 +1120,11 @@ public sealed class LakonaGameServerTests
         services.UseReadySingleNodeMembership();
         using var provider = services.BuildServiceProvider();
         var server = provider.GetRequiredService<ILakonaGameServer>();
-        await using var rpcSession = new RpcSession(
+        await using var rpcSession = TestRpcSession.Create(
             new ConfigurableSendTransport(WaitUntilCanceledAsync),
             new JsonRpcSerializer(),
-            "connection-a",
-            ownsTransport: true);
+            ownsTransport: true,
+            connectionId: "connection-a");
         provider.GetRequiredService<GameFrameworkConnectionRegistry>()
             .Set("connection-a", new RpcNotificationChannel(rpcSession));
         var session = await server.StartSessionAsync(
@@ -1161,11 +1161,11 @@ public sealed class LakonaGameServerTests
         var server = provider.GetRequiredService<ILakonaGameServer>();
         var exception = new InvalidOperationException("boom");
         var transport = new ConfigurableSendTransport(_ => throw exception);
-        await using var rpcSession = new RpcSession(
+        await using var rpcSession = TestRpcSession.Create(
             transport,
             new JsonRpcSerializer(),
-            "connection-a",
-            ownsTransport: true);
+            ownsTransport: true,
+            connectionId: "connection-a");
         provider.GetRequiredService<GameFrameworkConnectionRegistry>()
             .Set("connection-a", new RpcNotificationChannel(rpcSession));
         var session = await server.StartSessionAsync(

@@ -138,6 +138,10 @@ Public API commitment boundaries are documented in
 
 #### Host And Session Lifetime
 
+The host constructs each internal `RpcSession` with an explicit service registry,
+connection id, and transport ownership decision. Test-only defaults for those
+inputs belong in test fixtures, not runtime constructor overloads.
+
 `RpcServerHost` is an embeddable, token-driven runtime owner. It observes the
 `CancellationToken` supplied to `RunAsync` and does not subscribe to Ctrl+C,
 SIGTERM, process-exit, or another ambient process signal. The application
