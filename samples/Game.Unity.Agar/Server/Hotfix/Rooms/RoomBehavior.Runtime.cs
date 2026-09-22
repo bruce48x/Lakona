@@ -103,8 +103,7 @@ public sealed partial class RoomBehavior
                         RoomId = self.State.RoomId,
                         ClearedAtUtc = finishedAtUtc,
                         Reason = "Match completed."
-                    },
-                    CancellationToken.None)
+                    })
                 .ConfigureAwait(false);
         }
 
@@ -116,8 +115,7 @@ public sealed partial class RoomBehavior
                 .Route<UserActor>(new UserId(winnerEntry.PlayerId))
                 .CallAsync(
                     static behavior => behavior.AddWinAsync,
-                    new UserWinRequest { SettlementId = $"{settlementId}:win" },
-                    CancellationToken.None)
+                    new UserWinRequest { SettlementId = $"{settlementId}:win" })
                 .ConfigureAwait(false);
         }
 
@@ -137,8 +135,7 @@ public sealed partial class RoomBehavior
                 .Route<UserActor>(userId)
                 .CallAsync(
                     static behavior => behavior.AddVictoryPointsAsync,
-                    new UserVictoryPointsRequest { Points = points, SettlementId = $"{settlementId}:points" },
-                    CancellationToken.None)
+                    new UserVictoryPointsRequest { Points = points, SettlementId = $"{settlementId}:points" })
                 .ConfigureAwait(false);
         }
 

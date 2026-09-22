@@ -92,13 +92,15 @@ ownership accidentally.
 
 Use a direct static selector lambda:
 
+Omit the optional `cancellationToken` argument from ordinary `CallAsync` and
+`PostAsync` calls. Add it only when the operation explicitly needs cancellation.
+
 ```csharp
 var reply = await actors
     .Route<RoomActor>(roomId)
     .CallAsync(
         static behavior => behavior.JoinAsync,
-        request,
-        cancellationToken);
+        request);
 
 await actors
     .Place<RoomActor>(roomId)
@@ -112,8 +114,7 @@ await actors
     .Local<RoomActor>(roomId)
     .PostAsync(
         static behavior => behavior.RunTickAsync,
-        request,
-        cancellationToken);
+        request);
 ```
 
 Selection rules:

@@ -51,8 +51,7 @@ internal sealed class BattleService
             .Route<UserActor>(new UserId(req.PlayerId))
             .CallAsync(
                 static behavior => behavior.GetSnapshotAsync,
-                new PlayerSessionSnapshotRequest(),
-                CancellationToken.None)
+                new PlayerSessionSnapshotRequest())
             .ConfigureAwait(false);
         if (!string.Equals(sessionSnapshot.SessionToken, req.Token, StringComparison.Ordinal) ||
             !string.Equals(sessionSnapshot.CurrentRoomId, req.RoomId, StringComparison.Ordinal) ||
@@ -107,8 +106,7 @@ internal sealed class BattleService
                         RoomId = req.RoomId,
                         MatchId = req.MatchId,
                         RealtimeSessionId = realtimeSession.SessionId
-                    },
-                    CancellationToken.None)
+                    })
                 .ConfigureAwait(false);
         }
         catch (InvalidOperationException)
@@ -137,8 +135,7 @@ internal sealed class BattleService
                 IsReady = true,
                 RealtimeSessionId = realtimeSession.SessionId,
                 UpdatedAtUtc = DateTime.UtcNow
-            },
-                CancellationToken.None)
+            })
             .ConfigureAwait(false);
         if (!ready.Succeeded)
         {
@@ -152,8 +149,7 @@ internal sealed class BattleService
                     RealtimeSessionId = realtimeSession.SessionId,
                     ClearedAtUtc = DateTime.UtcNow,
                     Reason = ready.Message
-                },
-                    CancellationToken.None)
+                })
                 .ConfigureAwait(false);
             await call.GameServer
                 .TerminateSessionAsync(
@@ -181,8 +177,7 @@ internal sealed class BattleService
             .Local<RoomActor>(new RoomId(req.RoomId))
             .CallAsync(
                 static behavior => behavior.GetFrameSyncSnapshotAsync,
-                new RoomFrameSyncSnapshotRequest(),
-                CancellationToken.None)
+                new RoomFrameSyncSnapshotRequest())
             .ConfigureAwait(false);
         return new RealtimeAttachReply
         {
@@ -230,8 +225,7 @@ internal sealed class BattleService
                 RealtimeSessionId = realtimeSessionId,
                 Input = req,
                 SubmittedAtUtc = DateTime.UtcNow
-            },
-                CancellationToken.None)
+            })
             .ConfigureAwait(false);
     }
 
@@ -258,8 +252,7 @@ internal sealed class BattleService
                     RealtimeSessionId = realtimeSessionId,
                     Result = call.Request,
                     SubmittedAtUtc = DateTime.UtcNow
-                },
-                CancellationToken.None)
+                })
             .ConfigureAwait(false);
     }
 

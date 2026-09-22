@@ -167,6 +167,10 @@ forwarding Actor call. Stopping the activation cancels the timer automatically.
 Behavior remains reloadable through hotfix code. The generated project
 must not use static mutable process state as the world concurrency model.
 
+Sample and generated Actor `CallAsync` and `PostAsync` calls omit the optional
+`cancellationToken` argument. Developers add it explicitly when their operation
+needs cancellation; it is not a required part of ordinary Actor calls.
+
 The hotfix startup owns the fixed local world actor explicitly:
 
 ```csharp

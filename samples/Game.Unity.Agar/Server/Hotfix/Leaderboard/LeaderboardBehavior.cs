@@ -86,8 +86,7 @@ public sealed partial class LeaderboardBehavior
                     .Route<UserActor>(new UserId(player.PlayerId))
                     .CallAsync(
                         static behavior => behavior.ResetVictoryPointsAsync,
-                        new UserVictoryPointsResetRequest(),
-                        CancellationToken.None)
+                        new UserVictoryPointsResetRequest())
                     .ConfigureAwait(false);
             }
             catch (ActorNotFoundException)

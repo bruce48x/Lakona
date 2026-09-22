@@ -97,8 +97,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                             {
                                 ConnectionId = call.ConnectionId,
                                 PlayerName = playerName
-                            },
-                            CancellationToken.None);
+                            });
                     if (!reply.Success)
                     {
                         return reply;
@@ -116,8 +115,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                                     ConnectionId = call.ConnectionId,
                                     OwnerKey = session.OwnerKey,
                                     SessionId = session.SessionId
-                                },
-                                CancellationToken.None);
+                                });
                     }
                     catch
                     {
@@ -139,8 +137,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                                 ConnectionId = call.ConnectionId,
                                 DirectionX = call.Request.DirectionX,
                                 DirectionY = call.Request.DirectionY
-                            },
-                            CancellationToken.None);
+                            });
                 }
 
                 private ValueTask DisconnectAsync(string connectionId)
@@ -149,8 +146,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                         .Startup<GameWorldActor>(GameWorldIds.Global)
                         .PostAsync(
                             static behavior => behavior.DisconnectAsync,
-                            new GameDisconnectRequest { ConnectionId = connectionId },
-                            CancellationToken.None);
+                            new GameDisconnectRequest { ConnectionId = connectionId });
                 }
             }
         }
@@ -185,7 +181,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                             OwnerKey = call.Request.OwnerKey,
                             SessionId = call.Request.SessionId,
                             ConnectionId = call.Request.ConnectionId
-                        }, CancellationToken.None);
+                        });
 
                 public ValueTask SessionDisconnectedAsync(HotfixLifecycleCall<GameSessionDisconnectedRequest> call)
                 {
@@ -198,8 +194,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                         .Startup<GameWorldActor>(GameWorldIds.Global)
                         .PostAsync(
                             static behavior => behavior.DisconnectAsync,
-                            new GameDisconnectRequest { ConnectionId = call.Request.ConnectionId },
-                            CancellationToken.None);
+                            new GameDisconnectRequest { ConnectionId = call.Request.ConnectionId });
                 }
 
                 /// <inheritdoc />

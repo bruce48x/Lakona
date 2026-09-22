@@ -27,5 +27,5 @@ internal sealed class WorldSessionLifecycle : IGameSessionLifecycle
             {
                 CharacterId = call.Request.OwnerKey,
                 Session = new GameSessionKey(call.Request.OwnerKey, call.Request.SessionId)
-            }, CancellationToken.None);
+            });
 }

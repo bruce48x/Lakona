@@ -168,16 +168,18 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 
         var reply = await _actors.Startup<GameWorldActor>(GameWorldIds.Global).CallAsync(
             static behavior => behavior.LoginAsync,
-            request,
-            ct);
+            request);
         ```
+
+        Actor `CallAsync` and `PostAsync` calls omit the optional `cancellationToken`
+        argument by default. Add it only when your operation needs cancellation.
 
         Use generated typed actor selectors when business code should express
         placement:
 
         ```csharp
-        await actors.Route<RoomActor>(roomId).CallAsync(static behavior => behavior.JoinAsync, request, ct);      // Normal business path
-        await actors.Local<RoomActor>(roomId).PostAsync(static behavior => behavior.RunTickAsync, request, ct);   // Current node only after ownership is proven
+        await actors.Route<RoomActor>(roomId).CallAsync(static behavior => behavior.JoinAsync, request);      // Normal business path
+        await actors.Local<RoomActor>(roomId).PostAsync(static behavior => behavior.RunTickAsync, request);   // Current node only after ownership is proven
         ```
 
         ## Client Notes

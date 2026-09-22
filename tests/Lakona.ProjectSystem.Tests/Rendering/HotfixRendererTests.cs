@@ -20,6 +20,7 @@ public sealed class HotfixRendererTests
         Assert.DoesNotContain("GetWorldAsync", service, StringComparison.Ordinal);
         Assert.Contains("StartSessionAsync", service, StringComparison.Ordinal);
         Assert.Contains("static behavior => behavior.AttachSessionAsync", service, StringComparison.Ordinal);
+        Assert.DoesNotContain("CancellationToken", service, StringComparison.Ordinal);
 
         var behavior = AssertPath(plan, "Server/Hotfix/Game/GameWorldBehavior.cs").Content;
         Assert.Contains("[HotfixBehaviorOf(typeof(GameWorldActor))]", behavior, StringComparison.Ordinal);
@@ -61,6 +62,7 @@ public sealed class HotfixRendererTests
         Assert.DoesNotContain("call.Services", lifecycle, StringComparison.Ordinal);
         Assert.Contains("static behavior => behavior.DisconnectAsync", lifecycle, StringComparison.Ordinal);
         Assert.Contains("Player state intentionally remains", lifecycle, StringComparison.Ordinal);
+        Assert.DoesNotContain("CancellationToken", lifecycle, StringComparison.Ordinal);
 
         Assert.Contains("TimerTick<GameWorldTimerArgs>", timer, StringComparison.Ordinal);
         Assert.Contains("TickAsync(self, new GameTickRequest(), CancellationToken.None)", timer, StringComparison.Ordinal);

@@ -67,8 +67,7 @@ public sealed class RealtimeSessionLifecycle : IGameSessionLifecycle
                         RealtimeSessionId = sessionId,
                         ClearedAtUtc = DateTime.UtcNow,
                         Reason = reason
-                    },
-                    CancellationToken.None)
+                    })
                 .ConfigureAwait(false);
         }
         catch (ActorNotFoundException)

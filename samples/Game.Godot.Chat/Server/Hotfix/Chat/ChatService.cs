@@ -45,8 +45,7 @@ namespace Server.Hotfix.Chat
                     {
                         Session = session,
                         Text = FilterMessage(text)
-                    },
-                    CancellationToken.None);
+                    });
             if (result is not null)
             {
                 _notifications.Message(result.Recipients, result.Message);

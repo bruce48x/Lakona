@@ -39,8 +39,7 @@ namespace Server.Hotfix.Chat
                         Session = new Lakona.Game.Server.Sessions.GameSessionKey(
                             call.Request.OwnerKey,
                             call.Request.SessionId)
-                    },
-                    CancellationToken.None);
+                    });
             if (result is not null)
             {
                 _notifications.UserLeft(result.Recipients, result.Name);

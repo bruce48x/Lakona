@@ -139,24 +139,21 @@ public sealed partial class MatchmakingBehavior
     {
         return _actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
             static behavior => behavior.MarkQueuedAsync,
-            request,
-            CancellationToken.None);
+            request);
     }
 
     private ValueTask ClearQueueAsync(PlayerSessionQueueClearRequest request)
     {
         return _actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
             static behavior => behavior.ClearQueueAsync,
-            request,
-            CancellationToken.None);
+            request);
     }
 
     private ValueTask AssignRoomAsync(PlayerRoomAssignment request)
     {
         return _actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
             static behavior => behavior.AssignRoomAsync,
-            request,
-            CancellationToken.None);
+            request);
     }
 
     private async ValueTask<RoomSettlementResult> AllocateRoomAsync(
@@ -186,8 +183,7 @@ public sealed partial class MatchmakingBehavior
         {
             var create = await _actors.Route<RoomActor>(roomId).CallAsync(
                 static behavior => behavior.CreateAsync,
-                request,
-                CancellationToken.None).ConfigureAwait(false);
+                request).ConfigureAwait(false);
             if (!create.Succeeded)
             {
                 return create;

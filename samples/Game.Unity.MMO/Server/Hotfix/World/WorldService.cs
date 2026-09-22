@@ -26,8 +26,7 @@ internal sealed class WorldService
         var session = await call.GameServer.StartSessionAsync<WorldSessionLifecycle>(characterId, call.ConnectionId).ConfigureAwait(false);
         var result = await _actors.Startup<ZoneActor>(new ZoneId(WorldProtocol.DefaultZoneId)).CallAsync(
             static behavior => behavior.EnterAsync,
-            new ZoneEnterRequest { CharacterId = characterId, CharacterName = name, Session = session },
-            CancellationToken.None).ConfigureAwait(false);
+            new ZoneEnterRequest { CharacterId = characterId, CharacterName = name, Session = session }).ConfigureAwait(false);
         return new EnterWorldReply
         {
             Code = result.Accepted ? 0 : 2,
@@ -44,8 +43,7 @@ internal sealed class WorldService
         if (session is null) return;
         await _actors.Startup<ZoneActor>(new ZoneId(WorldProtocol.DefaultZoneId)).CallAsync(
             static behavior => behavior.SubmitCommandAsync,
-            new ZoneCommandRequest { CharacterId = session.Value.OwnerKey, Session = session.Value, Command = call.Request },
-            CancellationToken.None).ConfigureAwait(false);
+            new ZoneCommandRequest { CharacterId = session.Value.OwnerKey, Session = session.Value, Command = call.Request }).ConfigureAwait(false);
     }
 
     public async ValueTask LeaveWorldAsync(WorldServiceCall<LeaveWorldRequest> call)
@@ -54,8 +52,7 @@ internal sealed class WorldService
         if (session is null) return;
         await _actors.Startup<ZoneActor>(new ZoneId(WorldProtocol.DefaultZoneId)).CallAsync(
             static behavior => behavior.LeaveAsync,
-            new ZoneLeaveRequest { CharacterId = session.Value.OwnerKey, Session = session.Value },
-            CancellationToken.None).ConfigureAwait(false);
+            new ZoneLeaveRequest { CharacterId = session.Value.OwnerKey, Session = session.Value }).ConfigureAwait(false);
     }
 
     private static string NormalizeCharacterId(string name)

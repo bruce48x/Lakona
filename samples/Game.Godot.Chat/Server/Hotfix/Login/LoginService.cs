@@ -40,8 +40,7 @@ namespace Server.Hotfix.Login
                     {
                         Session = session,
                         PlayerName = playerName,
-                    },
-                    CancellationToken.None);
+                    });
             _notifications.UserJoined(
                 result.Recipients,
                 new ChatMember { Name = playerName });

@@ -138,8 +138,7 @@ public sealed partial class UserBehavior
                         PlayerId = self.State.UserId,
                         VictoryPoints = Math.Max(0, self.State.VictoryPoints),
                         WinCount = Math.Max(0, self.State.WinCount)
-                    },
-                    CancellationToken.None)
+                    })
                 .ConfigureAwait(false);
         }
     }
@@ -247,8 +246,7 @@ public sealed partial class UserBehavior
                             RealtimeSessionId = request.RealtimeSessionId,
                             ClearedAtUtc = request.ClearedAtUtc,
                             Reason = request.Reason
-                        },
-                        CancellationToken.None)
+                        })
                     .ConfigureAwait(false);
             }
             catch (ActorNotFoundException)

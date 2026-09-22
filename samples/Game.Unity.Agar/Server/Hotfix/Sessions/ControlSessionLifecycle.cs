@@ -40,7 +40,7 @@ public sealed class ControlSessionLifecycle : IGameSessionLifecycle
                         UserId = call.Request.OwnerKey,
                         SessionId = call.Request.SessionId,
                         ConnectionId = call.Request.ConnectionId
-                    }, CancellationToken.None).ConfigureAwait(false);
+                    }).ConfigureAwait(false);
         }
         catch (ActorNotFoundException)
         {
@@ -98,8 +98,7 @@ public sealed class ControlSessionLifecycle : IGameSessionLifecycle
                         ConnectionId = call.Request.ConnectionId,
                         DisconnectedAtUtc = DateTime.UtcNow,
                         Reason = "Control disconnect"
-                    },
-                    CancellationToken.None)
+                    })
                 .ConfigureAwait(false);
         }
         catch (ActorNotFoundException)

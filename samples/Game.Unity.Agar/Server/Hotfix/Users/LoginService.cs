@@ -104,7 +104,7 @@ public sealed class LoginService
             result.Owner.Value);
         return await _actors
             .Route<UserActor>(userId)
-            .CallAsync(static behavior => behavior.LoginAndAttachAsync, request, cancellationToken)
+            .CallAsync(static behavior => behavior.LoginAndAttachAsync, request)
             .ConfigureAwait(false);
     }
 
