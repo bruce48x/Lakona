@@ -454,6 +454,19 @@ Heartbeat replies report framework session status:
 - `StateLost`: the bound session can no longer be resumed.
 - `Terminated`: the bound session reached a terminal server-side outcome.
 
+### Game Client Lifecycle
+
+`LakonaGameClientLifecycle` coordinates connection, recovery, and disposal for
+the generated Game client. It composes `LakonaGameClientCore` for session,
+heartbeat, and reliable-push state. The initial `ConnectAsync` synchronization
+context is retained across replacement RPC connections. Recovery completes its
+replay heartbeat before reporting the new connection as recovered.
+
+Disposal cancels and joins initial connection work as well as recovery before
+releasing shared state. Concurrent disposal callers await the same cleanup.
+For generated facade and callback wiring, see
+[RPC Source Generation](rpc/source-generation.md#project-configuration).
+
 After a Game Session is established, network errors, heartbeat RPC failures, or
 heartbeat timeouts start framework-managed recovery. The generated client keeps
 the same `LakonaGameClient`, `Api`, service proxies, and callback receivers while

@@ -16,10 +16,9 @@ time and emits:
 
 Generated service calls return runtime ValueTasks directly. Void methods use
 `RpcVoidTask.FromResult` to discard RpcVoid without adding an async task layer
-which could reorder response continuations. The Game client runtime captures
-the initial ConnectAsync synchronization context and rebinds it to replacement
-RPC runtimes. Recovery completes its replay heartbeat before reporting the new
-connection as recovered.
+which could reorder response continuations. See
+[Ordered Message Entry](architecture.md#ordered-message-entry) for the runtime
+ordering guarantee.
 
 Generated RPC glue is compiler output. New Lakona projects must not contain
 project-local `Generated/` RPC source folders, codegen scripts, editor
@@ -81,8 +80,8 @@ Lakona.Game:
 When enabled, the generator emits `LakonaGameClient` in the same namespace as
 the generated `RpcClient`. The wrapper supplies the typed API and static callback
 receiver matching. `LakonaGameClientLifecycle` in `Lakona.Game.Client` owns the
-framework handshake, heartbeat replacement, recovery, and disposal, and composes
-`LakonaGameClientCore` for session and reliable-push behavior. Business RPC services are
+runtime behavior described in [Game Client Lifecycle](../session.md#game-client-lifecycle).
+Business RPC services are
 exposed through `gameClient.Api`, so game client code uses the generated wrapper
 as its single connection entry point.
 
@@ -106,8 +105,8 @@ in [Session Lifecycle](../session.md).
 The generated wrapper passes a callback-binding action to the runtime; the
 runtime creates and owns each `RpcClientRuntime` and invokes that action before
 starting it. The same API dispatch target survives connection replacement.
-Disposal cancels and joins initial connection work as well as recovery before
-releasing shared state. Concurrent disposal callers await the same cleanup.
+Connection, recovery, and disposal behavior are defined in
+[Game Client Lifecycle](../session.md#game-client-lifecycle).
 Lifecycle behavior is tested in the client runtime, with generated-client
 integration tests covering typed calls, callbacks, and recovery. Generator
 tests retain C# 9 compilation and contract-binding checks.
@@ -125,6 +124,21 @@ Tool-generated Unity, Tuanjie, Godot, and console clients enable it by default.
   not write generated RPC glue as source files.
 
 ## Notification Contract Association
+
+```csharp
+[RpcService(10, NotificationContract = typeof(IPlayerCallback))]
+public interface IPlayerService
+{
+    // RPC methods
+}
+
+[RpcNotificationContract]
+public interface IPlayerCallback
+{
+    [RpcNotification(1)]
+    void OnMatchmakingStatus(MatchmakingStatusUpdate update);
+}
+```
 
 `[RpcNotificationContract]` is a parameterless interface marker. The
 `RpcServiceAttribute.NotificationContract` named argument is the single

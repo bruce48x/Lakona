@@ -37,8 +37,9 @@ between independent requests can differ from request order. Each connection also
 has one FIFO writer shared by notifications, responses, and keepalive sends;
 send completion means the actual transport write completed.
 
-Game notification publication participates in a request response barrier, as
-described in the session authority. FIFO transport writing alone cannot order
+Game notification publication participates in a
+[request response barrier](../session.md#notification-and-response-publication-order).
+FIFO transport writing alone cannot order
 notifications still waiting in a higher-level delivery queue.
 
 Client disposal stops framework intake and dispatch and cancels pending RPCs.
@@ -72,18 +73,9 @@ service ids, method ids, or notification ids for different meanings.
 `Lakona.Rpc.Analyzers` reads shared contracts at compile time and emits client
 facades, notification binders, server binders, and generated service metadata.
 
-Generated RPC glue is compiler output. New projects must not contain
-project-local `Generated/` RPC source folders, codegen scripts, editor
-postprocessors, or tool manifests for day-to-day RPC generation.
-
-See [source-generation.md](source-generation.md) for the source-generation
-contract.
-
-Game client generation emits the typed facade and static callback bindings.
-Connection generations, handshake, recovery scheduling, and disposal belong to
-`LakonaGameClientLifecycle` in `Lakona.Game.Client`, which composes the existing
-session and reliable-push core. These behaviors do not depend on business
-contract types and are maintained and tested as ordinary runtime code.
+The [source-generation contract](source-generation.md) defines generated output,
+project configuration, and the boundary between typed glue and Game client
+runtime behavior.
 
 ### Runtime Owns Frames And Sessions
 
@@ -97,6 +89,17 @@ typed binders and raw handlers share the same admission, response publication,
 error handling, logging, and frame ownership path. Low-level dispatch tests
 register handlers in that registry as well.
 
+Registrations reject duplicate method ids. Connection-scoped activation uses
+single-publication semantics. Factory-created services are released after
+in-flight requests drain; explicitly bound singleton instances remain
+caller-owned. `RpcServiceRegistration<TService>` owns typed payload
+serialization, activation, invocation, and response encoding. Framework control
+protocols that own their codec use `RpcRawHandler` and `RpcRawResult`.
+Raw handlers may write their opaque payload directly into an envelope-owned
+buffer without an intermediate payload-frame copy.
+
+#### Frame Ownership
+
 For typed requests, responses, and notifications, the runtime reserves the
 envelope header and gives the configured serializer an `IBufferWriter<byte>`
 positioned at the business payload. The serializer writes directly into that
@@ -106,19 +109,18 @@ the received frame for the lifetime of their decoded frame object.
 
 Each non-empty `TransportFrame` instance owns one lease over its shared buffer.
 `Slice` creates an independent lease, and disposing either handle releases only
-that handle once. A disposed handle cannot read or create further slices, while
+that handle once. Access through a disposed non-empty handle throws
+`ObjectDisposedException`; it cannot read or create further slices, while
 other live slices remain valid. The shared `TransportFrame.Empty` value owns no
 buffer and remains reusable after disposal.
 
-The protocol's 64 MiB resource authority applies to the complete decoded RPC
-envelope, not independently to each business payload, error, or metadata field.
-Request payload, response payload plus error text, and Push payload plus
-metadata therefore share one envelope budget. Raw transport and
-length-prefixed-buffer limits are derived from that authority by adding the
-worst-case security-transform overhead and the framing prefix respectively.
+Frame size enforcement follows the shared envelope budget and derived transport
+limits defined in [Resource Limits](wire-protocol-v1.md#resource-limits).
 
 Public API commitment boundaries are documented in
 [public-api-boundaries.md](public-api-boundaries.md).
+
+#### Host And Session Lifetime
 
 `RpcServerHost` is an embeddable, token-driven runtime owner. It observes the
 `CancellationToken` supplied to `RunAsync` and does not subscribe to Ctrl+C,
@@ -134,6 +136,10 @@ Session or wait task. Higher-level frameworks may add neutral Session admission
 gates that return a lifetime cancellation token and an exactly-once lease. The
 host composes those tokens with shutdown, skips lifecycle notifications for
 rejected connections, and releases every admitted lease after Session cleanup.
+`OnSessionDisconnectedAsync` runs only after the Session, transport, and
+admission leases have been released and the active-capacity slot returned.
+Session receive, keepalive, and request work has finished before this terminal
+signal, so framework observers do not race Session-owned work.
 Official transports do not expose a second application-admission callback
 before this host seam. In particular, the KCP bootstrap only establishes a
 bounded transport connection; application and framework policy belongs to the
@@ -151,19 +157,13 @@ loop awaits the `Overloaded` response before reading another application frame.
 A stalled response transport therefore applies receive backpressure instead of
 creating an unbounded family of overload-send tasks outside the request budget.
 
-Session request gates fail closed. An expected denial returns the gate-selected
-framework status without invoking the handler. An unexpected gate exception is
-logged with its request context, returns the sanitized `InternalError` status,
-and completes that request without faulting the Session or hiding the failure in
-an unobserved background task.
+Session request gates fail closed. Denial and exception classification follow
+the [Status and Error Model](status-error-model.md#implementation-mapping).
 
-Request telemetry follows the same Session ownership boundary. Every accepted
-request produces one start and exactly one bounded terminal outcome, including
-overload, cancellation, connection closure, and unexpected failure. Requests
-that enter the concurrency budget separately measure queue wait; end-to-end
-duration continues through response send or another terminal outcome. Metric
-attributes contain route ids and bounded outcome/status values, never request
-or connection identity.
+Request telemetry follows the Session ownership boundary and covers response
+publication or another terminal outcome. Metric definitions, queue timing, and
+attribute restrictions are documented in
+[Observability](../observability.md#instrumentation-scopes).
 
 Session completion covers all work owned by that Session: the receive loop,
 keepalive probing, and in-flight requests. A receive-loop exit cancels and joins
@@ -241,13 +241,16 @@ same conversation request every 250 milliseconds until a matching response
 arrives. Pending-capacity exhaustion returns a fixed, low-cardinality
 `ServerBusy` rejection without creating a transport or RPC Session; a lost
 request or response falls back to bounded retransmission and ultimately a
-timeout. Caller cancellation remains distinct from timeout, and transport
+`TimeoutException`. Explicit rejection surfaces as
+`KcpConnectionRejectedException`, and caller cancellation as
+`OperationCanceledException`. Transport
 rejection does not represent RPC Session admission or Game Session recovery.
 
 One KCP transport connection is identified by remote UDP address, remote UDP
 port, and conversation id together. The listener uses that complete identity
 for handshake deduplication, KCP datagram routing, failure containment, and
-cleanup. A reused endpoint with a new conversation id creates a separate RPC
+cleanup. Repeated handshakes for the same identity are idempotent. A reused
+endpoint with a new conversation id creates a separate RPC
 Session within the existing pending and active connection limits; it never
 replaces or terminates another conversation. Whether the new RPC Session
 recovers an existing Game Session remains a Lakona.Game decision.
@@ -265,32 +268,21 @@ Server-to-client push is modeled through notification contracts. A callback
 contract is not a separate event bus; it is the reverse direction of the same
 typed RPC session.
 
-A notification contract is an interface marked with the parameterless
-`[RpcNotificationContract]` marker. The owning service declares its
-notification contract through `RpcServiceAttribute.NotificationContract`,
-which is the single association authority between a service and its callback.
-The marker itself carries no service pointer:
-
-```csharp
-[RpcService(10, NotificationContract = typeof(IPlayerCallback))]
-public interface IPlayerService
-{
-    // RPC methods
-}
-
-[RpcNotificationContract]
-public interface IPlayerCallback
-{
-    [RpcNotification(1)]
-    void OnMatchmakingStatus(MatchmakingStatusUpdate update);
-}
-```
+Services declare their callback contract through attributes. The declaration
+shape and association validation are defined in
+[Notification Contract Association](source-generation.md#notification-contract-association).
 
 For replayable game notifications above RPC callbacks, publish notification
 intent through the Lakona game session APIs. Lakona.Game business handlers do
 not receive the connection-scoped callback proxy directly; the game framework
 owns reliable push sequencing, acknowledgement, and replay policy.
 
+See [Reliable Push And Resume](../session.md#reliable-push-and-resume) for that
+Game-layer delivery contract.
+
+Notification handler exceptions are reported through
+`NotificationHandlerException` without disconnecting the transport. Missing
+handlers are reported through `UnhandledNotificationReceived`.
 Client notification diagnostic observers do not own runtime control flow.
 `UnhandledNotificationReceived` and `NotificationHandlerException` invoke
 each subscriber independently; a subscriber failure is logged through the

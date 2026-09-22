@@ -29,14 +29,15 @@ updates. These principles are adapted for the .NET and Unity/Godot ecosystem:
 
 ### Complexity Budget
 
-Lakona is early enough that simplifying the long-term model is more important
-than preserving compatibility shims. A framework surface should stay only when
-it carries active runtime behavior or a clear extension contract.
+A framework surface should carry active runtime behavior or a clear extension
+contract. Simplification follows the compatibility policy in
+[CONTRIBUTING.md](../CONTRIBUTING.md); internal cleanup does not waive published
+API commitments.
 
 Maintainers should treat the following as active simplification pressure:
 
-- Remove obsolete public options, aliases, and compatibility fields instead of
-  keeping them as passive documentation of old behavior.
+- Remove unused internal options and aliases. Evaluate published options and
+  compatibility fields under the contributor compatibility policy before removal.
 - Prefer generated, typed binding over stringly runtime lookup for hotfix
   callbacks, actor calls, and service dispatch surfaces.
 - Keep process, DI, serializer, cluster, and hotfix-generation boundaries

@@ -64,11 +64,15 @@ are defined in
 
 Generated notification binders register one handler per notification method. Duplicate registration fails fast because notifications model a contract implementation, not a general event subscription list.
 
-`RpcClientRuntime` accepts asynchronous notification handlers through `Func<T, ValueTask>`. Pushes and responses enter in received order on the context bound at connection startup. An incomplete handler await allows later messages to enter; synchronous work blocks their entry. Synchronous handlers can still use the convenience overload.
+`RpcClientRuntime` accepts asynchronous notification handlers through
+`Func<T, ValueTask>` and provides a convenience overload for synchronous handlers.
+Callback scheduling and disposal follow
+[Ordered Message Entry](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/architecture.md#ordered-message-entry).
 
-Notification handler exceptions do not disconnect the transport. Observe them through `NotificationHandlerException`. Server notification frames without a registered handler are reported through `UnhandledNotificationReceived`. Diagnostic event subscribers are isolated from one another; a subscriber exception is logged and does not stop later subscribers or notification dispatch.
-
-The runtime consumes ownership of every decoded response. Responses that arrive after caller cancellation, or carry an unknown request id, release their pooled payload immediately instead of retaining it until finalization.
+Observe handler failures through `NotificationHandlerException` and missing
+handlers through `UnhandledNotificationReceived`. Observer isolation and
+response ownership are described in the
+[callback runtime contract](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/architecture.md#callback-is-part-of-the-contract).
 
 ## KeepAlive
 

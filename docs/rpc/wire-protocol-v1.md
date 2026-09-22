@@ -34,11 +34,10 @@ versions of this document in one deployment.
   are produced by the configured `IRpcSerializer`; framework-internal
   Lakona.Game payloads use `LakonaInternalCodec`.
 
-The typed runtime reserves an envelope header and lets `IRpcSerializer` write
-the request, response, or push payload directly into the final envelope
-buffer. This removes an intermediate payload-frame copy but does not change
-any bytes in this wire contract; serializers still see and produce payload
-bytes only.
+Buffer allocation and serializer ownership do not change the wire layout; see
+[Runtime Owns Frames And Sessions](architecture.md#runtime-owns-frames-and-sessions).
+
+## Resource Limits
 
 The maximum complete decoded RPC envelope length is
 `RpcProtocolLimits.DefaultMaxEnvelopeSize`, currently 64 MiB. This budget
@@ -51,6 +50,10 @@ limit plus the worst-case security-transform overhead. The four-byte framing
 prefix used by TCP, WebSocket, and KCP is outside the transport frame body and
 is included separately by `DefaultMaxLengthPrefixedFrameSize`. Network protocol
 headers and KCP segmentation are not part of these application byte domains.
+
+`TransportSecurityConfig.MaxDecodedFrameBytes` configures the decoded-frame
+limit. `LengthPrefixedFrameAccumulator` uses one frame-size limit for both
+buffering and prefix validation.
 
 ## Frame Types
 
@@ -103,18 +106,8 @@ Server-to-client RPC response.
 | `ErrorLength` | `int32` | Present only when `HasError` is non-zero. |
 | `ErrorUtf8` | `byte[ErrorLength]` | Present only when `HasError` is non-zero. |
 
-Status values:
-
-| Value | Name | Meaning |
-| --- | --- | --- |
-| `0` | `Ok` | Request completed successfully. |
-| `1` | `NotFound` | Target service or method was not found. |
-| `2` | `InternalError` | Server failed internally while processing the request. |
-| `3` | `Overloaded` | Server could not accept the request because it is overloaded. |
-| `4` | `BadRequest` | Request reached the RPC layer but was invalid for the target RPC contract. |
-| `5` | `ProtocolError` | Peer violated the RPC wire protocol or connection state machine. |
-
-`RpcStatus` is a framework-only status taxonomy. Business failures belong in business DTOs, not in response status values.
+The `Status` byte values and their meanings are defined together in the
+[Status and Error Model](status-error-model.md#status-semantics).
 
 Example response with no error string:
 
@@ -177,11 +170,6 @@ Lakona.Game reliable push uses the `lakona.game.reliable-push` metadata type
 and encodes session id, sequence, and delivery kind with
 `LakonaInternalCodec`; those fields are not business DTO fields and are not
 interpreted by `Lakona.Rpc.Core`.
-
-Raw framework RPC handlers may write an opaque payload directly into an
-envelope-owned buffer. This changes buffer ownership and removes an
-intermediate copy; it does not change any field or byte in the request or
-response formats above.
 
 ## Keepalive Frames
 

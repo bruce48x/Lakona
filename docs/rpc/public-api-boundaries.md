@@ -77,23 +77,15 @@ Regular application projects should build against this layer.
   cross-runtime ownership and integration contract.
 - `RpcServerHost`.
 - `RpcServerHostBuilder.UseShutdownTimeout` and
-  `RpcServerShutdownTimeoutException` define the bounded cooperative shutdown
-  contract. A timeout is an explicit incomplete-cleanup failure, not a clean
-  stop or a promise that managed handler code was terminated.
+  `RpcServerShutdownTimeoutException` for
+  [bounded cooperative shutdown](architecture.md#host-and-session-lifetime).
 - `RpcServerLimits`.
 - `RpcConnectionInfo` when a generated service factory needs connection
   identity or optional remote endpoint metadata.
-- Official transport constructors. KCP constructors configure transport
-  endpoints and finite pending-connection capacity; they do not expose a
-  transport-handshake admission callback. Application and framework admission
-  uses `RpcServerHostBuilder.UseSessionAdmissionGate`. KCP client bootstrap has
-  a finite built-in deadline; explicit pending-capacity rejection is surfaced
-  as `KcpConnectionRejectedException`, while no usable response before the
-  deadline is surfaced as `TimeoutException` and caller cancellation remains
-  `OperationCanceledException`. KCP connection identity includes both the
-  remote UDP endpoint and conversation id, so a new conversation can establish
-  an independent RPC Session without replacing another conversation at the
-  same endpoint.
+- Official transport constructors and `KcpConnectionRejectedException`.
+  Transport establishment and connection identity follow the
+  [transport lifecycle contract](architecture.md#transport-and-serializer-are-replaceable).
+  Framework admission uses `RpcServerHostBuilder.UseSessionAdmissionGate`.
 - Official serializer constructors, including:
   - `Lakona.Rpc.Serializer.MemoryPack.MemoryPackRpcSerializer()`
   - `Lakona.Rpc.Serializer.MemoryPack.MemoryPackRpcSerializer(MemoryPackSerializerOptions options)`
@@ -102,8 +94,8 @@ Regular application projects should build against this layer.
 - `RpcStatus` as framework-only status taxonomy.
 - `RpcUnhandledNotificationContext` and
   `RpcNotificationHandlerExceptionContext` through `RpcClientRuntime` events.
-  The runtime isolates each diagnostic subscriber so subscriber failures are
-  logged without stopping later subscribers or notification dispatch.
+  See [notification diagnostics](architecture.md#callback-is-part-of-the-contract)
+  for observer isolation.
 - `LakonaGameServer.RunAsync(args, configure)`. The server owns its fixed TCP +
   MemoryPack cluster channel; the builder configures only client-facing
   endpoints and application services. Cluster composition is defined in
@@ -114,21 +106,14 @@ Regular application projects should build against this layer.
 Extension authors can rely on this layer for custom transports, serializers, and connection acceptors.
 
 - `ITransport`.
-- `IRpcSerializer`, whose `Serialize<T>(IBufferWriter<byte>, T)` implementation
-  writes only payload bytes synchronously and neither owns nor retains the
-  supplied writer.
-- `IRpcConnectionAcceptor`. Unexpected `AcceptAsync` failures are terminal and
-  retain their original cause through the server's bounded accept wrapper.
-  Accepted connections remain wrapper-owned until returned; disposal releases
-  buffered connections before reporting a separate acceptor-cleanup failure.
+- `IRpcSerializer`, with the
+  [writer ownership contract](architecture.md#transport-and-serializer-are-replaceable).
+- `IRpcConnectionAcceptor`, with the
+  [acceptance and cleanup contract](architecture.md#host-and-session-lifetime).
 - `IRemoteEndPointProvider`.
 - `RpcAcceptedConnection`.
 - `RpcConnectionAdmissionDefaults`.
-- `TransportFrame`. Each non-empty instance owns one buffer lease; `Slice`
-  creates an independent lease. `Dispose` is idempotent, affects only that
-  instance, and makes subsequent buffer access through it fail with
-  `ObjectDisposedException`. `TransportFrame.Empty` owns no lease and remains
-  reusable after disposal.
+- `TransportFrame`, with the [frame ownership contract](architecture.md#frame-ownership).
 - `RpcSerializerExtensions.SerializeFrame<T>` for extension authors that
   explicitly need a standalone owned payload frame outside the normal runtime
   envelope path.
@@ -149,15 +134,10 @@ through the host without accessing `RpcSession`.
   `RpcSessionRequestGateResult`.
 
 The server lifecycle observer receives listener readiness only. Session
-admission gates receive connection identity and may return an exactly-once
-lease plus a cancellation token owned by the integrating framework. Session
+admission gates receive connection identity. Session
 lifecycle and request hooks receive connection identity and request metadata.
-`OnSessionDisconnectedAsync` is the terminal connection-lifecycle signal: the
-RPC Session, its transport, and admission leases have been released, and the
-host has returned the connection's active-capacity slot before invoking it.
-Before this terminal signal, the runtime has also joined the Session receive,
-keepalive, and in-flight request work, so framework observers do not race a
-still-running Session-owned background task.
+Admission leases, cancellation, and terminal observer timing follow
+[Host And Session Lifetime](architecture.md#host-and-session-lifetime).
 Business services should continue to use generated contracts and binders.
 
 ### Runtime Package Cooperation API
@@ -195,10 +175,9 @@ assembly so consumers cannot select an incompatible analyzer package.
 - `RpcServiceRegistration<TService>` and `RpcNotificationChannel` as hidden
   generated/runtime cooperation types.
 - `RpcRawHandler` and `RpcRawResult` for framework-owned control protocols.
-- `LakonaGameClientLifecycle` in `Lakona.Game.Client` as the hidden lifecycle
-  support for generated Game clients. It accepts static callback binding and
-  exposes a stable `IRpcClient` dispatch target; generated types remain outside
-  the runtime package. Existing `LakonaGameClientCore` APIs remain available.
+- `LakonaGameClientLifecycle` in `Lakona.Game.Client` as hidden support for
+  [generated Game clients](source-generation.md#project-configuration).
+  `LakonaGameClientCore` APIs remain available for custom client wrappers.
 
 Breaking changes in this layer must be released together with analyzer changes and must tell users to rebuild source-generated code.
 
@@ -206,10 +185,6 @@ The raw `RpcClientRuntime` methods are public because generated client code may
 live in user assemblies, but they are hidden from normal IntelliSense and are
 not the recommended business RPC model. User-authored business calls should go
 through generated typed clients and configured serializers.
-
-`RpcClientRuntime` consumes every decoded response frame. Caller cancellation
-removes the pending request, and a response that subsequently arrives for that
-request is disposed immediately rather than retained until finalization.
 
 ### Runtime Internal API
 
@@ -250,14 +225,8 @@ This layer supports protocol tools, tests, diagnostics, and package-internal coo
 These types remain public for protocol testing, transport implementation, and
 package-internal cooperation. They are not business application APIs.
 
-`RpcProtocolLimits.DefaultMaxEnvelopeSize` is the single default resource
-authority: it limits the complete decoded RPC envelope, so variable fields in
-one request, response, or Push frame share that budget. The raw transport-frame
-and length-prefixed-buffer limits are derived by adding the worst-case security
-transform overhead and four-byte framing prefix. `TransportSecurityConfig`
-exposes the decoded-frame limit as `MaxDecodedFrameBytes`, and
-`LengthPrefixedFrameAccumulator` owns one frame-size limit for both buffering
-and prefix validation.
+The limits and their byte domains are defined in
+[Resource Limits](wire-protocol-v1.md#resource-limits).
 
 Official and third-party transports use the same protocol infrastructure
 interface. Core does not grant privileged internal access to official
@@ -279,25 +248,11 @@ proxies implement both. String method names, object arrays, default interface
 fallbacks, and exception-based capability detection are not compatibility
 paths; analyzer and runtime changes to this contract ship together.
 
-`RpcServiceRegistration<TService>` owns payload serialization,
-connection-scoped activation, invocation, and response encoding. Typed client
-requests, typed server responses, and typed server notifications serialize
-directly into a Core-owned final envelope writer; serializers receive only its
-payload region and do not own or retain the writer. Framework control protocols
-that own their codec use `RpcRawHandler` and `RpcRawResult`. Neither path
-exposes the runtime serializer, transport frame writer, receive loop, or
-service cache to business code.
-
-Malformed typed request payloads are rejected as `BadRequest` before service
-activation or invocation. A generated-support handler that independently
-detects invalid request content may throw `RpcBadRequestException` to preserve
-that classification; unexpected gate, handler, and generated-support failures
-remain `InternalError`.
-
-Registrations reject duplicate method ids. Connection-scoped activation uses
-single-publication semantics. Factory-created services are released after
-in-flight requests drain; explicitly bound singleton instances remain
-caller-owned.
+Typed registrations and raw framework handlers share the
+[runtime dispatch and ownership path](architecture.md#runtime-owns-frames-and-sessions).
+Neither exposes the serializer, transport writer, receive loop, or service cache
+to business code. Request validation and failure classification follow the
+[Status and Error Model](status-error-model.md).
 
 ## Non-Goals
 
@@ -311,10 +266,8 @@ caller-owned.
 - RPC-only tutorials should use `RpcServerHostBuilder`; Lakona.Game tutorials
   should use `LakonaGameServer.RunAsync(args, configure)`. Both should rely on
   generated binders.
-- `RpcServerHost.RunAsync` and `RpcServerHostBuilder.RunAsync` are token-driven
-  and do not own process signals. RPC-only application entry points adapt
-  Ctrl+C or service lifetime to a cancellation token; embedded Game hosts use
-  the root host shutdown token.
+- Host examples must follow the
+  [shutdown ownership contract](architecture.md#host-and-session-lifetime).
 - Package READMEs should not teach direct `RpcSession` construction as the
   normal server path.
 - API reference entries for runtime-internal types should warn that they are not

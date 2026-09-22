@@ -4,19 +4,9 @@
 
 `RpcStatus` represents framework and infrastructure outcomes only. Business failures stay in business DTOs.
 
-The status set is:
-
-```csharp
-public enum RpcStatus : byte
-{
-    Ok = 0,
-    NotFound = 1,
-    InternalError = 2,
-    Overloaded = 3,
-    BadRequest = 4,
-    ProtocolError = 5
-}
-```
+`RpcStatus` is encoded as one byte in the
+[response envelope](wire-protocol-v1.md#response-frame). Its numeric values and
+runtime meanings are listed below.
 
 ## Rationale
 
@@ -28,39 +18,35 @@ Application outcomes such as login failure, insufficient inventory space, room n
 
 ## Status Semantics
 
-`Ok`
+`Ok` (`0`)
 : The service method completed successfully. The payload contains the serialized return DTO. `void` returns use an empty payload.
 
-`NotFound`
+`NotFound` (`1`)
 : No handler was found for the requested `serviceId:methodId`. Clients should usually not retry. This usually indicates client/server version mismatch, deployment drift, or missing service registration.
 
-`InternalError`
+`InternalError` (`2`)
 : The server failed internally while processing the request. This includes an
 unexpected request-gate exception, a handler exception, or an invalid framework
 response such as null. The server logs the full exception and failure phase.
 The client receives a stable sanitized message through `RpcException`.
 
-`Overloaded`
+`Overloaded` (`3`)
 : The server cannot currently accept the request, such as when a session request queue is full. Clients may apply application-owned backoff or retry only when the operation is safe to retry. The framework must not automatically retry RPC calls because it cannot know method idempotency.
 
-`BadRequest`
+`BadRequest` (`4`)
 : The frame reached the RPC request layer, but the request content is invalid for the RPC contract. Examples include malformed request payload, deserialization failure, or request data that cannot be interpreted as the generated DTO shape. Generated typed registrations catch request deserialization failures before activating or invoking the service, log only request metadata and the exception type, and return the stable message `RPC request payload is invalid.`. Clients should usually not retry unchanged data.
 
-`ProtocolError`
+`ProtocolError` (`5`)
 : The peer violated the wire protocol or connection state machine. Examples include unknown frame type, invalid envelope shape, or a frame that is illegal in the current state. This usually should close the connection rather than return a normal response. Use this response status only when there is a clear request id to answer.
 
 ## Implementation Mapping
 
-- Missing handler returns `NotFound`.
-- Request-gate exception returns `InternalError` without invoking the handler.
-- Handler exception returns `InternalError`.
-- Handler returns null response returns `InternalError`.
-- Request-gate denial returns the gate-selected non-`Ok` status; the default is
-  `BadRequest`.
-- Session request queue full returns `Overloaded`.
-- Malformed protocol normally closes the connection. Return `ProtocolError`
-  only when there is a request id that can be answered safely.
-- Non-`Ok` responses cause the client runtime to throw `RpcException`.
+Request gates run before handlers. An expected denial returns the gate-selected
+non-`Ok` status (default `BadRequest`); an unexpected exception returns
+`InternalError` without invoking the handler. Both complete the request without
+faulting the Session. A generated-support handler may throw
+`RpcBadRequestException` when it independently detects invalid request content.
+Other outcomes follow the status semantics above.
 
 ## Client Failure Taxonomy
 

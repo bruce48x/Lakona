@@ -61,48 +61,31 @@ finally
 Standalone applications own Ctrl+C or service-lifetime integration at their
 composition root, as above. Embedded hosts pass their existing shutdown token.
 
-Cancellation starts a cooperative Session drain under one host-wide shutdown
-deadline (15 seconds by default). If a handler ignores cancellation past that
-deadline, the host aborts active transports and throws
-`RpcServerShutdownTimeoutException`. It does not dispose Session-scoped state
-concurrently with code that may still be using it; the application composition
-root should treat this failure as terminal and decide how the process exits.
-The forced transport-abort join is itself bounded by the configured timeout.
-The forced transport-abort join is itself bounded by the configured timeout.
+Use `UseShutdownTimeout` to bound cooperative shutdown and handle
+`RpcServerShutdownTimeoutException` at the application boundary. Cleanup order,
+timeout behavior, and admission ownership are defined in
+[Host And Session Lifetime](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/architecture.md#host-and-session-lifetime).
 
 Pass an application-owned `ILoggerFactory` through `UseLoggerFactory` when
 logging is required. The runtime uses a null logger when no factory is supplied.
 See [Logging](https://github.com/bruce48x/Lakona/blob/main/docs/logging.md) for
 provider and lifetime guidance.
 
-Request count, response status, and dispatch duration are emitted through the
-standard `Lakona.Rpc.Server` .NET `Meter`. Use
-`LakonaRpcServerTelemetry.MeterName` when configuring an OpenTelemetry metrics
-pipeline; the runtime does not own an exporter.
+Use `LakonaRpcServerTelemetry.MeterName` when configuring an OpenTelemetry metrics
+pipeline; see
+[Observability](https://github.com/bruce48x/Lakona/blob/main/docs/observability.md)
+for metric and exporter guidance.
 
 When the entry assembly contains code-generated `AllServicesBinder`, the builder binds it automatically.
 
-`MaxActiveConnections` is a hard host limit. A newly accepted transport is
-closed before Session construction when the budget is full. Framework
-integrations can additionally use `IRpcSessionAdmissionGate` for protocol-level
-admission deadlines; application authorization remains in generated services.
-An `IRpcSessionRequestGate` returns an explicit denial for expected policy
-outcomes. If a gate throws unexpectedly, the server logs the root cause,
-returns a sanitized `InternalError`, and keeps the RPC Session usable.
-The host invokes `IRpcSessionLifecycleObserver.OnSessionDisconnectedAsync`
-only after Session resources and admission leases are released and the active
-connection slot is returned.
-
-`MaxConcurrentRequestsPerSession` plus `MaxQueuedRequestsPerSession` form the
-finite per-Session request budget. When it is full, the receive loop sends one
-`Overloaded` response before reading the next application frame, so a stalled
-response path propagates transport backpressure instead of accumulating
-unbounded rejection tasks.
-
-The `Lakona.Rpc.Server` meter reports request starts, queue duration, end-to-end
-duration, and exactly one terminal outcome per accepted request. Outcome values
-are bounded (`response`, `canceled`, `connection_closed`, or `failure`), and
-metrics omit request and connection ids.
+Configure `MaxActiveConnections`, `MaxConcurrentRequestsPerSession`, and
+`MaxQueuedRequestsPerSession` through `UseLimits` for connection and request
+budgets. Their backpressure behavior follows
+[Host And Session Lifetime](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/architecture.md#host-and-session-lifetime).
+Framework integrations can use admission gates and lifecycle observers through
+the [Framework Integration API](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/public-api-boundaries.md#framework-integration-api).
+Gate denials and failures follow the
+[Status and Error Model](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/status-error-model.md).
 
 ## Extension Boundary
 
@@ -116,7 +99,9 @@ Custom transports and serializers are supported extension points. Implement `ITr
 
 - The server automatically replies to client keepalive pings with pong.
 - When enabled on the host, each accepted connection also tracks idle time and disconnects sessions that remain inactive longer than the configured timeout.
-- Session completion joins keepalive work before scoped services or the owned transport are released; an unexpected keepalive failure is reported as the Session disconnect reason.
+
+Keepalive cleanup and failure propagation follow the
+[Session lifetime contract](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/architecture.md#host-and-session-lifetime).
 
 ## Authentication And Authorization Boundary
 
