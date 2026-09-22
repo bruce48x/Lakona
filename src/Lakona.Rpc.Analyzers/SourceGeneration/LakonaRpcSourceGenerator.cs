@@ -579,7 +579,7 @@ public sealed class LakonaRpcSourceGenerator : ISourceGenerator
         }
 
         private static string TypeName(ITypeSymbol type) =>
-            "global::" + type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat).Replace("global::", string.Empty);
+            type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
         private static void ValidateServiceIds(IReadOnlyList<RpcServiceModel> services)
         {

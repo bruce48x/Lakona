@@ -19,6 +19,11 @@ compilation and referenced contract assemblies. Public service and notification
 interfaces nested in public non-generic classes are supported. Nesting does not
 create a separate service-id scope: distinct services must still use unique ids.
 
+Generated type references preserve Roslyn's fully qualified representation,
+including qualification inside generic arguments. Built-in type keywords such as
+`string` and `int` remain valid C# keywords rather than receiving a `global::`
+prefix. Payload serialization support remains the selected serializer's concern.
+
 Generated service calls return runtime ValueTasks directly. Void methods use
 `RpcVoidTask.FromResult` to discard RpcVoid without adding an async task layer
 which could reorder response continuations. See
