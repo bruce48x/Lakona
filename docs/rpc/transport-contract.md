@@ -75,16 +75,19 @@ in-memory queues.
 | Abort of an idle receive | Disposal ends the actual pending receive, accepting an empty frame or connection/cancellation exception |
 | Connection cancellation and bounded bootstrap | `TcpTransportTests`, `KcpTransportTests`, and RPC `RpcClientLifecycleTests` |
 | Send serialization and queued cancellation | RPC `RpcConnectionChannelTests` |
+| KCP client receive-buffer lifetime | `KcpClientReceiveLifetimeTests` observes pool-return ordering on socket abort, return on cancellation, subsequent reception, and incoming frames racing disposal |
 | Backpressure, owned queues, and failure isolation | Loopback tests in `Lakona.Rpc.Tests`, KCP transport and regression tests |
 
-These checks run on .NET 10. They do not establish the Unity/netstandard fallback
-behavior, bounded cancellation of a network send under sustained pressure,
-buffer safety when disposal races active datagram delivery, or frame integrity
-after partial-send cancellation. Those need targeted fault tests; an idle-receive
-abort test is not evidence for every disposal race. The implementation must still
-honor memory ownership in such races. In particular, KCP client disposal returns
-its receive buffer before joining a receive operation; safe ownership during
-concurrent delivery needs separate verification before declaring that race safe.
+The KCP client rents a buffer for each receive operation and returns it in that
+operation's `finally`, after socket I/O and datagram processing have ended.
+Disposal closes the socket without returning the active receive's buffer. Input
+processing checks connection/KCP state under the same lock as KCP disposal, so
+an arriving datagram cannot access a released KCP instance.
+
+These checks run on .NET 10. They do not establish Unity/netstandard runtime
+behavior, bounded cancellation of a network send under sustained pressure, or
+frame integrity after partial-send cancellation. The targeted KCP receive tests
+do not establish every send/disposal race or replace sustained stress testing.
 
 Keep failures found by those tests separate from documentation cleanup. Do not
 weaken an ownership requirement merely to match one implementation, and do not

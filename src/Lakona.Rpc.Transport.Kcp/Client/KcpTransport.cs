@@ -30,7 +30,6 @@ namespace Lakona.Rpc.Transport.Kcp
         private SimpleSegManager.Kcp? _kcp;
         private EndPoint? _remote;
         private Socket? _socket;
-        private byte[]? _receiveBuffer;
         private int _isConnected;
         private int _disposed;
 
@@ -153,42 +152,51 @@ namespace Lakona.Rpc.Transport.Kcp
                 throw new InvalidOperationException("Not connected.");
             }
 
-            var buffer = _receiveBuffer ??= ArrayPool<byte>.Shared.Rent(ReceiveBufferSize);
-            while (true)
+            // This receive owns the buffer until socket I/O and input processing finish.
+            // Disposal may close the socket, but must not return memory still used by it.
+            var buffer = ArrayPool<byte>.Shared.Rent(ReceiveBufferSize);
+            try
             {
-                if (TryDequeueFrame(out var queued))
-                    return queued;
+                while (true)
+                {
+                    if (TryDequeueFrame(out var queued))
+                        return queued;
 
 #if NET8_0_OR_GREATER
-                SocketReceiveFromResult received;
-                try
-                {
-                    received = await _socket.ReceiveFromAsync(buffer, SocketFlags.None, _receiveAny, ct).ConfigureAwait(false);
-                }
-                catch when (Volatile.Read(ref _terminalFailure) is not null)
-                {
-                    ThrowIfFailed();
-                    throw;
-                }
+                    SocketReceiveFromResult received;
+                    try
+                    {
+                        received = await _socket.ReceiveFromAsync(buffer, SocketFlags.None, _receiveAny, ct).ConfigureAwait(false);
+                    }
+                    catch when (Volatile.Read(ref _terminalFailure) is not null)
+                    {
+                        ThrowIfFailed();
+                        throw;
+                    }
 #else
-                SocketReceiveFromResult received;
-                try
-                {
-                    received = await ReceiveFromAsync(_socket, buffer, ct).ConfigureAwait(false);
-                }
-                catch when (Volatile.Read(ref _terminalFailure) is not null)
-                {
-                    ThrowIfFailed();
-                    throw;
-                }
+                    SocketReceiveFromResult received;
+                    try
+                    {
+                        received = await ReceiveFromAsync(_socket, buffer, ct).ConfigureAwait(false);
+                    }
+                    catch when (Volatile.Read(ref _terminalFailure) is not null)
+                    {
+                        ThrowIfFailed();
+                        throw;
+                    }
 #endif
-                if (!EndPointEquals(received.RemoteEndPoint, _remote))
-                    continue;
+                    if (!EndPointEquals(received.RemoteEndPoint, _remote))
+                        continue;
 
-                ProcessInput(buffer.AsSpan(0, received.ReceivedBytes));
+                    ProcessInput(buffer.AsSpan(0, received.ReceivedBytes));
 
-                if (TryDequeueFrame(out var frame))
-                    return frame;
+                    if (TryDequeueFrame(out var frame))
+                        return frame;
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
             }
         }
 
@@ -206,10 +214,6 @@ namespace Lakona.Rpc.Transport.Kcp
                 _kcp?.Dispose();
                 _kcp = null;
             }
-
-            var receiveBuffer = Interlocked.Exchange(ref _receiveBuffer, null);
-            if (receiveBuffer is not null)
-                ArrayPool<byte>.Shared.Return(receiveBuffer);
 
             while (_frames.TryDequeue(out var frame))
                 frame.Dispose();
@@ -351,7 +355,13 @@ namespace Lakona.Rpc.Transport.Kcp
         {
             lock (_kcpGate)
             {
-                _kcp!.Input(data);
+                if (!IsConnected || _kcp is null)
+                {
+                    ThrowIfFailed();
+                    throw new ObjectDisposedException(nameof(KcpTransport));
+                }
+
+                _kcp.Input(data);
                 DrainKcp();
             }
 
