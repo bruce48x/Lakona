@@ -195,6 +195,10 @@ assembly so consumers cannot select an incompatible analyzer package.
 - `RpcServiceRegistration<TService>` and `RpcNotificationChannel` as hidden
   generated/runtime cooperation types.
 - `RpcRawHandler` and `RpcRawResult` for framework-owned control protocols.
+- `LakonaGameClientLifecycle` in `Lakona.Game.Client` as the hidden lifecycle
+  support for generated Game clients. It accepts static callback binding and
+  exposes a stable `IRpcClient` dispatch target; generated types remain outside
+  the runtime package. Existing `LakonaGameClientCore` APIs remain available.
 
 Breaking changes in this layer must be released together with analyzer changes and must tell users to rebuild source-generated code.
 

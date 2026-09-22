@@ -2,9 +2,10 @@
 
 `Lakona.Game.Client` contains reusable engine-neutral Game client primitives.
 Generated game projects use a project-specific `Client.Generated.LakonaGameClient`
-as the public entry point. The fixed package type is `LakonaGameClientCore`,
-which owns framework handshake state, reliable push state, heartbeat state, and
-session snapshots.
+as the public entry point. Its generated facade delegates connection, recovery,
+and disposal to `LakonaGameClientLifecycle`. That lifecycle coordinator owns a
+`LakonaGameClientCore`, which maintains framework handshake state, reliable push
+state, heartbeat state, and session snapshots across connection generations.
 
 The library does not depend on Unity, Godot, or any transport package. Game
 clients remain responsible for choosing their transport, dispatching callbacks

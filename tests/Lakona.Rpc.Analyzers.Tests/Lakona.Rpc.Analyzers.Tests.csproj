@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="../Lakona.Game.Client.Tests/GameClientTestTransport.cs" Link="GameClientTestTransport.cs" />
     <ProjectReference Include="..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj" />
     <ProjectReference Include="..\..\src\Lakona.Game.Abstractions\Lakona.Game.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Lakona.Game.Client\Lakona.Game.Client.csproj" />

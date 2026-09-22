@@ -79,6 +79,12 @@ postprocessors, or tool manifests for day-to-day RPC generation.
 See [source-generation.md](source-generation.md) for the source-generation
 contract.
 
+Game client generation emits the typed facade and static callback bindings.
+Connection generations, handshake, recovery scheduling, and disposal belong to
+`LakonaGameClientLifecycle` in `Lakona.Game.Client`, which composes the existing
+session and reliable-push core. These behaviors do not depend on business
+contract types and are maintained and tested as ordinary runtime code.
+
 ### Runtime Owns Frames And Sessions
 
 The runtime turns generated method calls into request, response, and push

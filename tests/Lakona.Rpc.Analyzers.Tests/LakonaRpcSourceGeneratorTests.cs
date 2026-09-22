@@ -332,50 +332,17 @@ public sealed class LakonaRpcSourceGeneratorTests
         var wrapper = GetGeneratedSource(runResult, "LakonaGameClient.g.cs");
         Assert.Contains("public sealed class LakonaGameClient : IAsyncDisposable", wrapper);
         Assert.Contains("public global::Client.Generated.RpcApi Api", wrapper);
-        Assert.Contains("new global::Client.Generated.RpcClient(_options.CreateConnectionGeneration()", wrapper);
-        Assert.DoesNotContain("LakonaGameClient(RpcClientOptions", wrapper, StringComparison.Ordinal);
-        Assert.DoesNotContain("_options.RpcOptions", wrapper, StringComparison.Ordinal);
-        Assert.Contains("public ValueTask StartSessionAsync(string sessionId, CancellationToken cancellationToken = default)", wrapper);
-        Assert.Contains("return _core.StartSessionAsync(sessionId, cancellationToken);", wrapper);
-        Assert.Contains("LakonaGameClient is not connected. Call ConnectAsync first.", wrapper);
-        Assert.Contains("LakonaGameClient is single-use and has already started connecting.", wrapper);
+        Assert.Contains("new LakonaGameClientLifecycle(options, client => CreateNotificationBindings(callbackReceivers).Bind(client))", wrapper);
+        Assert.Contains("new global::Client.Generated.RpcApi(_lifecycle.Dispatcher)", wrapper);
+        Assert.Contains("return _lifecycle.StartSessionAsync(sessionId, cancellationToken);", wrapper);
+        Assert.Contains("_lifecycle.EnsureApiReady();", wrapper);
+        Assert.Contains("return _lifecycle.ConnectAsync(ct);", wrapper);
+        Assert.Contains("return _lifecycle.DisposeAsync();", wrapper);
         Assert.Contains("public event Action<Exception?>? Disconnected", wrapper);
         Assert.Contains("if (receiver is global::Game.Contracts.IPingNotifications pingNotifications)", wrapper);
         Assert.Contains("bindings.Add(pingNotifications);", wrapper);
-        Assert.Contains("ProtocolVersion = 1", wrapper);
-        Assert.Contains("ResumeTicket = _core.ResumeTicket", wrapper);
-        Assert.Contains("GameSessionNotificationRpcIds.EstablishedNotificationId", wrapper);
-        Assert.Contains("ApplyGameSessionEstablishedAsync", wrapper);
-        Assert.DoesNotContain("ClientRuntime", wrapper);
-        Assert.DoesNotContain("Platform", wrapper);
-        Assert.DoesNotContain("GameVersion", wrapper);
-        Assert.Contains("using Lakona.Game.Abstractions;", wrapper);
-        Assert.Contains("using Lakona.Game.Abstractions.Sessions;", wrapper);
-        Assert.Contains("client.Runtime.RegisterRawNotificationHandler(", wrapper);
-        Assert.Contains("GameSessionNotificationRpcIds.ServiceId", wrapper);
-        Assert.Contains("GameSessionNotificationRpcIds.TerminatedNotificationId", wrapper);
-        Assert.Contains("LakonaInternalCodec.DecodeSessionTerminationNotice(payload)", wrapper);
-        Assert.Contains("_core.BindReliablePush(client.Runtime);", wrapper);
-        Assert.Contains("_core.ReplaceHeartbeatAsync(client.Runtime)", wrapper, StringComparison.Ordinal);
-        Assert.Contains("_core.MarkRecovered();", wrapper, StringComparison.Ordinal);
-        Assert.Contains("private Task? _recoveryTask;", wrapper, StringComparison.Ordinal);
-        Assert.Contains("await recoveryTask.ConfigureAwait(false);", wrapper, StringComparison.Ordinal);
-        Assert.DoesNotContain("_core.StartHeartbeat(_rpcClient.Runtime, _options);", wrapper, StringComparison.Ordinal);
-        Assert.DoesNotContain("HeartbeatEnabled", wrapper, StringComparison.Ordinal);
-        Assert.DoesNotContain("HeartbeatInterval", wrapper, StringComparison.Ordinal);
-        Assert.DoesNotContain("HeartbeatTimeout", wrapper, StringComparison.Ordinal);
         Assert.DoesNotContain("System.Reflection", wrapper);
-        AssertInOrder(wrapper, "_core.MarkConnecting();", "ConnectGenerationAsync(false");
-        AssertInOrder(wrapper, "await client.ConnectAsync", "await _core.HandshakeAsync");
-        AssertInOrder(wrapper, "await _core.HandshakeAsync", "_core.BindReliablePush");
-        AssertInOrder(wrapper, "_core.BindReliablePush", "client.Runtime.RegisterRawNotificationHandler");
-        AssertInOrder(wrapper, "client.Runtime.RegisterRawNotificationHandler", "_core.ReplaceHeartbeatAsync");
-        AssertInOrder(wrapper, "_core.ReplaceHeartbeatAsync", "_core.MarkReady();");
-        AssertInOrder(wrapper, "_core.MarkReady();", "_apiReady = true;");
-        AssertInOrder(
-            wrapper.Substring(wrapper.IndexOf("private void HandleDisconnected", StringComparison.Ordinal)),
-            "_apiReady = false;",
-            "_core.MarkReconnecting();");
+
     }
 
     [Fact]
@@ -469,11 +436,11 @@ public sealed class LakonaRpcSourceGeneratorTests
         Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
 
         var wrapper = GetGeneratedSource(runResult, "LakonaGameClient.g.cs");
-        Assert.Contains("new global::Client.Generated.RpcClient(_options.CreateConnectionGeneration())", wrapper);
+        Assert.Contains("new LakonaGameClientLifecycle(options)", wrapper);
         Assert.DoesNotContain("LakonaGameClient(RpcClientOptions", wrapper, StringComparison.Ordinal);
         Assert.DoesNotContain("_options.RpcOptions", wrapper, StringComparison.Ordinal);
-        Assert.Contains("ProtocolVersion = 1", wrapper);
-        Assert.DoesNotContain("ClientRuntime", wrapper);
+        Assert.Contains("LakonaGameClientLifecycle", wrapper);
+
         Assert.DoesNotContain("Platform", wrapper);
         Assert.DoesNotContain("GameVersion", wrapper);
         Assert.Contains("ValidateCallbackReceivers(callbackReceivers);", wrapper);
@@ -540,8 +507,8 @@ public sealed class LakonaRpcSourceGeneratorTests
         Assert.Empty(AnalyzerTestHelpers.ErrorDiagnostics(outputCompilation));
 
         var wrapper = GetGeneratedSource(runResult, "LakonaGameClient.g.cs");
-        Assert.Contains("ProtocolVersion = 1", wrapper);
-        Assert.DoesNotContain("ClientRuntime", wrapper);
+        Assert.Contains("LakonaGameClientLifecycle", wrapper);
+
         Assert.DoesNotContain("Platform", wrapper);
         Assert.DoesNotContain("GameVersion", wrapper);
     }
@@ -817,15 +784,6 @@ public sealed class LakonaRpcSourceGeneratorTests
             .Single(source => source.HintName == hintName)
             .SourceText
             .ToString();
-
-    private static void AssertInOrder(string source, string before, string after)
-    {
-        var beforeIndex = source.IndexOf(before, StringComparison.Ordinal);
-        var afterIndex = source.IndexOf(after, StringComparison.Ordinal);
-        Assert.True(beforeIndex >= 0, $"Expected to find '{before}'.");
-        Assert.True(afterIndex >= 0, $"Expected to find '{after}'.");
-        Assert.True(beforeIndex < afterIndex, $"Expected '{before}' before '{after}'.");
-    }
 
     private const string ContractWithCallbackSource = """
         using System.Threading.Tasks;

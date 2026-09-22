@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-09-22 — Unified RPC dispatch and client lifecycle ownership
+
+**Key releases:** `Lakona.Rpc.Core 0.14.2`, `Lakona.Rpc.Server 0.17.4`,
+`Lakona.Game.Client 0.5.2`, and `Lakona.Tool 0.43.7`.
+
+- RPC Host cleanup now covers acceptor failures and canceled admission, and all
+  server handlers share the registry dispatch path used by production and tests.
+- Moved Game client connection, recovery, and disposal out of generated source
+  into the client runtime. Generated typed APIs remain compatible; upgrade the
+  matching packages and rebuild clients. Disposal also cancels and joins an
+  initial connection still in progress.
+
 ## 2026-09-21 — Explicit Actor cancellation and unified diagnostics
 
 **Key releases:** `Lakona.Game.Server 0.49.2`, `Lakona.Game.Testing 0.3.2`,

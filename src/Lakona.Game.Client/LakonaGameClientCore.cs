@@ -10,6 +10,8 @@ using Lakona.Rpc.Core;
 
 namespace Lakona.Game.Client
 {
+    /// <summary>Owns Game session protocol state, reliable push, and heartbeat across connection generations.</summary>
+    /// <remarks>Connection creation, recovery scheduling, and client disposal are coordinated by <see cref="LakonaGameClientLifecycle"/>.</remarks>
     public sealed class LakonaGameClientCore : IAsyncDisposable
     {
         private readonly ClientSessionController _sessions;

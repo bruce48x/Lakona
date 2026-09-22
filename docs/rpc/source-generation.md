@@ -16,9 +16,9 @@ time and emits:
 
 Generated service calls return runtime ValueTasks directly. Void methods use
 `RpcVoidTask.FromResult` to discard RpcVoid without adding an async task layer
-which could reorder response continuations. Generated Game clients capture the
-initial ConnectAsync synchronization context and rebind it to replacement RPC
-runtimes. Recovery completes its replay heartbeat before reporting the new
+which could reorder response continuations. The Game client runtime captures
+the initial ConnectAsync synchronization context and rebinds it to replacement
+RPC runtimes. Recovery completes its replay heartbeat before reporting the new
 connection as recovered.
 
 Generated RPC glue is compiler output. New Lakona projects must not contain
@@ -79,8 +79,10 @@ Lakona.Game:
 ```
 
 When enabled, the generator emits `LakonaGameClient` in the same namespace as
-the generated `RpcClient`. The wrapper owns the framework handshake, heartbeat,
-recovery, and static callback receiver matching. Business RPC services are
+the generated `RpcClient`. The wrapper supplies the typed API and static callback
+receiver matching. `LakonaGameClientLifecycle` in `Lakona.Game.Client` owns the
+framework handshake, heartbeat replacement, recovery, and disposal, and composes
+`LakonaGameClientCore` for session and reliable-push behavior. Business RPC services are
 exposed through `gameClient.Api`, so game client code uses the generated wrapper
 as its single connection entry point.
 
@@ -100,6 +102,15 @@ handshake methods, create callback binding containers, or hard-code framework
 RPC ids. `RpcClient` remains an RPC-only client; the generated game wrapper is
 the stable Game entry point. Its connection and recovery contract is documented
 in [Session Lifecycle](../session.md).
+
+The generated wrapper passes a callback-binding action to the runtime; the
+runtime creates and owns each `RpcClientRuntime` and invokes that action before
+starting it. The same API dispatch target survives connection replacement.
+Disposal cancels and joins initial connection work as well as recovery before
+releasing shared state. Concurrent disposal callers await the same cleanup.
+Lifecycle behavior is tested in the client runtime, with generated-client
+integration tests covering typed calls, callbacks, and recovery. Generator
+tests retain C# 9 compilation and contract-binding checks.
 
 An explicit MSBuild `false` disables generated game client wrapper output.
 Tool-generated Unity, Tuanjie, Godot, and console clients enable it by default.
