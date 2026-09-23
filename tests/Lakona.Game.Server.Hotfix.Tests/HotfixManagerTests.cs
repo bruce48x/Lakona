@@ -464,12 +464,7 @@ public sealed class HotfixManagerTests
             [],
             [],
             []);
-        var method = typeof(HotfixManager).GetMethod(
-            "CreateActorHostDescriptors",
-            BindingFlags.NonPublic | BindingFlags.Static)!;
-
-        var descriptors = Assert.IsAssignableFrom<IReadOnlyList<HotfixActorHostDescriptor>>(
-            method.Invoke(null, [scan, "test-build"]));
+        var descriptors = HotfixRuntimeComposition.CreateActorHostDescriptors(scan, "test-build");
 
         var descriptor = Assert.Single(descriptors);
         Assert.Equal("battle-room", descriptor.Actor);
@@ -488,12 +483,7 @@ public sealed class HotfixManagerTests
             [],
             [],
             []);
-        var method = typeof(HotfixManager).GetMethod(
-            "CreateActorHostDescriptors",
-            BindingFlags.NonPublic | BindingFlags.Static)!;
-
-        var descriptors = Assert.IsAssignableFrom<IReadOnlyList<HotfixActorHostDescriptor>>(
-            method.Invoke(null, [scan, "test-build"]));
+        var descriptors = HotfixRuntimeComposition.CreateActorHostDescriptors(scan, "test-build");
 
         var descriptor = Assert.Single(descriptors);
         Assert.Equal("battle-room", descriptor.Actor);
@@ -1235,10 +1225,8 @@ public sealed class HotfixManagerTests
         using var rootServices = new ServiceCollection()
             .AddSingleton<IRootOnlyMarker, RootOnlyMarker>()
             .BuildServiceProvider();
-        var manager = new HotfixManager(new FixedAssemblySource("unused"), rootServices: rootServices);
-        var services = BuildHotfixProvider(
-            manager,
-            typeof(GeneratedHotfixServiceRegistrationForTest).Assembly);
+        var services = HotfixRuntimeComposition.BuildProvider(
+            [], typeof(GeneratedHotfixServiceRegistrationForTest).Assembly, [], rootServices);
         try
         {
             Assert.IsType<GeneratedHotfixRegistrationMarker>(
@@ -1255,11 +1243,9 @@ public sealed class HotfixManagerTests
     [Fact]
     public void BuildHotfixProvider_includes_startup_service_registrations()
     {
-        var manager = new HotfixManager(new FixedAssemblySource("unused"));
-        var services = BuildHotfixProvider(
-            manager,
+        var services = HotfixRuntimeComposition.BuildProvider(
             [ServiceDescriptor.Singleton<IStartupConfiguredMarker, StartupConfiguredMarker>()],
-            typeof(HotfixManagerTests).Assembly);
+            typeof(HotfixManagerTests).Assembly, [], rootServices: null);
         try
         {
             Assert.IsType<StartupConfiguredMarker>(
@@ -1362,25 +1348,6 @@ public sealed class HotfixManagerTests
         }
 
         Assert.False(loadContextReference.IsAlive, "Previous hotfix AssemblyLoadContext should be collectible after a successful replacement reload.");
-    }
-
-    private static IServiceProvider BuildHotfixProvider(
-        HotfixManager manager,
-        Assembly hotfixAssembly)
-    {
-        return BuildHotfixProvider(manager, [], hotfixAssembly);
-    }
-
-    private static IServiceProvider BuildHotfixProvider(
-        HotfixManager manager,
-        IReadOnlyList<ServiceDescriptor> startupServices,
-        Assembly hotfixAssembly)
-    {
-        return (IServiceProvider)typeof(HotfixManager)
-            .GetMethods(BindingFlags.Instance | BindingFlags.NonPublic)
-            .Single(method => method.Name == "BuildHotfixProvider"
-                && method.GetParameters().Length == 2)
-            .Invoke(manager, [startupServices, hotfixAssembly])!;
     }
 
     private static void ForceStaleActiveFlag(HotfixDispatchRuntimeContext context)

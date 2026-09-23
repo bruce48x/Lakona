@@ -25,7 +25,8 @@ public sealed class TestClusterReliabilityTests
     {
         var cluster = ActorCluster();
         await cluster.StartAsync(TestContext.Current.CancellationToken);
-        var actors = cluster.Node("data-1").Services.GetRequiredService<ActorAccess>();
+        var actors = cluster.Node("data-1").Services.GetRequiredService<IHotfixRuntimeAccessor>()
+            .Current.Services.GetRequiredService<ActorAccess>();
         await actors.Place<CounterActor>(new CounterId("dispose-active"))
             .EnsureAsync(TestContext.Current.CancellationToken);
 
@@ -122,7 +123,8 @@ public sealed class TestClusterReliabilityTests
     {
         await using var cluster = ActorCluster();
         await cluster.StartAsync(TestContext.Current.CancellationToken);
-        var actors = cluster.Node("data-1").Services.GetRequiredService<ActorAccess>();
+        var actors = cluster.Node("data-1").Services.GetRequiredService<IHotfixRuntimeAccessor>()
+            .Current.Services.GetRequiredService<ActorAccess>();
         var id = new CounterId(key);
         await actors.Place<CounterActor>(id)
             .EnsureAsync(TestContext.Current.CancellationToken);

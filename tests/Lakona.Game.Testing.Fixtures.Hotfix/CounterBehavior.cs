@@ -1,6 +1,8 @@
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Testing.Fixtures.App;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Lakona.Game.Testing.Fixtures.Hotfix;
 
@@ -45,6 +47,18 @@ public sealed partial class CounterBehavior
 [HotfixStartup]
 public static class CounterHotfixStartup
 {
+    [HotfixConfigureServices]
+    public static void ConfigureServices(IServiceCollection services)
+    {
+        services.AddSingleton<CompositionProbeState>();
+        services.TryAddSingleton<CompositionProbe>(provider =>
+        {
+            var state = new CompositionProbeState { Origin = "startup" };
+            provider.GetService<Action<CompositionProbeState>>()?.Invoke(state);
+            return new(state);
+        });
+    }
+
     [HotfixConfigureActors]
     public static void ConfigureActors(ActorHostBuilder actors)
     {

@@ -15,7 +15,8 @@ public sealed class ActorDirectoryResilienceTests
     {
         await using var cluster = CreateCluster("data-1", "battle-1");
         await cluster.StartAsync(TestContext.Current.CancellationToken);
-        var actors = cluster.Node("data-1").Services.GetRequiredService<ActorAccess>();
+        var actors = cluster.Node("data-1").Services.GetRequiredService<IHotfixRuntimeAccessor>()
+            .Current.Services.GetRequiredService<ActorAccess>();
         var id = new CounterId("membership-view-barrier");
         await actors.Place<CounterActor>(id)
             .EnsureAsync(TestContext.Current.CancellationToken);
@@ -91,7 +92,8 @@ public sealed class ActorDirectoryResilienceTests
     {
         await using var cluster = CreateCluster("data-1", "battle-1");
         await cluster.StartAsync(TestContext.Current.CancellationToken);
-        var actors = cluster.Node("data-1").Services.GetRequiredService<ActorAccess>();
+        var actors = cluster.Node("data-1").Services.GetRequiredService<IHotfixRuntimeAccessor>()
+            .Current.Services.GetRequiredService<ActorAccess>();
         var loadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var load = Task.Run(async () =>
         {
@@ -198,7 +200,8 @@ public sealed class ActorDirectoryResilienceTests
     {
         var callers = cluster.Nodes
             .Where(static node => node.IsActive)
-            .Select(static node => node.Services.GetRequiredService<ActorAccess>())
+            .Select(static node => node.Services.GetRequiredService<IHotfixRuntimeAccessor>()
+                .Current.Services.GetRequiredService<ActorAccess>())
             .ToArray();
         foreach (var id in ids.OrderBy(_ => random.Next()))
         {
@@ -218,7 +221,8 @@ public sealed class ActorDirectoryResilienceTests
         IReadOnlyList<CounterId> ids)
     {
         var activeNodes = cluster.Nodes.Where(static node => node.IsActive).ToArray();
-        var actors = activeNodes[0].Services.GetRequiredService<ActorAccess>();
+        var actors = activeNodes[0].Services.GetRequiredService<IHotfixRuntimeAccessor>()
+            .Current.Services.GetRequiredService<ActorAccess>();
         var expectedByOwner = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var id in ids)
         {
@@ -251,7 +255,7 @@ public sealed class ActorDirectoryResilienceTests
         IEnumerable<CounterId> ids)
     {
         var actors = cluster.Nodes.First(static node => node.IsActive)
-            .Services.GetRequiredService<ActorAccess>();
+            .Services.GetRequiredService<IHotfixRuntimeAccessor>().Current.Services.GetRequiredService<ActorAccess>();
         foreach (var id in ids)
         {
             await actors.Place<CounterActor>(id)

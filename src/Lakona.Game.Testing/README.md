@@ -65,6 +65,24 @@ each real test host. Node roles still decide which Actor types a node advertises
 so calls issued through `ActorAccess` exercise normal placement, Directory,
 cluster RPC, mailbox dispatch, and lifecycle behavior.
 
+Hotfix services use a separate generation container, with the same registration
+order, dependency validation, role filtering, and root-service fallback as
+`HotfixManager`. Startup registrations can override generated `TryAdd` defaults.
+The node owns and disposes the generation when it stops.
+
+`cluster.Node(id).Services` is the stable root container. Resolve generated
+`ActorAccess` and other Hotfix services through the runtime, rather than directly
+from that root:
+
+```csharp
+using var lease = cluster.Node("data-1").Services
+    .GetRequiredService<IHotfixRuntimeAccessor>().AcquireCurrent();
+var actors = lease.Services.GetRequiredService<ActorAccess>();
+```
+
+Dispose leases before stopping their node. `UseHotfixAssembly` uses an already
+loaded assembly; it does not simulate collectible loading or reload publication.
+
 The test fixture owns application dependencies such as PostgreSQL, MySQL, and
 Redis. Start a container or other disposable test resource in the fixture,
 then inject its connection string only into the node roles which use it. This

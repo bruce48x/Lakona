@@ -16,7 +16,8 @@ public sealed class ActorClusterNetworkTests
     {
         await using var cluster = CreateCluster();
         await cluster.StartAsync(TestContext.Current.CancellationToken);
-        var actors = cluster.Node("data-1").Services.GetRequiredService<ActorAccess>();
+        var actors = cluster.Node("data-1").Services.GetRequiredService<IHotfixRuntimeAccessor>()
+            .Current.Services.GetRequiredService<ActorAccess>();
         var id = new CounterId("partition");
         await actors.Place<CounterActor>(id)
             .EnsureAsync(TestContext.Current.CancellationToken);
@@ -50,7 +51,8 @@ public sealed class ActorClusterNetworkTests
     {
         await using var cluster = CreateCluster();
         await cluster.StartAsync(TestContext.Current.CancellationToken);
-        var actors = cluster.Node("data-1").Services.GetRequiredService<ActorAccess>();
+        var actors = cluster.Node("data-1").Services.GetRequiredService<IHotfixRuntimeAccessor>()
+            .Current.Services.GetRequiredService<ActorAccess>();
         var id = new CounterId("late-cancel");
         await actors.Place<CounterActor>(id)
             .EnsureAsync(TestContext.Current.CancellationToken);
@@ -88,7 +90,8 @@ public sealed class ActorClusterNetworkTests
         var cancellationToken = watchdog.Token;
         await using var cluster = CreateCluster(callTimeout, time);
         await cluster.StartAsync(TestContext.Current.CancellationToken);
-        var actors = cluster.Node("data-1").Services.GetRequiredService<ActorAccess>();
+        var actors = cluster.Node("data-1").Services.GetRequiredService<IHotfixRuntimeAccessor>()
+            .Current.Services.GetRequiredService<ActorAccess>();
         var id = new CounterId("late-timeout");
         await actors.Place<CounterActor>(id)
             .EnsureAsync(TestContext.Current.CancellationToken);

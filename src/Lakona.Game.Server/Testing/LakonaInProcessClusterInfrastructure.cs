@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Reflection;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
-using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Lakona.Game.Cluster.Membership;
@@ -85,22 +84,6 @@ public sealed class LakonaInProcessClusterInfrastructure
             throw new InvalidOperationException(string.Join(Environment.NewLine, scan.Diagnostics));
         }
 
-        foreach (var registration in hotfixAssembly.GetTypes()
-                     .Where(static type => !type.IsAbstract
-                         && !type.IsInterface
-                         && typeof(IHotfixGeneratedServiceRegistration).IsAssignableFrom(type))
-                     .OrderBy(static type => type.FullName, StringComparer.Ordinal)
-                     .Select(static type =>
-                         (IHotfixGeneratedServiceRegistration)Activator.CreateInstance(type)!))
-        {
-            registration.Register(services);
-        }
-
-        foreach (var descriptor in scan.StartupServices)
-        {
-            ((ICollection<ServiceDescriptor>)services).Add(descriptor);
-        }
-
         var actorTypes = scan.ActorMethods
             .Select(static method => method.ActorType)
             .Concat(scan.ActorLifecycles.Select(static lifecycle => lifecycle.ActorType))
@@ -113,29 +96,13 @@ public sealed class LakonaInProcessClusterInfrastructure
         services.AddSingleton(roleCatalog);
 
         const string hotfixVersion = "testcluster";
-        var descriptors = actorTypes
-            .Where(roleCatalog.IsLocal)
-            .Select(static actorType => new ActorHostDescriptor(
-                ActorNameResolver.Resolve(actorType),
-                "placement:" + actorType.FullName,
-                hotfixVersion))
+        var descriptors = HotfixRuntimeComposition.CreateActorHostDescriptors(scan, hotfixVersion)
+            .Where(descriptor => roleCatalog.IsLocalActor(descriptor.Actor))
+            .Select(static descriptor => new ActorHostDescriptor(
+                descriptor.Actor, descriptor.PolicyHash, descriptor.HotfixVersion))
             .ToArray();
         services.RemoveAll<ActorHostDescriptorCatalog>();
         services.AddSingleton(new ActorHostDescriptorCatalog(descriptors));
-
-        var localActorMethods = scan.ActorMethods
-            .Where(method => roleCatalog.IsLocal(method.ActorType))
-            .ToArray();
-        var localActorLifecycles = scan.ActorLifecycles
-            .Where(lifecycle => roleCatalog.IsLocal(lifecycle.ActorType))
-            .ToArray();
-        var localBehaviorTypes = localActorMethods
-            .Select(static method => method.BehaviorType)
-            .Concat(localActorLifecycles.Select(static lifecycle => lifecycle.BehaviorType))
-            .ToHashSet();
-        var localMethods = scan.Methods
-            .Where(method => localBehaviorTypes.Contains(method.BehaviorType))
-            .ToArray();
 
         services.RemoveAll<IHotfixRuntimeAccessor>();
         services.AddSingleton<IHotfixRuntimeAccessor>(provider =>
@@ -143,60 +110,62 @@ public sealed class LakonaInProcessClusterInfrastructure
                 provider,
                 hotfixAssembly,
                 scan,
-                localMethods,
-                localActorMethods,
-                localActorLifecycles,
                 hotfixVersion));
     }
 
     private sealed class InProcessHotfixRuntimeAccessor : IHotfixRuntimeAccessor, IAsyncDisposable
     {
-        private readonly HotfixDispatchTable table;
+        private readonly Lazy<HotfixRuntimeSnapshot> runtime;
+        private HotfixDispatchTable? table;
+        private IServiceProvider? generationServices;
 
         internal InProcessHotfixRuntimeAccessor(
             IServiceProvider services,
             Assembly hotfixAssembly,
             HotfixBehaviorScanResult scan,
-            IReadOnlyList<HotfixMethodBinding> localMethods,
-            IReadOnlyList<HotfixActorMethodDescriptor> localActorMethods,
-            IReadOnlyList<HotfixActorLifecycleDescriptor> localActorLifecycles,
             string hotfixVersion)
         {
-            table = new HotfixDispatchTable(
-                1,
-                localMethods,
-                scan.Services,
-                localActorMethods,
-                localActorLifecycles,
-                scan.TimerMethods,
-                scan.HttpEndpoints,
-                scan.Lifecycles);
-            table.ValidateMethodShapes();
-            table.ValidateModuleActivation(services);
-            table.ValidateTypedDispatchDelegates();
-            Current = new HotfixRuntimeSnapshot(
-                new HotfixServiceInvoker(table),
-                services,
-                table,
-                services,
-                hotfixAssembly,
-                loadContext: null,
-                sourceVersion: hotfixVersion,
-                sourcePath: null,
-                ownsRuntimeResources: false,
-                onRetired: null,
-                actorStartups: scan.ActorStartups,
-                actorPlacements: scan.ActorPlacements);
-            services.GetRequiredService<Sessions.GameSessionLifecycleBindings>()
-                .Publish(table.SessionLifecycleIdentities, () => { });
+            // Let the root provider own this accessor before activating modules.
+            // If activation fails, host disposal can await partial-generation cleanup.
+            runtime = new Lazy<HotfixRuntimeSnapshot>(() =>
+            {
+                table = HotfixRuntimeComposition.CreateDispatchTable(scan, 1, services);
+                table.ValidateMethodShapes();
+                generationServices = HotfixRuntimeComposition.BuildProvider(
+                    scan.StartupServices, hotfixAssembly, table.ModuleTypes, services);
+                table.ValidateModuleActivation(generationServices);
+                table.ValidateTypedDispatchDelegates();
+                services.GetRequiredService<Sessions.GameSessionLifecycleBindings>()
+                    .Publish(table.SessionLifecycleIdentities, () => { });
+                return new HotfixRuntimeSnapshot(
+                    new HotfixServiceInvoker(table),
+                    generationServices,
+                    table,
+                    generationServices,
+                    hotfixAssembly,
+                    loadContext: null,
+                    sourceVersion: hotfixVersion,
+                    sourcePath: null,
+                    ownsRuntimeResources: true,
+                    onRetired: null,
+                    actorStartups: scan.ActorStartups,
+                    actorPlacements: scan.ActorPlacements);
+            });
         }
 
-        public HotfixRuntimeSnapshot Current { get; }
+        public HotfixRuntimeSnapshot Current => runtime.Value;
 
         public async ValueTask DisposeAsync()
         {
-            await Current.RetireAsync().ConfigureAwait(false);
-            await table.DisposeAsync().ConfigureAwait(false);
+            if (runtime.IsValueCreated)
+            {
+                await runtime.Value.RetireAsync().ConfigureAwait(false);
+                return;
+            }
+
+            var failures = await HotfixResourceCleanup.RunAsync(table, generationServices, null).ConfigureAwait(false);
+            if (failures.Count != 0)
+                throw new AggregateException("Hotfix composition cleanup failed.", failures);
         }
     }
 

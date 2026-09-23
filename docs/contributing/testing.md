@@ -2,6 +2,13 @@
 
 Tests must protect runtime contracts rather than mirror implementation details.
 
+Bootstrapper integration tests build through the production `BuildAsync`
+pipeline. They may supply application assemblies, a temporary Hotfix base
+directory, and endpoint test doubles; do not maintain a second startup or
+readiness composition in production code solely for tests. Hotfix composition
+tests call the shared internal composition boundary or load a real fixture
+through `HotfixManager`, rather than reflecting private manager methods.
+
 ## Validation Scope And Completion
 
 Select validation from the behavior changed, credible failure risks, and existing

@@ -15,7 +15,8 @@ public sealed class ActorClusterLifecycleTests
         await using var cluster = CreateCluster();
         await cluster.StartAsync(TestContext.Current.CancellationToken);
 
-        var actors = cluster.Node("data-1").Services.GetRequiredService<ActorAccess>();
+        var actors = cluster.Node("data-1").Services.GetRequiredService<IHotfixRuntimeAccessor>()
+            .Current.Services.GetRequiredService<ActorAccess>();
         var id = new CounterId("graceful");
         var initial = await actors.Place<CounterActor>(id)
             .EnsureAsync(TestContext.Current.CancellationToken);
@@ -64,7 +65,8 @@ public sealed class ActorClusterLifecycleTests
         await using var cluster = CreateCluster(includeSecondBattle: false);
         await cluster.StartAsync(TestContext.Current.CancellationToken);
 
-        var actors = cluster.Node("data-1").Services.GetRequiredService<ActorAccess>();
+        var actors = cluster.Node("data-1").Services.GetRequiredService<IHotfixRuntimeAccessor>()
+            .Current.Services.GetRequiredService<ActorAccess>();
         var id = new CounterId("kill-restart");
         var oldNode = cluster.Node("battle-1");
         await actors.Place<CounterActor>(id)

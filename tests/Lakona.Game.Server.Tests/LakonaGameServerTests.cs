@@ -437,6 +437,20 @@ public sealed class LakonaGameServerTests
             static route => route.Path == "/_lakona/health/cluster");
     }
 
+    private static Task<IHost> BuildStartupHostAsync(
+        string[] args, Action<LakonaGameServerBuilder> configure, string baseDirectory) =>
+        LakonaGameServerBootstrapper.BuildAsyncForTesting(args, server =>
+        {
+            configure(server);
+            server.AddServices(static services => services.AddTestEndpointRuntimes());
+        }, [], baseDirectory);
+
+    private static async Task BuildAndDisposeStartupHostAsync(
+        string[] args, Action<LakonaGameServerBuilder> configure, string baseDirectory)
+    {
+        using var host = await BuildStartupHostAsync(args, configure, baseDirectory);
+    }
+
     [Fact]
     public async Task Startup_validation_accepts_debug_watcher_current_directory_hotfix_layout()
     {
@@ -452,7 +466,7 @@ public sealed class LakonaGameServerTests
             Assert.False(File.Exists(Path.Combine(hotfixRoot, "current.txt")));
 
             var error = await Record.ExceptionAsync(() =>
-                Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.ValidateStartupRuntimeForTesting(
+                BuildAndDisposeStartupHostAsync(
                     [],
                     server =>
                     {
@@ -481,7 +495,7 @@ public sealed class LakonaGameServerTests
     }
 
     [Fact]
-    public async Task Readiness_context_accepts_default_hotfix_version_pointer_layout()
+    public async Task Full_startup_and_readiness_accept_default_hotfix_version_pointer_layout()
     {
         var baseDirectory = Path.Combine(
             Path.GetTempPath(),
@@ -497,7 +511,7 @@ public sealed class LakonaGameServerTests
             File.WriteAllText(Path.Combine(versionDirectory, "Server.Hotfix.dll"), "");
             Assert.False(File.Exists(Path.Combine(hotfixRoot, "Server.Hotfix.dll")));
 
-            var context = await Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.CreateReadinessContextForTesting(
+            using var host = await BuildStartupHostAsync(
                 [],
                 server =>
                 {
@@ -514,100 +528,13 @@ public sealed class LakonaGameServerTests
                 baseDirectory);
 
             var snapshot = new LakonaGameReadinessEvaluator(
-                context.RuntimeOptions,
-                context.ClusterOptions,
-                new LakonaHealthReadinessState(context.HotfixAssemblyPath),
-                CreateRuntimeValidator()).Evaluate();
+                host.Services.GetRequiredService<LakonaGameRuntimeOptions>(),
+                host.Services.GetRequiredService<ClusterOptions>(),
+                host.Services.GetRequiredService<LakonaHealthReadinessState>(),
+                host.Services.GetRequiredService<LakonaGameRuntimeValidator>()).Evaluate();
 
             Assert.True(snapshot.Succeeded);
             Assert.DoesNotContain(snapshot.Diagnostics, static diagnostic => diagnostic.Code == "LAKONA10071");
-        }
-        finally
-        {
-            if (Directory.Exists(baseDirectory))
-            {
-                Directory.Delete(baseDirectory, recursive: true);
-            }
-        }
-    }
-
-    [Fact]
-    public async Task Readiness_context_rejects_invalid_default_hotfix_pointer_with_stale_debug_dll()
-    {
-        var baseDirectory = Path.Combine(
-            Path.GetTempPath(),
-            "LakonaReadinessContextTests",
-            Guid.NewGuid().ToString("N"));
-        try
-        {
-            var hotfixRoot = Path.Combine(baseDirectory, "hotfix");
-            Directory.CreateDirectory(hotfixRoot);
-            File.WriteAllText(Path.Combine(hotfixRoot, "current.txt"), "..");
-            File.WriteAllText(Path.Combine(hotfixRoot, "Server.Hotfix.dll"), "");
-
-            var error = await Assert.ThrowsAnyAsync<Exception>(() =>
-                Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.CreateReadinessContextForTesting(
-                    [],
-                    server =>
-                    {
-                        server.ConfigureAppConfiguration(configuration =>
-                            configuration.AddInMemoryCollection(new Dictionary<string, string?>
-                            {
-                                ["Lakona:Endpoints:0:Transport"] = "websocket",
-                                ["Lakona:Endpoints:0:Serializer"] = "json",
-                                ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
-                                ["Lakona:Endpoints:0:Port"] = "20000",
-                                ["Lakona:Endpoints:0:Path"] = "/ws"
-                            }));
-                    },
-                    baseDirectory));
-
-            Assert.Contains("path", error.Message, StringComparison.OrdinalIgnoreCase);
-        }
-        finally
-        {
-            if (Directory.Exists(baseDirectory))
-            {
-                Directory.Delete(baseDirectory, recursive: true);
-            }
-        }
-    }
-
-    [Fact]
-    public async Task Startup_validation_accepts_default_hotfix_version_pointer_layout()
-    {
-        var baseDirectory = Path.Combine(
-            Path.GetTempPath(),
-            "LakonaStartupValidationTests",
-            Guid.NewGuid().ToString("N"));
-        try
-        {
-            var hotfixRoot = Path.Combine(baseDirectory, "hotfix");
-            var version = "2026.06.30.1";
-            var versionDirectory = Path.Combine(hotfixRoot, "versions", version);
-            Directory.CreateDirectory(versionDirectory);
-            File.WriteAllText(Path.Combine(hotfixRoot, "current.txt"), version);
-            File.WriteAllText(Path.Combine(versionDirectory, "Server.Hotfix.dll"), "");
-            Assert.False(File.Exists(Path.Combine(hotfixRoot, "Server.Hotfix.dll")));
-
-            var error = await Record.ExceptionAsync(() =>
-                Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.ValidateStartupRuntimeForTesting(
-                    [],
-                    server =>
-                    {
-                        server.ConfigureAppConfiguration(configuration =>
-                            configuration.AddInMemoryCollection(new Dictionary<string, string?>
-                            {
-                                ["Lakona:Endpoints:0:Transport"] = "websocket",
-                                ["Lakona:Endpoints:0:Serializer"] = "json",
-                                ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
-                                ["Lakona:Endpoints:0:Port"] = "20000",
-                                ["Lakona:Endpoints:0:Path"] = "/ws"
-                            }));
-                    },
-                    baseDirectory));
-
-            Assert.Null(error);
         }
         finally
         {
@@ -633,7 +560,7 @@ public sealed class LakonaGameServerTests
             File.WriteAllText(Path.Combine(hotfixRoot, "Server.Hotfix.dll"), "");
 
             var error = await Record.ExceptionAsync(() =>
-                Lakona.Game.Server.Hosting.LakonaGameServerBootstrapper.ValidateStartupRuntimeForTesting(
+                BuildAndDisposeStartupHostAsync(
                     [],
                     server =>
                     {
@@ -650,6 +577,7 @@ public sealed class LakonaGameServerTests
                     baseDirectory));
 
             Assert.NotNull(error);
+            Assert.Contains("path", error.Message, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {
