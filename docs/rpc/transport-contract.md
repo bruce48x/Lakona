@@ -26,6 +26,11 @@ connection attempt before releasing the transport. Concurrent disposal callers
 must coordinate at their owner; the shared disposal completion in RPC runtime
 does not imply that every transport implements that policy independently.
 
+The client also cancels and joins admitted request sends before publishing
+`Disconnected` or disposing its transport. This includes default-token calls
+and queued writes. A canceled active write retains the caller's frame until the
+transport operation actually completes; cancellation alone does not release it.
+
 The host's abort deadline is a containment mechanism, not a guarantee that an
 arbitrary third-party implementation cooperates. See
 [Host And Session Lifetime](architecture.md#host-and-session-lifetime).

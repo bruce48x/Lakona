@@ -146,6 +146,16 @@ failure. Connection termination rejects new calls and drains already-received
 messages in order before failing remaining calls. Custom transports must cooperate
 with I/O cancellation.
 
+Request encoding, queued writes, and active transport writes belong to the same
+client lifetime. Connection termination closes send admission and cancels writes,
+including calls made without a caller cancellation token. `Disconnected` and
+transport disposal wait for admitted sends to finish and release their frames.
+Cancellation of those writes does not replace the original disconnect reason or
+fail an already-received response before ordered dispatch can deliver it. Caller
+cancellation still ends that caller's wait and does not itself stop the runtime;
+a transport may treat cancellation of an active write as terminal. Cancellation
+does not undo work already accepted by the peer.
+
 Explicit client disposal stops framework intake and dispatch and cancels pending RPCs.
 It does not wait for arbitrary business handlers, including the handler calling
 DisposeAsync itself. An already-started handler retains its frame until it exits;

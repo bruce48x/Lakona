@@ -34,6 +34,9 @@ namespace Lakona.Rpc.Client
         private readonly object _lifecycleGate = new();
         private Task? _startupCompletion;
         private Task? _disposal;
+        private readonly TaskCompletionSource<bool> _sendsCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _activeSends;
+        private bool _sendsStopped;
         private readonly RpcConnectionChannel _connection;
         private readonly RpcPendingRequestCollection _pending = new();
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int serviceId, int methodId), RegisteredNotificationHandler> _notificationHandlers = new();
@@ -117,7 +120,7 @@ namespace Lakona.Rpc.Client
         }
 
         /// <summary>
-        ///     Raised after receive and keepalive stop and queued message dispatch ends.
+        ///     Raised after receive, keepalive, and request sends stop and queued message dispatch ends.
         /// </summary>
         /// <remarks>
         ///     The event argument is the disconnect reason when one is available. A null value means a normal or
@@ -307,8 +310,17 @@ namespace Lakona.Rpc.Client
             var id = _pending.Reserve(ref _nextId, call);
             if (call.Task.IsCompleted) return call.Task;
             TransportFrame? frame = null;
+            var ownsSend = false;
             try
             {
+                // Reserve before encoding: shutdown must also join calls already creating their frame.
+                lock (_lifecycleGate)
+                {
+                    if (_sendsStopped)
+                        throw new InvalidOperationException("RPC connection has ended.", _disconnectReason);
+                    _activeSends++;
+                    ownsSend = true;
+                }
                 ct.ThrowIfCancellationRequested();
                 frame = encode(id);
                 _requestLogger.LogTrace("RPC request sent {RequestId} service {ServiceId} method {MethodId}.", id, serviceId, methodId);
@@ -316,9 +328,14 @@ namespace Lakona.Rpc.Client
                 call.SetCancellationRegistration(ct.Register(() => _pending.TryCancel(id, ct)));
                 _ = SendRequestAsync(id, frame, ct);
                 frame = null;
+                ownsSend = false;
             }
             catch (Exception error) { _pending.Fail(id, error); }
-            finally { frame?.Dispose(); }
+            finally
+            {
+                frame?.Dispose();
+                if (ownsSend) CompleteSend();
+            }
             return call.Task;
         }
 
@@ -326,13 +343,35 @@ namespace Lakona.Rpc.Client
         {
             try
             {
-                using (frame) await SendFrameAsyncSerialized(frame.Memory, ct).ConfigureAwait(false);
+                using (frame)
+                using (var sending = ct.CanBeCanceled
+                    ? CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token)
+                    : null)
+                {
+                    await SendFrameAsyncSerialized(frame.Memory, sending?.Token ?? _cts.Token).ConfigureAwait(false);
+                }
             }
-            catch (Exception error) { _pending.Fail(id, error); }
+            catch (Exception error)
+            {
+                // Connection shutdown drains received responses before failing remaining calls.
+                // Its write cancellation must not win that race or replace the disconnect reason.
+                if (!_cts.IsCancellationRequested) _pending.Fail(id, error);
+            }
+            finally { CompleteSend(); }
+        }
+
+        private void CompleteSend()
+        {
+            lock (_lifecycleGate)
+            {
+                if (--_activeSends == 0 && _sendsStopped)
+                    _sendsCompleted.TrySetResult(true);
+            }
         }
 
         /// <summary>
-        ///     Stops background loops, fails pending requests, and disposes the transport.
+        ///     Stops background loops, cancels and joins request sends, fails pending requests,
+        ///     and disposes the transport.
         /// </summary>
         /// <remarks>Concurrent callers await the same cleanup; running business handlers are not joined.</remarks>
         public ValueTask DisposeAsync()
@@ -363,6 +402,7 @@ namespace Lakona.Rpc.Client
                 await JoinLoopAsync(_keepAliveLoop).ConfigureAwait(false);
                 _messageQueue.Writer.TryComplete();
                 await JoinLoopAsync(_dispatchLoop).ConfigureAwait(false);
+                await _sendsCompleted.Task.ConfigureAwait(false);
                 try { await _transport.DisposeAsync().ConfigureAwait(false); }
                 finally
                 {
@@ -472,6 +512,7 @@ namespace Lakona.Rpc.Client
                 // Stop the producer before releasing queued frames or publishing the terminal event.
                 await JoinLoopAsync(_recvLoop).ConfigureAwait(false);
                 await JoinLoopAsync(_keepAliveLoop).ConfigureAwait(false);
+                await _sendsCompleted.Task.ConfigureAwait(false);
                 while (_messageQueue.Reader.TryRead(out var message))
                 {
                     if (message is RpcPushFrame push) TrackNotificationDequeued(push);
@@ -678,6 +719,11 @@ namespace Lakona.Rpc.Client
         {
             if (error is not null)
                 Interlocked.CompareExchange(ref _disconnectReason, error, null);
+            lock (_lifecycleGate)
+            {
+                _sendsStopped = true;
+                if (_activeSends == 0) _sendsCompleted.TrySetResult(true);
+            }
             try { _cts.Cancel(); }
             catch (ObjectDisposedException) { }
         }
