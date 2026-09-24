@@ -66,7 +66,7 @@ public sealed class HubArchitectureSourceTests
     }
 
     [Fact]
-    public void Window_frame_keeps_rounded_outline_uses_direct_minimize_and_animates_before_closing()
+    public void Window_frame_keeps_rounded_outline_and_uses_direct_minimize()
     {
         var root = FindRepositoryRoot();
         var xaml = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "MainWindow.axaml"));
@@ -84,14 +84,6 @@ public sealed class HubArchitectureSourceTests
         Assert.DoesNotContain("WindowDecorationProperties.ElementRole=\"MinimizeButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("private void Minimize_Click", code, StringComparison.Ordinal);
         Assert.Contains("=> WindowState = WindowState.Minimized;", code, StringComparison.Ordinal);
-        Assert.Contains("new Cue(0.72)", code, StringComparison.Ordinal);
-        Assert.Contains("scale(1.08,0.035)", code, StringComparison.Ordinal);
-        Assert.Contains("scale(0.12,0.018)", code, StringComparison.Ordinal);
-        Assert.Contains("e.Cancel = true;", code, StringComparison.Ordinal);
-        Assert.Contains("await closeAnimation.RunAsync(WindowFrame", code, StringComparison.Ordinal);
-        Assert.True(
-            code.IndexOf("await closeAnimation.RunAsync(WindowFrame", StringComparison.Ordinal)
-            < code.LastIndexOf("Close();", StringComparison.Ordinal));
     }
 
     [Fact]

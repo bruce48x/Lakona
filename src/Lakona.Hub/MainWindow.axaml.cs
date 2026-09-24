@@ -3,14 +3,10 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using Avalonia;
-using Avalonia.Animation;
-using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Media.Transformation;
 using Avalonia.Platform.Storage;
-using Avalonia.Styling;
 using Avalonia.Threading;
 using Lakona.Hub.Applications;
 using Lakona.Hub.Sdk;
@@ -22,46 +18,6 @@ namespace Lakona.Hub;
 public sealed partial class MainWindow : Window
 {
     private const string HelpIssuesUrl = "https://github.com/bruce48x/Lakona/issues";
-    private static readonly Animation closeAnimation = new()
-    {
-        Duration = TimeSpan.FromMilliseconds(220),
-        Easing = new CubicEaseIn(),
-        FillMode = FillMode.None,
-        Children =
-        {
-            new KeyFrame
-            {
-                Cue = new Cue(0),
-                Setters =
-                {
-                    new Setter(Visual.OpacityProperty, 1d),
-                    new Setter(Visual.RenderTransformProperty, TransformOperations.Identity)
-                }
-            },
-            new KeyFrame
-            {
-                Cue = new Cue(0.72),
-                Setters =
-                {
-                    new Setter(Visual.OpacityProperty, 0.92d),
-                    new Setter(
-                        Visual.RenderTransformProperty,
-                        TransformOperations.Parse("scale(1.08,0.035)"))
-                }
-            },
-            new KeyFrame
-            {
-                Cue = new Cue(1),
-                Setters =
-                {
-                    new Setter(Visual.OpacityProperty, 0d),
-                    new Setter(
-                        Visual.RenderTransformProperty,
-                        TransformOperations.Parse("scale(0.12,0.018)"))
-                }
-            }
-        }
-    };
     private StoredHubCrashReport? pendingCrashReport;
 
     private readonly LakonaProjectInspector inspector = new();
@@ -77,8 +33,6 @@ public sealed partial class MainWindow : Window
     private CancellationTokenSource? experienceCancellation;
     private ProjectPackagingForm? packagingForm;
     private Control? activeExperience;
-    private bool closingAnimationStarted;
-    private bool allowClose;
     private readonly DispatcherTimer lastOpenedRefreshTimer = new() { Interval = TimeSpan.FromMinutes(1) };
 
     public MainWindow()
@@ -1069,13 +1023,6 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
-        if (!allowClose)
-        {
-            e.Cancel = true;
-            _ = AnimateAndCloseAsync();
-            return;
-        }
-
         windowLifetime.Close();
         lastOpenedRefreshTimer.Stop();
         feedbackCancellation?.Cancel();
@@ -1309,27 +1256,5 @@ public sealed partial class MainWindow : Window
     }
 
     private void Close_Click(object? sender, RoutedEventArgs e) => Close();
-
-    private async Task AnimateAndCloseAsync()
-    {
-        if (closingAnimationStarted)
-        {
-            return;
-        }
-
-        closingAnimationStarted = true;
-        try
-        {
-            await closeAnimation.RunAsync(WindowFrame, windowLifetime.Token);
-        }
-        catch (OperationCanceledException) when (windowLifetime.IsClosing)
-        {
-        }
-        finally
-        {
-            allowClose = true;
-            Close();
-        }
-    }
 
 }

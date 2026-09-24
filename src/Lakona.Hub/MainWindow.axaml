@@ -450,7 +450,7 @@
     </Style>
   </Window.Styles>
 
-  <Border x:Name="WindowFrame" Classes="window-frame" RenderTransformOrigin="50%,50%">
+  <Border x:Name="WindowFrame" Classes="window-frame">
   <Grid>
   <Border x:Name="WindowSurface" Classes="window-surface" ClipToBounds="True">
   <Grid ColumnDefinitions="220,*">

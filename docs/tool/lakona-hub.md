@@ -278,12 +278,9 @@ exterior shadow that separates Hub from the desktop. Maximized windows remove
 the edge, shadow, outer inset, and corner radius so content remains flush with
 the screen boundary. Hub remains fully borderless so native glass margins never
 surround the rounded application frame. Minimizing enters the platform
-minimized state immediately on every supported desktop platform. Closing first
-plays a short CRT-style transition that vertically squashes and slightly widens
-the window into a horizontal line, collapses that line toward its center, and
-then completes the close request. Repeated close requests cannot start
-overlapping transitions, and the behavior also covers platform close gestures
-such as Alt+F4 rather than only the custom close button.
+minimized state immediately on every supported desktop platform. Closing
+immediately runs the normal shutdown cleanup, whether requested by the custom
+close button or a platform gesture such as Alt+F4.
 
 ### Cross-Platform Visual Contract
 
