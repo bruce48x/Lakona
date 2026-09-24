@@ -54,7 +54,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         cancellationToken.ThrowIfCancellationRequested();
 
         var session = new GameSessionKey(ownerKey, _sessionIds.Create());
-        if (!_sessions.TryAdd(session, new SessionState(session, ownerKey)))
+        if (!_sessions.TryAdd(session, new SessionState(session)))
         {
             throw new InvalidOperationException("Generated a duplicate game session id.");
         }
@@ -325,7 +325,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 state.ResumeDeadlineUtc = pending.ResumeDeadlineUtc;
                 state.ReliableReplayPending = pending.ReliableReplayPending;
                 state.ResumeNotificationPending = pending.ResumeNotificationPending;
-                state.LastHeartbeatAt = pending.LastHeartbeatAt;
                 state.PendingBinding = null;
             }
         }
@@ -653,7 +652,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 if (activeState.ConnectionId == connectionId &&
                     activeState.Termination is null && activeState.PendingBinding is null)
                 {
-                    activeState.LastHeartbeatAt = heartbeatAt;
                     return new ValueTask<GameSessionHeartbeatResult>(
                         GameSessionHeartbeatResult.ActiveSession(activeState.Session));
                 }
@@ -675,7 +673,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                             GameSessionHeartbeatResult.ConnectionOnly());
                     }
 
-                    terminatedState.LastHeartbeatAt = heartbeatAt;
                     return new ValueTask<GameSessionHeartbeatResult>(
                         GameSessionHeartbeatResult.Terminated(terminatedState.Session, termination));
                 }
@@ -901,8 +898,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 state.DisconnectedAt,
                 state.ResumeDeadlineUtc,
                 state.ReliableReplayPending,
-                state.ResumeNotificationPending,
-                state.LastHeartbeatAt);
+                state.ResumeNotificationPending);
             if (!string.Equals(previousConnectionId, connectionId, StringComparison.Ordinal))
             {
                 // Keep the previous connection indexed until commit or disconnect so
@@ -923,7 +919,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
             state.LastTerminatedConnectionId = null;
             state.DisconnectedAt = null;
             state.ResumeDeadlineUtc = null;
-            state.LastHeartbeatAt = _timeProvider.GetUtcNow();
 
             return new GameSessionBindResult(sessionBecameActive
                 ? CreateSnapshot(state, connectionId)
@@ -995,17 +990,14 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
     private sealed class SessionState
     {
-        public SessionState(GameSessionKey session, string ownerKey)
+        public SessionState(GameSessionKey session)
         {
             Session = session;
-            OwnerKey = ownerKey;
         }
 
         public GameSessionKey Session { get; }
 
         public Lock Gate { get; } = new();
-
-        public string OwnerKey { get; }
 
         public string? ConnectionId { get; set; }
 
@@ -1024,8 +1016,6 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         public bool ReliableContinuityLost { get; set; }
 
         public bool ReliableReplayPending { get; set; }
-
-        public DateTimeOffset? LastHeartbeatAt { get; set; }
 
         public PendingBinding? PendingBinding { get; set; }
 
@@ -1048,6 +1038,5 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         DateTimeOffset? DisconnectedAt,
         DateTimeOffset? ResumeDeadlineUtc,
         bool ReliableReplayPending,
-        bool ResumeNotificationPending,
-        DateTimeOffset? LastHeartbeatAt);
+        bool ResumeNotificationPending);
 }
