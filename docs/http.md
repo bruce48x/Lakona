@@ -148,6 +148,12 @@ public sealed class PaymentWebhookService
 }
 ```
 
+HTTP service and endpoint attributes, `LakonaHttpCall`, and `LakonaHttpResponse`
+use the shared `Lakona.Game.Server` type identity, including in collectible
+Hotfix generations. Runtime scanning recognizes the framework attribute types
+and requires exact handler parameter and return types; matching a full type
+name from another assembly does not establish an HTTP contract.
+
 An HTTP handler is a public instance method that takes `LakonaHttpCall` and
 returns exactly `ValueTask<LakonaHttpResponse>`. Application HTTP has no
 user-authored numeric method id. Its protocol identity is the service name,

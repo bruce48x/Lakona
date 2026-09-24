@@ -5,6 +5,7 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Timers;
 using Lakona.Game.Server.Hotfix.Dispatch;
+using Lakona.Game.Server.Http;
 using Lakona.Rpc.Core;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,15 +13,6 @@ namespace Lakona.Game.Server.Hotfix.Scanning;
 
 public static class HotfixBehaviorScanner
 {
-    private const string HttpServiceAttributeName =
-        "Lakona.Game.Server.Http.LakonaHttpServiceAttribute";
-    private const string HttpEndpointAttributeName =
-        "Lakona.Game.Server.Http.LakonaHttpEndpointAttribute";
-    private const string HttpCallTypeName =
-        "Lakona.Game.Server.Http.LakonaHttpCall";
-    private const string HttpResponseTypeName =
-        "Lakona.Game.Server.Http.LakonaHttpResponse";
-
     public static HotfixBehaviorScanResult Scan(params Assembly[] assemblies)
     {
         ArgumentNullException.ThrowIfNull(assemblies);
@@ -243,20 +235,14 @@ public static class HotfixBehaviorScanner
         List<string> diagnostics,
         out string serviceName)
     {
-        var attribute = type.CustomAttributes.FirstOrDefault(static candidate =>
-            string.Equals(
-                candidate.AttributeType.FullName,
-                HttpServiceAttributeName,
-                StringComparison.Ordinal));
+        var attribute = type.GetCustomAttribute<LakonaHttpServiceAttribute>();
         if (attribute is null)
         {
             serviceName = "";
             return false;
         }
 
-        if (attribute.ConstructorArguments.Count != 1
-            || attribute.ConstructorArguments[0].Value is not string name
-            || string.IsNullOrWhiteSpace(name))
+        if (string.IsNullOrWhiteSpace(attribute.Name))
         {
             diagnostics.Add(
                 $"Application HTTP service '{type.FullName}' must declare a non-empty service name.");
@@ -264,7 +250,7 @@ public static class HotfixBehaviorScanner
             return false;
         }
 
-        serviceName = name;
+        serviceName = attribute.Name;
         return true;
     }
 
@@ -300,11 +286,7 @@ public static class HotfixBehaviorScanner
                 continue;
             }
 
-            var attribute = method.CustomAttributes.FirstOrDefault(static candidate =>
-                string.Equals(
-                    candidate.AttributeType.FullName,
-                    HttpEndpointAttributeName,
-                    StringComparison.Ordinal));
+            var attribute = method.GetCustomAttribute<LakonaHttpEndpointAttribute>();
             if (attribute is null)
             {
                 diagnostics.Add(
@@ -312,18 +294,18 @@ public static class HotfixBehaviorScanner
                 continue;
             }
 
+            var httpMethod = attribute.Method;
+            var routePattern = attribute.RoutePattern;
             if (method.IsStatic
                 || method.IsGenericMethod
                 || method.ContainsGenericParameters
-                || attribute.ConstructorArguments.Count != 2
-                || attribute.ConstructorArguments[0].Value is not string httpMethod
-                || attribute.ConstructorArguments[1].Value is not string routePattern
                 || string.IsNullOrWhiteSpace(httpMethod)
                 || httpMethod.Any(char.IsWhiteSpace)
                 || string.IsNullOrWhiteSpace(routePattern)
                 || !routePattern.StartsWith("/", StringComparison.Ordinal)
-                || method.GetParameters() is not [{ ParameterType.FullName: HttpCallTypeName }]
-                || !IsHttpResponseValueTask(method.ReturnType))
+                || method.GetParameters() is not [{ ParameterType: var parameterType }]
+                || parameterType != typeof(LakonaHttpCall)
+                || method.ReturnType != typeof(ValueTask<LakonaHttpResponse>))
             {
                 diagnostics.Add(
                     $"Application HTTP method '{serviceType.FullName}.{method.Name}' must be a public instance non-generic method with one LakonaHttpCall parameter, an exact ValueTask<LakonaHttpResponse> return type, and one valid [LakonaHttpEndpoint(method, route)].");
@@ -360,16 +342,6 @@ public static class HotfixBehaviorScanner
             diagnostics.Add(
                 $"Application HTTP service '{serviceType.FullName}' must declare at least one valid endpoint.");
         }
-    }
-
-    private static bool IsHttpResponseValueTask(Type returnType)
-    {
-        return returnType.IsGenericType
-            && returnType.GetGenericTypeDefinition() == typeof(ValueTask<>)
-            && string.Equals(
-                returnType.GetGenericArguments()[0].FullName,
-                HttpResponseTypeName,
-                StringComparison.Ordinal);
     }
 
     private static bool IsManagementRoute(string routePattern)
