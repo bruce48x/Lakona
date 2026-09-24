@@ -349,6 +349,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
             lock (state.Gate)
             {
                 RemoveConnectionMapping(_connectionToSession, state.ConnectionId, session);
+                RemoveConnectionMapping(_connectionToSession, state.PendingBinding?.PreviousConnectionId, session);
                 RemoveConnectionMapping(_connectionToSession, state.LastDisconnectedConnectionId, session);
                 RemoveConnectionMapping(_terminatedConnectionToSession, state.LastTerminatedConnectionId, session);
                 state.ConnectionId = null;
@@ -527,9 +528,10 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 return new ValueTask<GameSessionSnapshot?>((GameSessionSnapshot?)null);
             }
 
-            var snapshot = CreateSnapshot(state, connectionId);
-            DisconnectState(state, connectionId, _timeProvider.GetUtcNow());
-            return new ValueTask<GameSessionSnapshot?>(snapshot);
+            return new ValueTask<GameSessionSnapshot?>(
+                DisconnectState(state, connectionId, _timeProvider.GetUtcNow())
+                    ? CreateSnapshot(state, connectionId)
+                    : null);
         }
     }
 
@@ -548,13 +550,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 return default;
             }
 
-            if (connectionId is not null
-                && !string.Equals(state.ConnectionId, connectionId, StringComparison.Ordinal))
-            {
-                return default;
-            }
-
-            var activeConnectionId = state.ConnectionId;
+            var activeConnectionId = connectionId ?? state.ConnectionId;
             if (activeConnectionId is null)
             {
                 return default;
@@ -589,6 +585,10 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 var terminatedBinding = activeConnectionId is null
                     ? null
                     : CreateSnapshot(state, activeConnectionId);
+                // Termination resolves the transaction permanently; a later rollback
+                // must not restore a connection from the pre-termination snapshot.
+                RemoveConnectionMapping(_connectionToSession, state.PendingBinding?.PreviousConnectionId, session);
+                state.PendingBinding = null;
                 if (!keepForResume)
                 {
                     _sessions.TryRemove(session, out _);
@@ -650,7 +650,8 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
             lock (activeState.Gate)
             {
-                if (activeState.Termination is null && activeState.PendingBinding is null)
+                if (activeState.ConnectionId == connectionId &&
+                    activeState.Termination is null && activeState.PendingBinding is null)
                 {
                     activeState.LastHeartbeatAt = heartbeatAt;
                     return new ValueTask<GameSessionHeartbeatResult>(
@@ -781,6 +782,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                         ? state.LastDisconnectedConnectionId
                         : state.LastTerminatedConnectionId ?? state.LastDisconnectedConnectionId;
                     RemoveConnectionMapping(_connectionToSession, state.ConnectionId, state.Session);
+                    RemoveConnectionMapping(_connectionToSession, state.PendingBinding?.PreviousConnectionId, state.Session);
                     RemoveConnectionMapping(
                         _connectionToSession,
                         state.LastDisconnectedConnectionId,
@@ -820,16 +822,39 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 : null;
     }
 
-    private void DisconnectState(SessionState state, string connectionId, DateTimeOffset disconnectedAt)
+    private bool DisconnectState(SessionState state, string connectionId, DateTimeOffset disconnectedAt)
     {
         lock (state.Gate)
         {
+            var previousBindingDisconnected = false;
+            if (state.PendingBinding is { } pending && pending.PreviousConnectionId == connectionId)
+            {
+                previousBindingDisconnected = true;
+                // Rollback state follows real connection lifetime, not just prepare time.
+                state.PendingBinding = pending with
+                {
+                    PreviousConnectionId = null,
+                    LastDisconnectedConnectionId = connectionId,
+                    DisconnectedAt = disconnectedAt,
+                    ResumeDeadlineUtc = disconnectedAt.Add(_resumeWindow),
+                    ResumeNotificationPending = false
+                };
+            }
+
+            if (state.ConnectionId != connectionId)
+            {
+                if (previousBindingDisconnected)
+                    RemoveConnectionMapping(_connectionToSession, connectionId, state.Session);
+                return previousBindingDisconnected;
+            }
+
             _connectionToSession.TryRemove(connectionId, out _);
             state.ConnectionId = null;
             state.LastDisconnectedConnectionId = connectionId;
             state.DisconnectedAt = disconnectedAt;
             state.ResumeNotificationPending = false;
             state.ResumeDeadlineUtc = disconnectedAt.Add(_resumeWindow);
+            return true;
         }
     }
 
@@ -880,11 +905,8 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                 state.LastHeartbeatAt);
             if (!string.Equals(previousConnectionId, connectionId, StringComparison.Ordinal))
             {
-                if (previousConnectionId is not null)
-                {
-                    _connectionToSession.TryRemove(previousConnectionId, out _);
-                }
-
+                // Keep the previous connection indexed until commit or disconnect so
+                // its lifetime remains observable while the replacement is pending.
                 state.ConnectionId = connectionId;
                 _connectionToSession[connectionId] = session;
             }
@@ -935,6 +957,8 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
             state.ResumeNotificationPending |= pending.DisconnectedAt is not null ||
                 (pending.PreviousConnectionId is not null && pending.PreviousConnectionId != connectionId);
+            if (pending.PreviousConnectionId != connectionId)
+                RemoveConnectionMapping(_connectionToSession, pending.PreviousConnectionId, session);
             state.PendingBinding = null;
         }
     }

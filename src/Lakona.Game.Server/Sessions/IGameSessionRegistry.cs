@@ -48,6 +48,7 @@ public interface IGameSessionRegistry
         string connectionId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Prepares a replacement while retaining the previous connection's lifecycle tracking until commit or rollback.</summary>
     ValueTask<GameSessionBindResult> PrepareSessionBindingAsync(
         GameSessionKey session,
         string connectionId,
@@ -58,6 +59,7 @@ public interface IGameSessionRegistry
         string connectionId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Restores the previous binding's latest state, preserving intervening disconnects. Does not undo termination.</summary>
     ValueTask RollbackSessionBindingAsync(
         GameSessionKey session,
         string connectionId,

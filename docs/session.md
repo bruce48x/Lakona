@@ -509,8 +509,30 @@ and opaque ticket. This prevents a successful login response from racing the
 client's recovery state. Binding remains prepared and invisible through the
 connection index until Session locator issuance, ticket issuance, notification, and
 acknowledgement all succeed. A missing connection or any failed step rolls back
-the ticket, restores an existing disconnected Session exactly, and
+the ticket, restores an existing Session's prior binding with any intervening
+disconnects preserved, and
 removes a newly created Session instead of retaining a half-established entry.
+
+During preparation, the old connection remains reserved to that Session so its
+disconnect event is still observed and it cannot be rebound to another Session.
+The replacement remains hidden until commit. The previous outbound binding is
+usable only while its connection remains connected. Rollback uses the old
+connection's latest state; it never revives a disconnected connection or restarts
+the resume window from rollback time.
+
+| Event during preparation | Completion | Result |
+| --- | --- | --- |
+| Old connection stays connected | Rollback | Restore the old binding. |
+| Old connection disconnects | Rollback | Remain disconnected with the original disconnect deadline. |
+| Old connection disconnects, replacement stays connected | Commit | Use the replacement; late old disconnects do not affect it. |
+| Replacement disconnects | Commit | Reject commit; rollback can still restore a connected old binding. |
+| Session terminates or is removed | Rollback | No effect; terminal or removed state wins. |
+
+Commit, removal, termination, and expiration release the old connection's
+reservation. Repeated disconnect notifications are ignored after the first
+observation. These rules also apply when preparing a binding to the same
+connection ID: disconnecting that connection invalidates both the prepared
+binding and the rollback target.
 
 Recovery retries the same endpoint until the negotiated resume deadline. It
 either returns to `Active` or reports `StateLost`, `RefreshRequired`, or
