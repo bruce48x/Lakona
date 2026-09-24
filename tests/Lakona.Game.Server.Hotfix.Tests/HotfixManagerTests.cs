@@ -1059,8 +1059,12 @@ public sealed class HotfixManagerTests
             diagnostic.Contains("does not match a method on contract", StringComparison.Ordinal));
     }
 
-    [Fact]
-    public async Task Reload_publishes_valid_service_using_stable_boundary_types()
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    [InlineData(1, true)]
+    public async Task Reload_publishes_valid_service_despite_observer_failures(int observerFailure, bool cleanupFailure)
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
@@ -1068,13 +1072,42 @@ public sealed class HotfixManagerTests
         var replyType = stableAssembly.GetType("StableContracts.ServiceReply", throwOnError: true)!;
         var contractType = stableAssembly.GetType("StableContracts.IManagerService", throwOnError: true)!;
         var request = Activator.CreateInstance(requestType, 41)!;
-        var manager = new HotfixManager(
+        await using var manager = new HotfixManager(
             new FixedAssemblySource(compiled.ValidServiceHotfixAssemblyPath),
-            [stableAssembly.GetName().Name!]);
+            [stableAssembly.GetName().Name!],
+            participants: [new RecordingPublicationParticipant([], failCommit: cleanupFailure)]);
+
+        var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded);
+        var notifications = new List<HotfixReloadResult>();
+        manager.Reloaded += (_, result) =>
+        {
+            notifications.Add(result);
+            if (observerFailure == 1) throw new InvalidOperationException("observer failed");
+            if (observerFailure == 2) throw new OperationCanceledException("observer canceled");
+        };
+        manager.Reloaded += (_, result) => notifications.Add(result);
 
         var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics));
+        Assert.Equal(2, notifications.Count);
+        Assert.Same(notifications[0], notifications[1]);
+        Assert.Equal(first.Current.DispatchTableVersion + 1, result.Current.DispatchTableVersion);
+        Assert.Equal(result.Current.DispatchTableVersion, HotfixDispatch.Current.Version);
+        Assert.Same(result.Current, manager.Current);
+        Assert.Equal(result.Status, manager.Current.LastReloadStatus);
+        Assert.Null(result.ErrorMessage);
+        Assert.Null(result.ExceptionType);
+        if (observerFailure != 0)
+        {
+            Assert.Equal(HotfixReloadStatus.SucceededWithWarnings, result.Status);
+            Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Contains(
+                observerFailure == 1 ? "observer failed" : "observer canceled", StringComparison.Ordinal));
+            Assert.DoesNotContain(notifications[0].Diagnostics, diagnostic => diagnostic.Contains("observer", StringComparison.Ordinal));
+        }
+        if (cleanupFailure)
+            Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Contains("cleanup failed", StringComparison.Ordinal));
         var callType = typeof(HotfixServiceCall<>).MakeGenericType(requestType);
         var call = Activator.CreateInstance(
             callType,

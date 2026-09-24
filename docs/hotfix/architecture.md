@@ -48,6 +48,16 @@ while the published generation can still serve requests. Before publication,
 activation, rollback, and disposal failures remain a failed reload; cancellation
 is rethrown normally only when rollback and disposal complete cleanly.
 
+`Reloaded` is a synchronous notification after successful publication, not a
+publication veto. Subscribers run once in registration order with the same
+publication result. Exceptions thrown by a subscriber, including cancellation
+exceptions, do not stop subsequent subscribers or roll back the generation.
+When a subscriber throws, the final result and current snapshot report
+`SucceededWithWarnings`; diagnostics retain existing warnings and add observer
+failures, which are included in the reload warning log. The event payload is
+not rewritten or sent again to report observer failures. Validation and failed
+publication do not raise this event.
+
 Candidate cleanup attempts the dispatch table, generation service provider,
 and load-context unload independently. Table-owned modules are disposed in
 reverse activation order even when an earlier disposal throws. Validation

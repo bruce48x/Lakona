@@ -119,6 +119,8 @@ public sealed class HotfixManager
         {
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeState) != 0, this);
             var result = await LoadCoreAsync(_source, publish: true, cancellationToken).ConfigureAwait(false);
+            if (result.Succeeded)
+                result = NotifyReloaded(result);
             LogReloadResult(result);
             return result;
         }
@@ -242,20 +244,13 @@ public sealed class HotfixManager
             // Ownership transfers to the runtime before publication, including its failure paths.
             hotfixProvider = null;
             pendingContext = null;
-            var result = await PublishCandidateAsync(
+            return await PublishCandidateAsync(
                 runtimeSnapshot,
                 snapshot,
                 cancellationToken,
                 resolved.Version,
                 resolved.AssemblyPath,
                 dependencyWarnings).ConfigureAwait(false);
-            if (!result.Succeeded)
-            {
-                return result;
-            }
-
-            Reloaded?.Invoke(this, result);
-            return result;
         }
         catch (OperationCanceledException cancellationException)
         {
@@ -299,6 +294,41 @@ public sealed class HotfixManager
                 ex.Message,
                 ex.GetType().FullName);
         }
+    }
+
+    private HotfixReloadResult NotifyReloaded(HotfixReloadResult result)
+    {
+        var handlers = Reloaded;
+        if (handlers is null)
+            return result;
+
+        List<string>? warnings = null;
+        foreach (EventHandler<HotfixReloadResult> handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(this, result);
+            }
+            catch (Exception exception)
+            {
+                // Publication is complete; even observer cancellation cannot undo it.
+                warnings ??= [];
+                warnings.Add($"Hotfix Reloaded observer {handler.Method.DeclaringType?.FullName}.{handler.Method.Name} failed: {exception.GetType().FullName}: {exception.Message}");
+            }
+        }
+
+        if (warnings is null)
+            return result;
+
+        var snapshot = WithReloadStatus(result.Current, HotfixReloadStatus.SucceededWithWarnings);
+        var publication = Volatile.Read(ref _publication);
+        Volatile.Write(ref _publication, new HotfixPublicationState(snapshot, publication.Runtime, publication.DispatchTable));
+        return new HotfixReloadResult(
+            HotfixReloadStatus.SucceededWithWarnings,
+            snapshot,
+            result.RequestedVersion,
+            result.RequestedPath,
+            [.. result.Diagnostics, .. warnings]);
     }
 
     private async ValueTask ValidatePublicationCandidateAsync(
