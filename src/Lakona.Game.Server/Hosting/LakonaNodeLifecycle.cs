@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 
 namespace Lakona.Game.Server.Hosting;
@@ -11,8 +13,7 @@ internal enum LakonaNodeLifecycleStage
     ActorDirectory = 500,
     ActorActivations = 550,
     StartupActors = 600,
-    MembershipStopping = 650,
-    Admission = 700
+    MembershipStopping = 650
 }
 
 internal interface ILakonaNodeLifecycleParticipant
@@ -25,7 +26,8 @@ internal interface ILakonaNodeLifecycleParticipant
 
 internal sealed class LakonaNodeLifecycle(
     IEnumerable<ILakonaNodeLifecycleParticipant> participants,
-    ILogger<LakonaNodeLifecycle> logger)
+    ILogger<LakonaNodeLifecycle> logger,
+    IOptions<HostOptions> hostOptions)
 {
     private readonly IReadOnlyList<ILakonaNodeLifecycleParticipant> _participants =
         ValidateAndOrderParticipants(participants);
@@ -70,6 +72,15 @@ internal sealed class LakonaNodeLifecycle(
             }
 
             _startAttempted = true;
+            var rollbackTimeout = hostOptions.Value.ShutdownTimeout;
+            // Match the cancellation timer's millisecond range before acquiring resources.
+            var rollbackMilliseconds = (long)rollbackTimeout.TotalMilliseconds;
+            if (rollbackMilliseconds < -1 || rollbackMilliseconds > uint.MaxValue - 1)
+            {
+                throw new ArgumentOutOfRangeException(
+                    "HostOptions.ShutdownTimeout", rollbackTimeout,
+                    "Shutdown timeout must be infinite (-1 ms) or between 0 and 4294967294 ms.");
+            }
 
             try
             {
@@ -81,7 +92,10 @@ internal sealed class LakonaNodeLifecycle(
             }
             catch
             {
-                await StopStartedAsync(CancellationToken.None, preservePrimaryFailure: true)
+                // Startup may already be canceled. Give the entire rollback its
+                // own cooperative deadline, shared by every stage and module.
+                using var rollback = new CancellationTokenSource(rollbackTimeout);
+                await StopStartedAsync(rollback.Token, preservePrimaryFailure: true)
                     .ConfigureAwait(false);
                 throw;
             }

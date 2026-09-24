@@ -204,7 +204,9 @@ public sealed class PackageOwnershipRepositoryTests
                 "Lakona.Game.Cluster.Rpc.Tests",
                 "Lakona.Game.Cluster.Tests",
                 "Lakona.Game.Server.Hotfix.Tests",
-                "Lakona.Game.Server.Tests"
+                "Lakona.Game.Server.Tests",
+                // CLI integration tests exercise the production management HTTP mapping.
+                "Lakona.Tool.Tests"
             ],
             friends.Order(StringComparer.Ordinal));
     }

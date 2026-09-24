@@ -103,24 +103,3 @@ internal sealed class MembershipStoppingLifecycleParticipant(
     public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     public Task StopAsync(CancellationToken cancellationToken) => service.BeginStoppingAsync(cancellationToken);
 }
-
-internal sealed class AdmissionLifecycleParticipant(
-    LakonaServerStartupHostedService service) : ILakonaNodeLifecycleParticipant
-{
-    public string Name => "admission-readiness";
-    public LakonaNodeLifecycleStage Stage => LakonaNodeLifecycleStage.Admission;
-
-    public async Task StartAsync(CancellationToken cancellationToken)
-    {
-        await service.StartingAsync(cancellationToken).ConfigureAwait(false);
-        await service.StartAsync(cancellationToken).ConfigureAwait(false);
-        await service.StartedAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task StopAsync(CancellationToken cancellationToken)
-    {
-        await service.StoppingAsync(cancellationToken).ConfigureAwait(false);
-        await service.StopAsync(cancellationToken).ConfigureAwait(false);
-        await service.StoppedAsync(cancellationToken).ConfigureAwait(false);
-    }
-}

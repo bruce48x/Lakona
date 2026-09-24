@@ -105,13 +105,21 @@ NotReady.
 If Hotfix or framework startup fails after modules have started, Lakona stops
 the framework before stopping application modules.
 
+Application-specific configuration and dependency checks belong in module startup.
+Throw a descriptive exception when a required invariant or dependency fails;
+Lakona reports the module failure and keeps the node NotReady. Framework
+configuration is checked by the built-in [Guardrails](guardrails.md), whose
+rules are not an application extension point.
+
 ## Readiness
 
 Readiness is owned by Lakona. Modules do not publish Ready or NotReady.
 
 The process remains NotReady while modules, initial Hotfix loading, and
 framework hosted facilities start. It becomes Ready only after every module
-and framework startup callback succeeds.
+and hosted service `StartAsync` succeeds, including the HTTP listener.
+A later Host startup failure stops already-started framework facilities and
+modules before the provider is disposed; the original startup error is retained.
 
 On shutdown Lakona enters NotReady before business consumers stop. Module
 startup failures are reported through `LAKONA10151`; startup pending and shutdown
@@ -133,8 +141,41 @@ Normal shutdown is:
 4. stop application modules in reverse startup order;
 5. dispose the final root provider.
 
+The runner attempts root Host disposal exactly once, preferring asynchronous
+disposal when available. If startup or shutdown already failed, a subsequent
+disposal failure must not replace that exception or its stack trace. It is
+attached to the original exception's `Data["Lakona.HostDisposalFailure"]`;
+startup rollback failures use `Data["Lakona.StartupCleanupFailure"]`. Final
+disposal diagnostics do not resolve services from the disposing provider.
+When no earlier failure exists, a disposal failure propagates normally.
+
 `StopAsync` should tolerate partial initialization and repeated calls. Lakona
 continues stopping remaining modules after a failure.
+
+### Cancellation And Rollback
+
+Pass the startup token to blocking initialization operations and stop starting
+new work when it is canceled. Cleanup must have its own opportunity to run.
+The internal node lifecycle owns rollback after a node startup failure; the
+module runtime reports startup failure and leaves successful modules for that
+owner to stop.
+
+Node startup rollback creates one independent cancellation source using
+`HostOptions.ShutdownTimeout`, captured and validated before any stage starts.
+Invalid timeouts fail before lifecycle stages initialize resources. All entered
+stages and successfully started modules receive that same token in reverse order. An already-canceled startup
+token does not cancel this cleanup opportunity. Once the rollback deadline
+expires, later cleanup is still attempted with the canceled token; no stage or
+module gets a fresh timeout. Normal shutdown uses the Host-provided stop token.
+
+Module `StopAsync` implementations should end blocking waits when canceled and
+still perform immediately available cleanup. Framework rollback continues after
+individual failures or cooperative cancellation and preserves the original
+startup exception. Code that ignores cancellation can still block completion;
+Lakona does not abandon a running cleanup task and dispose its dependencies
+underneath it. Deployment supervision owns any hard process-exit deadline.
+An explicitly infinite Host shutdown timeout also disables the rollback deadline.
+
 
 ## Resource Ownership
 

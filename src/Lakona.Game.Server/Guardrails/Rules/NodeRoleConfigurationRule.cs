@@ -1,23 +1,27 @@
+using Lakona.Game.Server.Configuration;
+
 namespace Lakona.Game.Server.Guardrails.Rules;
 
-public sealed class NodeRoleConfigurationRule : ILakonaGameValidationRule
+internal static class NodeRoleConfigurationRule
 {
-    public IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameResolvedRuntime runtime)
+    internal static IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameRuntimeOptions runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var value in runtime.NodeRoles ?? [])
+        for (var index = 0; index < runtime.Node.Roles.Count; index++)
         {
-            if (string.IsNullOrWhiteSpace(value.Value))
+            var value = runtime.Node.Roles[index];
+            var path = $"Lakona:Node:Roles:{index}";
+            if (string.IsNullOrWhiteSpace(value))
             {
-                yield return Error("LAKONA10101", "Lakona:Node:Roles entries must not be empty.", value.Path);
+                yield return Error("LAKONA10101", "Lakona:Node:Roles entries must not be empty.", path);
                 continue;
             }
 
-            if (!seen.Add(value.Value))
+            if (!seen.Add(value))
             {
-                yield return Error("LAKONA10102", "Lakona:Node:Roles entries must be unique.", value.Path);
+                yield return Error("LAKONA10102", "Lakona:Node:Roles entries must be unique.", path);
             }
         }
     }

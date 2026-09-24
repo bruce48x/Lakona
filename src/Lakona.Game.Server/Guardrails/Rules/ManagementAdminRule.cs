@@ -1,15 +1,17 @@
+using Lakona.Game.Server.Configuration;
+
 using System.Net;
 
 namespace Lakona.Game.Server.Guardrails.Rules;
 
-public sealed class ManagementAdminRule : ILakonaGameValidationRule
+internal static class ManagementAdminRule
 {
-    public IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameResolvedRuntime runtime)
+    internal static IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameRuntimeOptions runtime)
     {
         var management = runtime.Management;
-        if (management.AdminEnabled.Value
-            && management.AdminRequireLoopback.Value
-            && !IsLoopbackHost(management.HttpHost.Value))
+        if (management.Admin.Enabled
+            && management.Admin.RequireLoopback
+            && !IsLoopbackHost(management.Http.Host))
         {
             yield return new LakonaGameDiagnostic(
                 "LAKONA10130",

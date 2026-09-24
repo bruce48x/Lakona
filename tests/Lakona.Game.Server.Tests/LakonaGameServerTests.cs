@@ -18,7 +18,6 @@ using Lakona.Game.Cluster.Rpc.Membership;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Guardrails;
-using Lakona.Game.Server.Guardrails.Rules;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix;
@@ -399,8 +398,7 @@ public sealed class LakonaGameServerTests
                 ("actor-directory", LakonaNodeLifecycleStage.ActorDirectory),
                 ("actor-activations", LakonaNodeLifecycleStage.ActorActivations),
                 ("startup-actors", LakonaNodeLifecycleStage.StartupActors),
-                ("membership-stopping", LakonaNodeLifecycleStage.MembershipStopping),
-                ("admission-readiness", LakonaNodeLifecycleStage.Admission)
+                ("membership-stopping", LakonaNodeLifecycleStage.MembershipStopping)
             ],
             host.Services.GetServices<ILakonaNodeLifecycleParticipant>()
                 .OrderBy(static participant => participant.Stage)
@@ -1287,16 +1285,7 @@ public sealed class LakonaGameServerTests
 
     private static LakonaGameRuntimeValidator CreateRuntimeValidator()
     {
-        return new LakonaGameRuntimeValidator(
-        [
-            new NodeIdentityRule(),
-            new EndpointRule(),
-            new ClusterEndpointRule(),
-            new HotfixSourceRule(),
-            new HeartbeatRule(),
-            new NodeRoleConfigurationRule(),
-            new ManagementAdminRule()
-        ]);
+        return new LakonaGameRuntimeValidator();
     }
 
     private sealed record ConfiguredValue(string Value);

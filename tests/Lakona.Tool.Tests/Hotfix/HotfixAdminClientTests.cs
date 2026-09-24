@@ -2,7 +2,12 @@ using Lakona.Tool.Hotfix;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.HotfixAdmin;
-using Lakona.Game.Server.LocalAdmin;
+using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Management;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Logging;
+using System.Net;
+using System.Net.Sockets;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -19,15 +24,32 @@ public sealed class HotfixAdminClientTests
         try
         {
             await File.WriteAllTextAsync(Path.Combine(directory, "Broken.dll"), "invalid assembly", TestContext.Current.CancellationToken);
-            var services = new ServiceCollection();
-            services.AddSingleton<IHotfixManager>(manager);
-            services.AddLakonaGameHotfixAdmin(options => options.HotfixRoot = directory);
-            using var provider = services.BuildServiceProvider();
-            var router = new LakonaLocalAdminRouter(provider.GetServices<ILakonaLocalAdminRoute>());
-            using var http = new HttpClient(new RouterHandler(router));
+            using var reservation = new TcpListener(IPAddress.Loopback, 0);
+            reservation.Start();
+            var port = ((IPEndPoint)reservation.LocalEndpoint).Port;
+            reservation.Stop();
+            var runtime = new LakonaGameRuntimeOptions
+            {
+                Health = new LakonaHealthOptions { Enabled = false },
+                Management = new LakonaManagementOptions
+                {
+                    Http = new LakonaManagementHttpOptions { Host = "127.0.0.1", Port = port },
+                    Admin = new LakonaManagementAdminOptions { Enabled = true }
+                }
+            };
+            var builder = WebApplication.CreateBuilder();
+            builder.Logging.ClearProviders();
+            builder.Services.AddSingleton(runtime);
+            builder.Services.AddSingleton<IHotfixManager>(manager);
+            builder.Services.AddLakonaGameHotfixAdmin(options => options.HotfixRoot = directory);
+            LakonaHttpHosting.Configure(builder, runtime);
+            await using var app = builder.Build();
+            LakonaHttpHosting.Map(app);
+            await app.StartAsync(TestContext.Current.CancellationToken);
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
             var client = new HotfixAdminClient(http);
             var exception = await Assert.ThrowsAsync<HotfixAdminRequestException>(() => client.PostAsync(
-                "http://127.0.0.1:20090", "/_lakona/hotfix/reload", new { }, TestContext.Current.CancellationToken));
+                $"http://127.0.0.1:{port}", "/_lakona/hotfix/reload", new { }, TestContext.Current.CancellationToken));
 
             Assert.Contains("HOTFIX_RELOAD_FAILED", exception.Message);
             Assert.Contains("Stage: reload", exception.Message);
@@ -35,43 +57,23 @@ public sealed class HotfixAdminClientTests
             Assert.Contains("Loaded version: none", exception.Message);
             Assert.Contains("Correlation ID:", exception.Message);
             Assert.DoesNotContain("Local admin endpoint failed", exception.Message);
-            var status = await provider.GetRequiredService<HotfixAdminController>().GetStatusAsync(TestContext.Current.CancellationToken);
+            var status = await app.Services.GetRequiredService<HotfixAdminController>().GetStatusAsync(TestContext.Current.CancellationToken);
             Assert.NotNull(status.LastOperationFailure);
             Assert.Contains(status.LastOperationFailure.Message, exception.Message);
             Assert.Contains(status.LastOperationFailure.CorrelationId, exception.Message);
             Assert.Equal(0, manager.Current.DispatchTableVersion);
 
-            // Exercise the actual CLI entry and HTTP client over a loopback socket.
-            // The small test adapter returns the real registered rollback route response.
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
             deadline.CancelAfter(TimeSpan.FromSeconds(15));
-            using var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
-            listener.Start();
-            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
-            async Task ServeAsync()
-            {
-                using var connection = await listener.AcceptTcpClientAsync(deadline.Token);
-                await using var stream = connection.GetStream();
-                using var reader = new StreamReader(stream, leaveOpen: true);
-                var requestLine = await reader.ReadLineAsync(deadline.Token);
-                Assert.Equal("POST /_lakona/hotfix/rollback HTTP/1.1", requestLine);
-                while (await reader.ReadLineAsync(deadline.Token) is { Length: > 0 }) { }
-                var response = await router.RouteAsync(new LakonaLocalAdminRequest("POST", "/_lakona/hotfix/rollback", Stream.Null, true), deadline.Token);
-                var content = System.Text.Encoding.UTF8.GetBytes(response.Body);
-                var header = System.Text.Encoding.ASCII.GetBytes($"HTTP/1.1 {response.StatusCode} Bad Request\r\nContent-Type: application/json\r\nContent-Length: {content.Length}\r\nConnection: close\r\n\r\n");
-                await stream.WriteAsync(header, deadline.Token);
-                await stream.WriteAsync(content, deadline.Token);
-            }
-            var serving = ServeAsync();
             var terminal = new RecordingTerminal();
             var exitCode = await new CliApplication(terminal: terminal).RunAsync(
                 ["hotfix", "rollback", "--server", $"http://127.0.0.1:{port}"]).WaitAsync(deadline.Token);
-            await serving;
             Assert.Equal(1, exitCode);
             var error = Assert.Single(terminal.Errors);
             Assert.Contains("HOTFIX_NO_PREVIOUS_VERSION", error);
             Assert.Contains("Next step: Install and activate", error);
             Assert.Empty(terminal.Output);
+            await app.StopAsync(TestContext.Current.CancellationToken);
         }
         finally
         {
@@ -93,20 +95,6 @@ public sealed class HotfixAdminClientTests
         var exception = await Assert.ThrowsAsync<HotfixAdminRequestException>(() => new HotfixAdminClient(http).GetAsync(
             "http://localhost:20090", "/_lakona/hotfix/status", TestContext.Current.CancellationToken));
         Assert.Contains(body, exception.Message);
-    }
-
-    private sealed class RouterHandler(LakonaLocalAdminRouter router) : HttpMessageHandler
-    {
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            var body = request.Content is null ? Stream.Null : await request.Content.ReadAsStreamAsync(cancellationToken);
-            var response = await router.RouteAsync(new LakonaLocalAdminRequest(request.Method.Method,
-                request.RequestUri!.AbsolutePath, body, true), cancellationToken);
-            return new HttpResponseMessage((System.Net.HttpStatusCode)response.StatusCode)
-            {
-                Content = new StringContent(response.Body, System.Text.Encoding.UTF8, response.ContentType)
-            };
-        }
     }
 
     private sealed class RecordingTerminal : ICliTerminal

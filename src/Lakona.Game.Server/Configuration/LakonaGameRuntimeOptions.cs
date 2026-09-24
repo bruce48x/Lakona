@@ -215,12 +215,12 @@ public sealed class LakonaGameRuntimeOptions
                 Transport = endpoint["Transport"] ?? "",
                 Serializer = endpoint["Serializer"] ?? "",
                 Host = endpoint["Host"] ?? "",
-                Port = LakonaConfigurationReader.ReadInt(endpoint["Port"]),
+                Port = LakonaConfigurationReader.ReadInt(endpoint, "Port", 0),
                 Path = endpoint["Path"] ?? "",
                 AdvertisedHost = endpoint["AdvertisedHost"] ?? "",
                 ReliablePush = LakonaConfigurationReader.ReadBool(endpoint, "ReliablePush", false),
                 ConnectionLimits = BindEndpointConnectionLimits(endpoint.GetSection("ConnectionLimits")),
-                RpcServices = BindStringArray(endpoint.GetSection("RpcServices"))
+                RpcServices = LakonaConfigurationReader.ReadStringArray(endpoint.GetSection("RpcServices"))
             })
             .ToArray();
     }
@@ -231,7 +231,7 @@ public sealed class LakonaGameRuntimeOptions
         var defaults = new LakonaGameEndpointConnectionLimitsOptions();
         var timeoutValue = section["HandshakeTimeout"];
         var timeout = defaults.HandshakeTimeout;
-        if (!string.IsNullOrWhiteSpace(timeoutValue)
+        if (timeoutValue is not null
             && !TimeSpan.TryParse(timeoutValue, out timeout))
         {
             throw new InvalidOperationException(
@@ -278,8 +278,8 @@ public sealed class LakonaGameRuntimeOptions
                 {
                     Id = listener["Id"] ?? "",
                     Host = listener["Host"] ?? "",
-                    Port = LakonaConfigurationReader.ReadInt(listener["Port"]),
-                    Services = BindStringArray(listener.GetSection("Services")),
+                    Port = LakonaConfigurationReader.ReadInt(listener, "Port", 0),
+                    Services = LakonaConfigurationReader.ReadStringArray(listener.GetSection("Services")),
                     MaximumBodyBytes = LakonaConfigurationReader.ReadInt(
                         listener,
                         "MaximumBodyBytes",
@@ -323,26 +323,6 @@ public sealed class LakonaGameRuntimeOptions
         {
             // ParseJsonArray owns the canonical malformed-JSON diagnostic.
         }
-    }
-
-    private static IReadOnlyList<string>? BindOptionalStringArray(IConfigurationSection section)
-    {
-        var values = section
-            .GetChildren()
-            .Select(child => child.Value ?? "")
-            .ToArray();
-
-        if (values.Length > 0)
-        {
-            return values;
-        }
-
-        if (TryReadJsonValue(section, out var json))
-        {
-            return ParseJsonArray<string>(section.Path, json);
-        }
-
-        return section.Value is null ? null : Array.Empty<string>();
     }
 
     private static LakonaGameClusterOptions BindCluster(IConfigurationSection section)
@@ -405,19 +385,6 @@ public sealed class LakonaGameRuntimeOptions
     private static string ReadClusterString(IConfiguration section, string name, string fallback)
     {
         return section[name] ?? fallback;
-    }
-
-    private static IReadOnlyList<string> BindStringArray(IConfigurationSection section)
-    {
-        if (TryReadJsonValue(section, out var json))
-        {
-            return ParseJsonArray<string>(section.Path, json);
-        }
-
-        return section
-            .GetChildren()
-            .Select(child => child.Value ?? "")
-            .ToArray();
     }
 
     private static bool TryGetPropertyIgnoreCase(
@@ -500,24 +467,7 @@ public sealed class LakonaGameNodeOptions
 
     private static IReadOnlyList<string> BindRoles(IConfigurationSection section)
     {
-        var values = section.GetChildren()
-            .Select(static child => child.Value ?? "")
-            .ToArray();
-        if (values.Length == 0
-            && !string.IsNullOrWhiteSpace(section.Value)
-            && section.Value.TrimStart().StartsWith("[", StringComparison.Ordinal))
-        {
-            try
-            {
-                values = JsonSerializer.Deserialize<string[]>(section.Value) ?? [];
-            }
-            catch (JsonException exception)
-            {
-                throw new InvalidOperationException(
-                    $"{section.Path} must be a valid JSON array when configured as a string value.",
-                    exception);
-            }
-        }
+        var values = LakonaConfigurationReader.ReadStringArray(section);
 
         var normalized = values.Select(NodeRoleName.Normalize).ToArray();
         if (normalized.Distinct(StringComparer.Ordinal).Count() != normalized.Length)
@@ -552,7 +502,7 @@ public sealed class LakonaGameHeartbeatOptions
     private static TimeSpan ReadTimeSpan(IConfigurationSection section, string key, TimeSpan fallback)
     {
         var value = section[key];
-        if (string.IsNullOrWhiteSpace(value))
+        if (value is null)
         {
             return fallback;
         }

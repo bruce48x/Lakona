@@ -1,24 +1,27 @@
+using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Guardrails.Rules;
+
 namespace Lakona.Game.Server.Guardrails;
 
+/// <summary>Validates the framework's effective configuration using its built-in checks.</summary>
 public sealed class LakonaGameRuntimeValidator
 {
-    private readonly IReadOnlyList<ILakonaGameValidationRule> _rules;
-
-    public LakonaGameRuntimeValidator(IEnumerable<ILakonaGameValidationRule> rules)
-    {
-        _rules = rules?.ToArray() ?? throw new ArgumentNullException(nameof(rules));
-    }
-
-    public LakonaGameValidationResult Validate(LakonaGameResolvedRuntime runtime)
+    public LakonaGameValidationResult Validate(
+        LakonaGameRuntimeOptions runtime,
+        ClusterOptions? clusterOptions = null,
+        string? hotfixAssemblyPath = null)
     {
         ArgumentNullException.ThrowIfNull(runtime);
-
-        var diagnostics = new List<LakonaGameDiagnostic>();
-        foreach (var rule in _rules)
-        {
-            diagnostics.AddRange(rule.Validate(runtime));
-        }
-
-        return new LakonaGameValidationResult(diagnostics);
+        hotfixAssemblyPath ??= Path.Combine(AppContext.BaseDirectory, "hotfix", "Server.Hotfix.dll");
+        return new LakonaGameValidationResult(
+        [
+            .. NodeIdentityRule.Validate(clusterOptions?.NodeId ?? runtime.Node.Id),
+            .. EndpointRule.Validate(runtime),
+            .. ClusterEndpointRule.Validate(runtime),
+            .. HotfixSourceRule.Validate(hotfixAssemblyPath),
+            .. HeartbeatRule.Validate(runtime),
+            .. NodeRoleConfigurationRule.Validate(runtime),
+            .. ManagementAdminRule.Validate(runtime)
+        ]);
     }
 }

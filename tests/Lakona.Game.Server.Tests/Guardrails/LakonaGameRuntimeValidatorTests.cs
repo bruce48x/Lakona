@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Lakona.Game.Server.Guardrails;
-using Lakona.Game.Server.Guardrails.Rules;
+using Lakona.Game.Server.Configuration;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Guardrails;
@@ -31,34 +31,11 @@ public sealed class LakonaGameRuntimeValidatorTests
     }
 
     [Fact]
-    public void ResolvedValue_PreservesValueSourceAndPath()
-    {
-        var value = new LakonaGameResolvedValue<string>(
-            "dev-1",
-            LakonaGameValueSource.Configuration,
-            "Lakona:Node:Id");
-
-        Assert.Equal("dev-1", value.Value);
-        Assert.Equal(LakonaGameValueSource.Configuration, value.Source);
-        Assert.Equal("Lakona:Node:Id", value.Path);
-    }
-
-    [Fact]
-    public void ResolvedRuntime_CarriesCoreRuntimeSections()
-    {
-        var runtime = TestRuntime();
-
-        Assert.Equal("dev-1", runtime.NodeId.Value);
-        Assert.Equal("kcp", runtime.Endpoints[0].Transport.Value);
-        Assert.Equal("Server.Hotfix.dll", runtime.Hotfix.AssemblyFileName.Value);
-    }
-
-    [Fact]
     public void RuntimeValidator_Fails_WhenNodeIdIsMissing()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
-            NodeId = new LakonaGameResolvedValue<string>("", LakonaGameValueSource.Configuration, "Lakona:Node:Id")
+            Node = new LakonaGameNodeOptions { Id = "" }
         };
         var result = Validate(runtime);
 
@@ -69,7 +46,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void RuntimeValidator_Fails_WhenWebSocketPathIsMissing()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Endpoints = [TestEndpoint("websocket", "127.0.0.1", 20000, path: "")]
         };
@@ -83,14 +60,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     public void RuntimeValidator_Fails_WhenHotfixAssemblyIsMissing()
     {
         var missingPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "Server.Hotfix.dll");
-        var runtime = TestRuntime() with
-        {
-            Hotfix = TestRuntime().Hotfix with
-            {
-                AssemblyPath = new LakonaGameResolvedValue<string>(missingPath, LakonaGameValueSource.GeneratedConvention)
-            }
-        };
-        var result = Validate(runtime);
+        var result = Validate(TestRuntime(), missingPath);
 
         Assert.False(result.Succeeded);
         var diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "LAKONA10071");
@@ -101,7 +71,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void EndpointRule_rejects_duplicate_transports()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Endpoints =
             [
@@ -118,7 +88,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void EndpointRule_rejects_missing_transport()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Endpoints = [TestEndpoint("", "127.0.0.1", 20000)]
         };
@@ -131,7 +101,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void EndpointRule_rejects_missing_host()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Endpoints = [TestEndpoint("kcp", "", 20000)]
         };
@@ -144,7 +114,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void EndpointRule_rejects_missing_serializer()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Endpoints = [TestEndpoint("kcp", "127.0.0.1", 20000, serializer: "")]
         };
@@ -157,7 +127,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void EndpointRule_rejects_unknown_serializer()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Endpoints = [TestEndpoint("kcp", "127.0.0.1", 20000, serializer: "protobuf")]
         };
@@ -172,7 +142,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     [InlineData(65536)]
     public void EndpointRule_rejects_invalid_port(int port)
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Endpoints = [TestEndpoint("kcp", "127.0.0.1", port)]
         };
@@ -185,7 +155,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void EndpointRule_rejects_unknown_transport()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Endpoints = [TestEndpoint("quic", "127.0.0.1", 20000)]
         };
@@ -198,7 +168,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void EndpointRule_rejects_duplicate_bind_address()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Endpoints =
             [
@@ -215,7 +185,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void EndpointRule_rejects_websocket_without_path()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Endpoints = [TestEndpoint("websocket", "127.0.0.1", 20000, path: "")]
         };
@@ -228,7 +198,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void EndpointRule_rejects_kcp_with_path()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Endpoints = [TestEndpoint("kcp", "127.0.0.1", 20000, path: "/bad")]
         };
@@ -241,7 +211,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void EndpointRule_rejects_duplicate_rpc_services_within_endpoint()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Endpoints =
             [
@@ -269,13 +239,17 @@ public sealed class LakonaGameRuntimeValidatorTests
         int maxPendingHandshakes,
         int handshakeTimeoutSeconds)
     {
-        var endpoint = TestEndpoint("kcp", "127.0.0.1", 20000) with
+        var endpoint = new LakonaGameEndpointOptions
         {
-            MaxActiveConnections = new LakonaGameResolvedValue<int>(maxActiveConnections, LakonaGameValueSource.Configuration),
-            MaxPendingHandshakes = new LakonaGameResolvedValue<int>(maxPendingHandshakes, LakonaGameValueSource.Configuration),
-            HandshakeTimeout = new LakonaGameResolvedValue<TimeSpan>(TimeSpan.FromSeconds(handshakeTimeoutSeconds), LakonaGameValueSource.Configuration)
+            Transport = "kcp", Serializer = "memorypack", Host = "127.0.0.1", Port = 20000,
+            ConnectionLimits = new LakonaGameEndpointConnectionLimitsOptions
+            {
+                MaxActiveConnections = maxActiveConnections,
+                MaxPendingHandshakes = maxPendingHandshakes,
+                HandshakeTimeout = TimeSpan.FromSeconds(handshakeTimeoutSeconds)
+            }
         };
-        var runtime = TestRuntime() with { Endpoints = [endpoint] };
+        var runtime = new LakonaGameRuntimeOptions { Endpoints = [endpoint] };
 
         var result = Validate(runtime);
 
@@ -285,10 +259,9 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void ClusterEndpointRule_rejects_missing_endpoint_when_cluster_is_configured()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
-            ClusterEndpoint = new LakonaGameResolvedClusterEndpoint(
-                Endpoint: new LakonaGameResolvedValue<string>("", LakonaGameValueSource.Configuration, "Lakona:Cluster:Endpoint"))
+            Cluster = new LakonaGameClusterOptions { Endpoint = "" }
         };
 
         var result = Validate(runtime);
@@ -302,9 +275,9 @@ public sealed class LakonaGameRuntimeValidatorTests
     [InlineData("tcp://:21000")]
     public void ClusterEndpointRule_rejects_unsupported_cluster_uri(string endpoint)
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
-            ClusterEndpoint = TestClusterEndpoint(endpoint)
+            Cluster = new LakonaGameClusterOptions { Endpoint = endpoint }
         };
 
         var result = Validate(runtime);
@@ -315,10 +288,10 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void ClusterEndpointRule_rejects_business_port_conflict()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Endpoints = [TestEndpoint("kcp", "127.0.0.1", 20000)],
-            ClusterEndpoint = TestClusterEndpoint("tcp://127.0.0.1:20000")
+            Cluster = new LakonaGameClusterOptions { Endpoint = "tcp://127.0.0.1:20000" }
         };
 
         var result = Validate(runtime);
@@ -327,24 +300,9 @@ public sealed class LakonaGameRuntimeValidatorTests
     }
 
     [Fact]
-    public void RuntimeValidator_includes_management_admin_rule_by_default()
-    {
-        var services = new ServiceCollection();
-
-        services.AddLakonaGameRuntimeValidation();
-
-        using var provider = services.BuildServiceProvider();
-        var validator = provider.GetRequiredService<LakonaGameRuntimeValidator>();
-        var rules = provider.GetServices<ILakonaGameValidationRule>();
-
-        Assert.NotNull(validator);
-        Assert.Contains(rules, rule => rule is ManagementAdminRule);
-    }
-
-    [Fact]
     public void RuntimeValidator_Fails_WhenHeartbeatIntervalIsNotPositive()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Heartbeat = TestHeartbeat(interval: TimeSpan.Zero)
         };
@@ -359,7 +317,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void RuntimeValidator_Fails_WhenHeartbeatTimeoutIsNotPositive()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Heartbeat = TestHeartbeat(timeout: TimeSpan.Zero)
         };
@@ -374,7 +332,7 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void RuntimeValidator_Fails_WhenHeartbeatTimeoutIsShorterThanInterval()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
             Heartbeat = TestHeartbeat(
                 interval: TimeSpan.FromSeconds(30),
@@ -391,14 +349,9 @@ public sealed class LakonaGameRuntimeValidatorTests
     [Fact]
     public void RuntimeValidator_Fails_WhenNodeRolesContainBlankOrDuplicateNames()
     {
-        var runtime = TestRuntime() with
+        var runtime = new LakonaGameRuntimeOptions
         {
-            NodeRoles =
-            [
-                new LakonaGameResolvedValue<string>("data", LakonaGameValueSource.Configuration, "Lakona:Node:Roles:0"),
-                new LakonaGameResolvedValue<string>(" ", LakonaGameValueSource.Configuration, "Lakona:Node:Roles:1"),
-                new LakonaGameResolvedValue<string>("Data", LakonaGameValueSource.Configuration, "Lakona:Node:Roles:2")
-            ]
+            Node = new LakonaGameNodeOptions { Id = "dev-1", Roles = ["data", " ", "Data"] }
         };
 
         var result = Validate(runtime);
@@ -408,94 +361,63 @@ public sealed class LakonaGameRuntimeValidatorTests
     }
 
     [Fact]
-    public void RuntimeValidator_includes_heartbeat_rule_by_default()
+    public void Registered_validator_checks_real_configuration_and_preserves_indexed_paths()
     {
         var services = new ServiceCollection();
-
         services.AddLakonaGameRuntimeValidation();
-
+        services.AddLakonaGameRuntimeValidation();
         using var provider = services.BuildServiceProvider();
-        var rules = provider.GetServices<ILakonaGameValidationRule>();
-
-        Assert.Contains(rules, rule => rule is HeartbeatRule);
+        var validator = Assert.Single(provider.GetServices<LakonaGameRuntimeValidator>());
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "dev-1", Roles = ["data", "Data"] },
+            Endpoints = [TestEndpoint("tcp", "127.0.0.1", 20000), TestEndpoint("websocket", "127.0.0.1", 20001)],
+            Heartbeat = TestHeartbeat(interval: TimeSpan.Zero),
+            Management = new LakonaManagementOptions
+            {
+                Http = new LakonaManagementHttpOptions { Host = "0.0.0.0" },
+                Admin = new LakonaManagementAdminOptions { Enabled = true, RequireLoopback = true }
+            }
+        };
+        var result = validator.Validate(runtime, hotfixAssemblyPath: typeof(LakonaGameRuntimeValidatorTests).Assembly.Location);
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10023" && d.Message.StartsWith("Lakona:Endpoints:1:Path:"));
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10102" && d.Message.StartsWith("Lakona:Node:Roles:1:"));
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10090");
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10130");
     }
 
-    private static LakonaGameResolvedRuntime TestRuntime()
+    [Fact]
+    public void Validator_uses_effective_cluster_identity_and_accepts_valid_runtime()
     {
-        return new LakonaGameResolvedRuntime(
-            NodeId: new LakonaGameResolvedValue<string>("dev-1", LakonaGameValueSource.Configuration, "Lakona:Node:Id"),
-            Endpoints: [TestEndpoint("kcp", "127.0.0.1", 20000)],
-            Cluster: new LakonaGameResolvedCluster(
-                AdvertisedEndpoints: new Dictionary<string, string> { ["client"] = "kcp://127.0.0.1:20000" }),
-            ClusterEndpoint: null,
-            Hotfix: new LakonaGameResolvedHotfix(
-                AssemblyPath: new LakonaGameResolvedValue<string>("Server.Hotfix.dll", LakonaGameValueSource.GeneratedConvention),
-                AssemblyFileName: new LakonaGameResolvedValue<string>("Server.Hotfix.dll", LakonaGameValueSource.GeneratedConvention)),
-            ReliablePush: new LakonaGameResolvedReliablePush(
-                StorageMode: new LakonaGameResolvedValue<string>("InMemory", LakonaGameValueSource.Default),
-                PendingLimit: new LakonaGameResolvedValue<int>(256, LakonaGameValueSource.Default),
-                ResumeWindowSeconds: new LakonaGameResolvedValue<int>(60, LakonaGameValueSource.Default),
-                HasSessionIdentityResolver: true),
-            Heartbeat: TestHeartbeat(),
-            Management: new LakonaGameResolvedManagement(
-                AdminEnabled: new LakonaGameResolvedValue<bool>(false, LakonaGameValueSource.Default, "Lakona:Management:Admin:Enabled"),
-                HttpHost: new LakonaGameResolvedValue<string>("127.0.0.1", LakonaGameValueSource.Default, "Lakona:Management:Http:Host"),
-                AdminRequireLoopback: new LakonaGameResolvedValue<bool>(true, LakonaGameValueSource.Default, "Lakona:Management:Admin:RequireLoopback")));
+        var runtime = TestRuntime();
+        var validator = new LakonaGameRuntimeValidator();
+        var path = typeof(LakonaGameRuntimeValidatorTests).Assembly.Location;
+        Assert.True(validator.Validate(runtime, hotfixAssemblyPath: path).Succeeded);
+        var cluster = new ClusterOptions { NodeId = "" };
+        Assert.Contains(validator.Validate(runtime, cluster, path).Diagnostics, d => d.Code == "LAKONA10001");
     }
 
-    private static LakonaGameResolvedEndpoint TestEndpoint(
-        string transport,
-        string host,
-        int port,
-        string serializer = "memorypack",
-        string path = "",
-        string advertisedHost = "",
-        IReadOnlyList<string>? rpcServices = null)
+    private static LakonaGameRuntimeOptions TestRuntime() => new()
     {
-        return new LakonaGameResolvedEndpoint(
-            Transport: new LakonaGameResolvedValue<string>(transport, LakonaGameValueSource.Configuration),
-            Serializer: new LakonaGameResolvedValue<string>(serializer, LakonaGameValueSource.Configuration),
-            Host: new LakonaGameResolvedValue<string>(host, LakonaGameValueSource.Configuration),
-            Port: new LakonaGameResolvedValue<int>(port, LakonaGameValueSource.Configuration),
-            Path: new LakonaGameResolvedValue<string>(path, LakonaGameValueSource.Configuration),
-            AdvertisedHost: new LakonaGameResolvedValue<string>(advertisedHost, LakonaGameValueSource.Configuration),
-            AdvertisedEndpoint: new LakonaGameResolvedValue<string>($"{transport}://{host}:{port}{path}", LakonaGameValueSource.GeneratedConvention),
-            RpcServices: rpcServices ?? []);
-    }
+        Node = new LakonaGameNodeOptions { Id = "dev-1" },
+        Endpoints = [TestEndpoint("kcp", "127.0.0.1", 20000)]
+    };
 
-    private static LakonaGameResolvedClusterEndpoint TestClusterEndpoint(string endpoint)
+    private static LakonaGameEndpointOptions TestEndpoint(
+        string transport, string host, int port, string serializer = "memorypack",
+        string path = "", string advertisedHost = "", IReadOnlyList<string>? rpcServices = null) => new()
     {
-        return new LakonaGameResolvedClusterEndpoint(
-            Endpoint: new LakonaGameResolvedValue<string>(endpoint, LakonaGameValueSource.Configuration, "Lakona:Cluster:Endpoint"));
-    }
+        Transport = transport, Serializer = serializer, Host = host, Port = port,
+        Path = path, AdvertisedHost = advertisedHost, RpcServices = rpcServices ?? []
+    };
 
-    private static LakonaGameValidationResult Validate(LakonaGameResolvedRuntime runtime)
+    private static LakonaGameValidationResult Validate(LakonaGameRuntimeOptions runtime, string? hotfixPath = null)
+        => new LakonaGameRuntimeValidator().Validate(runtime,
+            hotfixAssemblyPath: hotfixPath ?? typeof(LakonaGameRuntimeValidatorTests).Assembly.Location);
+
+    private static LakonaGameHeartbeatOptions TestHeartbeat(TimeSpan? interval = null, TimeSpan? timeout = null) => new()
     {
-        var validator = new LakonaGameRuntimeValidator(
-            [
-                new NodeIdentityRule(),
-                new EndpointRule(),
-                new ClusterEndpointRule(),
-                new HotfixSourceRule(),
-                new HeartbeatRule(),
-                new NodeRoleConfigurationRule()
-            ]);
-
-        return validator.Validate(runtime);
-    }
-
-    private static LakonaGameResolvedHeartbeat TestHeartbeat(
-        TimeSpan? interval = null,
-        TimeSpan? timeout = null)
-    {
-        return new LakonaGameResolvedHeartbeat(
-            Interval: new LakonaGameResolvedValue<TimeSpan>(
-                interval ?? TimeSpan.FromSeconds(15),
-                LakonaGameValueSource.Configuration,
-                "Lakona:Heartbeat:Interval"),
-            Timeout: new LakonaGameResolvedValue<TimeSpan>(
-                timeout ?? TimeSpan.FromSeconds(45),
-                LakonaGameValueSource.Configuration,
-                "Lakona:Heartbeat:Timeout"));
-    }
+        Interval = interval ?? TimeSpan.FromSeconds(15),
+        Timeout = timeout ?? TimeSpan.FromSeconds(45)
+    };
 }

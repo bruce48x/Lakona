@@ -48,11 +48,10 @@ public sealed class LakonaGameReadinessEvaluator
 
     public LakonaGameReadinessSnapshot Evaluate()
     {
-        var resolved = LakonaGameReadinessRuntime.ToResolvedRuntimeForValidation(
+        var result = _validator.Validate(
             _runtime,
             _clusterOptions,
             _readinessState.HotfixAssemblyPath);
-        var result = _validator.Validate(resolved);
         var diagnostics = result.Diagnostics
             .Concat(_serverReadiness?.Diagnostics ?? [])
             .Concat(_admissionGate is not null && !_admissionGate.IsOpen

@@ -36,7 +36,7 @@ public sealed class LakonaTimerIntegrationTests
     {
         HotfixDispatch.Replace(new HotfixDispatchTable(0, Array.Empty<HotfixMethodBinding>()));
         await using var fixture = TimerFixture.Create(typeof(TimerCallback));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
         var args = new TimerArgs("payload", 42);
 
@@ -67,7 +67,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CreatePeriodicTimerAsync_stores_period_and_rejects_non_positive_period()
     {
         await using var fixture = TimerFixture.Create(typeof(TimerCallback));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var timerId = await global::Lakona.Game.Server.TestingSupport.TestTimer.CreatePeriodicTimerAsync(
@@ -93,7 +93,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CreateOnceTimerAsync_rejects_negative_due_time_before_registration()
     {
         await using var fixture = TimerFixture.Create(typeof(TimerCallback));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
@@ -111,7 +111,7 @@ public sealed class LakonaTimerIntegrationTests
     {
         HotfixDispatch.Replace(new HotfixDispatchTable(100, Array.Empty<HotfixMethodBinding>()));
         await using var fixture = TimerFixture.Create(typeof(TimerCallback), version: 17);
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var timerId = await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
@@ -128,7 +128,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CallbackResolver_resolves_callback_from_reload_safe_descriptor_data()
     {
         await using var fixture = TimerFixture.Create(typeof(TimerCallback));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var timerId = await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
@@ -149,7 +149,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CreateOnceTimerAsync_accepts_same_name_overloads_when_exactly_one_matches_timer_signature()
     {
         await using var fixture = TimerFixture.Create(typeof(OverloadedTimerCallback));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var timerId = await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
@@ -166,7 +166,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CreateOnceTimerAsync_rejects_same_name_overloads_when_none_match_timer_signature()
     {
         await using var fixture = TimerFixture.Create(typeof(InvalidOverloadedTimerCallback));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -242,7 +242,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CreateOnceTimerAsync_serializes_collection_nested_enum_and_primitive_timer_args()
     {
         await using var fixture = TimerFixture.Create(typeof(ComplexTimerCallback));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
         var args = new ComplexTimerArgs(
             Numbers: [1, 2, 3],
@@ -292,7 +292,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CreateOnceTimerAsync_accepts_nullable_primitive_root_args(int? value)
     {
         await using var fixture = TimerFixture.Create(typeof(NullableIntCallback));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var timerId = await global::Lakona.Game.Server.TestingSupport.TestTimer.CreateOnceTimerAsync(
@@ -726,7 +726,7 @@ public sealed class LakonaTimerIntegrationTests
         string expectedMessage)
     {
         await using var fixture = TimerFixture.Create(callbackType);
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -740,7 +740,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CreateOnceTimerAsync_rejects_cyclic_timer_args()
     {
         await using var fixture = TimerFixture.Create(typeof(CyclicTimerCallback));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
         var args = new CyclicTimerArgs { Name = "cycle" };
         args.Next = args;
@@ -834,8 +834,8 @@ public sealed class LakonaTimerIntegrationTests
         var callbackType = callbackAssembly.GetType("SplitHotfix.Callback", throwOnError: true)!;
         var argsType = argsAssembly.GetType("SplitHotfixArgs.ExternalArgs", throwOnError: true)!;
         var args = Activator.CreateInstance(argsType, "external")!;
-        var backend = new LakonaTimerBackend();
         await using var fixture = TimerFixture.Create(callbackType, mainAssembly: callbackAssembly);
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -853,7 +853,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CreateOnceTimerAsync_rejects_invalid_callback_method_shapes(string methodName, string expectedMessage)
     {
         await using var fixture = TimerFixture.Create(typeof(TimerCallback));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -871,7 +871,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CreateOnceTimerAsync_rejects_generic_callback_type()
     {
         await using var fixture = TimerFixture.Create(typeof(GenericTimerCallback<TimerArgs>));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -888,7 +888,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CreateOnceTimerAsync_rejects_generic_root_args_type()
     {
         await using var fixture = TimerFixture.Create(typeof(GenericArgsCallback));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -905,7 +905,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CreateOnceTimerAsync_rejects_callback_type_outside_active_hotfix_assembly()
     {
         await using var fixture = TimerFixture.Create(typeof(TimerCallback), mainAssembly: typeof(string).Assembly);
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -922,7 +922,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CreateOnceTimerAsync_rejects_non_serializable_args()
     {
         await using var fixture = TimerFixture.Create(typeof(NonSerializableCallback));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -940,7 +940,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CreateOnceTimerAsync_rejects_args_round_trip_failure()
     {
         await using var fixture = TimerFixture.Create(typeof(RoundTripCallback));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -958,7 +958,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CreateOnceTimerAsync_rejects_round_trip_failure_even_when_equality_is_permissive()
     {
         await using var fixture = TimerFixture.Create(typeof(PermissiveRoundTripCallback));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -1346,7 +1346,7 @@ public sealed class LakonaTimerIntegrationTests
     public async Task CreateOnceTimerAsync_rejects_null_root_with_unsupported_declared_members()
     {
         await using var fixture = TimerFixture.Create(typeof(ObjectMemberCallback));
-        var backend = new LakonaTimerBackend();
+        var backend = fixture.Backend;
         using var scope = LakonaTimerExecutionScope.Enter(backend, fixture.Lease);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -1371,6 +1371,10 @@ public sealed class LakonaTimerIntegrationTests
             HotfixActorApiMetadata.CreateMethodId(methodKey));
     }
 
+    private static LakonaTimerScheduler CreateDescriptorScheduler()
+        => new(null, TimeProvider.System, new LakonaTimerOptions(), null,
+            NullLogger<LakonaTimerScheduler>.Instance);
+
     private sealed class TimerFixture : IAsyncDisposable
     {
         private TimerFixture(HotfixRuntimeSnapshot snapshot, HotfixRuntimeSnapshotLease lease, HotfixDispatchTable table)
@@ -1378,7 +1382,12 @@ public sealed class LakonaTimerIntegrationTests
             Snapshot = snapshot;
             Lease = lease;
             Table = table;
+            Backend = new LakonaTimerBackend(scheduler);
         }
+
+        private readonly LakonaTimerScheduler scheduler = CreateDescriptorScheduler();
+
+        public LakonaTimerBackend Backend { get; }
 
         public HotfixRuntimeSnapshot Snapshot { get; }
 
@@ -1433,11 +1442,11 @@ public sealed class LakonaTimerIntegrationTests
             return new TimerFixture(snapshot, snapshot.AcquireLease(), table);
         }
 
-        public ValueTask DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
+            await scheduler.DisposeAsync();
             Lease.Dispose();
             Snapshot.Retire();
-            return default;
         }
     }
 
@@ -2071,7 +2080,8 @@ public sealed class LakonaTimerIntegrationTests
             sourcePath: null,
             ownsRuntimeResources: false,
             onRetired: null);
-        var backend = new LakonaTimerBackend();
+        using var scheduler = CreateDescriptorScheduler();
+        var backend = new LakonaTimerBackend(scheduler);
         using (var lease = snapshot.AcquireLease())
         using (LakonaTimerExecutionScope.Enter(backend, lease))
         {

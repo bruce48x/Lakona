@@ -1,6 +1,6 @@
 using System.Globalization;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace Lakona.Game.Server.Configuration;
 
@@ -8,33 +8,16 @@ internal static class LakonaConfigurationReader
 {
     internal static bool ReadBool(IConfiguration section, string name, bool fallback)
     {
-        return bool.TryParse(section[name], out var parsed) ? parsed : fallback;
+        var value = section[name];
+        return value is null ? fallback : bool.TryParse(value, out var parsed)
+            ? parsed : throw InvalidValue(section, name, "true or false");
     }
 
     internal static int ReadInt(IConfiguration section, string name, int fallback)
     {
-        return int.TryParse(section[name], out var parsed) ? parsed : fallback;
-    }
-
-    internal static int ReadInt(string? value)
-    {
-        return int.TryParse(value, out var parsed) ? parsed : 0;
-    }
-
-    internal static long ReadLong(IConfiguration section, string name, long fallback)
-    {
-        return long.TryParse(section[name], out var parsed) ? parsed : fallback;
-    }
-
-    internal static double ReadDouble(IConfiguration section, string name, double fallback)
-    {
-        return double.TryParse(
-            section[name],
-            NumberStyles.Float,
-            CultureInfo.InvariantCulture,
-            out var parsed)
-            ? parsed
-            : fallback;
+        var value = section[name];
+        return value is null ? fallback : int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed : throw InvalidValue(section, name, "a 32-bit integer");
     }
 
     internal static string ReadString(IConfiguration section, string name, string fallback)
@@ -45,22 +28,46 @@ internal static class LakonaConfigurationReader
 
     internal static TimeSpan ReadSeconds(IConfiguration section, string key, TimeSpan fallback)
     {
-        return double.TryParse(section[key], out var value) ? TimeSpan.FromSeconds(value) : fallback;
+        return ReadNullableSeconds(section, key, fallback)!.Value;
     }
 
     internal static TimeSpan? ReadNullableSeconds(IConfiguration section, string key, TimeSpan? fallback)
     {
-        return double.TryParse(section[key], out var value) ? TimeSpan.FromSeconds(value) : fallback;
+        var text = section[key];
+        if (text is null) return fallback;
+        if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds)
+            || !double.IsFinite(seconds))
+            throw InvalidValue(section, key, "a finite duration in seconds");
+        try
+        {
+            return TimeSpan.FromSeconds(seconds);
+        }
+        catch (OverflowException exception)
+        {
+            throw new InvalidOperationException($"{section.GetSection(key).Path} exceeds the supported duration range.", exception);
+        }
     }
 
-    internal static LogLevel ReadLogLevel(IConfiguration section, string name, LogLevel fallback)
+    internal static IReadOnlyList<string> ReadStringArray(IConfigurationSection section)
     {
-        var value = section[name];
-        return Enum.TryParse<LogLevel>(value, ignoreCase: true, out var parsed)
-            && Enum.IsDefined(parsed)
-            ? parsed
-            : fallback;
+        if (section.Value is { } json)
+        {
+            try
+            {
+                return JsonSerializer.Deserialize<string[]>(json)
+                    ?? throw new JsonException("Expected an array.");
+            }
+            catch (JsonException exception)
+            {
+                throw new InvalidOperationException($"{section.Path} must be a valid JSON array when configured as a string value.", exception);
+            }
+        }
+
+        return section.GetChildren().Select(static child => child.Value ?? "").ToArray();
     }
+
+    private static InvalidOperationException InvalidValue(IConfiguration section, string name, string expected) =>
+        new($"{section.GetSection(name).Path} must be {expected}.");
 
     internal static IReadOnlyDictionary<string, string> ReadDictionary(
         IConfigurationSection section,

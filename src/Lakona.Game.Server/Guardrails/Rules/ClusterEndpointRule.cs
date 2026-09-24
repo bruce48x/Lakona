@@ -1,15 +1,12 @@
+using Lakona.Game.Server.Configuration;
+
 namespace Lakona.Game.Server.Guardrails.Rules;
 
-public sealed class ClusterEndpointRule : ILakonaGameValidationRule
+internal static class ClusterEndpointRule
 {
-    public IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameResolvedRuntime runtime)
+    internal static IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameRuntimeOptions runtime)
     {
-        if (runtime.ClusterEndpoint is null)
-        {
-            yield break;
-        }
-
-        if (string.IsNullOrWhiteSpace(runtime.ClusterEndpoint.Endpoint.Value))
+        if (string.IsNullOrWhiteSpace(runtime.Cluster.Endpoint))
         {
             yield return new LakonaGameDiagnostic(
                 "LAKONA10040",
@@ -19,7 +16,7 @@ public sealed class ClusterEndpointRule : ILakonaGameValidationRule
             yield break;
         }
 
-        if (!Uri.TryCreate(runtime.ClusterEndpoint.Endpoint.Value, UriKind.Absolute, out var uri)
+        if (!Uri.TryCreate(runtime.Cluster.Endpoint, UriKind.Absolute, out var uri)
             || !IsSupportedClusterUri(uri))
         {
             yield return new LakonaGameDiagnostic(
@@ -32,7 +29,7 @@ public sealed class ClusterEndpointRule : ILakonaGameValidationRule
 
         foreach (var endpoint in runtime.Endpoints)
         {
-            if (endpoint.Port.Value == uri.Port)
+            if (endpoint.Port == uri.Port)
             {
                 yield return new LakonaGameDiagnostic(
                     "LAKONA10042",

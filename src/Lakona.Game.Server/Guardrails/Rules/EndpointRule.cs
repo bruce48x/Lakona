@@ -1,6 +1,8 @@
+using Lakona.Game.Server.Configuration;
+
 namespace Lakona.Game.Server.Guardrails.Rules;
 
-public sealed class EndpointRule : ILakonaGameValidationRule
+internal static class EndpointRule
 {
     private static readonly HashSet<string> KnownTransports = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -15,99 +17,101 @@ public sealed class EndpointRule : ILakonaGameValidationRule
         "memorypack"
     };
 
-    public IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameResolvedRuntime runtime)
+    internal static IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameRuntimeOptions runtime)
     {
         var transports = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var bindAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var endpoint in runtime.Endpoints)
+        for (var index = 0; index < runtime.Endpoints.Count; index++)
         {
+            var endpoint = runtime.Endpoints[index];
+            var path = $"Lakona:Endpoints:{index}";
             var rpcServices = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var transport = endpoint.Transport.Value;
+            var transport = endpoint.Transport;
             if (string.IsNullOrWhiteSpace(transport))
             {
-                yield return Error("LAKONA10020", "Endpoint transport is required.", endpoint.Transport.Path);
+                yield return Error("LAKONA10020", "Endpoint transport is required.", $"{path}:Transport");
             }
             else
             {
                 if (!KnownTransports.Contains(transport))
                 {
-                    yield return Error("LAKONA10020", $"Endpoint transport '{transport}' is unknown.", endpoint.Transport.Path, "Use kcp, tcp, or websocket.");
+                    yield return Error("LAKONA10020", $"Endpoint transport '{transport}' is unknown.", $"{path}:Transport", "Use kcp, tcp, or websocket.");
                 }
 
                 if (string.Equals(transport, "websocket", StringComparison.OrdinalIgnoreCase)
-                    && string.IsNullOrWhiteSpace(endpoint.Path.Value))
+                    && string.IsNullOrWhiteSpace(endpoint.Path))
                 {
-                    yield return Error("LAKONA10023", "WebSocket endpoint requires Path.", endpoint.Path.Path, "Set Path to a path such as /ws.");
+                    yield return Error("LAKONA10023", "WebSocket endpoint requires Path.", $"{path}:Path", "Set Path to a path such as /ws.");
                 }
 
                 if (string.Equals(transport, "kcp", StringComparison.OrdinalIgnoreCase)
-                    && !string.IsNullOrWhiteSpace(endpoint.Path.Value))
+                    && !string.IsNullOrWhiteSpace(endpoint.Path))
                 {
-                    yield return Error("LAKONA10025", "KCP endpoint must not set Path.", endpoint.Path.Path, "Remove Path from the KCP endpoint.");
+                    yield return Error("LAKONA10025", "KCP endpoint must not set Path.", $"{path}:Path", "Remove Path from the KCP endpoint.");
                 }
 
                 if (!transports.Add(transport))
                 {
-                    yield return Error("LAKONA10024", $"Endpoint transport '{transport}' is configured more than once.", endpoint.Transport.Path);
+                    yield return Error("LAKONA10024", $"Endpoint transport '{transport}' is configured more than once.", $"{path}:Transport");
                 }
             }
 
-            var serializer = endpoint.Serializer.Value;
+            var serializer = endpoint.Serializer;
             if (string.IsNullOrWhiteSpace(serializer))
             {
-                yield return Error("LAKONA10028", "Endpoint serializer is required.", endpoint.Serializer.Path);
+                yield return Error("LAKONA10028", "Endpoint serializer is required.", $"{path}:Serializer");
             }
             else if (!KnownSerializers.Contains(serializer))
             {
                 yield return Error(
                     "LAKONA10028",
                     $"Endpoint serializer '{serializer}' is unknown.",
-                    endpoint.Serializer.Path,
+                    $"{path}:Serializer",
                     "Use json or memorypack.");
             }
 
-            if (string.IsNullOrWhiteSpace(endpoint.Host.Value))
+            if (string.IsNullOrWhiteSpace(endpoint.Host))
             {
-                yield return Error("LAKONA10021", "Endpoint host is required.", endpoint.Host.Path);
+                yield return Error("LAKONA10021", "Endpoint host is required.", $"{path}:Host");
             }
 
-            if (endpoint.Port.Value <= 0 || endpoint.Port.Value > 65535)
+            if (endpoint.Port <= 0 || endpoint.Port > 65535)
             {
-                yield return Error("LAKONA10022", "Endpoint port must be between 1 and 65535.", endpoint.Port.Path);
+                yield return Error("LAKONA10022", "Endpoint port must be between 1 and 65535.", $"{path}:Port");
             }
 
-            if (endpoint.MaxActiveConnections.Value <= 0)
+            if (endpoint.ConnectionLimits.MaxActiveConnections <= 0)
             {
                 yield return Error(
                     "LAKONA10029",
                     "Endpoint MaxActiveConnections must be positive.",
-                    endpoint.MaxActiveConnections.Path);
+                    $"{path}:ConnectionLimits:MaxActiveConnections");
             }
 
-            if (endpoint.MaxPendingHandshakes.Value <= 0
-                || endpoint.MaxPendingHandshakes.Value > endpoint.MaxActiveConnections.Value)
+            if (endpoint.ConnectionLimits.MaxPendingHandshakes <= 0
+                || endpoint.ConnectionLimits.MaxPendingHandshakes > endpoint.ConnectionLimits.MaxActiveConnections)
             {
                 yield return Error(
                     "LAKONA10029",
                     "Endpoint MaxPendingHandshakes must be positive and cannot exceed MaxActiveConnections.",
-                    endpoint.MaxPendingHandshakes.Path);
+                    $"{path}:ConnectionLimits:MaxPendingHandshakes");
             }
 
-            if (endpoint.HandshakeTimeout.Value <= TimeSpan.Zero)
+            if (endpoint.ConnectionLimits.HandshakeTimeout <= TimeSpan.Zero)
             {
                 yield return Error(
                     "LAKONA10029",
                     "Endpoint HandshakeTimeout must be positive.",
-                    endpoint.HandshakeTimeout.Path);
+                    $"{path}:ConnectionLimits:HandshakeTimeout");
             }
 
-            var bind = $"{endpoint.Host.Value}:{endpoint.Port.Value}";
-            if (!string.IsNullOrWhiteSpace(endpoint.Host.Value)
-                && endpoint.Port.Value > 0
+            var bind = $"{endpoint.Host}:{endpoint.Port}";
+            if (!string.IsNullOrWhiteSpace(endpoint.Host)
+                && endpoint.Port > 0
                 && !bindAddresses.Add(bind))
             {
-                yield return Error("LAKONA10026", $"Endpoint bind address '{bind}' is configured more than once.", endpoint.Port.Path);
+                yield return Error("LAKONA10026", $"Endpoint bind address '{bind}' is configured more than once.", $"{path}:Port");
             }
 
             foreach (var rpcService in endpoint.RpcServices)
@@ -117,7 +121,7 @@ public sealed class EndpointRule : ILakonaGameValidationRule
                     yield return Error(
                         "LAKONA10027",
                         $"Endpoint RPC service '{rpcService}' is configured more than once.",
-                        endpoint.Transport.Path);
+                        $"{path}:Transport");
                 }
             }
         }

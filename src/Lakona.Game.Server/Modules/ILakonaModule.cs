@@ -24,6 +24,8 @@ public interface ILakonaModule
     /// <summary>
     /// Completes all work required for the module to serve application traffic.
     /// </summary>
+    /// <param name="context">The final application configuration and service provider.</param>
+    /// <param name="cancellationToken">Pass to blocking initialization work and stop further initialization when canceled.</param>
     Task StartAsync(
         ILakonaModuleContext context,
         CancellationToken cancellationToken);
@@ -31,5 +33,6 @@ public interface ILakonaModule
     /// <summary>
     /// Stops module-owned work and releases module-owned runtime resources.
     /// </summary>
+    /// <param name="cancellationToken">The shared cleanup deadline. End blocking waits when canceled, but still perform immediately available cleanup.</param>
     Task StopAsync(CancellationToken cancellationToken);
 }

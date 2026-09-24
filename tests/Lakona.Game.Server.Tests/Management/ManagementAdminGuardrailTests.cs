@@ -1,5 +1,5 @@
 using Lakona.Game.Server.Guardrails;
-using Lakona.Game.Server.Guardrails.Rules;
+using Lakona.Game.Server.Configuration;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Management;
@@ -24,24 +24,17 @@ public sealed class ManagementAdminGuardrailTests
         Assert.Empty(result.Diagnostics);
     }
 
-    private static LakonaGameValidationResult Validate(LakonaGameResolvedRuntime runtime)
-    {
-        return new LakonaGameRuntimeValidator([new ManagementAdminRule()]).Validate(runtime);
-    }
+    private static LakonaGameValidationResult Validate(LakonaGameRuntimeOptions runtime)
+        => new LakonaGameRuntimeValidator().Validate(runtime,
+            hotfixAssemblyPath: typeof(ManagementAdminGuardrailTests).Assembly.Location);
 
-    private static LakonaGameResolvedRuntime TestRuntime(string host, bool requireLoopback)
+    private static LakonaGameRuntimeOptions TestRuntime(string host, bool requireLoopback) => new()
     {
-        return new LakonaGameResolvedRuntime(
-            NodeId: new("dev-1", LakonaGameValueSource.Configuration),
-            Endpoints: [],
-            Cluster: new(new Dictionary<string, string>()),
-            ClusterEndpoint: null,
-            Hotfix: new(new("Server.Hotfix.dll", LakonaGameValueSource.GeneratedConvention), new("Server.Hotfix.dll", LakonaGameValueSource.GeneratedConvention)),
-            ReliablePush: new(new("InMemory", LakonaGameValueSource.Default), new(256, LakonaGameValueSource.Default), new(60, LakonaGameValueSource.Default), true),
-            Heartbeat: new(new(TimeSpan.FromSeconds(15), LakonaGameValueSource.Default), new(TimeSpan.FromSeconds(45), LakonaGameValueSource.Default)),
-            Management: new(
-                new(true, LakonaGameValueSource.Configuration, "Lakona:Management:Admin:Enabled"),
-                new(host, LakonaGameValueSource.Configuration, "Lakona:Management:Http:Host"),
-                new(requireLoopback, LakonaGameValueSource.Configuration, "Lakona:Management:Admin:RequireLoopback")));
-    }
+        Node = new LakonaGameNodeOptions { Id = "dev-1" },
+        Management = new LakonaManagementOptions
+        {
+            Http = new LakonaManagementHttpOptions { Host = host },
+            Admin = new LakonaManagementAdminOptions { Enabled = true, RequireLoopback = requireLoopback }
+        }
+    };
 }

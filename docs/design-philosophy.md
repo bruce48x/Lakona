@@ -60,10 +60,14 @@ Maintainers should treat the following as active simplification pressure:
 
 `LakonaGameServer.RunAsync` is therefore a thin public facade. The internal
 bootstrapper owns pre-provider discovery, service composition, validation, and
-host construction; the internal runner owns module startup, initial Hotfix
-loading, framework execution, shutdown, and provider disposal. Their order
+host construction. The internal node lifecycle owns module startup, initial
+Hotfix loading, dependency ordering, and reverse cleanup. The standard Host
+lifecycle publishes readiness after all hosted services start and closes
+admission before they stop. The runner executes the Host, stops it after a
+startup failure, and disposes the provider. Their order
 remains explicit and testable instead of becoming another extensibility
-contract.
+contract. Startup, readiness, rollback, and resource ownership are detailed in
+[Application Modules](./application-modules.md#startup).
 
 Complexity review is separate from runtime correctness. Tests can prove that a
 capability works without proving that the authoring model is minimal. Generated
@@ -172,9 +176,11 @@ contract.
 
 ### Node Is The Deployment Unit
 
-A node is one OS process. In development, one process can host all actor kinds. In
-production, actor hosts can be split across nodes through configuration. The code
-model stays the same; topology is explicit configuration.
+A node is one OS process. Actor and Module types declare their role in code;
+each process selects the roles it serves through `Lakona:Node:Roles`. One
+development process can select all application roles, while production nodes
+can select different role sets. See
+[Node Roles And Actor Hosting](./configuration.md#node-roles-and-actor-hosting).
 
 ### Framework Scope Is Intentionally Narrow
 

@@ -1,10 +1,10 @@
 namespace Lakona.Game.Server.Guardrails.Rules;
 
-public sealed class NodeIdentityRule : ILakonaGameValidationRule
+internal static class NodeIdentityRule
 {
-    public IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameResolvedRuntime runtime)
+    internal static IEnumerable<LakonaGameDiagnostic> Validate(string nodeId)
     {
-        if (string.IsNullOrWhiteSpace(runtime.NodeId.Value))
+        if (string.IsNullOrWhiteSpace(nodeId))
         {
             yield return new LakonaGameDiagnostic(
                 "LAKONA10001",

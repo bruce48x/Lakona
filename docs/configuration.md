@@ -387,8 +387,18 @@ defined by [Logging](./logging.md).
 
 ## Validation
 
-Readiness validation checks node identity, endpoint connection limits, endpoints, cluster endpoint shape,
-actor host names, hotfix source, heartbeat policy, and management exposure.
+Missing boolean, integer, and seconds settings use their documented defaults.
+Explicit malformed values (including empty strings and non-finite seconds)
+fail startup with the full configuration path instead of silently using a default.
+String arrays such as node roles and service selections accept either indexed
+children or a JSON array scalar. When both representations exist, the scalar
+replaces all indexed children; `[]` explicitly clears the array. Remove the
+scalar before switching back to indexed configuration.
+
+The built-in configuration checks and readiness diagnostics are described in
+[Guardrails](./guardrails.md#readiness-scope). Actor hosting is derived from
+typed declarations and [node roles](#node-roles-and-actor-hosting); it is not a
+separate list of configured Actor hosts.
 The shared management HTTP listener is configured independently from the routes
 it serves:
 

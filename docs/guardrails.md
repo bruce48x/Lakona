@@ -4,6 +4,41 @@ Lakona guardrails validate runtime configuration and generated project shape
 before a server starts. They enforce the current runtime and configuration
 contracts.
 
+## Ownership And Validation API
+
+Guardrails check framework configuration. Application configuration and resource
+initialization belong in `ILakonaModule` in `Server.App`; a failed module startup
+already prevents readiness and triggers cleanup. Guardrails do not expose a
+custom rule registration mechanism or track which configuration provider supplied
+a value.
+
+`LakonaGameRuntimeValidator` reads `LakonaGameRuntimeOptions` directly. Its
+optional `ClusterOptions` supplies the effective node identity, and its optional
+Hotfix assembly path selects the actual startup artifact. Startup and readiness
+use the same built-in checks. Indexed error paths are constructed at the check
+site; no second configuration model is maintained.
+
+### Upgrade To Game.Server 0.50.0
+
+This release removes `ILakonaGameValidationRule`, `LakonaGameResolved*`, and
+`LakonaGameValueSource`; the rule classes in `Guardrails.Rules` become internal.
+Consumers of those APIs must rebuild and migrate:
+
+- Move custom rule logic and its DI registrations to the appropriate application
+  module's startup checks. Throw a descriptive exception when startup must fail;
+  the normal module readiness diagnostic reports the failure.
+- Replace construction of resolved DTOs and injected rule lists with
+  `new LakonaGameRuntimeValidator().Validate(runtimeOptions, clusterOptions,
+  hotfixAssemblyPath)`. The last two arguments are optional; normal server
+  startup supplies them automatically.
+- Stop using resolved values for provider-source inspection; the framework does
+  not offer that capability. Read application options for effective values.
+
+`AddLakonaGameRuntimeValidation` still registers the built-in validator. Existing
+framework diagnostic IDs, severities, repair hints, indexed configuration paths,
+and the readiness HTTP response shape remain unchanged. Applications using only
+the standard server entry point need no source changes.
+
 ## Readiness Scope
 
 Readiness validation checks:
@@ -13,7 +48,7 @@ Readiness validation checks:
   capacity, pending-handshake capacity, and handshake deadline
 - duplicate endpoint transports and duplicate RPC service names
 - cluster endpoint URI
-- actor host names and duplicate actor host entries
+- blank and duplicate node roles
 - heartbeat interval and timeout
 - hotfix assembly source
 - management admin listener exposure
@@ -92,13 +127,15 @@ Lakona Hub. Keep configuration changes aligned with the package upgrade.
 Production processes should fail before opening listeners when configuration is
 ambiguous or unsafe. In particular:
 
-- cluster endpoints and seeds must use the framework-owned TCP scheme
+- cluster endpoints must use the framework-owned TCP scheme; cluster formation
+  and discovery use the shared [Membership Table](./cluster.md#membership-table)
 - cluster peers must complete cluster protocol negotiation before RPC starts
 - WebSocket endpoints require a path
 - KCP and TCP endpoints must not use HTTP paths
 - endpoint connection limits must be positive, pending handshakes cannot exceed
   active connections, and the handshake deadline must be positive
-- actor host names must be non-empty and unique
+- node role entries must be non-empty and unique; Actor hosting follows
+  [typed declarations and node roles](./configuration.md#node-roles-and-actor-hosting)
 - management admin routes must remain loopback-only unless explicitly deployed on a trusted network
 - every application module must complete startup before the node publishes
   Ready or opens application listeners

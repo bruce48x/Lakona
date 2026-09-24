@@ -19,11 +19,12 @@ internal sealed class LakonaTimerArgsSerializer
         byte[] payload;
         try
         {
+            ValidateDeclaredShape(argsType);
             payload = SerializeObject(args, argsType);
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or ArgumentException)
         {
-            throw new InvalidOperationException($"Timer args type '{argsType.FullName}' could not be serialized.", ex);
+            throw new InvalidOperationException($"Timer args type '{argsType.FullName}' could not be serialized: {ex.Message}", ex);
         }
 
         object? roundTrip;
@@ -36,7 +37,7 @@ internal sealed class LakonaTimerArgsSerializer
             throw new InvalidOperationException($"Timer args type '{argsType.FullName}' failed the JSON round-trip check.", ex);
         }
 
-        if (!RoundTripMatches(args, roundTrip, argsType))
+        if (!RoundTripMatches(payload, roundTrip, argsType))
         {
             throw new InvalidOperationException($"Timer args type '{argsType.FullName}' failed the JSON round-trip check.");
         }
@@ -59,7 +60,8 @@ internal sealed class LakonaTimerArgsSerializer
 
         try
         {
-            return DeserializeObject(jsonPayload.ToArray(), argsType);
+            ValidateArgsType(argsType);
+            return DeserializeObject(jsonPayload, argsType);
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or ArgumentException)
         {
@@ -73,35 +75,24 @@ internal sealed class LakonaTimerArgsSerializer
         using (var writer = new Utf8JsonWriter(stream))
         {
             var activeReferences = new HashSet<object>(ReferenceEqualityComparer.Instance);
-            WriteValue(writer, value, valueType, depth: 0, activeReferences);
+            WriteValue(writer, value, valueType, depth: 0, activeReferences, path: "$");
         }
 
         return stream.ToArray();
     }
 
-    private static object? DeserializeObject(byte[] payload, Type valueType)
+    private static object? DeserializeObject(ReadOnlyMemory<byte> payload, Type valueType)
     {
         using var document = JsonDocument.Parse(payload);
         return ReadValue(document.RootElement, valueType, depth: 0);
     }
 
-    private static bool RoundTripMatches(object? args, object? roundTrip, Type argsType)
+    private static bool RoundTripMatches(byte[] payload, object? roundTrip, Type argsType)
     {
-        if (args is null)
-        {
-            return roundTrip is null;
-        }
-
-        if (roundTrip is null)
-        {
-            return false;
-        }
-
         try
         {
-            var original = SerializeObject(args, argsType);
             var copy = SerializeObject(roundTrip, argsType);
-            return original.AsSpan().SequenceEqual(copy);
+            return payload.AsSpan().SequenceEqual(copy);
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or ArgumentException)
         {
@@ -114,24 +105,30 @@ internal sealed class LakonaTimerArgsSerializer
         object? value,
         Type valueType,
         int depth,
-        HashSet<object> activeReferences)
+        HashSet<object> activeReferences,
+        string path)
     {
         ThrowIfDepthExceeded(valueType, depth);
         var targetType = Nullable.GetUnderlyingType(valueType) ?? valueType;
-        ValidateDeclaredShape(targetType);
         if (value is null)
         {
             writer.WriteNullValue();
             return;
         }
 
+        if (value.GetType() != targetType)
+        {
+            throw new NotSupportedException(
+                $"Timer args at '{path}' declare '{targetType.FullName}' but contain '{value.GetType().FullName}'. Polymorphic values are not supported.");
+        }
+
         if (targetType.IsArray)
         {
-            WriteArray(writer, (Array)value, targetType.GetElementType()!, depth, activeReferences);
+            WriteCollection(writer, (Array)value, targetType.GetElementType()!, depth, activeReferences, path);
         }
         else if (IsListType(targetType, out var listElementType))
         {
-            WriteList(writer, (IEnumerable)value, listElementType, depth, activeReferences);
+            WriteCollection(writer, (IEnumerable)value, listElementType, depth, activeReferences, path);
         }
         else if (targetType == typeof(string))
         {
@@ -211,48 +208,26 @@ internal sealed class LakonaTimerArgsSerializer
         }
         else
         {
-            WriteObject(writer, value, targetType, depth, activeReferences);
+            WriteObject(writer, value, targetType, depth, activeReferences, path);
         }
     }
 
-    private static void WriteArray(
-        Utf8JsonWriter writer,
-        Array values,
-        Type elementType,
-        int depth,
-        HashSet<object> activeReferences)
-    {
-        EnterReference(values, activeReferences);
-        try
-        {
-            writer.WriteStartArray();
-            foreach (var value in values)
-            {
-                WriteValue(writer, value, elementType, depth + 1, activeReferences);
-            }
-
-            writer.WriteEndArray();
-        }
-        finally
-        {
-            activeReferences.Remove(values);
-        }
-    }
-
-    private static void WriteList(
+    private static void WriteCollection(
         Utf8JsonWriter writer,
         IEnumerable values,
         Type elementType,
         int depth,
-        HashSet<object> activeReferences)
+        HashSet<object> activeReferences,
+        string path)
     {
         EnterReference(values, activeReferences);
         try
         {
             writer.WriteStartArray();
+            var index = 0;
             foreach (var value in values)
             {
-                WriteValue(writer, value, elementType, depth + 1, activeReferences);
+                WriteValue(writer, value, elementType, depth + 1, activeReferences, $"{path}[{index++}]");
             }
 
             writer.WriteEndArray();
@@ -268,7 +243,8 @@ internal sealed class LakonaTimerArgsSerializer
         object value,
         Type valueType,
         int depth,
-        HashSet<object> activeReferences)
+        HashSet<object> activeReferences,
+        string path)
     {
         EnterReference(value, activeReferences);
         try
@@ -277,7 +253,7 @@ internal sealed class LakonaTimerArgsSerializer
             foreach (var property in GetSerializableProperties(valueType))
             {
                 writer.WritePropertyName(property.Name);
-                WriteValue(writer, property.GetValue(value), property.PropertyType, depth + 1, activeReferences);
+                WriteValue(writer, property.GetValue(value), property.PropertyType, depth + 1, activeReferences, $"{path}.{property.Name}");
             }
 
             writer.WriteEndObject();
@@ -292,7 +268,6 @@ internal sealed class LakonaTimerArgsSerializer
     {
         ThrowIfDepthExceeded(valueType, depth);
         var targetType = Nullable.GetUnderlyingType(valueType) ?? valueType;
-        ValidateDeclaredShape(targetType);
         if (element.ValueKind == JsonValueKind.Null)
         {
             return valueType.IsValueType && Nullable.GetUnderlyingType(valueType) is null
@@ -485,6 +460,9 @@ internal sealed class LakonaTimerArgsSerializer
                         : throw new JsonException($"Missing JSON property for constructor parameter '{parameter.Name}'.");
                 }
 
+                // Constructor parameters can differ from the declared property shape.
+                if (parameter.ParameterType != property.PropertyType)
+                    ValidateDeclaredShape(parameter.ParameterType);
                 return ReadValue(propertyElement, parameter.ParameterType, depth + 1);
             })
             .ToArray();

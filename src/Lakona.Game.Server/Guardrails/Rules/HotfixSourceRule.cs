@@ -1,10 +1,10 @@
 namespace Lakona.Game.Server.Guardrails.Rules;
 
-public sealed class HotfixSourceRule : ILakonaGameValidationRule
+internal static class HotfixSourceRule
 {
-    public IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameResolvedRuntime runtime)
+    internal static IEnumerable<LakonaGameDiagnostic> Validate(string assemblyPath)
     {
-        if (!File.Exists(runtime.Hotfix.AssemblyPath.Value))
+        if (!File.Exists(assemblyPath))
         {
             yield return new LakonaGameDiagnostic(
                 "LAKONA10071",

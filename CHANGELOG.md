@@ -4,6 +4,27 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-09-24 — Host startup and configuration reliability
+
+**Key releases:** `Lakona.Game.Server 0.51.0`, `Lakona.Game.Testing 0.3.31`,
+`Lakona.Tool 0.43.38`, and `Lakona Hub 0.17.39`.
+
+- Readiness waits for the complete Host startup, including HTTP listeners.
+  Startup failures stop started modules. Startup and shutdown failures retain
+  the original exception even when final resource disposal also fails. Failed
+  node startup shares one cooperative rollback deadline across stages and modules.
+  Management HTTP uses ASP.NET Core routing; 0.51.0 removes the unused public
+  health and local-admin routers. Use the standard host for HTTP dispatch
+  ([migration](docs/http.md#aspnet-core-host)).
+- Invalid boolean, integer, and seconds settings fail with their configuration
+  path. JSON role arrays replace indexed values consistently with service arrays.
+  Guardrails now validate effective options directly; custom validation rules and
+  resolved DTO APIs are removed in 0.50.0. Move application checks into modules;
+  see [the migration guide](docs/guardrails.md#upgrade-to-gameserver-0500).
+- Timer arguments reject polymorphic values with a precise path instead of
+  dropping derived properties. Declare the actual concrete DTO type or copy
+  values into the declared DTO; existing non-polymorphic payloads remain compatible.
+
 ## 2026-09-22 — Unified RPC dispatch and client lifecycle ownership
 
 **Key releases:** `Lakona.Rpc.Core 0.14.2`, `Lakona.Rpc.Server 0.17.4`,

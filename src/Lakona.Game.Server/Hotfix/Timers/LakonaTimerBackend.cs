@@ -5,53 +5,17 @@ namespace Lakona.Game.Server.Hotfix.Timers;
 
 internal sealed class LakonaTimerBackend : ILakonaTimerBackend
 {
-    private readonly object gate = new();
-    private readonly Dictionary<TimerId, LakonaTimerDescriptor> descriptors = new();
-    private readonly LakonaTimerCallbackResolver callbackResolver;
-    private readonly LakonaTimerArgsSerializer argsSerializer;
-    private readonly LakonaTimerScheduler? scheduler;
-
-    public LakonaTimerBackend()
-        : this(new LakonaTimerCallbackResolver(), new LakonaTimerArgsSerializer())
-    {
-    }
+    private readonly LakonaTimerCallbackResolver callbackResolver = new();
+    private readonly LakonaTimerArgsSerializer argsSerializer = new();
+    private readonly LakonaTimerScheduler scheduler;
 
     internal LakonaTimerBackend(LakonaTimerScheduler scheduler)
-        : this(new LakonaTimerCallbackResolver(), new LakonaTimerArgsSerializer(), scheduler)
     {
+        this.scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
         scheduler.AttachBackend(this);
     }
 
-    internal LakonaTimerBackend(LakonaTimerCallbackResolver callbackResolver, LakonaTimerArgsSerializer argsSerializer)
-        : this(callbackResolver, argsSerializer, scheduler: null)
-    {
-    }
-
-    private LakonaTimerBackend(
-        LakonaTimerCallbackResolver callbackResolver,
-        LakonaTimerArgsSerializer argsSerializer,
-        LakonaTimerScheduler? scheduler)
-    {
-        this.callbackResolver = callbackResolver ?? throw new ArgumentNullException(nameof(callbackResolver));
-        this.argsSerializer = argsSerializer ?? throw new ArgumentNullException(nameof(argsSerializer));
-        this.scheduler = scheduler;
-    }
-
-    public IReadOnlyCollection<LakonaTimerDescriptor> Descriptors
-    {
-        get
-        {
-            if (scheduler is not null)
-            {
-                return scheduler.Descriptors;
-            }
-
-            lock (gate)
-            {
-                return descriptors.Values.ToArray();
-            }
-        }
-    }
+    public IReadOnlyCollection<LakonaTimerDescriptor> Descriptors => scheduler.Descriptors;
 
     public TimerId CreateTimer<TActor, TBehavior, TArgs>(
         TActor actor, Func<TBehavior, ActorTimerCallback<TActor, TArgs>> selector,
@@ -59,7 +23,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         where TActor : Actors.Actor where TBehavior : class
     {
         var descriptor = CreateActorDescriptor(actor, selector, dueTime, period, args);
-        AddDescriptor(descriptor);
+        scheduler.Add(descriptor);
         return descriptor.TimerId;
     }
 
@@ -79,7 +43,7 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
 
     public void DestroyTimer(Actors.Actor actor, TimerId timerId)
     {
-        DestroyTimer(timerId, GetCancellationOwner(actor));
+        scheduler.Destroy(timerId, GetCancellationOwner(actor));
     }
 
     private static ActorTimerOwner GetCancellationOwner(Actors.Actor actor)
@@ -91,35 +55,8 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         return owner;
     }
 
-    private void DestroyTimer(TimerId timerId, ActorTimerOwner owner)
-    {
-        if (scheduler is not null)
-        {
-            scheduler.Destroy(timerId, owner);
-            return;
-        }
-
-        lock (gate)
-        {
-            if (descriptors.TryGetValue(timerId, out var descriptor)
-                && !ReferenceEquals(descriptor.Owner, owner))
-                throw new InvalidOperationException("The timer belongs to another Actor activation.");
-            descriptors.Remove(timerId);
-        }
-    }
-
     public bool TryGetDescriptor(TimerId timerId, out LakonaTimerDescriptor descriptor)
-    {
-        if (scheduler is not null)
-        {
-            return scheduler.TryGetDescriptor(timerId, out descriptor);
-        }
-
-        lock (gate)
-        {
-            return descriptors.TryGetValue(timerId, out descriptor!);
-        }
-    }
+        => scheduler.TryGetDescriptor(timerId, out descriptor);
 
     private LakonaTimerDescriptor CreateDescriptor<TArgs>(
         HotfixRuntimeSnapshotLease runtimeContext,
@@ -151,29 +88,9 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
             serializedArgs.ArgsFullName,
             serializedArgs.SerializerId,
             serializedArgs.JsonPayload,
-            GetUtcNow().Add(dueTime),
+            scheduler.GetUtcNow().Add(dueTime),
             period,
             callback.Generation) { Owner = owner };
-    }
-
-    private void AddDescriptor(LakonaTimerDescriptor descriptor)
-    {
-        if (scheduler is not null)
-        {
-            scheduler.Add(descriptor);
-        }
-        else
-        {
-            lock (gate)
-            {
-                descriptors.Add(descriptor.TimerId, descriptor);
-            }
-        }
-    }
-
-    private DateTimeOffset GetUtcNow()
-    {
-        return scheduler?.GetUtcNow() ?? DateTimeOffset.UtcNow;
     }
 
     private static void ValidateArgsAssembly<TArgs>(HotfixRuntimeSnapshotLease lease)

@@ -39,6 +39,15 @@ integration, and request draining. Lakona must remove its bespoke management
 HTTP listener, parser, router, and request tracker rather than retain them as a
 second HTTP implementation.
 
+Starting with `Lakona.Game.Server 0.51.0`, the public
+`LakonaHealthHttpRouter` and `LakonaLocalAdminRouter` APIs are removed.
+Use the standard Lakona host for HTTP dispatch; existing `ILakonaHealthHttpRoute`
+and `ILakonaLocalAdminRoute` registrations remain supported. Tests of response
+content may call a handler directly, while routing and access-policy tests must
+exercise the ASP.NET Core mapping. Unexpected handler exceptions follow the
+host's HTTP error handling (500); expected Hotfix operation failures continue
+to return their structured 400 diagnostics.
+
 The bootstrap order remains:
 
 ```text

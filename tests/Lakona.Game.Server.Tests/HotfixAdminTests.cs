@@ -23,9 +23,9 @@ public sealed class HotfixAdminTests
         var manager = new RecordingHotfixManager(HotfixReloadStatus.SucceededWithWarnings, "next",
             HotfixReloadStatus.SucceededWithWarnings, warnings: ["coverage incomplete: factory dependency"]);
         var admin = fixture.CreateAdmin(manager);
-        var router = new LakonaLocalAdminRouter([new HotfixAdminActivateRoute(admin), new HotfixAdminReloadRoute(admin)]);
+        ILakonaLocalAdminRoute route = operation == "activate" ? new HotfixAdminActivateRoute(admin) : new HotfixAdminReloadRoute(admin);
         using var body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("""{"version":"next"}"""));
-        var response = await router.RouteAsync(new LakonaLocalAdminRequest("POST", $"/_lakona/hotfix/{operation}", body, true),
+        var response = await route.HandleAsync(new LakonaLocalAdminRequest("POST", $"/_lakona/hotfix/{operation}", body, true),
             TestContext.Current.CancellationToken);
         Assert.Equal(200, response.StatusCode);
         using var document = JsonDocument.Parse(response.Body);
@@ -52,10 +52,10 @@ public sealed class HotfixAdminTests
         var logger = new AdminLogger();
         var admin = new HotfixAdminController(new HotfixAdminOptions { BuildTag = HotfixBuildTag.Get(typeof(HotfixAdminTests).Assembly) },
             fixture.Store, new RecordingHotfixManager(HotfixReloadStatus.Succeeded, "old"), logger);
-        var router = new LakonaLocalAdminRouter([new HotfixAdminActivateRoute(admin)]);
+        var route = new HotfixAdminActivateRoute(admin);
         using var body = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(
             new HotfixActivateRequest("next", scenario == "conflict" ? "stale" : null, null), HotfixAdminJson.Options));
-        var response = await router.RouteAsync(new LakonaLocalAdminRequest("POST", "/_lakona/hotfix/activate", body, true),
+        var response = await route.HandleAsync(new LakonaLocalAdminRequest("POST", "/_lakona/hotfix/activate", body, true),
             TestContext.Current.CancellationToken);
         Assert.Equal(400, response.StatusCode);
         using var json = JsonDocument.Parse(response.Body);
@@ -80,7 +80,7 @@ public sealed class HotfixAdminTests
     [InlineData("activate", "reload")]
     [InlineData("reload", "reload")]
     [InlineData("rollback", "validation")]
-    public async Task Expected_failure_reaches_router_and_status_with_loaded_generation(string operation, string stage)
+    public async Task Expected_failure_reaches_route_and_status_with_loaded_generation(string operation, string stage)
     {
         using var fixture = HotfixAdminFixture.Create();
         await fixture.Store.WritePointerAsync("current.txt", "old", TestContext.Current.CancellationToken);
@@ -89,10 +89,14 @@ public sealed class HotfixAdminTests
         var admin = fixture.CreateAdmin(new RecordingHotfixManager(
             stage == "reload" ? HotfixReloadStatus.Failed : HotfixReloadStatus.Succeeded,
             "old", stage == "validation" ? HotfixReloadStatus.Failed : HotfixReloadStatus.Succeeded));
-        var router = new LakonaLocalAdminRouter([
-            new HotfixAdminActivateRoute(admin), new HotfixAdminReloadRoute(admin), new HotfixAdminRollbackRoute(admin)]);
+        ILakonaLocalAdminRoute route = operation switch
+        {
+            "activate" => new HotfixAdminActivateRoute(admin),
+            "reload" => new HotfixAdminReloadRoute(admin),
+            _ => new HotfixAdminRollbackRoute(admin)
+        };
         using var body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("""{"version":"next"}"""));
-        var response = await router.RouteAsync(new LakonaLocalAdminRequest("POST", $"/_lakona/hotfix/{operation}", body, true),
+        var response = await route.HandleAsync(new LakonaLocalAdminRequest("POST", $"/_lakona/hotfix/{operation}", body, true),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(400, response.StatusCode);
@@ -120,9 +124,9 @@ public sealed class HotfixAdminTests
     {
         using var fixture = HotfixAdminFixture.Create();
         var admin = fixture.CreateAdmin(new RecordingHotfixManager(HotfixReloadStatus.Succeeded, "old"));
-        var router = new LakonaLocalAdminRouter([new HotfixAdminActivateRoute(admin)]);
+        var route = new HotfixAdminActivateRoute(admin);
         using var body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
-        var response = await router.RouteAsync(new LakonaLocalAdminRequest("POST", "/_lakona/hotfix/activate", body, true),
+        var response = await route.HandleAsync(new LakonaLocalAdminRequest("POST", "/_lakona/hotfix/activate", body, true),
             TestContext.Current.CancellationToken);
         Assert.Equal(400, response.StatusCode);
         Assert.Contains("HOTFIX_INVALID_REQUEST", response.Body);
@@ -130,22 +134,17 @@ public sealed class HotfixAdminTests
     }
 
     [Fact]
-    public async Task Unexpected_exception_remains_generic_and_cancellation_propagates()
+    public async Task Unexpected_exception_and_cancellation_propagate_to_http_host()
     {
         using var fixture = HotfixAdminFixture.Create();
         foreach (var exception in new Exception[] { new InvalidOperationException("private-secret"), new OperationCanceledException() })
         {
             var admin = fixture.CreateAdmin(new RecordingHotfixManager(HotfixReloadStatus.Succeeded, "old", reloadException: exception));
-            var router = new LakonaLocalAdminRouter([new HotfixAdminReloadRoute(admin)]);
+            var route = new HotfixAdminReloadRoute(admin);
             var request = new LakonaLocalAdminRequest("POST", "/_lakona/hotfix/reload", Stream.Null, true);
-            if (exception is OperationCanceledException)
-                await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await router.RouteAsync(request, TestContext.Current.CancellationToken));
-            else
-            {
-                var response = await router.RouteAsync(request, TestContext.Current.CancellationToken);
-                Assert.Contains("Local admin endpoint failed.", response.Body);
-                Assert.DoesNotContain("private-secret", response.Body);
-            }
+            var observed = await Record.ExceptionAsync(async () =>
+                await route.HandleAsync(request, TestContext.Current.CancellationToken));
+            Assert.Same(exception, observed);
         }
     }
 

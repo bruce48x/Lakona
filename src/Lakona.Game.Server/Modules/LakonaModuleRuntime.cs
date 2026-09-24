@@ -50,17 +50,8 @@ internal sealed class LakonaModuleRuntime(
             catch (Exception exception)
             {
                 readiness.MarkFailed(registration.ModuleType, exception);
-                var rollbackFailures = await StopStartedAsync(
-                    CancellationToken.None,
-                    "rollback").ConfigureAwait(false);
-                foreach (var rollbackFailure in rollbackFailures)
-                {
-                    logger.LogError(
-                        rollbackFailure.Exception,
-                        "Lakona application module {ModuleType} failed during startup rollback.",
-                        rollbackFailure.ModuleType.FullName);
-                }
-
+                // The node lifecycle owns rollback and supplies its cleanup token.
+                // Keep successful modules until that owner calls StopAsync.
                 throw;
             }
         }
@@ -78,9 +69,7 @@ internal sealed class LakonaModuleRuntime(
             stopped = true;
         }
 
-        var failures = await StopStartedAsync(
-            cancellationToken,
-            "shutdown").ConfigureAwait(false);
+        var failures = await StopStartedAsync(cancellationToken).ConfigureAwait(false);
         if (failures.Count == 0)
         {
             return;
@@ -94,8 +83,7 @@ internal sealed class LakonaModuleRuntime(
     }
 
     private async Task<IReadOnlyList<ModuleStopFailure>> StopStartedAsync(
-        CancellationToken cancellationToken,
-        string operation)
+        CancellationToken cancellationToken)
     {
         LakonaModuleRegistration[] snapshot;
         lock (gate)
@@ -113,9 +101,8 @@ internal sealed class LakonaModuleRuntime(
                     .StopAsync(cancellationToken)
                     .ConfigureAwait(false);
                 logger.LogInformation(
-                    "Lakona application module {ModuleType} stopped during {Operation}.",
-                    registration.ModuleType.FullName,
-                    operation);
+                    "Lakona application module {ModuleType} stopped.",
+                    registration.ModuleType.FullName);
             }
             catch (Exception exception)
             {

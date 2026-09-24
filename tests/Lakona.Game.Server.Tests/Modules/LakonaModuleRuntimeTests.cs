@@ -1,3 +1,5 @@
+using Lakona.Game.Server.Hosting;
+using Microsoft.Extensions.Hosting;
 using Lakona.Game.Server;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Modules;
@@ -133,7 +135,7 @@ public sealed class LakonaModuleRuntimeTests
         var failure = new InvalidOperationException("redis refused");
         var second = new RecordingModule("second", events, startFailure: failure);
         await using var provider = CreateRuntimeProvider(first, second);
-        var runtime = provider.GetRequiredService<LakonaModuleRuntime>();
+        var runtime = provider.GetRequiredService<LakonaNodeLifecycle>();
         var readiness = provider.GetRequiredService<LakonaServerReadinessState>();
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -162,7 +164,7 @@ public sealed class LakonaModuleRuntimeTests
             events,
             startFailure: new InvalidOperationException("third start"));
         await using var provider = CreateRuntimeProvider(first, second, third);
-        var runtime = provider.GetRequiredService<LakonaModuleRuntime>();
+        var runtime = provider.GetRequiredService<LakonaNodeLifecycle>();
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             runtime.StartAsync(TestContext.Current.CancellationToken));
@@ -191,7 +193,7 @@ public sealed class LakonaModuleRuntimeTests
             onStart: cancellation.Cancel);
         var third = new RecordingModule("third", events);
         await using var provider = CreateRuntimeProvider(first, second, third);
-        var runtime = provider.GetRequiredService<LakonaModuleRuntime>();
+        var runtime = provider.GetRequiredService<LakonaNodeLifecycle>();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             runtime.StartAsync(cancellation.Token));
@@ -201,8 +203,64 @@ public sealed class LakonaModuleRuntimeTests
             events);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Rollback_has_one_independent_deadline_and_still_attempts_remaining_modules(bool cancelStartup)
+    {
+        using var startup = new CancellationTokenSource();
+        Exception failure = cancelStartup ? new OperationCanceledException(startup.Token) : new InvalidOperationException("startup failed");
+        CancellationToken slowToken = default, remainingToken = default;
+        var canceledOnEntry = false;
+        var stops = new List<string>();
+        var first = new DelegateModule(_ => Task.CompletedTask, token =>
+        {
+            stops.Add("first");
+            remainingToken = token;
+            return Task.CompletedTask;
+        });
+        var slow = new DelegateModule(_ => Task.CompletedTask, async token =>
+        {
+            stops.Add("slow");
+            slowToken = token;
+            canceledOnEntry = token.IsCancellationRequested;
+            // On the old implementation this records None and completes, so the
+            // regression fails deterministically without leaving a hung task.
+            if (token.CanBeCanceled)
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+        });
+        var failing = new DelegateModule(_ =>
+        {
+            if (cancelStartup) startup.Cancel();
+            throw failure;
+        }, _ => throw new InvalidOperationException("A failed module owns its partial initialization cleanup."));
+        await using var provider = CreateRuntimeProvider(first, slow, failing);
+        var lifecycle = provider.GetRequiredService<LakonaNodeLifecycle>();
+
+        var error = await Record.ExceptionAsync(() => lifecycle.StartAsync(startup.Token)
+            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+
+        Assert.Same(failure, error);
+        Assert.Equal(new[] { "slow", "first" }, stops);
+        Assert.True(slowToken.CanBeCanceled);
+        Assert.False(canceledOnEntry);
+        Assert.NotEqual(startup.Token, slowToken);
+        Assert.True(slowToken.IsCancellationRequested);
+        Assert.Equal(slowToken, remainingToken);
+        await lifecycle.StopAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(2, stops.Count);
+    }
+
+    public sealed class DelegateModule(Func<CancellationToken, Task> start, Func<CancellationToken, Task> stop) : ILakonaModule
+    {
+        public DelegateModule() : this(_ => Task.CompletedTask, _ => Task.CompletedTask) { }
+        public void ConfigureServices(IServiceCollection services, IConfiguration configuration) { }
+        public Task StartAsync(ILakonaModuleContext context, CancellationToken cancellationToken) => start(cancellationToken);
+        public Task StopAsync(CancellationToken cancellationToken) => stop(cancellationToken);
+    }
+
     private static ServiceProvider CreateRuntimeProvider(
-        params RecordingModule[] modules)
+        params ILakonaModule[] modules)
     {
         var registrations = modules
             .Select(module => new LakonaModuleRegistration(
@@ -217,6 +275,10 @@ public sealed class LakonaModuleRuntimeTests
         services.AddSingleton<Microsoft.Extensions.Logging.ILogger<LakonaModuleRuntime>>(
             NullLogger<LakonaModuleRuntime>.Instance);
         services.AddSingleton<LakonaModuleRuntime>();
+        services.AddOptions<HostOptions>().Configure(options => options.ShutdownTimeout = TimeSpan.FromMilliseconds(500));
+        services.AddSingleton<Microsoft.Extensions.Logging.ILogger<LakonaNodeLifecycle>>(NullLogger<LakonaNodeLifecycle>.Instance);
+        services.AddSingleton<ILakonaNodeLifecycleParticipant, LakonaModuleLifecycleParticipant>();
+        services.AddSingleton<LakonaNodeLifecycle>();
         return services.BuildServiceProvider();
     }
 

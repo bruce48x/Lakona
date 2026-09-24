@@ -1,12 +1,14 @@
+using Lakona.Game.Server.Configuration;
+
 namespace Lakona.Game.Server.Guardrails.Rules;
 
-public sealed class HeartbeatRule : ILakonaGameValidationRule
+internal static class HeartbeatRule
 {
-    public IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameResolvedRuntime runtime)
+    internal static IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameRuntimeOptions runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
 
-        if (runtime.Heartbeat.Interval.Value <= TimeSpan.Zero)
+        if (runtime.Heartbeat.Interval <= TimeSpan.Zero)
         {
             yield return new LakonaGameDiagnostic(
                 "LAKONA10090",
@@ -15,7 +17,7 @@ public sealed class HeartbeatRule : ILakonaGameValidationRule
                 "Set Lakona:Heartbeat:Interval to a TimeSpan such as 00:00:15.");
         }
 
-        if (runtime.Heartbeat.Timeout.Value <= TimeSpan.Zero)
+        if (runtime.Heartbeat.Timeout <= TimeSpan.Zero)
         {
             yield return new LakonaGameDiagnostic(
                 "LAKONA10091",
@@ -24,9 +26,9 @@ public sealed class HeartbeatRule : ILakonaGameValidationRule
                 "Set Lakona:Heartbeat:Timeout to a TimeSpan such as 00:00:45.");
         }
 
-        if (runtime.Heartbeat.Interval.Value > TimeSpan.Zero
-            && runtime.Heartbeat.Timeout.Value > TimeSpan.Zero
-            && runtime.Heartbeat.Timeout.Value < runtime.Heartbeat.Interval.Value)
+        if (runtime.Heartbeat.Interval > TimeSpan.Zero
+            && runtime.Heartbeat.Timeout > TimeSpan.Zero
+            && runtime.Heartbeat.Timeout < runtime.Heartbeat.Interval)
         {
             yield return new LakonaGameDiagnostic(
                 "LAKONA10092",

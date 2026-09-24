@@ -1,6 +1,5 @@
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Guardrails;
-using Lakona.Game.Server.Guardrails.Rules;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -155,12 +154,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
         LakonaServerReadinessState? serverReadiness = null,
         DistributedWorkAdmissionGate? admissionGate = null)
     {
-        var hotfixPath = Path.Combine(
-            AppContext.BaseDirectory,
-            "hotfix",
-            "Server.Hotfix.dll");
-        Directory.CreateDirectory(Path.GetDirectoryName(hotfixPath)!);
-        File.WriteAllText(hotfixPath, "");
+        var hotfixPath = typeof(LakonaGameReadinessEvaluatorTests).Assembly.Location;
 
         return new LakonaGameReadinessEvaluator(
             runtime,
@@ -203,16 +197,7 @@ public sealed class LakonaGameReadinessEvaluatorTests
 
     private static LakonaGameRuntimeValidator CreateRuntimeValidator()
     {
-        return new LakonaGameRuntimeValidator(
-        [
-            new NodeIdentityRule(),
-            new EndpointRule(),
-            new ClusterEndpointRule(),
-            new HotfixSourceRule(),
-            new HeartbeatRule(),
-            new NodeRoleConfigurationRule(),
-            new ManagementAdminRule()
-        ]);
+        return new LakonaGameRuntimeValidator();
     }
 
 }

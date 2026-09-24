@@ -1,3 +1,4 @@
+extern alias Tool;
 using Xunit;
 
 namespace Lakona.Tool.Tests;
@@ -20,7 +21,7 @@ public sealed class LakonaBrandTests
         try
         {
             Console.SetOut(writer);
-            LakonaBrand.Print();
+            Tool::LakonaBrand.Print();
         }
         finally
         {

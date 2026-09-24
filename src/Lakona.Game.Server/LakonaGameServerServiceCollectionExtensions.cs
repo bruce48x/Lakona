@@ -159,8 +159,9 @@ public static class LakonaGameServerServiceCollectionExtensions
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<ILakonaNodeLifecycleParticipant, MembershipStoppingLifecycleParticipant>());
         services.TryAddSingleton<IClusterNodeDescriptorRefresher, ClusterMembershipDescriptorRefresher>();
-        services.TryAddSingleton<LakonaServerStartupHostedService>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILakonaNodeLifecycleParticipant, AdmissionLifecycleParticipant>());
+        // Host invokes StartedAsync after every listener's StartAsync, and
+        // StoppingAsync before any hosted service begins stopping.
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LakonaServerStartupHostedService>());
         if (configuration is null)
         {
             services.TryAddSingleton(provider =>

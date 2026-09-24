@@ -420,8 +420,24 @@ custom structs, and unsupported framework types are rejected, including when
 nested in DTO properties. Declared type traversal is bounded to 32 levels;
 self-referential DTO declarations remain valid. Validation does not execute
 DTO constructors or getters. Actual reference cycles, excessive payload depth,
-and lossy serialization are still rejected by the registration-time round-trip
-check.
+and changes to serialized properties during reconstruction are rejected by the
+registration-time round-trip check. The original value graph is encoded once;
+the resulting JSON is compared with the reconstructed value's JSON, not with
+object equality. DTO getters must expose data without side effects.
+
+Timer arguments do not support polymorphic values. Each non-null DTO, array,
+and list must have exactly its declared type, including nested
+properties and collection elements. Nullable scalars remain supported. A
+mismatch fails registration with the value path and both types instead of
+silently dropping derived properties. `sealed record` and `sealed class` are
+recommended, not required; inherited DTO declarations work when the argument
+is declared as its actual concrete type.
+
+Starting with Game.Server 0.49.26, callers passing a derived instance through a
+base declaration must use the concrete DTO type in the callback and creation
+call, or copy the intended data into the declared DTO. Apply the same rule to
+nested properties and collection element types. Existing non-polymorphic DTOs
+and the JSON payload format remain compatible.
 
 A timer belongs to one exact activation. Stopping that activation cancels
 future callbacks, and a pending tick cannot reach a replacement with the same

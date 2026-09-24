@@ -158,13 +158,9 @@ internal static class LakonaGameServerBootstrapper
         ClusterOptions? clusterOptions,
         string hotfixAssemblyPath)
     {
-        var resolved = LakonaGameReadinessRuntime.ToResolvedRuntimeForValidation(
-            runtimeOptions,
-            clusterOptions,
-            hotfixAssemblyPath);
         var result = provider
             .GetRequiredService<LakonaGameRuntimeValidator>()
-            .Validate(resolved);
+            .Validate(runtimeOptions, clusterOptions, hotfixAssemblyPath);
 
         if (result.Succeeded)
         {

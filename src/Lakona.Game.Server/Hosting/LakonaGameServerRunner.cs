@@ -17,19 +17,58 @@ internal static class LakonaGameServerRunner
     private static async Task RunHostAsync(IHost host)
     {
         ArgumentNullException.ThrowIfNull(host);
+        Exception? primaryFailure = null;
         try
         {
-            await host.RunAsync().ConfigureAwait(false);
+            try
+            {
+                await host.StartAsync().ConfigureAwait(false);
+            }
+            catch (Exception startupFailure)
+            {
+                // A later hosted service (including Kestrel) can fail after the
+                // node has started. Stop before disposal so module-owned resources
+                // and Membership receive their normal reverse-order cleanup.
+                try
+                {
+                    await host.StopAsync().ConfigureAwait(false);
+                }
+                catch (Exception cleanupFailure)
+                {
+                    startupFailure.Data["Lakona.StartupCleanupFailure"] = cleanupFailure;
+                    host.Services.GetService<ILoggerFactory>()?
+                        .CreateLogger("Server.Startup")
+                        .LogError(cleanupFailure, "Cleanup after server startup failure failed.");
+                }
+
+                throw;
+            }
+
+            await host.WaitForShutdownAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            primaryFailure = exception;
+            throw;
         }
         finally
         {
-            if (host is IAsyncDisposable asyncDisposable)
+            try
             {
-                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+                if (host is IAsyncDisposable asyncDisposable)
+                {
+                    await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+                }
+                else
+                {
+                    host.Dispose();
+                }
             }
-            else
+            catch (Exception disposalFailure) when (primaryFailure is not null)
             {
-                host.Dispose();
+                // The provider (including logging) may already be disposed. Retain
+                // the secondary failure without replacing the original exception.
+                primaryFailure.Data["Lakona.HostDisposalFailure"] = disposalFailure;
             }
         }
     }
