@@ -806,8 +806,9 @@ calling node. That asynchronous route failure is written through framework
 diagnostics; it is not returned to business code after admission. The built-in
 in-memory outbox is not migrated when an owner process fails or session route
 ownership moves to another node. Pending notifications may therefore be lost
-during owner failure; durable or replicated outboxes remain an
-application-provided infrastructure choice.
+during owner failure. Cross-owner session and pending-push recovery is not
+provided by the framework's public extension contracts; replacing a storage
+implementation alone does not establish that recovery protocol.
 
 The public keys and defaults belong to
 [Configuration](./configuration.md#session-resume) and
@@ -889,14 +890,21 @@ recovery therefore requires gateway affinity. Owner restart or reconnecting to
 another gateway returns `StateLost`; built-in recovery does not redirect or
 pretend that lost pending state was replayed.
 
+After state loss, the application must re-establish business state from its
+authoritative data through the normal authentication and session establishment
+flow. This creates a new session; it does not continue the lost session's push
+sequence or recover its pending notifications. The resume-ticket store and
+reliable-push outbox are internal implementation contracts. Replacing the public
+session registry alone does not persist tickets and pending messages or
+transfer the exact gateway incarnation encoded in the session locator.
+
 Business services must not expose reliable-push ack RPC methods, and
 `ILakonaGameServer` must not expose reliable-push publish, replay, or ack
 methods. Ack messages and replay bookkeeping are framework-owned protocol and
 runtime behavior; replay support, pending limits, and delivery bookkeeping are
 not handshake-negotiated client settings. The server reports only the
-reliable-push enabled/ack-required policy in `ServerHello`; clients do not need
-to know whether the server uses an in-memory store, durable store, plugin, or
-built-in implementation.
+reliable-push enabled/ack-required policy in `ServerHello`; clients follow the
+handshake and lost-state outcomes rather than selecting server-side storage.
 
 Business notification APIs should express the intended session target and let
 the framework resolve delivery:

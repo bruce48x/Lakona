@@ -52,9 +52,13 @@ return await LakonaGameServer.RunAsync(args, static server => server
 
 `LakonaGameServer.RunAsync()` registers the default in-memory session services,
 reliable push services, actor runtime, health checks, runtime validation,
-hotfix loading, and RPC listeners derived from `Lakona:Endpoints[]`. Replace the
-default stores when sessions or pending push records must survive process
-restarts.
+hotfix loading, and RPC listeners derived from `Lakona:Endpoints[]`. Built-in
+session recovery and reliable-push replay require the original gateway process
+and its session state to survive. They do not preserve sessions or pending push
+records across owner restarts or gateway changes. After state loss, the
+application must re-establish business state from authoritative data. See
+[Sessions](https://github.com/bruce48x/Lakona/blob/main/docs/session.md) for the
+recovery boundary.
 
 The application composition root owns logging providers. Replace
 `AddSimpleConsole` with the provider required by the deployment; when no

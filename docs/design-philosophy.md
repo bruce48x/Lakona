@@ -164,8 +164,11 @@ message once at the business level.
 notification. Route failure or loss of the gateway process may still result in
 zero delivery because the built-in queue and outbox are not durable or
 replicated. When that state is lost, the client receives an explicit lost-state
-outcome instead of a false continuity guarantee. Applications that require
-durable at-least-once delivery must provide a durable or replicated outbox.
+outcome instead of a false continuity guarantee. Applications re-establish
+business state from authoritative data after state loss. Cross-owner session
+and pending-push recovery is outside the built-in guarantee and is not exposed
+as a pluggable storage capability. See [Sessions](./session.md) for the recovery
+contract.
 
 ### Node Is The Deployment Unit
 
