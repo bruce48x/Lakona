@@ -26,6 +26,8 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
     private int _disposed;
     private int _pendingTotal;
 
+    internal int QueueCount => _queues.Count;
+
     public ClientNotificationCommandRouter(
         IReliablePushRuntime localOwner,
         IClusterMembership? membership = null,
@@ -152,6 +154,8 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
 
                 if (Volatile.Read(ref _disposed) != 0)
                 {
+                    if (queue.DrainTask is null)
+                        Retire(queue, discardPending: false);
                     return ClientNotificationStatus.Failed;
                 }
 
@@ -168,6 +172,10 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
                 if (Interlocked.Increment(ref _pendingTotal) > _totalCapacity)
                 {
                     Interlocked.Decrement(ref _pendingTotal);
+                    // No drain owns a newly rejected queue. Retire it under its
+                    // gate so concurrent enqueuers retry instead of using an orphan.
+                    if (queue.DrainTask is null)
+                        Retire(queue, discardPending: false);
                     ClientNotificationDiagnostics.RecordBackpressure(
                         ClientNotificationBackpressureReason.ProcessCapacity);
                     _logger?.LogWarning(

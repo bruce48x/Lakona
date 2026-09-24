@@ -18,6 +18,93 @@ namespace Lakona.Game.Server.Tests.Sessions;
 public sealed class ClientNotificationDirectRoutingTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Process_backpressure_does_not_retain_rejected_session_queues(bool generated)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var gateway = Gateway();
+        var busy = Session(gateway, "busy");
+        var remote = new OrderedRemoteDispatcher();
+        await using var router = Router(gateway, remote, capacityPerSession: 1, totalCapacity: 1);
+
+        Assert.Equal(ClientNotificationStatus.Accepted, Enqueue(busy, "first"));
+        await remote.FirstStarted.Task.WaitAsync(ct);
+        try
+        {
+            for (var index = 0; index < 2_000; index++)
+                Assert.Equal(ClientNotificationStatus.Backpressure, Enqueue(Session(gateway, $"rejected-{index}"), "rejected"));
+            Parallel.For(0, 128, new ParallelOptions { CancellationToken = ct }, _ =>
+                Assert.Equal(ClientNotificationStatus.Backpressure, Enqueue(Session(gateway, "rejected-0"), "rejected")));
+            Assert.Equal(1, router.QueueCount);
+            await router.WaitForIdleAsync(Session(gateway, "rejected-0"), ct);
+        }
+        finally
+        {
+            remote.ReleaseFirst.TrySetResult();
+        }
+
+        await router.WaitForIdleAsync(busy, ct);
+        Assert.Equal(0, router.QueueCount);
+        var recovered = Session(gateway, "rejected-0");
+        Assert.Equal(ClientNotificationStatus.Accepted, Enqueue(recovered, "second"));
+        await router.WaitForIdleAsync(recovered, ct);
+        Assert.Equal(0, router.QueueCount);
+        Assert.Equal(["first", "second"], remote.Delivered);
+
+        ClientNotificationStatus Enqueue(GameSessionKey session, string payload) => generated
+            ? router.EnqueueGenerated<ITestCallback, string>(session, 1, 1, "Notify", payload)
+            : router.Enqueue(new ClientNotificationCommand
+            {
+                OwnerKey = session.OwnerKey,
+                SessionId = session.SessionId,
+                CallbackContractType = "test",
+                MethodName = "Notify",
+                Payload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(payload)
+            });
+    }
+
+    [Fact]
+    public async Task Concurrent_rejection_and_shutdown_leave_no_queues_or_deliveries()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var gateway = Gateway();
+        var remote = new BlockingRemoteDispatcher();
+        await using var router = Router(gateway, remote, capacityPerSession: 1, totalCapacity: 1);
+        Assert.Equal(ClientNotificationStatus.Accepted,
+            router.EnqueueGenerated<ITestCallback, string>(Session(gateway, "busy"), 1, 1, "Notify", "busy"));
+        await remote.FirstStarted.Task.WaitAsync(ct);
+        Assert.Equal(ClientNotificationStatus.Backpressure,
+            router.EnqueueGenerated<ITestCallback, string>(Session(gateway, "before-stop"), 1, 1, "Notify", "rejected"));
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var producers = Enumerable.Range(0, 8).Select(producer => Task.Run(async () =>
+        {
+            await start.Task.WaitAsync(ct);
+            for (var index = 0; index < 256; index++)
+            {
+                var status = router.EnqueueGenerated<ITestCallback, string>(
+                    Session(gateway, $"{producer}-{index}"), 1, 1, "Notify", "rejected");
+                // Admission may win the race with shutdown; its drain must still
+                // release the work without another delivery after cancellation.
+                Assert.True(status is ClientNotificationStatus.Backpressure or ClientNotificationStatus.Failed or ClientNotificationStatus.Accepted);
+            }
+        }, ct)).ToArray();
+        var stopping = Task.Run(async () =>
+        {
+            await start.Task.WaitAsync(ct);
+            await router.DisposeAsync();
+        }, ct);
+
+        start.SetResult();
+        await Task.WhenAll(producers.Append(stopping)).WaitAsync(ct);
+        Assert.Equal(0, router.QueueCount);
+        Assert.False(remote.BothStarted.Task.IsCompleted);
+        Assert.Equal(ClientNotificationStatus.Failed,
+            router.EnqueueGenerated<ITestCallback, string>(Session(gateway, "after-stop"), 1, 1, "Notify", "rejected"));
+        Assert.Equal(0, router.QueueCount);
+    }
+
+    [Theory]
     [InlineData(ClientNotificationStatus.Accepted)]
     [InlineData(ClientNotificationStatus.Failed)]
     [InlineData(ClientNotificationStatus.Retained)]

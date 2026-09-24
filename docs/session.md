@@ -967,6 +967,13 @@ per-session drains preserve FIFO. A fixed session-affine worker pool is not
 part of the contract and requires large-session-count measurements before
 adoption.
 
+Rejected admission must not retain an empty per-session queue without a drain
+responsible for cleanup. Newly created queues rejected by process capacity or
+shutdown are retired under their queue lock; concurrent enqueuers retry through
+the queue registry. Existing drains own cleanup of their admitted work. Once
+work drains, both capacity and per-session queue entries are released, including
+after bursts of rejected notifications to different sessions.
+
 Every rejected notification increments
 `lakona.game.notification.backpressure` on the `Lakona.Game.Session` meter.
 The bounded reason is `session_capacity`, `process_capacity`, or `batch_bytes`;
