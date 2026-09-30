@@ -11,6 +11,9 @@ internal static class ClientNotificationDiagnostics
     private static readonly Counter<long> BackpressureCounter = Meter.CreateCounter<long>(
         "lakona.game.notification.backpressure");
 
+    internal static readonly Counter<long> SendFailures = Meter.CreateCounter<long>(
+        "lakona.game.notification.send_failure");
+
     internal static void RecordBackpressure(ClientNotificationBackpressureReason reason) =>
         BackpressureCounter.Add(
             1,

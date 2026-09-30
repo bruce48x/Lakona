@@ -4,6 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-09-30 — Reliable notification failure diagnostics
+
+**Key releases:** `Lakona.Game.Server 0.51.1`, `Lakona.Game.Testing 0.3.32`,
+`Lakona.Tool 0.43.39`, and `Lakona Hub 0.17.41`.
+
+- Reliable notification diagnostics distinguish send exceptions from pending
+  capacity loss through separate counters and safe session-correlated warnings.
+  Capacity warnings include the pending count and sequence/ACK snapshot; send
+  warnings are rate limited and omit payloads and exception text. Reliable
+  delivery, ACK, and recovery semantics are preserved.
+- Generated projects adopt the updated server package through the Tool and Hub
+  release dependency closure.
+
 ## 2026-09-24 — Host startup and configuration reliability
 
 **Key releases:** `Lakona.Game.Server 0.51.0`, `Lakona.Game.Testing 0.3.31`,

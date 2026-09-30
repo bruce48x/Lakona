@@ -34,7 +34,9 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<IClientNotifications, ClientNotifications>();
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, RejectingClientNotificationRemoteDispatcher>();
         services.TryAddSingleton(static provider => new LocalClientNotificationCommandDispatcher(
-            provider.GetRequiredService<GameSessionCallbackResolver>()));
+            provider.GetRequiredService<GameSessionCallbackResolver>(),
+            provider.GetService<ILoggerFactory>(),
+            provider.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton<IClientNotificationCommandRouter>(CreateClientNotificationCommandRouter);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRpcSessionLifecycleObserver, GameSessionRpcLifecycleObserver>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IGameSessionLifecycleHandler, GameSessionResumeTicketTerminationHandler>());

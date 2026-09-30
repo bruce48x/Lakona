@@ -820,6 +820,14 @@ handshake and is enforced by an exact disconnect deadline.
 Capacity overflow or a client sequence gap returns `StateRefreshRequired`
 instead of silently applying a partial stream.
 
+At the pending limit, the next publication fails and permanently marks that
+session's reliable stream as continuity-lost. A later cumulative ACK may remove
+pending records but cannot restore the rejected notification or clear this
+state. Further publications fail and replay remains blocked; recovery requires
+fresh session establishment and authoritative business-state refresh. The
+publication status remains `Failed` (and a publication-dependent RPC fails),
+while handshake recovery reports `StateRefreshRequired`.
+
 ```mermaid
 sequenceDiagram
     participant O as gateway outbox

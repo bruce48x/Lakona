@@ -2,11 +2,14 @@ using Lakona.Game.Abstractions;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Core;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lakona.Game.Server.ReliablePush;
 
 internal sealed class ReliablePushRuntime : IReliablePushRuntime
 {
+    private readonly ILogger _logger;
     private readonly IReliablePushOutbox _outbox;
     private readonly IReliablePushAckService _acks;
     private readonly LocalClientNotificationCommandDispatcher _localDispatcher;
@@ -16,8 +19,10 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
         IReliablePushOutbox outbox,
         IReliablePushAckService acks,
         LocalClientNotificationCommandDispatcher localDispatcher,
-        IGameSessionRegistry sessions)
+        IGameSessionRegistry sessions,
+        ILoggerFactory? loggerFactory = null)
     {
+        _logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<ReliablePushRuntime>();
         _outbox = outbox ?? throw new ArgumentNullException(nameof(outbox));
         _acks = acks ?? throw new ArgumentNullException(nameof(acks));
         _localDispatcher = localDispatcher ?? throw new ArgumentNullException(nameof(localDispatcher));
@@ -68,6 +73,9 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
                 ReliablePushDiagnostics.ContinuityLost.Add(
                     1,
                     new KeyValuePair<string, object?>("reason", "capacity"));
+                _logger.LogWarning(
+                    "Reliable push continuity lost: capacity. SessionId={SessionId} PendingCount={PendingCount} LastSequence={LastSequence} AcknowledgedSequence={AcknowledgedSequence}",
+                    session.SessionId, ex.PendingCount, ex.LastSequence, ex.AcknowledgedSequence);
             }
             await _sessions.MarkReliableContinuityLostAsync(session, cancellationToken).ConfigureAwait(false);
             return ClientNotificationStatus.Failed;

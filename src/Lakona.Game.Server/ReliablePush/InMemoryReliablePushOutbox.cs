@@ -38,7 +38,8 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
                 if (owner.Pending.Count >= Math.Max(1, options.MaxPendingPerSession))
                 {
                     owner.ContinuityLost = true;
-                    throw new ReliablePushContinuityLostException(newlyLost: true);
+                    throw new ReliablePushContinuityLostException(
+                        newlyLost: true, owner.Pending.Count, owner.LastSequence, owner.AcknowledgedSequence);
                 }
 
                 record = new ReliablePushRecord
@@ -119,6 +120,7 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
         lock (owner.Gate)
         {
             owner.Pending.RemoveAll(record => record.Sequence <= sequence);
+            owner.AcknowledgedSequence = Math.Max(owner.AcknowledgedSequence, Math.Min(sequence, owner.LastSequence));
         }
         return default;
     }
@@ -208,6 +210,8 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
         public SemaphoreSlim Serial { get; } = new(1, 1);
 
         public long LastSequence { get; set; }
+
+        public long AcknowledgedSequence { get; set; }
 
         public bool ContinuityLost { get; set; }
 
