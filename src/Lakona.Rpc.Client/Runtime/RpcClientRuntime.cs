@@ -37,6 +37,7 @@ namespace Lakona.Rpc.Client
         private readonly TaskCompletionSource<bool> _sendsCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _activeSends;
         private bool _sendsStopped;
+        private RpcClientConnectionState _connectionState;
         private readonly RpcConnectionChannel _connection;
         private readonly RpcPendingRequestCollection _pending = new();
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int serviceId, int methodId), RegisteredNotificationHandler> _notificationHandlers = new();
@@ -128,6 +129,17 @@ namespace Lakona.Rpc.Client
         /// </remarks>
         public event Action<Exception?>? Disconnected;
 
+        /// <summary>Gets the synchronized, locally observed connection lifecycle state.</summary>
+        /// <remarks>
+        /// Stopped is visible before queued work finishes draining and Disconnected is raised.
+        /// Disposed means disposal has started, not that cleanup has completed. A state read does
+        /// not guarantee remote liveness or that a subsequent RPC will succeed.
+        /// </remarks>
+        public RpcClientConnectionState ConnectionState
+        {
+            get { lock (_lifecycleGate) return _connectionState; }
+        }
+
         /// <summary>
         ///     Raised when a server-to-client notification frame has no registered handler.
         /// </summary>
@@ -173,6 +185,7 @@ namespace Lakona.Rpc.Client
                 ThrowIfDisposed();
                 if (Interlocked.CompareExchange(ref _started, 1, 0) != 0)
                     throw new InvalidOperationException("RpcClient already started.");
+                _connectionState = RpcClientConnectionState.Connecting;
                 _startupCompletion = startup.Task;
                 _dispatchContext = (_hasConfiguredDispatchContext ? _configuredDispatchContext : SynchronizationContext.Current)
                     ?? new RpcDispatchSynchronizationContext();
@@ -193,11 +206,17 @@ namespace Lakona.Rpc.Client
                     _recvLoop = Task.Run(ReceiveLoopAsync);
                     if (_keepAlive.Enabled)
                         _keepAliveLoop = Task.Run(KeepAliveLoopAsync);
+                    _connectionState = RpcClientConnectionState.Connected;
                 }
             }
             catch
             {
-                Interlocked.Exchange(ref _started, 0);
+                lock (_lifecycleGate)
+                {
+                    Interlocked.Exchange(ref _started, 0);
+                    if (_connectionState != RpcClientConnectionState.Disposed)
+                        _connectionState = RpcClientConnectionState.Stopped;
+                }
                 throw;
             }
             finally { startup.TrySetResult(true); }
@@ -381,6 +400,7 @@ namespace Lakona.Rpc.Client
             {
                 if (_disposal is not null) return new ValueTask(_disposal);
                 Volatile.Write(ref _disposed, 1);
+                _connectionState = RpcClientConnectionState.Disposed;
                 completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 _disposal = completion.Task;
             }
@@ -722,6 +742,8 @@ namespace Lakona.Rpc.Client
             lock (_lifecycleGate)
             {
                 _sendsStopped = true;
+                if (_connectionState != RpcClientConnectionState.Disposed)
+                    _connectionState = RpcClientConnectionState.Stopped;
                 if (_activeSends == 0) _sendsCompleted.TrySetResult(true);
             }
             try { _cts.Cancel(); }

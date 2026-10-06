@@ -36,6 +36,8 @@ public sealed class GeneratedGameClientLifecycleTests
                     public TaskCompletionSource<int> Notification = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
                     public SynchronizationContext CallbackContext;
                     public Probe(LakonaGameClientOptions options) { _client = new Client.Generated.LakonaGameClient(options, this); }
+                    public LakonaGameConnectionState State => _client.ConnectionState;
+                    public bool Connected => _client.IsConnected;
                     public async Task Connect() { await _client.ConnectAsync(); _api = _client.Api; }
                     public async Task<int> Echo(int value)
                     {
@@ -70,6 +72,7 @@ public sealed class GeneratedGameClientLifecycleTests
             RecoveryScheduler = scheduler
         };
         await using var probe = (IAsyncDisposable)Activator.CreateInstance(probeType, options)!;
+        AssertState(LakonaGameConnectionState.Created);
         var timeout = TimeSpan.FromSeconds(5);
         var context = new DispatchContext();
         var previousContext = SynchronizationContext.Current;
@@ -81,18 +84,29 @@ public sealed class GeneratedGameClientLifecycleTests
         }
         finally { SynchronizationContext.SetSynchronizationContext(previousContext); }
         await connecting.WaitAsync(timeout);
+        AssertState(LakonaGameConnectionState.Connected);
         Assert.Equal(7, await ((Task<int>)probeType.GetMethod("Echo")!.Invoke(probe, new object[] { 7 })!).WaitAsync(timeout));
         first.EstablishSession();
         await first.EstablishedAcknowledged.Task.WaitAsync(timeout);
         first.Disconnect();
         await scheduler.Waiting.Task.WaitAsync(timeout);
+        AssertState(LakonaGameConnectionState.Reconnecting);
         scheduler.Step();
         await first.Disposed.Task.WaitAsync(timeout);
+        AssertState(LakonaGameConnectionState.Connected);
         Assert.Equal(11, await ((Task<int>)probeType.GetMethod("Echo")!.Invoke(probe, new object[] { 11 })!).WaitAsync(timeout));
         second.Push(42, 2, BitConverter.GetBytes(19));
         var notification = (TaskCompletionSource<int>)probeType.GetField("Notification")!.GetValue(probe)!;
         Assert.Equal(19, await notification.Task.WaitAsync(timeout));
         Assert.Same(context, probeType.GetField("CallbackContext")!.GetValue(probe));
+        await probe.DisposeAsync();
+        AssertState(LakonaGameConnectionState.Disposed);
+
+        void AssertState(LakonaGameConnectionState expected)
+        {
+            Assert.Equal(expected, (LakonaGameConnectionState)probeType.GetProperty("State")!.GetValue(probe)!);
+            Assert.Equal(expected == LakonaGameConnectionState.Connected, (bool)probeType.GetProperty("Connected")!.GetValue(probe)!);
+        }
     }
 
     private sealed class DispatchContext : SynchronizationContext

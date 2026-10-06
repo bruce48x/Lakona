@@ -27,7 +27,7 @@ namespace Lakona.Game.Client
         private Task? _recoveryTask;
         private TaskCompletionSource<bool>? _disposal;
         private bool _connectStarted;
-        private bool _apiReady;
+        private LakonaGameConnectionState _connectionState;
 
         public LakonaGameClientLifecycle(LakonaGameClientOptions options, Action<IRpcClient>? bindCallbacks = null)
         {
@@ -37,6 +37,22 @@ namespace Lakona.Game.Client
         }
 
         public event Action<Exception?>? Disconnected;
+        /// <summary>Gets the synchronized state of the current connection generation, independent of session phase.</summary>
+        public LakonaGameConnectionState ConnectionState
+        {
+            get
+            {
+                lock (_stateGate)
+                {
+                    // RPC termination is visible before its Disconnected event finishes draining
+                    // queued work. Recovery still waits for that event before replacing the connection.
+                    if (_connectionState == LakonaGameConnectionState.Connected &&
+                        _rpcClient!.ConnectionState != RpcClientConnectionState.Connected)
+                        return LakonaGameConnectionState.Reconnecting;
+                    return _connectionState;
+                }
+            }
+        }
         public IRpcClient Dispatcher => _dispatcher;
         public ClientSessionSnapshot Snapshot => _core.Snapshot;
         public bool ReliablePushEnabled => _core.ReliablePushEnabled;
@@ -52,7 +68,9 @@ namespace Lakona.Game.Client
         {
             lock (_stateGate)
             {
-                if (!_apiReady)
+                // Preserve the facade's existing proxy-access boundary while queued callbacks drain.
+                // ConnectionState separately reports an RPC stop before the terminal event arrives.
+                if (_connectionState != LakonaGameConnectionState.Connected)
                     throw new InvalidOperationException("LakonaGameClient is not connected. Call ConnectAsync first.");
             }
         }
@@ -67,6 +85,7 @@ namespace Lakona.Game.Client
                 if (_connectStarted)
                     throw new InvalidOperationException("LakonaGameClient is single-use and has already started connecting.");
                 _connectStarted = true;
+                _connectionState = LakonaGameConnectionState.Connecting;
                 _dispatchContext = SynchronizationContext.Current;
                 _core.MarkConnecting();
                 connecting = ConnectInitialAsync(ct);
@@ -84,7 +103,6 @@ namespace Lakona.Game.Client
             {
                 lock (_stateGate)
                 {
-                    _apiReady = false;
                     _core.MarkConnectionFailed(new ClientConnectionFailure(ClientConnectionFailureKind.ConnectFailed, ex.Message));
                 }
                 await DisposeAsync().ConfigureAwait(false);
@@ -138,14 +156,14 @@ namespace Lakona.Game.Client
                         if (_disposal is not null)
                             throw new OperationCanceledException("Lakona game client is being disposed.", token);
                         token.ThrowIfCancellationRequested();
-                        if (disconnected)
+                        if (disconnected || client.ConnectionState != RpcClientConnectionState.Connected)
                             throw new InvalidOperationException("RPC connection closed before becoming ready.");
                         previous = _rpcClient;
                         _rpcClient = client;
                         _dispatcher.SetCurrent(client);
                         if (recovering) _core.MarkRecovered();
                         else _core.MarkReady();
-                        _apiReady = true;
+                        _connectionState = LakonaGameConnectionState.Connected;
                     }
                     if (previous is not null)
                         await previous.DisposeAsync().ConfigureAwait(false);
@@ -186,7 +204,7 @@ namespace Lakona.Game.Client
         {
             if (_disposal is not null || !ReferenceEquals(_rpcClient, source))
                 return;
-            _apiReady = false;
+            _connectionState = LakonaGameConnectionState.Reconnecting;
             _dispatcher.ClearCurrent(source);
             _core.MarkReconnecting();
             if (_recoveryTask is null || _recoveryTask.IsCompleted)
@@ -215,7 +233,7 @@ namespace Lakona.Game.Client
                 }
                 catch (GameSessionRecoveryRejectedException)
                 {
-                    Disconnected?.Invoke(disconnectReason);
+                    ReportRecoveryFailure(disconnectReason);
                     return;
                 }
                 catch
@@ -228,6 +246,16 @@ namespace Lakona.Game.Client
                 Status = GameSessionRecoveryStatus.StateLost,
                 Reason = "Game session recovery window expired."
             });
+            ReportRecoveryFailure(disconnectReason);
+        }
+
+        private void ReportRecoveryFailure(Exception? disconnectReason)
+        {
+            lock (_stateGate)
+            {
+                if (_disposal is not null) return;
+                _connectionState = LakonaGameConnectionState.Disconnected;
+            }
             Disconnected?.Invoke(disconnectReason);
         }
 
@@ -239,7 +267,7 @@ namespace Lakona.Game.Client
                 if (_disposal is not null) return new ValueTask(_disposal.Task);
                 completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 _disposal = completion;
-                _apiReady = false;
+                _connectionState = LakonaGameConnectionState.Disposed;
                 if (_rpcClient is not null) _dispatcher.ClearCurrent(_rpcClient);
             }
             _ = CompleteDisposalAsync(completion);

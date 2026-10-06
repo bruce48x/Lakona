@@ -15,8 +15,10 @@ public sealed class RpcClientLifecycleTests
     {
         var transport = new PausedConnectTransport(observeCancellation);
         var client = new RpcClientRuntime(transport, new JsonRpcSerializer());
+        Assert.Equal(RpcClientConnectionState.Created, client.ConnectionState);
         var starting = client.StartAsync().AsTask();
         await transport.Connecting.Task.WaitAsync(Deadline);
+        Assert.Equal(RpcClientConnectionState.Connecting, client.ConnectionState);
         var firstDisposal = client.DisposeAsync().AsTask();
         var secondDisposal = client.DisposeAsync().AsTask();
         try
@@ -25,6 +27,7 @@ public sealed class RpcClientLifecycleTests
             Assert.False(firstDisposal.IsCompleted);
             Assert.False(secondDisposal.IsCompleted);
             Assert.Equal(0, transport.DisposeCount);
+            Assert.Equal(RpcClientConnectionState.Disposed, client.ConnectionState);
         }
         finally { transport.Release.TrySetResult(); }
 
@@ -33,6 +36,36 @@ public sealed class RpcClientLifecycleTests
         Assert.False(transport.IsConnected);
         Assert.Equal(1, transport.DisposeCount);
         Assert.Equal(0, transport.ReceiveCount);
+        Assert.Equal(RpcClientConnectionState.Disposed, client.ConnectionState);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailedOrCanceledStartup_ReportsStoppedAndAllowsExistingStartupRetry(bool cancel)
+    {
+        var transport = new PausedConnectTransport(true)
+        {
+            ConnectError = cancel ? null : new IOException("connect failed")
+        };
+        await using var client = new RpcClientRuntime(transport, new JsonRpcSerializer());
+        using var cancellation = new CancellationTokenSource();
+        var starting = client.StartAsync(cancellation.Token).AsTask();
+        await transport.Connecting.Task.WaitAsync(Deadline);
+        Assert.Equal(RpcClientConnectionState.Connecting, client.ConnectionState);
+        if (cancel) cancellation.Cancel();
+        transport.Release.TrySetResult();
+        if (cancel)
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => starting.WaitAsync(Deadline));
+        else
+            Assert.Same(transport.ConnectError, await Assert.ThrowsAsync<IOException>(() => starting.WaitAsync(Deadline)));
+        Assert.Equal(RpcClientConnectionState.Stopped, client.ConnectionState);
+
+        transport.ConnectError = null;
+        await client.StartAsync();
+        Assert.Equal(RpcClientConnectionState.Connected, client.ConnectionState);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.StartAsync().AsTask());
+        Assert.Equal(RpcClientConnectionState.Connected, client.ConnectionState);
     }
 
     [Fact]
@@ -53,6 +86,9 @@ public sealed class RpcClientLifecycleTests
         transport.FailPing.TrySetResult();
 
         Assert.Same(transport.Failure, await disconnected.Task.WaitAsync(Deadline));
+        Assert.Equal(RpcClientConnectionState.Stopped, client.ConnectionState);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.StartAsync().AsTask());
+        Assert.Equal(RpcClientConnectionState.Stopped, client.ConnectionState);
         Assert.True(transport.ReceiveCanceled.Task.IsCompleted);
         Assert.Same(transport.Failure, await Assert.ThrowsAsync<IOException>(() => pending.WaitAsync(Deadline)));
         await Assert.ThrowsAsync<InvalidOperationException>(() => client.CallAsync(new RpcMethod<int, int>(1, 1), 0).AsTask());
@@ -86,7 +122,11 @@ public sealed class RpcClientLifecycleTests
         var first = client.DisposeAsync().AsTask();
         await transport.Disposing.Task.WaitAsync(Deadline);
         var second = client.DisposeAsync().AsTask();
-        try { Assert.False(second.IsCompleted); }
+        try
+        {
+            Assert.False(second.IsCompleted);
+            Assert.Equal(RpcClientConnectionState.Disposed, client.ConnectionState);
+        }
         finally { transport.Release.TrySetResult(); }
         await Task.WhenAll(first, second).WaitAsync(Deadline);
         Assert.Equal(1, transport.DisposeCount);
@@ -118,6 +158,7 @@ public sealed class RpcClientLifecycleTests
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int DisposeCount;
         public int ReceiveCount;
+        public Exception? ConnectError;
         public bool IsConnected { get; private set; }
         public async ValueTask ConnectAsync(CancellationToken ct = default)
         {
@@ -125,6 +166,7 @@ public sealed class RpcClientLifecycleTests
             Connecting.TrySetResult();
             await Release.Task;
             if (observeCancellation) ct.ThrowIfCancellationRequested();
+            if (ConnectError is not null) throw ConnectError;
             IsConnected = true;
         }
         public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default) => default;

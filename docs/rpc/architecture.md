@@ -135,6 +135,22 @@ Public API commitment boundaries are documented in
 
 #### Client Lifetime
 
+`RpcClientRuntime.ConnectionState` exposes `RpcClientConnectionState` through a
+synchronized read: `Created`, `Connecting`, `Connected`, `Stopped`, or `Disposed`.
+`Connected` means transport initialization completed and RPC loops started. It
+does not include a Game handshake, business login, or a guarantee of remote
+liveness or success of the next call. Startup failure or cancellation reports
+`Stopped`; the existing ability to retry a failed startup is preserved when the
+transport supports it. A successfully started runtime cannot be restarted after
+connection termination; reconnect with a new runtime and transport.
+
+The stop entry point publishes `Stopped` when it closes send admission, before
+draining queued work. This state does not imply cleanup completion and does not
+change the later `Disconnected` event ordering. Explicit disposal publishes
+`Disposed` immediately, including during startup; late completion cannot restore
+`Connected` or `Stopped`. Await `DisposeAsync` for cleanup completion or failure.
+Canceling an individual request alone does not change the connection state.
+
 Client startup links the caller's initial-connect cancellation with runtime
 shutdown. Disposal cancels and joins an outstanding connection attempt before
 releasing the transport; a late successful connect cannot start background loops.

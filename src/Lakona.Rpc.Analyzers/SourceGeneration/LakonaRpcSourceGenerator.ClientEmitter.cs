@@ -254,6 +254,10 @@ public sealed partial class LakonaRpcSourceGenerator
             writer.CloseBlock();
             writer.Line();
             writer.Line("public ClientSessionSnapshot Snapshot => _lifecycle.Snapshot;");
+            writer.Line("/// <summary>The local connection lifecycle, independent of business login and session phase.</summary>");
+            writer.Line("public LakonaGameConnectionState ConnectionState => _lifecycle.ConnectionState;");
+            writer.Line("/// <summary>Whether the current connection completed Game initialization or recovery confirmation; subsequent calls may still fail.</summary>");
+            writer.Line("public bool IsConnected => ConnectionState == LakonaGameConnectionState.Connected;");
             writer.Line("public bool ReliablePushEnabled => _lifecycle.ReliablePushEnabled;");
             writer.Line("public bool ReliablePushAckRequired => _lifecycle.ReliablePushAckRequired;");
             writer.Line("public global::System.TimeSpan SessionResumeWindow => _lifecycle.SessionResumeWindow;");

@@ -52,6 +52,20 @@ await client.ConnectAsync(ct);
 
 `RpcClientRuntime` and the generated `RpcClient` are single-use connection objects. After disconnecting or disposing, create a new transport, options object, and generated client for reconnect.
 
+Advanced runtime consumers can query `RpcClientRuntime.ConnectionState`:
+`Created`, `Connecting`, `Connected`, `Stopped`, or `Disposed` from
+`RpcClientConnectionState`. Reads are synchronized. `Connected` means transport
+initialization and RPC startup completed, not business login or guaranteed remote
+liveness. Startup failure or cancellation reports `Stopped`; retrying a failed
+startup retains its existing behavior and depends on transport support.
+
+`Stopped` is visible as soon as the runtime stops accepting sends, even while
+queued work is draining before `Disconnected`. `Disposed` is visible when
+disposal begins; await `DisposeAsync` for cleanup completion. A state check does
+not guarantee that the next call will succeed. Game applications should use the
+generated `LakonaGameClient.ConnectionState` and `IsConnected`, which additionally
+account for the Game handshake and recovery confirmation.
+
 ## Logging
 
 Set `RpcClientOptions.LoggerFactory` to an application-owned factory when RPC

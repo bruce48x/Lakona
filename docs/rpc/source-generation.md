@@ -95,6 +95,15 @@ Business RPC services are
 exposed through `gameClient.Api`, so game client code uses the generated wrapper
 as its single connection entry point.
 
+The generated Game facade also exposes `ConnectionState`
+(`LakonaGameConnectionState`) and `IsConnected`. The latter is derived strictly
+from the `Connected` state. Both follow the current connection generation across
+recovery; they do not substitute for business login or `Snapshot.Phase`. See
+[Game Client Lifecycle](../session.md#game-client-lifecycle) for state transitions.
+When updating an existing project to use these members, update the Game client,
+RPC client, and RPC Core package containing the generator together, then rebuild
+the source-generated client.
+
 Generated application code should look like this:
 
 ```csharp

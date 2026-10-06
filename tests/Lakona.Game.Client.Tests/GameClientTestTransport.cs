@@ -17,6 +17,7 @@ internal sealed class GameClientTestTransport : ITransport
 {
     private readonly Channel<TransportFrame> _incoming = Channel.CreateUnbounded<TransportFrame>();
     public TaskCompletionSource ConnectEntered { get; } = Signal();
+    public TaskCompletionSource ConnectCanceled { get; } = Signal();
     public TaskCompletionSource HandshakeEntered { get; } = Signal();
     public TaskCompletionSource HeartbeatEntered { get; } = Signal();
     public TaskCompletionSource EstablishedAcknowledged { get; } = Signal();
@@ -26,6 +27,8 @@ internal sealed class GameClientTestTransport : ITransport
     public TaskCompletionSource? HeartbeatRelease { get; init; }
     public TaskCompletionSource? DisposeRelease { get; init; }
     public Exception? ConnectError { get; init; }
+    public bool IgnoreConnectCancellation { get; init; }
+    public CancellationToken ReceiveCancellation { get; private set; }
     public GameSessionRecoveryStatus RecoveryStatus { get; init; } = GameSessionRecoveryStatus.Resumed;
     public bool IsConnected { get; private set; }
     public int DisposeCount { get; private set; }
@@ -36,8 +39,10 @@ internal sealed class GameClientTestTransport : ITransport
 
     public async ValueTask ConnectAsync(CancellationToken ct = default)
     {
+        using var canceled = ct.Register(() => ConnectCanceled.TrySetResult());
         ConnectEntered.TrySetResult();
-        if (ConnectRelease is not null) await ConnectRelease.Task.WaitAsync(ct);
+        if (ConnectRelease is not null)
+            await (IgnoreConnectCancellation ? ConnectRelease.Task : ConnectRelease.Task.WaitAsync(ct));
         if (ConnectError is not null) throw ConnectError;
         IsConnected = true;
     }
@@ -80,7 +85,12 @@ internal sealed class GameClientTestTransport : ITransport
         _incoming.Writer.TryWrite(RpcEnvelopeCodec.EncodeResponse(request.RequestId, RpcStatus.Ok, payload));
     }
 
-    public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default) => _incoming.Reader.ReadAsync(ct);
+    public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
+    {
+        // Expose the test peer's receive cancellation as a deterministic runtime-stop barrier.
+        if (!ReceiveCancellation.CanBeCanceled) ReceiveCancellation = ct;
+        return _incoming.Reader.ReadAsync(ct);
+    }
 
     public void EstablishSession()
     {

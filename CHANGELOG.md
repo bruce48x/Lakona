@@ -4,6 +4,21 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-10-05 — Client connection lifecycle queries
+
+**Key releases:** `Lakona.Rpc.Client 0.14.6`, `Lakona.Rpc.Core 0.14.9`,
+`Lakona.Game.Client 0.5.13`, `Lakona.Tool 0.43.40`, and `Lakona Hub 0.17.42`.
+
+- RPC clients expose a synchronized five-state connection lifecycle. Generated
+  Game clients expose six connection states and a derived `IsConnected`, tracking
+  the current connection across handshake, recovery, and disposal independently
+  of business login and session phase.
+- Locally stopped connections become visible before queued work finishes
+  draining, while existing disconnect-event, delivery, and cleanup ordering remain
+  unchanged. Upgrade the matching runtime and generator packages and rebuild
+  generated clients; applications no longer need to retain a transport to query
+  connection availability.
+
 ## 2026-09-30 — Reliable notification failure diagnostics
 
 **Key releases:** `Lakona.Game.Server 0.51.1`, `Lakona.Game.Testing 0.3.32`,

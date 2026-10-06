@@ -462,6 +462,37 @@ heartbeat, and reliable-push state. The initial `ConnectAsync` synchronization
 context is retained across replacement RPC connections. Recovery completes its
 replay heartbeat before reporting the new connection as recovered.
 
+The generated client's `ConnectionState` is a synchronized
+`LakonaGameConnectionState`, independent of `Snapshot.Phase`:
+
+| State | Meaning |
+| --- | --- |
+| `Created` | Initial connection has not started. |
+| `Connecting` | Initial transport connection and Game handshake are in progress. |
+| `Connected` | The current connection completed Game initialization or recovery confirmation. |
+| `Reconnecting` | Recovery is pending or in progress, including waiting for the stopped generation to drain, backoff, handshake, and recovery confirmation. |
+| `Disconnected` | The connection is unavailable and automatic recovery has ended through rejection or expiry. |
+| `Disposed` | Disposal has started; the client cannot be used again. Await `DisposeAsync` for cleanup completion. |
+
+`IsConnected` is exactly `ConnectionState == LakonaGameConnectionState.Connected`.
+Connection state is queried on the current RPC generation, so a locally stopped
+runtime is visible as `Reconnecting` even while its terminal event is waiting for
+queued work to drain. Replacement still starts through that existing event;
+state queries do not initiate recovery or change event timing. Previous-generation
+cleanup cannot change the replacement's state. Initial connection failure or
+cancellation follows the existing automatic disposal path to `Disposed`, with
+the exception and `Snapshot.Failure` carrying the failure information.
+The existing `Api` proxy-access boundary during ordered draining is preserved;
+obtaining or retaining a proxy does not prove that its connection is still usable.
+
+`Connected` does not imply business authentication, an active session, or completed
+game-state synchronization. Continue using business responses and `Snapshot`
+for those decisions. Connection state and session phase are not a combined atomic
+snapshot. A query reports locally known state, not remote liveness or a guarantee
+that a subsequent RPC will succeed. Business code should query the generated
+client rather than retaining `options.Transport`, which may refer to an old
+generation after recovery.
+
 Disposal cancels and joins initial connection work as well as recovery before
 releasing shared state. Concurrent disposal callers await the same cleanup.
 For generated facade and callback wiring, see

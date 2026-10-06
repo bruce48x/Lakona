@@ -18,6 +18,7 @@ public sealed class RpcClientRequestSendLifetimeTests
         var disconnected = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
         client.Disconnected += error => disconnected.TrySetResult(error);
         await client.StartAsync();
+        Assert.Equal(RpcClientConnectionState.Connected, client.ConnectionState);
         var first = client.CallAsync(new RpcMethod<int, int>(1, 1), 1).AsTask();
         await transport.Writing.Task.WaitAsync(Deadline);
         var queued = client.CallRawAsync(1, 2, "2"u8.ToArray()).AsTask();
@@ -27,6 +28,7 @@ public sealed class RpcClientRequestSendLifetimeTests
             if (dispose) disposal = client.DisposeAsync().AsTask();
             else transport.EndReceive.TrySetResult();
             await transport.WriteCanceled.Task.WaitAsync(Deadline);
+            Assert.Equal(dispose ? RpcClientConnectionState.Disposed : RpcClientConnectionState.Stopped, client.ConnectionState);
             Assert.False(disconnected.Task.IsCompleted);
             Assert.False(disposal?.IsCompleted ?? false);
             Assert.Equal(0, transport.DisposeCount);
@@ -74,6 +76,7 @@ public sealed class RpcClientRequestSendLifetimeTests
             var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call.WaitAsync(Deadline));
             Assert.Equal(cancellation.Token, error.CancellationToken);
             Assert.False(disconnected);
+            Assert.Equal(RpcClientConnectionState.Connected, client.ConnectionState);
         }
         finally { transport.ReleaseWrite.TrySetResult(); }
     }
@@ -94,6 +97,7 @@ public sealed class RpcClientRequestSendLifetimeTests
             await context.Posted.Task.WaitAsync(Deadline);
             transport.EndReceive.TrySetResult();
             await transport.WriteCanceled.Task.WaitAsync(Deadline);
+            Assert.Equal(RpcClientConnectionState.Stopped, client.ConnectionState);
             Assert.False(call.IsCompleted);
             context.Run();
             Assert.Equal(42, await call.WaitAsync(Deadline));

@@ -1,3 +1,4 @@
+using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Client.Sessions;
 using Lakona.Rpc.Core;
@@ -9,6 +10,116 @@ namespace Lakona.Game.Client.Tests;
 public sealed class LakonaGameClientLifecycleTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(5);
+
+    [Fact]
+    public async Task Session_termination_does_not_change_a_live_connection_state()
+    {
+        var transport = new GameClientTestTransport();
+        await using var client = new LakonaGameClientLifecycle(new LakonaGameClientOptions(transport, new IntegerSerializer()));
+        await client.ConnectAsync(TestContext.Current.CancellationToken);
+        transport.EstablishSession();
+        await transport.EstablishedAcknowledged.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        transport.Push(GameSessionNotificationRpcIds.ServiceId, GameSessionNotificationRpcIds.TerminatedNotificationId,
+            LakonaInternalCodec.EncodeSessionTerminationNotice(new SessionTerminationNotice(SessionTerminationReason.Application, "Session ended.")));
+        // The response follows the synchronous termination notification in ordered dispatch.
+        Assert.Equal(7, await client.Dispatcher.CallAsync(new RpcMethod<int, int>(42, 1), 7, TestContext.Current.CancellationToken)
+            .AsTask().WaitAsync(Deadline, TestContext.Current.CancellationToken));
+        Assert.Equal(ClientSessionPhase.Terminated, client.Snapshot.Phase);
+        AssertState(client, LakonaGameConnectionState.Connected);
+        client.EnsureApiReady();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Caller_canceling_initial_connect_or_handshake_disposes_client(bool handshake)
+    {
+        var release = GameClientTestTransport.Signal();
+        var transport = new GameClientTestTransport
+        {
+            ConnectRelease = handshake ? null : release,
+            HandshakeRelease = handshake ? release : null
+        };
+        await using var client = new LakonaGameClientLifecycle(new LakonaGameClientOptions(transport, new IntegerSerializer()));
+        using var cancellation = new CancellationTokenSource();
+        var connecting = client.ConnectAsync(cancellation.Token).AsTask();
+        await (handshake ? transport.HandshakeEntered.Task : transport.ConnectEntered.Task).WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        AssertState(client, LakonaGameConnectionState.Connecting);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connecting.WaitAsync(Deadline, TestContext.Current.CancellationToken));
+        AssertState(client, LakonaGameConnectionState.Disposed);
+        Assert.Equal(ClientSessionPhase.ConnectionFailed, client.Snapshot.Phase);
+    }
+
+    [Fact]
+    public async Task Late_transport_connect_cannot_overwrite_disposed_state()
+    {
+        var release = GameClientTestTransport.Signal();
+        var transport = new GameClientTestTransport { ConnectRelease = release, IgnoreConnectCancellation = true };
+        await using var client = new LakonaGameClientLifecycle(new LakonaGameClientOptions(transport, new IntegerSerializer()));
+        var connecting = client.ConnectAsync(TestContext.Current.CancellationToken).AsTask();
+        await transport.ConnectEntered.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        var disposal = client.DisposeAsync().AsTask();
+        try
+        {
+            await transport.ConnectCanceled.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+            AssertState(client, LakonaGameConnectionState.Disposed);
+            Assert.False(disposal.IsCompleted);
+        }
+        finally { release.TrySetResult(); }
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connecting.WaitAsync(Deadline, TestContext.Current.CancellationToken));
+        await disposal.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        AssertState(client, LakonaGameConnectionState.Disposed);
+        Assert.False(transport.HandshakeEntered.Task.IsCompleted);
+    }
+
+    [Fact]
+    public async Task Stopped_connection_is_visible_while_dispatch_is_paused_before_recovery_starts()
+    {
+        var first = new GameClientTestTransport();
+        var second = new GameClientTestTransport();
+        var transports = new Queue<GameClientTestTransport>([first, second]);
+        var scheduler = new ControlledRecoveryScheduler();
+        await using var client = new LakonaGameClientLifecycle(new LakonaGameClientOptions(
+            () => transports.Dequeue(), new IntegerSerializer()) { RecoveryScheduler = scheduler },
+            rpc => rpc.RegisterNotificationHandler<int>(new RpcNotificationMethod<int>(42, 2), _ => default));
+        var terminalEvents = 0;
+        client.Disconnected += _ => Interlocked.Increment(ref terminalEvents);
+        var context = new PausableContext();
+        var previous = SynchronizationContext.Current;
+        Task connecting;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(context);
+            connecting = client.ConnectAsync(TestContext.Current.CancellationToken).AsTask();
+        }
+        finally { SynchronizationContext.SetSynchronizationContext(previous); }
+        await connecting.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        AssertState(client, LakonaGameConnectionState.Connected);
+        var stopped = GameClientTestTransport.Signal();
+        using var registration = first.ReceiveCancellation.Register(() => stopped.TrySetResult());
+        context.Pause = true;
+        try
+        {
+            first.Push(42, 2, BitConverter.GetBytes(1));
+            await context.Posted.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+            first.Disconnect();
+            await stopped.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+            // The peer still reports connected: no business RPC is needed to detect runtime termination.
+            Assert.True(first.IsConnected);
+            AssertState(client, LakonaGameConnectionState.Reconnecting);
+            client.EnsureApiReady(); // Existing proxy access during ordered draining is unchanged.
+            Assert.False(scheduler.Waiting.Task.IsCompleted);
+            Assert.Equal(0, terminalEvents);
+        }
+        finally { context.Release(); }
+        await scheduler.Waiting.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        Assert.Throws<InvalidOperationException>(client.EnsureApiReady);
+        scheduler.Step();
+        await first.Disposed.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        AssertState(client, LakonaGameConnectionState.Connected);
+        Assert.Equal(0, terminalEvents);
+    }
 
     [Theory]
     [InlineData(false)]
@@ -27,6 +138,7 @@ public sealed class LakonaGameClientLifecycleTests
             Assert.Same(transport.ConnectError, await Assert.ThrowsAsync<IOException>(() => client.ConnectAsync(TestContext.Current.CancellationToken).AsTask()));
         Assert.Equal(1, transport.DisposeCount);
         Assert.Equal(ClientSessionPhase.ConnectionFailed, client.Snapshot.Phase);
+        AssertState(client, LakonaGameConnectionState.Disposed);
         Assert.Throws<InvalidOperationException>(client.EnsureApiReady);
         await Assert.ThrowsAsync<ObjectDisposedException>(() => client.ConnectAsync(TestContext.Current.CancellationToken).AsTask());
     }
@@ -43,11 +155,14 @@ public sealed class LakonaGameClientLifecycleTests
             HandshakeRelease = handshake ? release : null
         };
         var client = new LakonaGameClientLifecycle(new LakonaGameClientOptions(transport, new IntegerSerializer()));
+        AssertState(client, LakonaGameConnectionState.Created);
         var connecting = client.ConnectAsync(TestContext.Current.CancellationToken).AsTask();
         await (handshake ? transport.HandshakeEntered.Task : transport.ConnectEntered.Task).WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        AssertState(client, LakonaGameConnectionState.Connecting);
         await client.DisposeAsync().AsTask().WaitAsync(Deadline, TestContext.Current.CancellationToken);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connecting.WaitAsync(Deadline, TestContext.Current.CancellationToken));
         Assert.Equal(1, transport.DisposeCount);
+        AssertState(client, LakonaGameConnectionState.Disposed);
         Assert.Throws<InvalidOperationException>(client.EnsureApiReady);
     }
 
@@ -58,6 +173,7 @@ public sealed class LakonaGameClientLifecycleTests
         var transport = new GameClientTestTransport { DisposeRelease = release };
         var client = new LakonaGameClientLifecycle(new LakonaGameClientOptions(transport, new IntegerSerializer()));
         await client.ConnectAsync(TestContext.Current.CancellationToken);
+        AssertState(client, LakonaGameConnectionState.Connected);
         var first = client.DisposeAsync().AsTask();
         await transport.Disposed.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
         var second = client.DisposeAsync().AsTask();
@@ -65,9 +181,11 @@ public sealed class LakonaGameClientLifecycleTests
         {
             Assert.False(first.IsCompleted);
             Assert.False(second.IsCompleted);
+            AssertState(client, LakonaGameConnectionState.Disposed);
         }
         finally { release.TrySetResult(); }
         await Task.WhenAll(first, second).WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        AssertState(client, LakonaGameConnectionState.Disposed);
         Assert.Equal(1, transport.DisposeCount);
     }
 
@@ -95,16 +213,23 @@ public sealed class LakonaGameClientLifecycleTests
         var dispatcher = client.Dispatcher;
         await Assert.ThrowsAsync<InvalidOperationException>(() => client.ConnectAsync(TestContext.Current.CancellationToken).AsTask());
         client.EnsureApiReady();
+        AssertState(client, LakonaGameConnectionState.Connected);
+        Assert.Equal(ClientSessionPhase.Ready, client.Snapshot.Phase);
         first.EstablishSession();
         await first.EstablishedAcknowledged.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        AssertState(client, LakonaGameConnectionState.Connected);
+        Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
         first.Disconnect();
         await scheduler.Waiting.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        AssertState(client, LakonaGameConnectionState.Reconnecting);
         Assert.Throws<InvalidOperationException>(client.EnsureApiReady);
         scheduler.Step();
         await second.HeartbeatEntered.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        AssertState(client, LakonaGameConnectionState.Reconnecting);
         Assert.Throws<InvalidOperationException>(client.EnsureApiReady);
         release.TrySetResult();
         await first.Disposed.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        AssertState(client, LakonaGameConnectionState.Connected);
         client.EnsureApiReady();
         Assert.Same(dispatcher, client.Dispatcher);
         Assert.Equal("ticket", second.Hello!.ResumeTicket);
@@ -115,6 +240,7 @@ public sealed class LakonaGameClientLifecycleTests
         // Previous transport cleanup must not clear the replacement's dispatch target.
         Assert.Equal(1, first.DisposeCount);
         client.EnsureApiReady();
+        AssertState(client, LakonaGameConnectionState.Connected);
     }
 
     [Fact]
@@ -132,11 +258,13 @@ public sealed class LakonaGameClientLifecycleTests
         await scheduler.Waiting.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
         scheduler.Step();
         await failed.Disposed.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        AssertState(client, LakonaGameConnectionState.Reconnecting);
         scheduler.Step();
         await first.Disposed.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
         client.EnsureApiReady();
         Assert.Equal(1, failed.DisposeCount);
         Assert.True(replacement.HeartbeatEntered.Task.IsCompleted);
+        AssertState(client, LakonaGameConnectionState.Connected);
     }
 
     [Fact]
@@ -159,6 +287,7 @@ public sealed class LakonaGameClientLifecycleTests
         scheduler.Step();
         await terminal.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
         Assert.Equal(2, attempts);
+        AssertState(client, LakonaGameConnectionState.Disconnected);
         Assert.Throws<InvalidOperationException>(client.EnsureApiReady);
     }
 
@@ -183,6 +312,7 @@ public sealed class LakonaGameClientLifecycleTests
         await terminal.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
         Assert.Equal(1, second.DisposeCount);
         Assert.False(second.HeartbeatEntered.Task.IsCompleted);
+        AssertState(client, LakonaGameConnectionState.Disconnected);
         Assert.Throws<InvalidOperationException>(client.EnsureApiReady);
     }
 
@@ -211,5 +341,31 @@ public sealed class LakonaGameClientLifecycleTests
         Assert.Equal(0, terminalEvents);
         Assert.Equal(1, first.DisposeCount);
         Assert.Equal(handshake ? 1 : 0, second.DisposeCount);
+        AssertState(client, LakonaGameConnectionState.Disposed);
+    }
+
+    private static void AssertState(LakonaGameClientLifecycle client, LakonaGameConnectionState expected)
+    {
+        Assert.Equal(expected, client.ConnectionState);
+    }
+
+    private sealed class PausableContext : SynchronizationContext
+    {
+        public volatile bool Pause;
+        private SendOrPostCallback? _callback;
+        private object? _state;
+        public TaskCompletionSource Posted { get; } = GameClientTestTransport.Signal();
+        public override void Post(SendOrPostCallback callback, object? state)
+        {
+            if (!Pause) { ThreadPool.QueueUserWorkItem(_ => callback(state)); return; }
+            _state = state;
+            _callback = callback;
+            Posted.TrySetResult();
+        }
+        public void Release()
+        {
+            Pause = false;
+            Interlocked.Exchange(ref _callback, null)?.Invoke(_state);
+        }
     }
 }

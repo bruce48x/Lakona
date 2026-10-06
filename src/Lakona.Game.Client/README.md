@@ -46,6 +46,26 @@ applied and acknowledged that framework state. Business contracts do not expose
 Session ids, and application code does not call `StartSessionAsync` after login.
 Business RPC services are exposed through `gameClient.Api`.
 
+Query `gameClient.ConnectionState` to render connection progress. Its
+`LakonaGameConnectionState` values are `Created`, `Connecting`, `Connected`,
+`Reconnecting`, `Disconnected`, and `Disposed`. `gameClient.IsConnected` is
+exactly `ConnectionState == LakonaGameConnectionState.Connected`.
+
+`Connecting` includes the initial Game handshake. `Reconnecting` includes
+draining the stopped connection, retry delays, and recovery confirmation.
+`Disconnected` means automatic recovery has ended; `Disposed` means disposal
+has started, with cleanup completion observed by awaiting `DisposeAsync`.
+Initial connection failure or cancellation automatically disposes the client.
+Reads are synchronized and follow the current connection generation, so the
+application does not need to save `options.Transport` to detect a locally
+stopped connection. A saved transport may belong to an old generation.
+
+Connection state is independent of `Snapshot.Phase`, business authentication,
+and game-state synchronization. Even after `IsConnected` returns true, an RPC
+can fail: this property reports locally known state, not guaranteed remote
+liveness. For progress UI, distinguish `Reconnecting` from terminal
+`Disconnected` rather than treating every false `IsConnected` as a final failure.
+
 ## Logging
 
 Set `LakonaGameClientOptions.LoggerFactory` to one application-owned factory.
