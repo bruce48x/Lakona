@@ -21,7 +21,7 @@ Unity 客户端负责：
 
 - `Client/Assets/Scenes/Gameplay.unity`：场景入口。
 - `Client/Assets/Prefabs/UI`：入口、登录、匹配、大厅、结算和场景 UI prefab。
-- `Client/Assets/Scripts/Rpc`：传输配置和 RPC 调试入口。
+- `Client/Assets/Scripts/Rpc`：传输配置、启动参数和测试网络故障注入。
 - `Client/Assets/Scripts/Gameplay`：客户端流程、模拟适配、表现和 UI 绑定。
 - `Shared/Gameplay`：单机和联机共同使用的确定性玩法内核。
 

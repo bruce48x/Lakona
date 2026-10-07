@@ -852,17 +852,9 @@ public sealed class AgarHotfixBoundaryTests
             "Scripts",
             "Gameplay",
             "DotArenaNetworkSession.cs"));
-        var tester = File.ReadAllText(Path.Combine(
-            clientRoot,
-            "Assets",
-            "Scripts",
-            "Rpc",
-            "Testing",
-            "RpcConnectionTester.cs"));
         var controlDisconnectHandler = ExtractMethodBody(session, "HandleControlDisconnected");
         var realtimeDisconnectHandler = ExtractMethodBody(session, "HandleRealtimeDisconnected");
         var ensureRealtimeConnected = ExtractMethodBody(session, "EnsureRealtimeConnectedAsync");
-        var testerDisconnectHandler = ExtractMethodBody(tester, "OnDisconnected");
 
         Assert.False(File.Exists(handshakeShim), "Unity client must use generated LakonaGameClient handshake orchestration.");
         Assert.Contains("LakonaGameClient? _controlConnection", session, StringComparison.Ordinal);
@@ -886,8 +878,6 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("catch", ensureRealtimeConnected, StringComparison.Ordinal);
         Assert.Contains("await DisposeRealtimeAsync().ConfigureAwait(false);", ensureRealtimeConnected, StringComparison.Ordinal);
         Assert.Contains("throw;", ensureRealtimeConnected, StringComparison.Ordinal);
-        Assert.Contains("_ = CleanupAsync();", testerDisconnectHandler, StringComparison.Ordinal);
-        Assert.DoesNotContain("_connection = null;", testerDisconnectHandler, StringComparison.Ordinal);
     }
 
     private static FileInfo FindRepositoryFile(string relativePath)
