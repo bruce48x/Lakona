@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Rpc;
 using Client.Generated;
 using Shared.Interfaces;
+using Lakona.Game.Client;
 using Lakona.Game.Client.ReliablePush;
 using Lakona.Game.Client.Sessions;
 #if UNITY_INCLUDE_TESTS
@@ -24,17 +25,17 @@ namespace SampleClient.Gameplay
         private IBattleService? _battleService;
         private string _playerId = string.Empty;
         private string _token = string.Empty;
-        private string _sessionId = string.Empty;
         private string _realtimeRoomId = string.Empty;
         private string _realtimeMatchId = string.Empty;
         private string _realtimeSessionToken = string.Empty;
-        private string _realtimeSessionId = string.Empty;
         private long _controlRpcSerial;
         private long _realtimeRpcSerial;
 #if UNITY_INCLUDE_TESTS
         private bool _networkGateOpen = true;
         private readonly TestTransportGate _testTransportGate = new TestTransportGate();
 #endif
+        private bool _isLoggedIn;
+        private bool _isRealtimeAttached;
         private bool _ignoreControlDisconnect;
         private bool _ignoreRealtimeDisconnect;
         private bool _realtimeRecoveryObserved;
@@ -46,18 +47,23 @@ namespace SampleClient.Gameplay
             _onDisconnected = onDisconnected;
         }
 
-        public bool IsConnected { get; private set; }
+        public bool HasAuthenticatedSession => _isLoggedIn && _controlConnection != null;
+
+        public bool IsConnected => _isLoggedIn && _controlConnection?.IsConnected == true;
+
+        public bool IsRecovering =>
+            _controlConnection?.ConnectionState == LakonaGameConnectionState.Reconnecting;
 
         public bool IsConnecting { get; private set; }
 
-        public bool IsRealtimeConnected { get; private set; }
+        public bool IsRealtimeConnected => _isRealtimeAttached && _realtimeConnection?.IsConnected == true;
 
         public bool IsRealtimeConnecting { get; private set; }
 
         public bool CanSubmitGameplayInput => IsRealtimeConnected;
 
-        public string ControlSessionId => _sessionId;
-        public string RealtimeSessionId => _realtimeSessionId;
+        public string ControlSessionId => _controlConnection?.Snapshot.SessionId ?? string.Empty;
+        public string RealtimeSessionId => _realtimeConnection?.Snapshot.SessionId ?? string.Empty;
         public long ControlRpcSerial => _controlRpcSerial;
         public long RealtimeRpcSerial => _realtimeRpcSerial;
         public bool ControlReliablePushEnabled => _controlConnection?.ReliablePushEnabled ?? false;
@@ -80,9 +86,9 @@ namespace SampleClient.Gameplay
                 throw new InvalidOperationException("The test network gate is closed.");
             }
 #endif
-            if (IsConnecting)
+            if (IsConnecting || _controlConnection != null)
             {
-                throw new InvalidOperationException("Connection attempt is already in progress.");
+                throw new InvalidOperationException("A control session already exists or login is in progress.");
             }
 
             IsConnecting = true;
@@ -119,8 +125,7 @@ namespace SampleClient.Gameplay
 
                 _playerId = reply.PlayerId;
                 _token = reply.Token;
-                _sessionId = _controlConnection.Snapshot.SessionId ?? string.Empty;
-                IsConnected = true;
+                _isLoggedIn = true;
                 return reply;
             }
             catch
@@ -220,7 +225,7 @@ namespace SampleClient.Gameplay
                 return null;
             }
 
-            if (IsRealtimeConnected &&
+            if (_isRealtimeAttached &&
                 string.Equals(_realtimeRoomId, realtimeConnection.RoomId, StringComparison.Ordinal) &&
                 string.Equals(_realtimeMatchId, realtimeConnection.MatchId, StringComparison.Ordinal))
             {
@@ -238,12 +243,6 @@ namespace SampleClient.Gameplay
                 string.Equals(_realtimeMatchId, realtimeConnection.MatchId, StringComparison.Ordinal))
             {
                 return null;
-            }
-
-            if (!string.IsNullOrWhiteSpace(_realtimeMatchId) &&
-                !string.Equals(_realtimeMatchId, realtimeConnection.MatchId, StringComparison.Ordinal))
-            {
-                _realtimeSessionId = string.Empty;
             }
 
             await DisposeRealtimeAsync().ConfigureAwait(false);
@@ -283,8 +282,7 @@ namespace SampleClient.Gameplay
                     return null;
                 }
 
-                _realtimeSessionId = _realtimeConnection.Snapshot.SessionId ?? string.Empty;
-                IsRealtimeConnected = true;
+                _isRealtimeAttached = true;
                 return reply;
             }
             catch
@@ -300,19 +298,20 @@ namespace SampleClient.Gameplay
 
         public bool ShouldRefreshRealtimeReplayAfterRecovery()
         {
-            if (_realtimeConnection == null || _battleService == null || !IsRealtimeConnected)
+            if (_realtimeConnection == null || _battleService == null || !_isRealtimeAttached)
             {
                 return false;
             }
 
             var phase = _realtimeConnection.Snapshot.Phase;
-            if (phase == ClientSessionPhase.Reconnecting)
+            if (_realtimeConnection.ConnectionState == LakonaGameConnectionState.Reconnecting)
             {
                 _realtimeRecoveryObserved = true;
                 return false;
             }
 
-            return _realtimeRecoveryObserved &&
+            return IsRealtimeConnected &&
+                   _realtimeRecoveryObserved &&
                    phase == ClientSessionPhase.Active &&
                    !_realtimeReplayRefreshInProgress;
         }
@@ -362,7 +361,7 @@ namespace SampleClient.Gameplay
             {
                 _loginService = null;
                 _controlPlayerService = null;
-                IsConnected = false;
+                _isLoggedIn = false;
                 IsConnecting = false;
                 return;
             }
@@ -402,10 +401,9 @@ namespace SampleClient.Gameplay
                 {
                     _playerId = string.Empty;
                     _token = string.Empty;
-                    _sessionId = string.Empty;
                 }
 
-                IsConnected = false;
+                _isLoggedIn = false;
                 IsConnecting = false;
             }
         }
@@ -415,7 +413,7 @@ namespace SampleClient.Gameplay
             if (_realtimeConnection == null)
             {
                 _battleService = null;
-                IsRealtimeConnected = false;
+                _isRealtimeAttached = false;
                 IsRealtimeConnecting = false;
                 _realtimeRoomId = string.Empty;
                 _realtimeMatchId = string.Empty;
@@ -441,7 +439,7 @@ namespace SampleClient.Gameplay
             {
                 _ignoreRealtimeDisconnect = false;
                 _battleService = null;
-                IsRealtimeConnected = false;
+                _isRealtimeAttached = false;
                 IsRealtimeConnecting = false;
                 _realtimeRoomId = string.Empty;
                 _realtimeMatchId = string.Empty;
@@ -458,7 +456,7 @@ namespace SampleClient.Gameplay
                 return;
             }
 
-            IsConnected = false;
+            _isLoggedIn = false;
             _loginService = null;
             _controlPlayerService = null;
             _ = DisposeControlAfterDisconnectAsync();
@@ -485,13 +483,13 @@ namespace SampleClient.Gameplay
                 return;
             }
 
-            IsRealtimeConnected = false;
+            _isRealtimeAttached = false;
             _battleService = null;
             _realtimeRoomId = string.Empty;
             _realtimeMatchId = string.Empty;
             _ = DisposeRealtimeAfterDisconnectAsync();
 
-            if (!IsConnected)
+            if (!HasAuthenticatedSession)
             {
                 _onDisconnected(ex);
             }

@@ -179,7 +179,7 @@ namespace SampleClient.Gameplay
 
         private void HandleRealtimeFallbackOnMainThread(string message)
         {
-            if (_sessionMode != SessionMode.Multiplayer || !IsConnected)
+            if (_sessionMode != SessionMode.Multiplayer || !NetworkSession.HasAuthenticatedSession)
             {
                 HandleDisconnectedOnMainThread(message);
                 return;
@@ -303,16 +303,6 @@ namespace SampleClient.Gameplay
             _eventMessage = viewState.EventMessage;
         }
 
-        private void HandleSessionStateLost(string? message)
-        {
-            _multiplayerState.MarkSessionStateLost();
-            ResetToModeSelect(
-                status: "Multiplayer state expired",
-                eventMessage: string.IsNullOrWhiteSpace(message) ? "Log in again to start a new multiplayer session" : message,
-                toastMessage: null,
-                resetSessionState: false);
-        }
-
         private async System.Threading.Tasks.Task EnsureRealtimeSessionAsync(RealtimeConnectionInfo realtimeConnection)
         {
             Exception? primaryException = null;
@@ -432,7 +422,7 @@ namespace SampleClient.Gameplay
 
         private void HandleRealtimeAttachFailure(string message)
         {
-            if (NetworkSession.IsConnected)
+            if (NetworkSession.HasAuthenticatedSession)
             {
                 _callbackInbox.EnqueueRealtimeFallback($"Realtime channel unavailable, continuing on control channel: {message}");
                 return;

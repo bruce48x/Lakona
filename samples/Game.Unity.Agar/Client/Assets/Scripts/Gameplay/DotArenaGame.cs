@@ -92,7 +92,7 @@ namespace SampleClient.Gameplay
         private bool IsRealtimeConnected => NetworkSession.IsRealtimeConnected;
         private bool CanSubmitGameplayInput => NetworkSession.CanSubmitGameplayInput;
         private bool HasPendingUiRequest => _multiplayerState.HasPendingUiRequest;
-        private bool IsUiBusy => IsConnecting || HasPendingUiRequest;
+        private bool IsUiBusy => IsConnecting || NetworkSession.IsRecovering || HasPendingUiRequest;
         private string _localPlayerId { get => _multiplayerState.LocalPlayerId; set => _multiplayerState.LocalPlayerId = value; }
         private SessionMode _sessionMode { get => _multiplayerState.SessionMode; set => _multiplayerState.SessionMode = value; }
         private float _matchmakingStartedAt { get => _multiplayerState.MatchmakingStartedAt; set => _multiplayerState.MatchmakingStartedAt = value; }

@@ -12,7 +12,7 @@ namespace SampleClient.Gameplay
     {
         private async Task ConnectAsync()
         {
-            if (IsConnecting || IsConnected || _sessionMode == SessionMode.SinglePlayer)
+            if (IsConnecting || NetworkSession.HasAuthenticatedSession || _sessionMode == SessionMode.SinglePlayer)
             {
                 _pendingUiRequest = PendingUiRequest.None;
                 return;
@@ -22,7 +22,6 @@ namespace SampleClient.Gameplay
             _entryMenuState = EntryMenuState.MultiplayerAuth;
             _status = $"Connecting to {Rpc.WebSocketRpcClientFactory.BuildUrl(_host, _port, _path)}";
             _eventMessage = "Signing in to multiplayer";
-            _multiplayerState.SessionController.MarkConnecting();
 
             try
             {
@@ -39,7 +38,7 @@ namespace SampleClient.Gameplay
                 }
 
                 var playerId = string.IsNullOrWhiteSpace(reply.PlayerId) ? _account : reply.PlayerId;
-                _multiplayerState.ApplyMultiplayerLogin(playerId, reply.Token, NetworkSession.ControlSessionId, reply.WinCount, reply.VictoryPoints);
+                _multiplayerState.ApplyMultiplayerLogin(playerId, reply.WinCount, reply.VictoryPoints);
                 _localMatch = null;
                 EnsureMetaState(_localPlayerId);
                 _ = RefreshLeaderboardAsync();
@@ -79,7 +78,7 @@ namespace SampleClient.Gameplay
 
         private async Task ConnectAsGuestAsync()
         {
-            if (IsConnecting || IsConnected || _sessionMode == SessionMode.SinglePlayer)
+            if (IsConnecting || NetworkSession.HasAuthenticatedSession || _sessionMode == SessionMode.SinglePlayer)
             {
                 _pendingUiRequest = PendingUiRequest.None;
                 return;
@@ -89,7 +88,6 @@ namespace SampleClient.Gameplay
             _entryMenuState = EntryMenuState.MultiplayerAuth;
             _status = $"Connecting to {Rpc.WebSocketRpcClientFactory.BuildUrl(_host, _port, _path)}";
             _eventMessage = "Requesting guest account";
-            _multiplayerState.SessionController.MarkConnecting();
 
             try
             {
@@ -108,7 +106,7 @@ namespace SampleClient.Gameplay
                 _account = string.IsNullOrWhiteSpace(reply.Account) ? reply.PlayerId : reply.Account;
                 _password = reply.Password;
                 var playerId = string.IsNullOrWhiteSpace(reply.PlayerId) ? _account : reply.PlayerId;
-                _multiplayerState.ApplyMultiplayerLogin(playerId, reply.Token, NetworkSession.ControlSessionId, reply.WinCount, reply.VictoryPoints);
+                _multiplayerState.ApplyMultiplayerLogin(playerId, reply.WinCount, reply.VictoryPoints);
                 _localMatch = null;
                 EnsureMetaState(_localPlayerId);
                 _ = RefreshLeaderboardAsync();
@@ -461,6 +459,11 @@ namespace SampleClient.Gameplay
 
         private async Task BeginMultiplayerMatchmakingAsync()
         {
+            if (!IsConnected && NetworkSession.HasAuthenticatedSession)
+            {
+                return;
+            }
+
             if (!IsConnected)
             {
                 await ConnectAsync().ConfigureAwait(false);
@@ -586,14 +589,14 @@ namespace SampleClient.Gameplay
             _eventMessage = "Choose single-player or multiplayer";
         }
 
-        private void ResetToModeSelect(string status, string eventMessage, string? toastMessage, bool resetSessionState = true)
+        private void ResetToModeSelect(string status, string eventMessage, string? toastMessage)
         {
             _ = NetworkSession.DisposeRealtimeAsync();
             ResetSessionPresentation();
             _callbackInbox.Clear();
             _settlementSummary = null;
             _lastRewardSummary = null;
-            _multiplayerState.ClearRequestState(resetSessionState);
+            _multiplayerState.ClearRequestState();
             _flowState = FrontendFlowState.Entry;
             _entryMenuState = EntryMenuState.ModeSelect;
             _multiplayerState.ClearAuthenticatedProfile();

@@ -1,17 +1,11 @@
 #nullable enable
 
 using Shared.Interfaces;
-using Lakona.Game.Client.Sessions;
 
 namespace SampleClient.Gameplay
 {
     internal sealed class DotArenaMultiplayerState
     {
-        public DotArenaMultiplayerState()
-        {
-            SessionController = new ClientSessionController();
-        }
-
         public SessionMode SessionMode { get; set; } = SessionMode.None;
         public string LocalPlayerId { get; set; } = string.Empty;
         public bool HasAuthenticatedProfile { get; set; }
@@ -21,7 +15,6 @@ namespace SampleClient.Gameplay
         public PendingUiRequest PendingUiRequest { get; set; }
         public float MatchmakingStartedAt { get; set; } = -1f;
         public RealtimeConnectionInfo? LastRealtimeConnection { get; set; }
-        public ClientSessionController SessionController { get; }
 
         public bool HasPendingUiRequest => PendingUiRequest != PendingUiRequest.None;
         public bool HasAuthenticatedMultiplayerProfile => SessionMode == SessionMode.Multiplayer && HasAuthenticatedProfile;
@@ -55,12 +48,11 @@ namespace SampleClient.Gameplay
             LocalVictoryPoints = profile.VictoryPoints;
         }
 
-        public void ApplyMultiplayerLogin(string playerId, string sessionToken, string sessionId, int winCount, int victoryPoints)
+        public void ApplyMultiplayerLogin(string playerId, int winCount, int victoryPoints)
         {
             LocalPlayerId = playerId;
             SessionMode = SessionMode.Multiplayer;
             ApplyAuthenticatedProfile(playerId, winCount, victoryPoints);
-            StartFrameworkSession(playerId, sessionToken, sessionId);
         }
 
         public void ClearSession()
@@ -73,32 +65,14 @@ namespace SampleClient.Gameplay
         {
             ClearSession();
             ClearAuthenticatedProfile();
-            ClearRequestState(resetSessionState: true);
+            ClearRequestState();
         }
 
-        public void ClearRequestState(bool resetSessionState)
+        public void ClearRequestState()
         {
             PendingUiRequest = PendingUiRequest.None;
             LastRealtimeConnection = null;
             MatchmakingStartedAt = -1f;
-
-            if (resetSessionState)
-            {
-                SessionController.EndSession();
-            }
-        }
-
-        public void MarkSessionStateLost()
-        {
-            SessionController.MarkStateLost();
-        }
-
-        private void StartFrameworkSession(string playerId, string sessionToken, string sessionId)
-        {
-            var frameworkSessionId = string.IsNullOrWhiteSpace(sessionId)
-                ? string.IsNullOrWhiteSpace(sessionToken) ? playerId : sessionToken
-                : sessionId;
-            SessionController.StartSession(frameworkSessionId);
         }
     }
 

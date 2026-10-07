@@ -22,6 +22,9 @@ namespace SampleClient.Gameplay
                 SessionMode = _sessionMode.ToString(),
                 Status = _status,
                 LocalPlayerId = _localPlayerId,
+                HasAuthenticatedSession = session?.HasAuthenticatedSession ?? false,
+                CanSubmitGameplayInput = session?.CanSubmitGameplayInput ?? false,
+                IsControlRecovering = session?.IsRecovering ?? false,
                 IsControlConnected = session?.IsConnected ?? false,
                 IsRealtimeConnected = session?.IsRealtimeConnected ?? false,
                 IsConnecting = session?.IsConnecting ?? false,
@@ -89,6 +92,9 @@ namespace SampleClient.Gameplay
         public string SessionMode { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public string LocalPlayerId { get; set; } = string.Empty;
+        public bool HasAuthenticatedSession { get; set; }
+        public bool CanSubmitGameplayInput { get; set; }
+        public bool IsControlRecovering { get; set; }
         public bool IsControlConnected { get; set; }
         public bool IsRealtimeConnected { get; set; }
         public bool IsConnecting { get; set; }

@@ -177,6 +177,24 @@ namespace SampleClient.Gameplay.Tests
                 game.SetNetworkGateForTestAsync(false),
                 "network gate did not close",
                 10f);
+            yield return WaitForSnapshot(
+                game,
+                snapshot => !snapshot.IsControlConnected &&
+                            !snapshot.IsRealtimeConnected &&
+                            snapshot.IsControlRecovering,
+                "stopped transports were still reported as connected during recovery",
+                10f);
+            var offline = game.BuildTestSnapshot();
+            NUnitAssert.That(offline.HasAuthenticatedSession, Is.True,
+                "transport recovery must preserve the authenticated player session");
+            NUnitAssert.That(offline.CanSubmitGameplayInput, Is.False,
+                "gameplay input must pause while the realtime transport is recovering");
+            game.RequestMultiplayerMatchmakingForTest();
+            var afterOfflineRequest = game.BuildTestSnapshot();
+            NUnitAssert.That(afterOfflineRequest.ControlRpcSerial, Is.EqualTo(beforeOffline.ControlRpcSerial),
+                "a request during recovery must not create another control client");
+            NUnitAssert.That(afterOfflineRequest.FlowState, Is.EqualTo("InMatch"),
+                "a request during recovery must preserve the current match");
             yield return new WaitForSecondsRealtime(3f);
             var offlineEnd = DateTime.UtcNow;
             yield return WaitForTask(
@@ -201,6 +219,8 @@ namespace SampleClient.Gameplay.Tests
                 25f);
 
             var recovered = game.BuildTestSnapshot();
+            NUnitAssert.That(recovered.HasAuthenticatedSession, Is.True);
+            NUnitAssert.That(recovered.CanSubmitGameplayInput, Is.True);
             NUnitAssert.That(recovered.ControlSessionId, Is.EqualTo(beforeOffline.ControlSessionId));
             NUnitAssert.That(recovered.RealtimeSessionId, Is.EqualTo(beforeOffline.RealtimeSessionId));
             NUnitAssert.That(recovered.ControlRpcSerial, Is.EqualTo(beforeOffline.ControlRpcSerial),

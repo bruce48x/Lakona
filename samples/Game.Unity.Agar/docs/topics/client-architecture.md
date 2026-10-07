@@ -21,7 +21,7 @@ Unity 客户端负责：
 
 - `Client/Assets/Scenes/Gameplay.unity`：场景入口。
 - `Client/Assets/Prefabs/UI`：入口、登录、匹配、大厅、结算和场景 UI prefab。
-- `Client/Assets/Scripts/Rpc`：传输创建、source generator 标记和 RPC 访问入口。
+- `Client/Assets/Scripts/Rpc`：传输配置和 RPC 调试入口。
 - `Client/Assets/Scripts/Gameplay`：客户端流程、模拟适配、表现和 UI 绑定。
 - `Shared/Gameplay`：单机和联机共同使用的确定性玩法内核。
 
@@ -31,8 +31,11 @@ Unity 客户端负责：
 DotArenaGame
   Unity 生命周期和客户端组合根
 
-DotArenaNetworkSession / ClientSessionController
-  控制连接、实时连接、RPC 调用和可靠推送会话
+DotArenaNetworkSession
+  玩家登录、实时 attach 和业务 RPC；查询真实 Game client 的连接与会话状态
+
+LakonaGameClient
+  框架握手、Game Session、可靠推送和内部 RPC 连接恢复
 
 DotArenaCallbackInbox
   跨线程 callback 入队和主线程批量消费
@@ -88,7 +91,13 @@ UI 样式通过 `DotArenaUiFactory`、`DotArenaUiStyleCatalog` 和程序生成�
 5. 表现层只消费本地结果，不接收服务端世界快照。
 6. 回合结束后客户端提交 `FrameSyncMatchResult`，等待上报完成再关闭实时连接。
 
-断线重连只依赖同一启动参数和有界帧历史。KCP 会话恢复会保留同一个 RPC facade，但实时通道不启用 reliable push；客户端观察到会话从 `Reconnecting` 回到 `Active` 后，必须重新 attach 并在继续推进前补齐服务端帧历史。缺少开局帧或历史不连续时，客户端不能猜测世界状态，应返回明确的恢复或失败路径。
+样例分别保留业务登录成功和实时 attach 成功的状态；`IsConnected` 和 `IsRealtimeConnected` 还必须满足对应 `LakonaGameClient.IsConnected`。框架会话标识直接读取 client 的 `Snapshot`，样例不创建独立 `ClientSessionController`，也不使用业务 token 或玩家标识代替框架会话标识。
+
+控制连接进入 `Reconnecting` 后仍保留玩家登录身份，但暂停新的登录和匹配；不会另建 client 或重新登录。实时连接恢复期间暂停输入，观察真实 client 的 `ConnectionState` 后触发回放刷新，避免连接可用性检查挡住恢复观察。最终恢复失败继续通过框架 `Disconnected` 进入样例失败处理。
+
+Unity 客户端使用 `Lakona.Game.Client 0.5.13`、`Lakona.Rpc.Client 0.14.6` 和 `Lakona.Rpc.Core 0.14.9` 提供的 facade 连接状态 API；升级 runtime 与 Core 携带的 generator 后需要重新编译客户端。
+
+断线重连只依赖同一启动参数和有界帧历史。KCP 会话恢复会保留同一个 RPC facade，但实时通道不启用 reliable push；客户端观察到连接从 `Reconnecting` 回到 `Connected` 且会话处于 `Active` 后，必须重新 attach 并在继续推进前补齐服务端帧历史。缺少开局帧或历史不连续时，客户端不能猜测世界状态，应返回明确的恢复或失败路径。
 
 ## 表现原则
 

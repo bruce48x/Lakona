@@ -18,8 +18,8 @@ internal sealed class TestCallbackConnection : IAsyncDisposable
         params object[] callbacks)
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
-        clientSession = new RpcSession(clientTransport, new JsonRpcSerializer(), $"{connectionId}-client");
-        serverSession = new RpcSession(serverTransport, new JsonRpcSerializer(), connectionId);
+        clientSession = new RpcSession(clientTransport, new JsonRpcSerializer(), new RpcServiceRegistry(), $"{connectionId}-client", ownsTransport: true);
+        serverSession = new RpcSession(serverTransport, new JsonRpcSerializer(), new RpcServiceRegistry(), connectionId, ownsTransport: true);
 
         services.GetRequiredService<GameFrameworkConnectionRegistry>()
             .Set(connectionId, new RpcNotificationChannel(serverSession));
