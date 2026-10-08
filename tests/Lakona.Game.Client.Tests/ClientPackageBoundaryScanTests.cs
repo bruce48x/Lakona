@@ -31,7 +31,7 @@ public sealed class ClientPackageBoundaryScanTests
     }
 
     [Fact]
-    public void PackageReadme_UsesAcknowledgedGeneratedSessionFlow()
+    public void PackageReadme_LinksToSessionAuthorityAndClientIntegrationSkill()
     {
         var repositoryRoot = FindRepositoryRoot();
         var readme = File.ReadAllText(Path.Combine(
@@ -40,10 +40,14 @@ public sealed class ClientPackageBoundaryScanTests
             "Lakona.Game.Client",
             "README.md"));
 
-        Assert.Contains("gameClient.Api.Shared.Game", readme, StringComparison.Ordinal);
-        Assert.DoesNotContain("gameClient.Api.Shared.Login", readme, StringComparison.Ordinal);
-        Assert.DoesNotContain("reply.SessionId", readme, StringComparison.Ordinal);
-        Assert.DoesNotContain("gameClient.StartSessionAsync", readme, StringComparison.Ordinal);
+        Assert.Contains(
+            "https://github.com/bruce48x/Lakona/blob/main/docs/session.md#game-client-lifecycle",
+            readme,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "https://github.com/bruce48x/Lakona/blob/main/skills/lakona-integrate-game-client/SKILL.md",
+            readme,
+            StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()

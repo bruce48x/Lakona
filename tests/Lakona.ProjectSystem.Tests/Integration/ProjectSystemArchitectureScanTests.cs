@@ -912,15 +912,17 @@ public sealed class ProjectSystemArchitectureScanTests
     }
 
     [Fact]
-    public void ToolDocs_DescribeServerPackAndHotfixPackSeparately()
+    public void ToolDocs_LinkToDeploymentAuthorityForServerAndHotfixPackaging()
     {
         var repositoryRoot = FindRepositoryRoot();
         var toolReadme = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Tool", "README.md"));
         var architecture = File.ReadAllText(Path.Combine(repositoryRoot, "docs", "tool", "generation-architecture.md"));
         var deployment = File.ReadAllText(Path.Combine(repositoryRoot, "docs", "deployment.md"));
 
-        Assert.Contains("lakona-tool server pack --runtime linux-x64", toolReadme, StringComparison.Ordinal);
-        Assert.Contains("lakona-tool hotfix pack", toolReadme, StringComparison.Ordinal);
+        Assert.Contains(
+            "https://github.com/bruce48x/Lakona/blob/main/docs/deployment.md",
+            toolReadme,
+            StringComparison.Ordinal);
         Assert.Contains("lakona-tool server pack --runtime linux-x64", architecture, StringComparison.Ordinal);
         Assert.Contains("lakona-tool hotfix pack", architecture, StringComparison.Ordinal);
         Assert.Contains("Server.Full-{BuildTag}-{Timestamp}-{RID}.zip", deployment, StringComparison.Ordinal);

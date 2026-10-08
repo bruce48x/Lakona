@@ -26,17 +26,19 @@ public sealed class ActorApiBoundaryTests
     }
 
     [Fact]
-    public void Game_server_readme_teaches_generated_selectors_before_raw_runtime()
+    public void Game_server_readme_links_to_actor_authority_and_implementation_skill()
     {
         var repositoryRoot = FindRepositoryRoot();
         var readme = File.ReadAllText(Path.Combine(repositoryRoot, "src", "Lakona.Game.Server", "README.md"));
 
-        Assert.Contains("var actors = provider.GetRequiredService<ActorAccess>();", readme, StringComparison.Ordinal);
-        Assert.Contains("var routed = await actors.Route<RoomActor>(roomId).CallAsync(", readme, StringComparison.Ordinal);
-        Assert.Contains("var localOnly = await actors.Local<RoomActor>(roomId).CallAsync(", readme, StringComparison.Ordinal);
-        Assert.Contains("static behavior => behavior.JoinAsync,", readme, StringComparison.Ordinal);
-        Assert.Contains("Advanced Local Actor Runtime", readme, StringComparison.Ordinal);
-        Assert.DoesNotContain("var runtime = provider.GetRequiredService<IActorRuntime>();", readme, StringComparison.Ordinal);
+        Assert.Contains(
+            "https://github.com/bruce48x/Lakona/blob/main/docs/actor.md",
+            readme,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "https://github.com/bruce48x/Lakona/blob/main/skills/lakona-implement-actor/SKILL.md",
+            readme,
+            StringComparison.Ordinal);
     }
 
     [Fact]
