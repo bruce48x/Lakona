@@ -38,6 +38,8 @@ namespace Lakona.Rpc.Client
         private int _activeSends;
         private bool _sendsStopped;
         private RpcClientConnectionState _connectionState;
+        private readonly Queue<(RpcClientConnectionStateChange Change, Action<RpcClientConnectionStateChange> Observers)> _stateChanges = new();
+        private bool _stateChangesDispatching;
         private readonly RpcConnectionChannel _connection;
         private readonly RpcPendingRequestCollection _pending = new();
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int serviceId, int methodId), RegisteredNotificationHandler> _notificationHandlers = new();
@@ -129,6 +131,15 @@ namespace Lakona.Rpc.Client
         /// </remarks>
         public event Action<Exception?>? Disconnected;
 
+        /// <summary>Raised for each local connection state transition after subscribing.</summary>
+        /// <remarks>
+        /// Notifications are serialized on the thread pool, outside runtime locks. Subscriber failures
+        /// are logged and isolated. The payload describes the transition; ConnectionState may already
+        /// be newer. UI subscribers must marshal to their main thread. Startup and disposal do not
+        /// wait for subscribers, and subscribing does not replay the current state.
+        /// </remarks>
+        public event Action<RpcClientConnectionStateChange>? ConnectionStateChanged;
+
         /// <summary>Gets the synchronized, locally observed connection lifecycle state.</summary>
         /// <remarks>
         /// Stopped is visible before queued work finishes draining and Disconnected is raised.
@@ -185,7 +196,7 @@ namespace Lakona.Rpc.Client
                 ThrowIfDisposed();
                 if (Interlocked.CompareExchange(ref _started, 1, 0) != 0)
                     throw new InvalidOperationException("RpcClient already started.");
-                _connectionState = RpcClientConnectionState.Connecting;
+                SetConnectionState(RpcClientConnectionState.Connecting);
                 _startupCompletion = startup.Task;
                 _dispatchContext = (_hasConfiguredDispatchContext ? _configuredDispatchContext : SynchronizationContext.Current)
                     ?? new RpcDispatchSynchronizationContext();
@@ -206,7 +217,7 @@ namespace Lakona.Rpc.Client
                     _recvLoop = Task.Run(ReceiveLoopAsync);
                     if (_keepAlive.Enabled)
                         _keepAliveLoop = Task.Run(KeepAliveLoopAsync);
-                    _connectionState = RpcClientConnectionState.Connected;
+                    SetConnectionState(RpcClientConnectionState.Connected);
                 }
             }
             catch
@@ -215,7 +226,7 @@ namespace Lakona.Rpc.Client
                 {
                     Interlocked.Exchange(ref _started, 0);
                     if (_connectionState != RpcClientConnectionState.Disposed)
-                        _connectionState = RpcClientConnectionState.Stopped;
+                        SetConnectionState(RpcClientConnectionState.Stopped);
                 }
                 throw;
             }
@@ -400,7 +411,7 @@ namespace Lakona.Rpc.Client
             {
                 if (_disposal is not null) return new ValueTask(_disposal);
                 Volatile.Write(ref _disposed, 1);
-                _connectionState = RpcClientConnectionState.Disposed;
+                SetConnectionState(RpcClientConnectionState.Disposed);
                 completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 _disposal = completion.Task;
             }
@@ -743,7 +754,7 @@ namespace Lakona.Rpc.Client
             {
                 _sendsStopped = true;
                 if (_connectionState != RpcClientConnectionState.Disposed)
-                    _connectionState = RpcClientConnectionState.Stopped;
+                    SetConnectionState(RpcClientConnectionState.Stopped);
                 if (_activeSends == 0) _sendsCompleted.TrySetResult(true);
             }
             try { _cts.Cancel(); }
@@ -754,6 +765,43 @@ namespace Lakona.Rpc.Client
         {
             if (Volatile.Read(ref _disposed) != 0)
                 throw new ObjectDisposedException(nameof(RpcClientRuntime));
+        }
+
+        // Called under _lifecycleGate. Snapshot subscribers at publication and dispatch independently
+        // of message draining so a paused callback context cannot hide a stopped connection.
+        private void SetConnectionState(RpcClientConnectionState state)
+        {
+            if (_connectionState == state) return;
+            var change = new RpcClientConnectionStateChange(_connectionState, state);
+            _connectionState = state;
+            var observers = ConnectionStateChanged;
+            if (observers is null) return;
+            _stateChanges.Enqueue((change, observers));
+            if (_stateChangesDispatching) return;
+            _stateChangesDispatching = true;
+            ThreadPool.QueueUserWorkItem(_ => DispatchStateChanges());
+        }
+
+        private void DispatchStateChanges()
+        {
+            while (true)
+            {
+                (RpcClientConnectionStateChange Change, Action<RpcClientConnectionStateChange> Observers) notification;
+                lock (_lifecycleGate)
+                {
+                    if (_stateChanges.Count == 0) { _stateChangesDispatching = false; return; }
+                    notification = _stateChanges.Dequeue();
+                }
+                foreach (Action<RpcClientConnectionStateChange> observer in notification.Observers.GetInvocationList())
+                {
+                    try { observer(notification.Change); }
+                    catch (Exception ex)
+                    {
+                        _requestLogger.LogError(ex, "RPC connection state subscriber failed for {PreviousState} -> {CurrentState}.",
+                            notification.Change.PreviousState, notification.Change.CurrentState);
+                    }
+                }
+            }
         }
 
         private void LogRequestCompleted(

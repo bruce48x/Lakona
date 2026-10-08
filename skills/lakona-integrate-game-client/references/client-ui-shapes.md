@@ -21,25 +21,45 @@ not a framework method. The owner retains `gameClient` until logout/shutdown
 and awaits `DisposeAsync` there; a short-lived login method must not dispose
 the client on return.
 
-## Unity Presentation Loop
+## Unity Event Presentation
 
 Run state rendering on the main thread. This partial presenter assumes an
-existing client owner; helper methods below are application UI methods.
+existing client owner; helper methods below are application UI methods. Add
+`System`, `System.Collections.Concurrent`, and `Lakona.Game.Client` imports.
 
 ```csharp
-private LakonaGameConnectionState? _lastConnectionState;
+private readonly ConcurrentQueue<(LakonaGameClient Owner, LakonaGameConnectionStateChange Change)> _connectionChanges
+    = new ConcurrentQueue<(LakonaGameClient, LakonaGameConnectionStateChange)>();
+private Action<LakonaGameConnectionStateChange> _stateChanged;
+
+// Call on the main thread for the new owner, before ConnectAsync.
+private void AttachConnectionState(LakonaGameClient client)
+{
+    _stateChanged = change => _connectionChanges.Enqueue((client, change));
+    client.ConnectionStateChanged += _stateChanged;
+    RenderConnectionState(client.ConnectionState);
+}
+
+// Call on the main thread before discarding or replacing the current owner.
+private void DetachConnectionState()
+{
+    if (_gameClient != null && _stateChanged != null)
+        _gameClient.ConnectionStateChanged -= _stateChanged;
+    _stateChanged = null;
+}
 
 private void Update()
 {
     ApplyPendingCallbacks(); // Drain the project's thread-safe callback inbox.
-    if (_gameClient == null)
-        return;
+    while (_connectionChanges.TryDequeue(out var item))
+    {
+        if (ReferenceEquals(item.Owner, _gameClient))
+            RenderConnectionState(item.Change.CurrentState);
+    }
+}
 
-    var state = _gameClient.ConnectionState;
-    if (_lastConnectionState == state)
-        return;
-    _lastConnectionState = state;
-
+private void RenderConnectionState(LakonaGameConnectionState state)
+{
     switch (state)
     {
         case LakonaGameConnectionState.Created:
@@ -66,8 +86,9 @@ private void Update()
 }
 ```
 
-Reset `_lastConnectionState` when replacing the owner so a fresh client in the
-same enum state still refreshes the UI. Gate business controls using connection,
+Detach the handler before replacing the owner and attach to the new one. Set
+`_gameClient` to the new owner (or null) before draining queued events. Queued
+notifications from the old owner are ignored. Gate business controls using connection,
 authentication, world readiness, and pending-request state together. Recheck
 ownership when applying queued callbacks or async results; a callback from an
 old client must not update the new login. Do not retry a non-idempotent business
@@ -75,3 +96,6 @@ request merely because connection state returns to `Connected`.
 
 Use the equivalent main-thread presenter/update mechanism in Godot or another
 engine. `ConnectionState` is framework observation; it does not own engine UI.
+For older clients without the event, query `ConnectionState` from the existing
+main-thread presenter and render when it changes. For controls that require the
+latest availability, read the current property rather than a queued transition.

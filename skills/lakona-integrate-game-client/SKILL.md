@@ -29,8 +29,9 @@ synchronization as separate decisions.
    the business response succeeds; enter gameplay only after the application's
    required state synchronization. Do not call `StartSessionAsync` or send
    framework acknowledgements from normal generated-client application code.
-5. Render connection progress using the generated facade's `ConnectionState`
-   and the rules below. Inspect `Snapshot` and business responses separately.
+5. Subscribe to the generated facade's `ConnectionStateChanged` before connecting,
+   and read `ConnectionState` for initial rendering. Marshal event payloads to the
+   engine's main thread. Inspect `Snapshot` and business responses separately.
    Catch failure from each RPC even when `IsConnected` was true immediately
    before the call.
 6. Let the generated Game client own transient recovery. Retain resumable game
@@ -44,10 +45,12 @@ synchronization as separate decisions.
 
 ## Connection States
 
-This API requires `Lakona.Game.Client 0.5.13`, `Lakona.Rpc.Client 0.14.6`, and
-the corresponding `Lakona.Rpc.Core 0.14.9` generator line. Detect compatibility
+State properties require `Lakona.Game.Client 0.5.13`, `Lakona.Rpc.Client 0.14.6`,
+and the corresponding `Lakona.Rpc.Core 0.14.9` generator line. The state event
+requires `Lakona.Game.Client 0.5.15`, `Lakona.Rpc.Client 0.14.8`, and
+`Lakona.Rpc.Core 0.14.11`. Detect compatibility
 from the project's actual dependencies and generated output. Upgrade a matching
-dependency set and rebuild when the properties are absent; do not invent APIs
+dependency set and rebuild when the required members are absent; do not invent APIs
 for older projects or infer compatibility from the installed Tool/Hub version.
 
 | `LakonaGameConnectionState` | Application handling |
@@ -78,9 +81,17 @@ connection progress into an engine UI or reviewing an existing reconnect flow.
 - Query the generated Game client rather than a saved `options.Transport`;
   recovery can replace that transport. API proxies may remain stable across
   generations, but retaining a proxy does not prove connection availability.
-- There is no `ConnectionStateChanged` event in this API. Observe state in the
-  existing engine update/presenter loop; do not invent an event subscription or
-  use the terminal `Disconnected` callback as a progress feed.
+- `ConnectionStateChanged` supplies `LakonaGameConnectionStateChange` with
+  `PreviousState` and `CurrentState`, ordered on the thread pool outside lifecycle
+  locks. It does not replay state on subscription. The property may already be
+  newer than the payload. Never update engine UI directly from the handler.
+  Keep handlers short; enqueue work rather than blocking or using `async void`.
+  Exceptions are isolated and logged. Lifecycle operations do not await handlers.
+  Unsubscribe when releasing the owner; already queued notifications may still
+  arrive, so validate ownership when applying them. For older compatible clients
+  without the event, use the existing main-thread presenter to query state.
+  Do not use terminal `Disconnected` as a transient progress feed or assume an
+  ordering between that callback and asynchronous state notifications.
 - Marshal callbacks and async results through the engine's established main
   thread dispatcher or a thread-safe inbox. Ignore callbacks/results from a
   superseded client owner when applying them after logout or a fresh login.

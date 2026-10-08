@@ -475,6 +475,24 @@ The generated client's `ConnectionState` is a synchronized
 | `Disposed` | Disposal has started; the client cannot be used again. Await `DisposeAsync` for cleanup completion. |
 
 `IsConnected` is exactly `ConnectionState == LakonaGameConnectionState.Connected`.
+`ConnectionStateChanged` reports transitions using `LakonaGameConnectionStateChange`
+with `PreviousState` and `CurrentState`. Subscribe before `ConnectAsync` and read
+`ConnectionState` to render the initial state. Subscribing does not replay state,
+and setting the same state does not produce another notification. Each transition
+captures its subscribers; removing a handler prevents future transitions from
+capturing it, but already queued notifications can still call it.
+
+Notifications are serialized in transition order on the thread pool, outside
+lifecycle locks, independently of the RPC message dispatch context. Marshal UI
+work to the engine's main thread and ignore notifications from a replaced client
+owner. The payload describes a past transition; the property may already report
+a newer state. Subscriber exceptions are isolated and logged under
+`Lakona.Game.Client.Connection`; subscribers must not block or use `async void`.
+Connection, recovery, and disposal do not await state subscribers. `Disposed`
+can be notified before cleanup completes; await `DisposeAsync` for completion.
+The existing `Disconnected` event continues to report terminal recovery failure,
+with no ordering guarantee relative to asynchronous state notification delivery.
+
 Connection state is queried on the current RPC generation, so a locally stopped
 runtime is visible as `Reconnecting` even while its terminal event is waiting for
 queued work to drain. Replacement still starts through that existing event;
@@ -506,9 +524,9 @@ await gameClient.ConnectAsync(cancellationToken);
 ```
 
 Use `Lakona.Rpc.Core`, `Lakona.Game.Client`, and the project's generated client
-namespace. `CreateConfiguredTransport` is an application method. Observe
-`ConnectionState` in the engine's main-thread update/presenter loop; this API
-has no `ConnectionStateChanged` event. Keep resumable game state while
+namespace. `CreateConfiguredTransport` is an application method. Subscribe to
+`ConnectionStateChanged` before connecting and queue UI work for the main thread;
+an existing presenter may also query `ConnectionState`. Keep resumable game state while
 `Reconnecting`, and offer a fresh connection/login path after terminal recovery
 failure. The bundled [Game Client Integration Skill](../skills/lakona-integrate-game-client/SKILL.md)
 provides the implementation workflow and a Unity presentation example.

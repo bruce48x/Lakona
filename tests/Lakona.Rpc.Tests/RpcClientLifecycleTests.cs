@@ -1,6 +1,7 @@
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.Json;
+using System.Threading.Channels;
 
 namespace Lakona.Rpc.Tests;
 
@@ -49,6 +50,7 @@ public sealed class RpcClientLifecycleTests
             ConnectError = cancel ? null : new IOException("connect failed")
         };
         await using var client = new RpcClientRuntime(transport, new JsonRpcSerializer());
+        var changes = ObserveChanges(client);
         using var cancellation = new CancellationTokenSource();
         var starting = client.StartAsync(cancellation.Token).AsTask();
         await transport.Connecting.Task.WaitAsync(Deadline);
@@ -66,6 +68,13 @@ public sealed class RpcClientLifecycleTests
         Assert.Equal(RpcClientConnectionState.Connected, client.ConnectionState);
         await Assert.ThrowsAsync<InvalidOperationException>(() => client.StartAsync().AsTask());
         Assert.Equal(RpcClientConnectionState.Connected, client.ConnectionState);
+        await client.DisposeAsync();
+        await AssertChange(changes, RpcClientConnectionState.Created, RpcClientConnectionState.Connecting);
+        await AssertChange(changes, RpcClientConnectionState.Connecting, RpcClientConnectionState.Stopped);
+        await AssertChange(changes, RpcClientConnectionState.Stopped, RpcClientConnectionState.Connecting);
+        await AssertChange(changes, RpcClientConnectionState.Connecting, RpcClientConnectionState.Connected);
+        await AssertChange(changes, RpcClientConnectionState.Connected, RpcClientConnectionState.Disposed);
+        Assert.False(changes.Reader.TryRead(out _));
     }
 
     [Fact]
@@ -141,14 +150,58 @@ public sealed class RpcClientLifecycleTests
         client.SetDispatchSynchronizationContext(context);
         var disconnected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         client.Disconnected += _ => disconnected.TrySetResult();
+        var changes = ObserveChanges(client);
         await client.StartAsync();
         var pending = client.CallAsync(new RpcMethod<int, int>(1, 1), 42).AsTask();
         await transport.Closed.Task.WaitAsync(Deadline);
         await context.Posted.Task.WaitAsync(Deadline);
         Assert.False(pending.IsCompleted);
+        await AssertChange(changes, RpcClientConnectionState.Created, RpcClientConnectionState.Connecting);
+        await AssertChange(changes, RpcClientConnectionState.Connecting, RpcClientConnectionState.Connected);
+        await AssertChange(changes, RpcClientConnectionState.Connected, RpcClientConnectionState.Stopped);
+        Assert.False(disconnected.Task.IsCompleted);
         context.Run();
         Assert.Equal(42, await pending.WaitAsync(Deadline));
         await disconnected.Task.WaitAsync(Deadline);
+        await client.DisposeAsync();
+        await AssertChange(changes, RpcClientConnectionState.Stopped, RpcClientConnectionState.Disposed);
+        Assert.False(changes.Reader.TryRead(out _));
+    }
+
+    [Fact]
+    public async Task State_subscriber_failures_do_not_block_other_subscribers_or_reentrant_disposal()
+    {
+        var transport = new PausedConnectTransport(true);
+        transport.Release.TrySetResult();
+        var client = new RpcClientRuntime(transport, new JsonRpcSerializer());
+        client.ConnectionStateChanged += _ => throw new InvalidOperationException("observer failure");
+        client.ConnectionStateChanged += change =>
+        {
+            Task.Run(() => client.ConnectionState).WaitAsync(Deadline).GetAwaiter().GetResult();
+            if (change.CurrentState == RpcClientConnectionState.Connected)
+                client.DisposeAsync().AsTask().WaitAsync(Deadline).GetAwaiter().GetResult();
+        };
+        var changes = ObserveChanges(client);
+        await client.StartAsync();
+        await AssertChange(changes, RpcClientConnectionState.Created, RpcClientConnectionState.Connecting);
+        await AssertChange(changes, RpcClientConnectionState.Connecting, RpcClientConnectionState.Connected);
+        await AssertChange(changes, RpcClientConnectionState.Connected, RpcClientConnectionState.Disposed);
+        Assert.Equal(1, transport.DisposeCount);
+    }
+
+    private static Channel<RpcClientConnectionStateChange> ObserveChanges(RpcClientRuntime client)
+    {
+        var changes = Channel.CreateUnbounded<RpcClientConnectionStateChange>();
+        client.ConnectionStateChanged += change => changes.Writer.TryWrite(change);
+        return changes;
+    }
+
+    private static async Task AssertChange(Channel<RpcClientConnectionStateChange> changes,
+        RpcClientConnectionState previous, RpcClientConnectionState current)
+    {
+        var change = await changes.Reader.ReadAsync().AsTask().WaitAsync(Deadline);
+        Assert.Equal(previous, change.PreviousState);
+        Assert.Equal(current, change.CurrentState);
     }
 
     private sealed class PausedConnectTransport(bool observeCancellation) : ITransport

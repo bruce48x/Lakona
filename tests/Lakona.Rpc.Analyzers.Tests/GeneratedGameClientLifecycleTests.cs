@@ -14,6 +14,7 @@ public sealed class GeneratedGameClientLifecycleTests
             using System;
             using System.Threading.Tasks;
             using System.Threading;
+            using System.Threading.Channels;
             using Lakona.Game.Client;
             using Lakona.Rpc.Core;
             using Lakona.Tests;
@@ -35,7 +36,14 @@ public sealed class GeneratedGameClientLifecycleTests
                     private Client.Generated.RpcApi _api;
                     public TaskCompletionSource<int> Notification = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
                     public SynchronizationContext CallbackContext;
-                    public Probe(LakonaGameClientOptions options) { _client = new Client.Generated.LakonaGameClient(options, this); }
+                    public Channel<LakonaGameConnectionStateChange> Changes = Channel.CreateUnbounded<LakonaGameConnectionStateChange>();
+                    public Probe(LakonaGameClientOptions options)
+                    {
+                        _client = new Client.Generated.LakonaGameClient(options, this);
+                        _client.ConnectionStateChanged += OnStateChanged;
+                    }
+                    private void OnStateChanged(LakonaGameConnectionStateChange change) { Changes.Writer.TryWrite(change); }
+                    public void Unsubscribe() { _client.ConnectionStateChanged -= OnStateChanged; }
                     public LakonaGameConnectionState State => _client.ConnectionState;
                     public bool Connected => _client.IsConnected;
                     public async Task Connect() { await _client.ConnectAsync(); _api = _client.Api; }
@@ -101,6 +109,17 @@ public sealed class GeneratedGameClientLifecycleTests
         Assert.Same(context, probeType.GetField("CallbackContext")!.GetValue(probe));
         await probe.DisposeAsync();
         AssertState(LakonaGameConnectionState.Disposed);
+        var changes = (System.Threading.Channels.Channel<LakonaGameConnectionStateChange>)probeType.GetField("Changes")!.GetValue(probe)!;
+        var expectedStates = new[] { LakonaGameConnectionState.Created, LakonaGameConnectionState.Connecting,
+            LakonaGameConnectionState.Connected, LakonaGameConnectionState.Reconnecting,
+            LakonaGameConnectionState.Connected, LakonaGameConnectionState.Disposed };
+        for (var index = 1; index < expectedStates.Length; index++)
+        {
+            var change = await changes.Reader.ReadAsync().AsTask().WaitAsync(timeout);
+            Assert.Equal(expectedStates[index - 1], change.PreviousState);
+            Assert.Equal(expectedStates[index], change.CurrentState);
+        }
+        probeType.GetMethod("Unsubscribe")!.Invoke(probe, null);
 
         void AssertState(LakonaGameConnectionState expected)
         {

@@ -151,6 +151,22 @@ change the later `Disconnected` event ordering. Explicit disposal publishes
 `Connected` or `Stopped`. Await `DisposeAsync` for cleanup completion or failure.
 Canceling an individual request alone does not change the connection state.
 
+`RpcClientRuntime.ConnectionStateChanged`, also forwarded by the generated
+`RpcClient`, reports `RpcClientConnectionStateChange` with `PreviousState` and
+`CurrentState`. Subscribe before starting and query the property for initial
+state; subscription does not replay it. Changes capture the current subscribers
+and are delivered once per actual transition, in order on the thread pool,
+outside runtime locks and independently of queued message dispatch. Unsubscription
+does not cancel already queued notifications. The property may be newer than
+the event payload. Subscriber failures are logged and isolated, and lifecycle
+operations do not await them. UI subscribers must marshal to their main thread.
+The existing `Disconnected` event retains its drain-completion timing; it has
+no ordering guarantee relative to asynchronous state event delivery.
+
+Game clients use the RPC state event to observe a stopped generation without
+waiting for message dispatch to drain. Starting recovery still waits for the
+existing terminal event. See [Game Client Lifecycle](../session.md#game-client-lifecycle).
+
 Client startup links the caller's initial-connect cancellation with runtime
 shutdown. Disposal cancels and joins an outstanding connection attempt before
 releasing the transport; a late successful connect cannot start background loops.

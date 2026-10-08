@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Lakona.Game.Abstractions;
@@ -7,6 +8,8 @@ using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Client.Sessions;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lakona.Game.Client
 {
@@ -28,15 +31,28 @@ namespace Lakona.Game.Client
         private TaskCompletionSource<bool>? _disposal;
         private bool _connectStarted;
         private LakonaGameConnectionState _connectionState;
+        private bool _apiReady;
+        private readonly ILogger _connectionLogger;
+        private readonly Queue<(LakonaGameConnectionStateChange Change, Action<LakonaGameConnectionStateChange> Observers)> _stateChanges = new Queue<(LakonaGameConnectionStateChange, Action<LakonaGameConnectionStateChange>)>();
+        private bool _stateChangesDispatching;
 
         public LakonaGameClientLifecycle(LakonaGameClientOptions options, Action<IRpcClient>? bindCallbacks = null)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _bindCallbacks = bindCallbacks;
             _core = new LakonaGameClientCore(options.ReliablePushCursorStore);
+            _connectionLogger = options.LoggerFactory?.CreateLogger("Lakona.Game.Client.Connection") ?? NullLogger.Instance;
         }
 
         public event Action<Exception?>? Disconnected;
+        /// <summary>Raised for each local connection state transition after subscribing.</summary>
+        /// <remarks>
+        /// Notifications are serialized on the thread pool, outside lifecycle locks. Subscriber failures
+        /// are logged and isolated. The payload describes the transition; ConnectionState may already
+        /// be newer. UI subscribers must marshal to their main thread. Connection and disposal do not
+        /// wait for subscribers, and subscribing does not replay the current state.
+        /// </remarks>
+        public event Action<LakonaGameConnectionStateChange>? ConnectionStateChanged;
         /// <summary>Gets the synchronized state of the current connection generation, independent of session phase.</summary>
         public LakonaGameConnectionState ConnectionState
         {
@@ -70,7 +86,7 @@ namespace Lakona.Game.Client
             {
                 // Preserve the facade's existing proxy-access boundary while queued callbacks drain.
                 // ConnectionState separately reports an RPC stop before the terminal event arrives.
-                if (_connectionState != LakonaGameConnectionState.Connected)
+                if (!_apiReady)
                     throw new InvalidOperationException("LakonaGameClient is not connected. Call ConnectAsync first.");
             }
         }
@@ -85,7 +101,7 @@ namespace Lakona.Game.Client
                 if (_connectStarted)
                     throw new InvalidOperationException("LakonaGameClient is single-use and has already started connecting.");
                 _connectStarted = true;
-                _connectionState = LakonaGameConnectionState.Connecting;
+                SetConnectionState(LakonaGameConnectionState.Connecting);
                 _dispatchContext = SynchronizationContext.Current;
                 _core.MarkConnecting();
                 connecting = ConnectInitialAsync(ct);
@@ -121,6 +137,17 @@ namespace Lakona.Game.Client
                 var client = new RpcClientRuntime(_options.CreateConnectionGeneration());
                 // A candidate can disconnect before it is published as the current generation.
                 bool disconnected = false;
+                client.ConnectionStateChanged += change =>
+                {
+                    if (change.CurrentState != RpcClientConnectionState.Stopped &&
+                        change.CurrentState != RpcClientConnectionState.Disposed) return;
+                    lock (_stateGate)
+                    {
+                        if (_disposal is null && ReferenceEquals(_rpcClient, client) &&
+                            _connectionState == LakonaGameConnectionState.Connected)
+                            SetConnectionState(LakonaGameConnectionState.Reconnecting);
+                    }
+                };
                 client.Disconnected += ex =>
                 {
                     lock (_stateGate)
@@ -163,7 +190,8 @@ namespace Lakona.Game.Client
                         _dispatcher.SetCurrent(client);
                         if (recovering) _core.MarkRecovered();
                         else _core.MarkReady();
-                        _connectionState = LakonaGameConnectionState.Connected;
+                        _apiReady = true;
+                        SetConnectionState(LakonaGameConnectionState.Connected);
                     }
                     if (previous is not null)
                         await previous.DisposeAsync().ConfigureAwait(false);
@@ -204,7 +232,8 @@ namespace Lakona.Game.Client
         {
             if (_disposal is not null || !ReferenceEquals(_rpcClient, source))
                 return;
-            _connectionState = LakonaGameConnectionState.Reconnecting;
+            _apiReady = false;
+            SetConnectionState(LakonaGameConnectionState.Reconnecting);
             _dispatcher.ClearCurrent(source);
             _core.MarkReconnecting();
             if (_recoveryTask is null || _recoveryTask.IsCompleted)
@@ -254,7 +283,7 @@ namespace Lakona.Game.Client
             lock (_stateGate)
             {
                 if (_disposal is not null) return;
-                _connectionState = LakonaGameConnectionState.Disconnected;
+                SetConnectionState(LakonaGameConnectionState.Disconnected);
             }
             Disconnected?.Invoke(disconnectReason);
         }
@@ -267,7 +296,12 @@ namespace Lakona.Game.Client
                 if (_disposal is not null) return new ValueTask(_disposal.Task);
                 completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 _disposal = completion;
-                _connectionState = LakonaGameConnectionState.Disposed;
+                // Do not skip an already visible stop if its RPC notification is still queued.
+                if (_connectionState == LakonaGameConnectionState.Connected &&
+                    _rpcClient!.ConnectionState != RpcClientConnectionState.Connected)
+                    SetConnectionState(LakonaGameConnectionState.Reconnecting);
+                _apiReady = false;
+                SetConnectionState(LakonaGameConnectionState.Disposed);
                 if (_rpcClient is not null) _dispatcher.ClearCurrent(_rpcClient);
             }
             _ = CompleteDisposalAsync(completion);
@@ -308,6 +342,42 @@ namespace Lakona.Game.Client
             catch (Exception exception)
             {
                 completion.TrySetException(exception);
+            }
+        }
+
+        // Called under _stateGate; application observers never run under this lock.
+        private void SetConnectionState(LakonaGameConnectionState state)
+        {
+            if (_connectionState == state) return;
+            var change = new LakonaGameConnectionStateChange(_connectionState, state);
+            _connectionState = state;
+            var observers = ConnectionStateChanged;
+            if (observers is null) return;
+            _stateChanges.Enqueue((change, observers));
+            if (_stateChangesDispatching) return;
+            _stateChangesDispatching = true;
+            ThreadPool.QueueUserWorkItem(_ => DispatchStateChanges());
+        }
+
+        private void DispatchStateChanges()
+        {
+            while (true)
+            {
+                (LakonaGameConnectionStateChange Change, Action<LakonaGameConnectionStateChange> Observers) notification;
+                lock (_stateGate)
+                {
+                    if (_stateChanges.Count == 0) { _stateChangesDispatching = false; return; }
+                    notification = _stateChanges.Dequeue();
+                }
+                foreach (Action<LakonaGameConnectionStateChange> observer in notification.Observers.GetInvocationList())
+                {
+                    try { observer(notification.Change); }
+                    catch (Exception ex)
+                    {
+                        _connectionLogger.LogError(ex, "Game connection state subscriber failed for {PreviousState} -> {CurrentState}.",
+                            notification.Change.PreviousState, notification.Change.CurrentState);
+                    }
+                }
             }
         }
     }

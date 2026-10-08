@@ -43,6 +43,10 @@ one standard application boundary.
 `LakonaGameClientOptions` derives from `RpcClientOptions`, so one factory
 captures both Game and underlying RPC events. Automatic Game client recovery
 passes that same factory to each replacement connection generation.
+Connection-state subscriber failures are isolated and logged at Error level:
+Game facade events use `Lakona.Game.Client.Connection`, while RPC runtime
+events use the existing `Lakona.Rpc.Client.Request` category. Both include
+`PreviousState`, `CurrentState`, and the subscriber exception.
 
 `LakonaGameServerBuilder.ConfigureLogging` configures the root host. Game.Server
 passes the resulting factory to framework services, client-facing RPC hosts,

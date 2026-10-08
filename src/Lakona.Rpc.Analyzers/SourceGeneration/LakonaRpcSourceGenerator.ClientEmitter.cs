@@ -189,6 +189,12 @@ public sealed partial class LakonaRpcSourceGenerator
             writer.Line("remove => _runtime.Disconnected -= value;");
             writer.CloseBlock();
             writer.Line();
+            writer.Line("/// <summary>Ordered connection transitions on the thread pool; UI handlers must marshal to their main thread.</summary>");
+            writer.OpenBlock("public event Action<RpcClientConnectionStateChange>? ConnectionStateChanged");
+            writer.Line("add => _runtime.ConnectionStateChanged += value;");
+            writer.Line("remove => _runtime.ConnectionStateChanged -= value;");
+            writer.CloseBlock();
+            writer.Line();
             writer.OpenBlock("public event Action<RpcUnhandledNotificationContext>? UnhandledNotificationReceived");
             writer.Line("add => _runtime.UnhandledNotificationReceived += value;");
             writer.Line("remove => _runtime.UnhandledNotificationReceived -= value;");
@@ -254,6 +260,11 @@ public sealed partial class LakonaRpcSourceGenerator
             writer.CloseBlock();
             writer.Line();
             writer.Line("public ClientSessionSnapshot Snapshot => _lifecycle.Snapshot;");
+            writer.Line("/// <summary>Ordered connection transitions on the thread pool; UI handlers must marshal to their main thread.</summary>");
+            writer.OpenBlock("public event Action<LakonaGameConnectionStateChange>? ConnectionStateChanged");
+            writer.Line("add => _lifecycle.ConnectionStateChanged += value;");
+            writer.Line("remove => _lifecycle.ConnectionStateChanged -= value;");
+            writer.CloseBlock();
             writer.Line("/// <summary>The local connection lifecycle, independent of business login and session phase.</summary>");
             writer.Line("public LakonaGameConnectionState ConnectionState => _lifecycle.ConnectionState;");
             writer.Line("/// <summary>Whether the current connection completed Game initialization or recovery confirmation; subsequent calls may still fail.</summary>");

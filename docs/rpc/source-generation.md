@@ -100,6 +100,10 @@ The generated Game facade also exposes `ConnectionState`
 from the `Connected` state. Both follow the current connection generation across
 recovery; they do not substitute for business login or `Snapshot.Phase`. See
 [Game Client Lifecycle](../session.md#game-client-lifecycle) for state transitions.
+The facade forwards `ConnectionStateChanged` with `LakonaGameConnectionStateChange`
+(`PreviousState`, `CurrentState`). The plain generated `RpcClient` forwards its
+runtime's event with `RpcClientConnectionStateChange`. Both deliver ordered
+notifications on the thread pool; UI code must marshal to its main thread.
 When updating an existing project to use these members, update the Game client,
 RPC client, and RPC Core package containing the generator together, then rebuild
 the source-generated client.

@@ -81,9 +81,11 @@ Regular application projects should build against this layer.
 - `RpcClientOptions` (intentionally unsealed; `LakonaGameClientOptions` is the
   supported game-layer subclass).
 - `RpcClientRuntime` when used through generated clients or advanced client wiring.
-- `RpcClientRuntime.ConnectionState` and `RpcClientConnectionState` for the
+- `RpcClientRuntime.ConnectionState`, `ConnectionStateChanged`,
+  `RpcClientConnectionState`, and `RpcClientConnectionStateChange` for the
   synchronized local [RPC lifecycle](architecture.md#client-lifetime).
-- Generated `LakonaGameClient.ConnectionState`, `LakonaGameConnectionState`, and
+- Generated `LakonaGameClient.ConnectionState`, `ConnectionStateChanged`,
+  `LakonaGameConnectionState`, `LakonaGameConnectionStateChange`, and
   its derived `IsConnected` property for the [Game connection lifecycle](../session.md#game-client-lifecycle),
   independently of business login and session phase.
 - `RpcServerHostBuilder` high-level host configuration.
