@@ -1,13 +1,17 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Microsoft.Extensions.Logging;
+using System.Threading.Channels;
 using Xunit;
 
 namespace Lakona.Game.Cluster.Rpc.Tests;
 
 public sealed class ClusterClientFactoryTests
 {
+    private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(5);
+
     [Fact]
     public async Task GetClientAsync_propagates_the_server_logger_factory_to_outbound_rpc_clients()
     {
@@ -191,6 +195,148 @@ public sealed class ClusterClientFactoryTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
     }
 
+    [Fact]
+    public async Task Stopped_client_is_replaced_before_response_drain_without_replaying_the_request()
+    {
+        var transportFactory = new RecordingTransportFactory();
+        await using var factory = new ClusterClientFactory(CreateChannel(transportFactory));
+        var target = CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001");
+        var context = new PausedContext();
+        var first = Assert.IsType<RpcClientRuntime>(await GetClientWithContext(factory, target, context));
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var disposed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        first.ConnectionStateChanged += change =>
+        {
+            if (change.CurrentState == RpcClientConnectionState.Stopped) stopped.TrySetResult();
+            if (change.CurrentState == RpcClientConnectionState.Disposed) disposed.TrySetResult();
+        };
+        var disconnected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        first.Disconnected += _ => disconnected.TrySetResult();
+        var transport = transportFactory.Transports[0];
+        transport.RespondToRequests = true;
+        var pending = first.CallRawAsync(1, 1, new byte[] { 42 }, TestContext.Current.CancellationToken).AsTask();
+        await context.Posted.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        transport.Disconnect();
+        await stopped.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+
+        var calls = Enumerable.Range(0, 32)
+            .Select(_ => factory.GetClientAsync(target, TestContext.Current.CancellationToken).AsTask());
+        var replacements = await Task.WhenAll(calls).WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        Assert.Equal(2, transportFactory.Calls.Count);
+        Assert.All(replacements, replacement => Assert.Same(replacements[0], replacement));
+        Assert.NotSame(first, replacements[0]);
+        Assert.False(pending.IsCompleted);
+        Assert.False(disconnected.Task.IsCompleted);
+        Assert.False(transport.Disposed.Task.IsCompleted);
+        Assert.Equal(1, transport.RequestCount);
+        Assert.Equal(0, transportFactory.Transports[1].RequestCount);
+
+        context.Run();
+        using var response = await pending.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        Assert.Equal(new byte[] { 42 }, response.Memory.ToArray());
+        await disconnected.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        await transport.Disposed.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        await disposed.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        Assert.Same(replacements[0], await factory.GetClientAsync(target, TestContext.Current.CancellationToken));
+        Assert.Equal(2, transportFactory.Calls.Count);
+    }
+
+    [Fact]
+    public async Task Disposed_client_is_replaced_while_its_transport_cleanup_is_pending()
+    {
+        var transportFactory = new RecordingTransportFactory();
+        await using var factory = new ClusterClientFactory(CreateChannel(transportFactory));
+        var target = CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001");
+        var first = Assert.IsType<RpcClientRuntime>(await factory.GetClientAsync(target, TestContext.Current.CancellationToken));
+        var transport = transportFactory.Transports[0];
+        transport.DisposeRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var disposal = first.DisposeAsync().AsTask();
+        try
+        {
+            // Get immediately: cache admission must use the state even if notification delivery lags.
+            var replacement = await factory.GetClientAsync(target, TestContext.Current.CancellationToken)
+                .AsTask().WaitAsync(Deadline, TestContext.Current.CancellationToken);
+            Assert.NotSame(first, replacement);
+            Assert.Equal(RpcClientConnectionState.Connected, Assert.IsType<RpcClientRuntime>(replacement).ConnectionState);
+            Assert.False(disposal.IsCompleted);
+            Assert.Equal(2, transportFactory.Calls.Count);
+        }
+        finally
+        {
+            transport.DisposeRelease.TrySetResult();
+            await disposal.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Factory_disposal_cancels_and_joins_evicted_clients_still_draining_responses()
+    {
+        var transportFactory = new RecordingTransportFactory();
+        await using var factory = new ClusterClientFactory(CreateChannel(transportFactory));
+        var target = CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001");
+        var context = new PausedContext();
+        var first = Assert.IsType<RpcClientRuntime>(await GetClientWithContext(factory, target, context));
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        first.ConnectionStateChanged += change =>
+        {
+            if (change.CurrentState == RpcClientConnectionState.Stopped) stopped.TrySetResult();
+        };
+        var transport = transportFactory.Transports[0];
+        transport.RespondToRequests = true;
+        transport.DisposeRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = first.CallRawAsync(1, 1, new byte[] { 42 }, TestContext.Current.CancellationToken).AsTask();
+        await context.Posted.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        transport.Disconnect();
+        await stopped.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        await factory.GetClientAsync(target, TestContext.Current.CancellationToken);
+
+        var disposal = factory.DisposeAsync().AsTask();
+        try
+        {
+            await transport.Disposing.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+            Assert.False(disposal.IsCompleted);
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => pending.WaitAsync(Deadline, TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            transport.DisposeRelease.TrySetResult();
+            await disposal.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        }
+
+        Assert.All(transportFactory.Transports, item => Assert.True(item.Disposed.Task.IsCompleted));
+        Assert.All(transportFactory.Transports, item => Assert.Equal(1, item.DisposeCount));
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => factory.GetClientAsync(target, TestContext.Current.CancellationToken).AsTask());
+    }
+
+    private static Task<IRpcClient> GetClientWithContext(
+        ClusterClientFactory factory, RouteLocation target, SynchronizationContext context)
+    {
+        var previous = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(context);
+        try
+        {
+            return factory.GetClientAsync(target, TestContext.Current.CancellationToken).AsTask();
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+    }
+
+    private sealed class PausedContext : SynchronizationContext
+    {
+        private SendOrPostCallback? _callback;
+        private object? _state;
+        public TaskCompletionSource Posted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public override void Post(SendOrPostCallback callback, object? state)
+        {
+            _callback = callback;
+            _state = state;
+            Posted.TrySetResult();
+        }
+        public void Run() => _callback!(_state);
+    }
+
     private sealed class RecordingTransportFactory : IClusterRpcTransport
     {
         public string Scheme => "tcp";
@@ -244,7 +390,14 @@ public sealed class ClusterClientFactoryTests
     private sealed class IdleTransport : ITransport
     {
         private byte[]? _negotiationRequest;
-        private readonly TaskCompletionSource _disconnect = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private bool _negotiated;
+        private readonly Channel<TransportFrame> _responses = Channel.CreateUnbounded<TransportFrame>();
+
+        public bool RespondToRequests { get; set; }
+        public int RequestCount;
+        public int DisposeCount;
+        public TaskCompletionSource? DisposeRelease { get; set; }
+        public TaskCompletionSource Disposing { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public TaskCompletionSource Disposed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -262,7 +415,21 @@ public sealed class ClusterClientFactoryTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            _negotiationRequest = frame.ToArray();
+            if (!_negotiated)
+            {
+                _negotiationRequest = frame.ToArray();
+            }
+            else if (RpcEnvelopeCodec.PeekFrameType(frame.Span) == RpcFrameType.Request)
+            {
+                Interlocked.Increment(ref RequestCount);
+                if (RespondToRequests)
+                {
+                    using var bytes = TransportFrame.CopyOf(frame.Span);
+                    using var request = RpcEnvelopeCodec.DecodeRequest(bytes);
+                    _responses.Writer.TryWrite(RpcEnvelopeCodec.EncodeResponse(
+                        request.RequestId, RpcStatus.Ok, request.Payload.Memory));
+                }
+            }
             return default;
         }
 
@@ -274,25 +441,31 @@ public sealed class ClusterClientFactoryTests
             {
                 var response = request.ToArray();
                 response[5] = 2;
+                _negotiated = true;
                 return TransportFrame.CopyOf(response);
             }
 
-            await _disconnect.Task.WaitAsync(cancellationToken);
+            if (await _responses.Reader.WaitToReadAsync(cancellationToken) && _responses.Reader.TryRead(out var frame))
+            {
+                return frame;
+            }
             return TransportFrame.Empty;
         }
 
-        public ValueTask DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
+            Interlocked.Increment(ref DisposeCount);
+            Disposing.TrySetResult();
+            if (DisposeRelease is not null) await DisposeRelease.Task;
             IsConnected = false;
-            _disconnect.TrySetResult();
+            _responses.Writer.TryComplete();
             Disposed.TrySetResult();
-            return default;
         }
 
         public void Disconnect()
         {
             IsConnected = false;
-            _disconnect.TrySetResult();
+            _responses.Writer.TryComplete();
         }
     }
 

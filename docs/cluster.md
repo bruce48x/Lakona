@@ -367,6 +367,19 @@ Types below `Lakona.Game.Cluster.Rpc` are internal implementation details.
 Applications compose the high-level game server and use the public membership
 identity and snapshot contracts rather than replacing the wire protocol.
 
+The outbound client factory observes RPC connection state changes and evicts
+`Stopped` or `Disposed` runtimes from its connection cache. Because state
+notifications are asynchronous, it also checks the runtime state before
+returning a cached client. Subsequent callers share one new connection attempt
+on demand; already-issued requests are not replayed. A stopped runtime keeps
+draining responses already received, and transport cleanup follows
+`Disconnected`. The factory retains ownership of evicted clients until cleanup
+finishes so shutdown also cancels and joins clients still draining.
+
+These local connection observations do not update Membership or Actor
+Directory ownership. Failure detection and exact-incarnation routing remain
+authoritative; a connected runtime does not guarantee a subsequent RPC succeeds.
+
 ## Consensus Model And Scope
 
 Membership no longer runs consensus among game-server processes. The selected

@@ -4,11 +4,11 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-10-08 — Client connection notifications and integration guidance
+## 2026-10-08 — Connection notifications and integration guidance
 
-**Key releases:** `Lakona.Game.Server 0.51.4`, `Lakona.Game.Client 0.5.15`,
-`Lakona.Rpc.Client 0.14.8`, `Lakona.Rpc.Core 0.14.11`, `Lakona.Tool 0.43.42`,
-and `Lakona Hub 0.17.44`.
+**Key releases:** `Lakona.Game.Server 0.51.5`, `Lakona.Game.Client 0.5.15`,
+`Lakona.Rpc.Client 0.14.8`, `Lakona.Rpc.Core 0.14.11`, `Lakona.Tool 0.43.43`,
+and `Lakona Hub 0.17.45`.
 
 - Generated projects bundle `lakona-integrate-game-client` to guide connection
   progress, business login, automatic recovery, main-thread presentation, and
@@ -19,7 +19,9 @@ and `Lakona Hub 0.17.44`.
 - RPC and generated Game clients publish ordered `ConnectionStateChanged`
   notifications, including recovery progress before the stopped generation
   finishes draining. Subscriber failures are isolated, and engine UI guidance
-  covers main-thread delivery and stale client ownership.
+  covers main-thread delivery and stale client ownership. Cluster clients evict
+  stopped connections before response draining finishes, share replacement
+  connections on demand, and retain draining clients for shutdown cleanup.
 
 ## 2026-10-05 — Client connection lifecycle queries
 

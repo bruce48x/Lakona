@@ -14,6 +14,9 @@ namespace Lakona.Game.Cluster.Rpc
     {
         private readonly ConcurrentDictionary<ClientKey, ClientEntry> _clients =
             new ConcurrentDictionary<ClientKey, ClientEntry>();
+        private readonly object _lifecycleGate = new();
+        // Evicted clients remain owned until their queued responses and transport cleanup finish.
+        private readonly HashSet<ClientEntry> _ownedClients = new();
         private readonly ClusterRpcChannel _channel;
         private readonly IRpcSerializer _serializer;
         private readonly ClusterClientFactoryOptions _options;
@@ -61,15 +64,30 @@ namespace Lakona.Game.Cluster.Rpc
         {
             while (true)
             {
-                ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-                var candidate = new ClientEntry(entry => ConnectAsync(endpoint, key, entry));
-                var selected = _clients.GetOrAdd(key, candidate);
-                var runtimeTask = selected.RuntimeTask;
+                cancellationToken.ThrowIfCancellationRequested();
+                ClientEntry candidate;
+                ClientEntry selected;
+                Task<RpcClientRuntime> runtimeTask;
+                lock (_lifecycleGate)
+                {
+                    ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+                    candidate = new ClientEntry(entry => ConnectAsync(endpoint, key, entry));
+                    selected = _clients.GetOrAdd(key, candidate);
+                    _ownedClients.Add(selected);
+                    runtimeTask = selected.RuntimeTask;
+                }
                 try
                 {
                     var runtime = await runtimeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
                     if (!_clients.TryGetValue(key, out var cached) || !ReferenceEquals(cached, selected))
                     {
+                        continue;
+                    }
+
+                    // State notifications are asynchronous; do not depend on delivery to stop reuse.
+                    if (runtime.ConnectionState != RpcClientConnectionState.Connected)
+                    {
+                        RemoveCached(key, selected);
                         continue;
                     }
 
@@ -84,8 +102,8 @@ namespace Lakona.Game.Cluster.Rpc
                 {
                     if (runtimeTask.IsCompleted && !runtimeTask.IsCompletedSuccessfully)
                     {
-                        ((ICollection<KeyValuePair<ClientKey, ClientEntry>>)_clients)
-                            .Remove(new KeyValuePair<ClientKey, ClientEntry>(key, selected));
+                        RemoveCached(key, selected);
+                        ReleaseOwnership(selected);
                     }
                     throw;
                 }
@@ -97,17 +115,30 @@ namespace Lakona.Game.Cluster.Rpc
             ClientKey key,
             ClientEntry entry)
         {
-            using var timeout = CreateConnectTimeout(_shutdown.Token);
-            var effectiveToken = timeout?.Token ?? _shutdown.Token;
-            var transport = await _channel.ConnectAsync(endpoint, effectiveToken).ConfigureAwait(false);
-            var runtime = new RpcClientRuntime(
-                transport,
-                _serializer,
-                _options.KeepAlive,
-                _loggerFactory);
-            runtime.Disconnected += _ => RemoveDisconnected(key, entry, runtime);
+            RpcClientRuntime? runtime = null;
             try
             {
+                using var timeout = CreateConnectTimeout(_shutdown.Token);
+                var effectiveToken = timeout?.Token ?? _shutdown.Token;
+                var transport = await _channel.ConnectAsync(endpoint, effectiveToken).ConfigureAwait(false);
+                runtime = new RpcClientRuntime(
+                    transport,
+                    _serializer,
+                    _options.KeepAlive,
+                    _loggerFactory);
+                var connectedRuntime = runtime;
+                runtime.ConnectionStateChanged += change =>
+                {
+                    if (change.CurrentState is RpcClientConnectionState.Stopped or RpcClientConnectionState.Disposed)
+                    {
+                        RemoveCached(key, entry);
+                    }
+                };
+                runtime.Disconnected += reason =>
+                {
+                    RemoveCached(key, entry);
+                    _ = DisposeRuntimeAsync(entry, connectedRuntime);
+                };
                 await runtime.StartAsync(CancellationToken.None).ConfigureAwait(false);
                 ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 
@@ -115,16 +146,33 @@ namespace Lakona.Game.Cluster.Rpc
             }
             catch
             {
-                await runtime.DisposeAsync().ConfigureAwait(false);
+                try
+                {
+                    if (runtime is not null)
+                    {
+                        await runtime.DisposeAsync().ConfigureAwait(false);
+                    }
+                }
+                finally
+                {
+                    ReleaseOwnership(entry);
+                }
                 throw;
             }
         }
 
         public async ValueTask DisposeAsync()
         {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            ClientEntry[] clients;
+            lock (_lifecycleGate)
             {
-                return;
+                if (Interlocked.Exchange(ref _disposed, 1) != 0)
+                {
+                    return;
+                }
+                clients = new ClientEntry[_ownedClients.Count];
+                _ownedClients.CopyTo(clients);
+                _clients.Clear();
             }
 
             try
@@ -135,24 +183,9 @@ namespace Lakona.Game.Cluster.Rpc
             {
             }
 
-            var clients = _clients.ToArray();
-            _clients.Clear();
             foreach (var client in clients)
             {
-                if (!client.Value.IsValueCreated)
-                {
-                    continue;
-                }
-
-                try
-                {
-                    await (await client.Value.RuntimeTask.ConfigureAwait(false))
-                        .DisposeAsync()
-                        .ConfigureAwait(false);
-                }
-                catch
-                {
-                }
+                await DisposeWhenReadyAsync(client).ConfigureAwait(false);
             }
             _shutdown.Dispose();
         }
@@ -164,33 +197,34 @@ namespace Lakona.Game.Cluster.Rpc
 
         private void RemoveSuperseded(ClientKey current)
         {
-            foreach (var cached in _clients)
+            var superseded = new List<ClientEntry>();
+            lock (_lifecycleGate)
             {
-                if (!current.IsExact || !cached.Key.IsExact
-                    || cached.Key.Node != current.Node || cached.Key.Equals(current) ||
-                    !((ICollection<KeyValuePair<ClientKey, ClientEntry>>)_clients)
-                        .Remove(cached))
+                foreach (var cached in _clients)
                 {
-                    continue;
+                    if (!current.IsExact || !cached.Key.IsExact
+                        || cached.Key.Node != current.Node || cached.Key.Equals(current) ||
+                        !((ICollection<KeyValuePair<ClientKey, ClientEntry>>)_clients)
+                            .Remove(cached))
+                    {
+                        continue;
+                    }
+                    superseded.Add(cached.Value);
                 }
-
-                if (cached.Value.IsValueCreated)
-                {
-                    _ = DisposeWhenReadyAsync(cached.Value.RuntimeTask);
-                }
+            }
+            foreach (var entry in superseded)
+            {
+                _ = DisposeWhenReadyAsync(entry);
             }
         }
 
-        private void RemoveDisconnected(ClientKey key, ClientEntry entry, RpcClientRuntime runtime)
+        private void RemoveCached(ClientKey key, ClientEntry entry)
         {
-            if (((ICollection<KeyValuePair<ClientKey, ClientEntry>>)_clients)
-                .Remove(new KeyValuePair<ClientKey, ClientEntry>(key, entry)))
-            {
-                _ = DisposeRuntimeAsync(runtime);
-            }
+            ((ICollection<KeyValuePair<ClientKey, ClientEntry>>)_clients)
+                .Remove(new KeyValuePair<ClientKey, ClientEntry>(key, entry));
         }
 
-        private static async Task DisposeRuntimeAsync(RpcClientRuntime runtime)
+        private async Task DisposeRuntimeAsync(ClientEntry entry, RpcClientRuntime runtime)
         {
             try
             {
@@ -199,17 +233,33 @@ namespace Lakona.Game.Cluster.Rpc
             catch
             {
             }
+            finally
+            {
+                ReleaseOwnership(entry);
+            }
         }
 
-        private static async Task DisposeWhenReadyAsync(Task<RpcClientRuntime> runtimeTask)
+        private async Task DisposeWhenReadyAsync(ClientEntry entry)
         {
             try
             {
-                var runtime = await runtimeTask.ConfigureAwait(false);
-                await runtime.DisposeAsync().ConfigureAwait(false);
+                var runtime = await entry.RuntimeTask.ConfigureAwait(false);
+                await DisposeRuntimeAsync(entry, runtime).ConfigureAwait(false);
             }
             catch
             {
+            }
+            finally
+            {
+                ReleaseOwnership(entry);
+            }
+        }
+
+        private void ReleaseOwnership(ClientEntry entry)
+        {
+            lock (_lifecycleGate)
+            {
+                _ownedClients.Remove(entry);
             }
         }
 
@@ -235,8 +285,6 @@ namespace Lakona.Game.Cluster.Rpc
                     () => connect(this),
                     LazyThreadSafetyMode.ExecutionAndPublication);
             }
-
-            public bool IsValueCreated => _runtime.IsValueCreated;
 
             public Task<RpcClientRuntime> RuntimeTask => _runtime.Value;
         }
