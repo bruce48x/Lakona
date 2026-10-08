@@ -20,20 +20,10 @@ database, and data model remain yours.
 [See the samples](#see-it-in-action) ·
 [Browse the docs](#learn-more)
 
-## Start Here 🖥️
-
-For the easiest desktop workflow, [download Lakona Hub](https://github.com/bruce48x/Lakona/releases).
-Hub guides project creation, detects compatible .NET SDKs and client editors,
-imports existing Lakona projects, packages server and Hotfix releases, and
-opens your development tools. Every generated project remains ordinary files
-that you can build and use without Hub. See the [Hub documentation](docs/tool/lakona-hub.md).
-
-For terminal workflows and CI, use `Lakona.Tool`; the CLI path is below.
-
 ## Why Lakona ✨
 
-- **🧩 Generate a complete project.** One command creates the shared contracts,
-  server host, hotfix project, and Unity or Godot client in one workspace.
+- **🧩 Generate a complete workspace.** Create the shared contracts, server
+  host, hotfix project, and Unity or Godot client together in one workspace.
 - **🔗 Define the contract once.** Shared C# interfaces, DTOs, callbacks, and
   protocol types are compiled for both client and server, reducing protocol
   drift during development. See [RPC architecture](docs/rpc/architecture.md).
@@ -55,43 +45,13 @@ Lakona is infrastructure, not a full game business framework. Your game owns
 accounts, matchmaking policy, room rules, gameplay simulation, persistence
 schema, rewards, and UI architecture.
 
-## Quick Start ⚡
+## Start Here 🖥️
 
-Prerequisites:
-
-- [.NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
-- [Unity 2022 LTS](https://unity.com/releases/editor/archive) or
-  [Godot 4.x .NET](https://godotengine.org/download/archive/)
-
-Install the project tool and create a Unity starter project:
-
-```bash
-dotnet tool install -g Lakona.Tool
-lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack
-```
-
-Build the generated server and hotfix project:
-
-```bash
-cd MyGame
-dotnet build "Server/Server.slnx"
-```
-
-Start the server:
-
-```bash
-dotnet run --project "Server/App/Server.App.csproj" --no-build
-```
-
-In another terminal, check that the generated runtime is ready:
-
-```bash
-curl http://127.0.0.1:20080/_lakona/health/ready
-```
-
-Then open the generated `Client/` project in Unity or Godot. For the complete
-first-run walkthrough, including the Godot command and client setup, read
-[Create and Run a Lakona Project](https://bruce48x.github.io/Lakona/posts/getting-started/).
+For the easiest desktop workflow, [download Lakona Hub](https://github.com/bruce48x/Lakona/releases).
+Hub guides project creation, detects compatible .NET SDKs and client editors,
+imports existing Lakona projects, packages server and Hotfix releases, and
+opens your development tools. Every generated project remains ordinary files
+that you can build and use without Hub. See the [Hub documentation](docs/tool/lakona-hub.md).
 
 ## See It In Action 🎮
 
@@ -162,3 +122,43 @@ client packages, Unity 2022 LTS, Godot 4.x .NET, and Windows, Linux, and macOS.
 
 Contributor rules, package boundaries, testing expectations, and release policy
 live in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Quick Start ⚡
+
+For terminal workflows and CI, use `Lakona.Tool`.
+
+Prerequisites:
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
+- [Unity 2022 LTS](https://unity.com/releases/editor/archive) or
+  [Godot 4.x .NET](https://godotengine.org/download/archive/)
+
+Install the project tool and create a Unity starter project:
+
+```bash
+dotnet tool install -g Lakona.Tool
+lakona-tool new --name MyGame --client-engine unity --transport kcp --serializer memorypack
+```
+
+Build the generated server and hotfix project:
+
+```bash
+cd MyGame
+dotnet build "Server/Server.slnx"
+```
+
+Start the server:
+
+```bash
+dotnet run --project "Server/App/Server.App.csproj" --no-build
+```
+
+In another terminal, check that the generated runtime is ready:
+
+```bash
+curl http://127.0.0.1:20080/_lakona/health/ready
+```
+
+Then open the generated `Client/` project in Unity or Godot. For the complete
+first-run walkthrough, including the Godot command and client setup, read
+[Create and Run a Lakona Project](https://bruce48x.github.io/Lakona/posts/getting-started/).
