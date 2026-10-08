@@ -1,6 +1,7 @@
 # Lakona.Rpc.Transport.Loopback
 
-In-memory loopback transport for local tests in Lakona.Rpc.
+In-memory paired RPC transport for local tests. Use it to exercise the client
+and server without an operating-system socket.
 
 ## Install
 
@@ -8,17 +9,14 @@ In-memory loopback transport for local tests in Lakona.Rpc.
 dotnet add package Lakona.Rpc.Transport.Loopback
 ```
 
-## Documentation
+## Usage
 
-Design boundary: https://bruce48x.github.io/Lakona/concepts/design-boundary/
+```csharp
+LoopbackTransport.CreatePair(out var client, out var server);
+```
 
-## Includes
+Import `Lakona.Rpc.Transport.Loopback`. The overload accepting `queueCapacity`
+supports deterministic backpressure tests.
 
-- `LoopbackTransport.CreatePair(out client, out server)`
-- `LoopbackTransport.CreatePair(out client, out server, queueCapacity)` for
-  deterministic backpressure tests
-
-Each direction has a bounded queue with a default capacity of 256 frames.
-Sending waits for capacity and observes cancellation. Disposing either endpoint
-closes the whole pair: both endpoints become disconnected, pending receives
-observe EOF, and pending or later sends are rejected.
+See the [Loopback contract](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/transport-contract.md#loopback) for
+queue bounds, cancellation, pair disposal, and verification limits.

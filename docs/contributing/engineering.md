@@ -67,6 +67,11 @@ blog/        Hugo article sources
   table. Avoid unrelated refactors unless required for a safe solution.
 - Keep package README files user-facing; put maintainer rationale in current
   `docs/**` authorities, not blog posts or completed implementation plans.
+- Keep package README files as concise entry points: package purpose,
+  installation, necessary minimal examples, and links to detailed guides.
+  Replace duplicated configuration, lifecycle contracts, and complete tutorials
+  with links to the relevant `docs/**`, public Skills, or runnable samples.
+  Use absolute repository URLs for links in READMEs shipped inside NuGet packages.
 - Use `docs/plans/**` only for temporary active plans, reviews, and
   handoffs. Move durable rules to an authority document, then delete completed
   artifacts.

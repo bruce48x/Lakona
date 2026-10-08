@@ -1,15 +1,18 @@
 # Lakona.Game.Clustering.Postgres
 
-`Lakona.Game.Clustering.Postgres` stores Lakona cluster membership in PostgreSQL.
-Reference it from the stable server application and register it after the core
-game-server services:
+PostgreSQL Membership storage for multi-process Lakona clusters. Reference this
+Adapter from the stable server application.
+
+## Install and Register
+
+```powershell
+dotnet add package Lakona.Game.Clustering.Postgres
+```
 
 ```csharp
 services.AddLakonaPostgresClustering(configuration);
 ```
 
-Set `Lakona:Cluster:Membership:Provider` to `Postgres` and provide the runtime
-connection under the configured `ConnectionStringName`. Before starting or
-upgrading a cluster, apply the packaged
-`database/postgresql/membership.sql` with a separate deployment account. The
-runtime account needs data access only and must not receive DDL privileges.
+See [Membership providers](https://github.com/bruce48x/Lakona/blob/main/docs/cluster.md#providers) for connection
+configuration, the packaged `database/postgresql/membership.sql` deployment
+step, runtime grants, and upgrade requirements.

@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-10-08 — Package documentation and Game client integration guidance
+
+**Key releases:** `Lakona.Game.Server 0.51.3`, `Lakona.Game.Client 0.5.14`,
+`Lakona.Rpc.Core 0.14.10`, `Lakona.Tool 0.43.41`, and `Lakona Hub 0.17.43`.
+
+- Generated projects bundle `lakona-integrate-game-client` to guide connection
+  progress, business login, automatic recovery, main-thread presentation, and
+  disposal using the generated client's connection lifecycle API.
+- Package README files provide installation and minimal entry examples, with
+  detailed configuration, lifecycle, and tutorials linked to the maintained
+  documentation and public Skills.
+
 ## 2026-10-05 — Client connection lifecycle queries
 
 **Key releases:** `Lakona.Rpc.Client 0.14.6`, `Lakona.Rpc.Core 0.14.9`,

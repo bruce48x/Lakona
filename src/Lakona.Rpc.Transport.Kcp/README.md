@@ -1,6 +1,7 @@
 # Lakona.Rpc.Transport.Kcp
 
-KCP transport primitives for Lakona.Rpc.
+KCP client and server transport for Lakona.Rpc. Use `KcpTransport` on the client
+and `KcpConnectionAcceptor` with the server host.
 
 ## Install
 
@@ -8,62 +9,17 @@ KCP transport primitives for Lakona.Rpc.
 dotnet add package Lakona.Rpc.Transport.Kcp
 ```
 
-## Documentation
-
-Design boundary: https://bruce48x.github.io/Lakona/concepts/design-boundary/
-
-## Includes
-
-- `KcpTransport`
-- `KcpListener`
-- `KcpAcceptResult`
-- `KcpServerTransport`
-- `KcpConnectionAcceptor`
-
-## Server Usage
+## Client Construction
 
 ```csharp
-var builder = RpcServerHostBuilder.Create()
-    .UseCommandLine(args)
-    .UseSerializer(new MemoryPackRpcSerializer());
-
-builder.UseAcceptor(new KcpConnectionAcceptor(
-    20000,
-    builder.Limits.MaxPendingAcceptedConnections));
-
-using var shutdown = new CancellationTokenSource();
-ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
-{
-    eventArgs.Cancel = true;
-    shutdown.Cancel();
-};
-Console.CancelKeyPress += cancelHandler;
-try
-{
-    await builder.RunAsync(shutdown.Token);
-}
-finally
-{
-    Console.CancelKeyPress -= cancelHandler;
-}
+var transport = new KcpTransport("127.0.0.1", 20000);
+var assigned = new KcpTransport("127.0.0.1", 20000, conversationId: 1234);
 ```
 
-The server listener keeps slow-consumer buffering inside each connection's KCP
-receive window. It does not pre-decode an unbounded application frame queue or
-block the shared UDP listener while waiting for application admission or one
-RPC Session to read. Configure application and framework admission through
-`RpcServerHostBuilder.UseSessionAdmissionGate` rather than the transport
-handshake.
+Import `Lakona.Rpc.Transport.Kcp`; pass the selected transport to client options.
 
-## Client Usage
+## Guides
 
-`KcpTransport` can generate its own conversation id or use an assigned `conv`:
-
-```csharp
-var generatedConv = new KcpTransport("127.0.0.1", 20001);
-var assignedConv = new KcpTransport("127.0.0.1", 20001, conversationId: 1234);
-```
-
-Pass a cancellation token to `ConnectAsync` to cancel establishment early.
-Bootstrap deadlines, rejection errors, and connection identity are defined in
-the [transport lifecycle contract](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/transport-contract.md#kcp).
+- [KCP transport contract](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/transport-contract.md#kcp): establishment, identity, buffering, cancellation, and rejection.
+- [RPC hosting](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/architecture.md): server composition and admission.
+- [Game client integration](https://github.com/bruce48x/Lakona/blob/main/skills/lakona-integrate-game-client/SKILL.md): recovery-capable transport factories.

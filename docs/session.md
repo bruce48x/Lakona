@@ -493,6 +493,26 @@ that a subsequent RPC will succeed. Business code should query the generated
 client rather than retaining `options.Transport`, which may refer to an old
 generation after recovery.
 
+For a recovery-capable client, pass a factory that creates a fresh configured
+transport for each connection generation:
+
+```csharp
+Func<ITransport> createTransport = CreateConfiguredTransport;
+var options = new LakonaGameClientOptions(createTransport, serializer);
+var gameClient = new LakonaGameClient(options, callbackReceiver);
+await gameClient.ConnectAsync(cancellationToken);
+// Invoke the project's business login through gameClient.Api.
+// Keep gameClient alive until logout/shutdown, then await DisposeAsync().
+```
+
+Use `Lakona.Rpc.Core`, `Lakona.Game.Client`, and the project's generated client
+namespace. `CreateConfiguredTransport` is an application method. Observe
+`ConnectionState` in the engine's main-thread update/presenter loop; this API
+has no `ConnectionStateChanged` event. Keep resumable game state while
+`Reconnecting`, and offer a fresh connection/login path after terminal recovery
+failure. The bundled [Game Client Integration Skill](../skills/lakona-integrate-game-client/SKILL.md)
+provides the implementation workflow and a Unity presentation example.
+
 Disposal cancels and joins initial connection work as well as recovery before
 releasing shared state. Concurrent disposal callers await the same cleanup.
 For generated facade and callback wiring, see

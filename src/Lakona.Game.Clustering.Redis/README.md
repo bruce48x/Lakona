@@ -1,16 +1,18 @@
 # Lakona.Game.Clustering.Redis
 
-`Lakona.Game.Clustering.Redis` stores Lakona cluster membership in one Redis
-Hash. Atomic Lua operations preserve the same Membership CAS and fencing
-contract as the PostgreSQL Adapter.
+Redis Membership storage for multi-process Lakona clusters. Reference this
+Adapter from the stable server application.
+
+## Install and Register
+
+```powershell
+dotnet add package Lakona.Game.Clustering.Redis
+```
 
 ```csharp
 services.AddLakonaRedisClustering(configuration);
 ```
 
-Set `Lakona:Cluster:Membership:Provider` to `Redis` and point
-`ConnectionStringName` at the Redis connection string. Membership keys never
-expire. Production Redis must use `noeviction`, persistence, authentication,
-TLS where required, and a monitored high-availability topology. The default
-key is `lakona:{membership}:table`; the hash tag keeps every atomic operation
-in one Redis Cluster slot.
+See [Membership providers](https://github.com/bruce48x/Lakona/blob/main/docs/cluster.md#providers) for connection and key
+configuration, atomic updates, persistence, eviction policy, and production
+deployment requirements.

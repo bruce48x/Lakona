@@ -1,120 +1,26 @@
 # Lakona.Game.Client
 
-`Lakona.Game.Client` contains reusable engine-neutral Game client primitives.
-Generated game projects use a project-specific `Client.Generated.LakonaGameClient`
-as the public entry point. Its generated facade delegates connection, recovery,
-and disposal to `LakonaGameClientLifecycle`. That lifecycle coordinator owns a
-`LakonaGameClientCore`, which maintains framework handshake state, reliable push
-state, heartbeat state, and session snapshots across connection generations.
+Engine-neutral Game client connection, session, heartbeat, and reliable-push
+primitives. Use the project's generated `LakonaGameClient` as the application
+entry point; the package does not depend on Unity, Godot, or a transport.
 
-The library does not depend on Unity, Godot, or any transport package. Game
-clients remain responsible for choosing their transport, dispatching callbacks
-onto the engine main thread, and applying business-specific payloads.
+## Install
 
-## Generated Client Entry Point
-
-Generated game projects should use their generated wrapper as the single
-connection entry point:
-
-```csharp
-using System;
-using Client.Generated;
-using Lakona.Game.Client;
-using Shared.Contracts.Game;
-
-var options = new LakonaGameClientOptions(transport, serializer)
-{
-};
-
-await using var gameClient = new LakonaGameClient(options, callbackReceiver);
-await gameClient.ConnectAsync(cancellationToken);
-
-var game = gameClient.Api.Shared.Game;
-var reply = await game.LoginAsync(new LoginRequest { PlayerName = name });
-if (!reply.Success)
-    throw new InvalidOperationException(reply.Error);
-
-var world = reply.World;
+```powershell
+dotnet add package Lakona.Game.Client
 ```
 
-`ConnectAsync` owns the framework handshake and heartbeat startup.
-Normal generated clients learn the active framework Session through the
-server's acknowledged establishment notification; reliable push replay and
-acknowledgements remain framework protocol details. A successful business call
-that establishes a Session does not return until the generated client has
-applied and acknowledged that framework state. Business contracts do not expose
-Session ids, and application code does not call `StartSessionAsync` after login.
-Business RPC services are exposed through `gameClient.Api`.
+Reference the chosen transport, serializer, and shared business contracts.
+Generated projects supply their matching client and compiler configuration.
 
-Query `gameClient.ConnectionState` to render connection progress. Its
-`LakonaGameConnectionState` values are `Created`, `Connecting`, `Connected`,
-`Reconnecting`, `Disconnected`, and `Disposed`. `gameClient.IsConnected` is
-exactly `ConnectionState == LakonaGameConnectionState.Connected`.
+## Guides
 
-`Connecting` includes the initial Game handshake. `Reconnecting` includes
-draining the stopped connection, retry delays, and recovery confirmation.
-`Disconnected` means automatic recovery has ended; `Disposed` means disposal
-has started, with cleanup completion observed by awaiting `DisposeAsync`.
-Initial connection failure or cancellation automatically disposes the client.
-Reads are synchronized and follow the current connection generation, so the
-application does not need to save `options.Transport` to detect a locally
-stopped connection. A saved transport may belong to an old generation.
+- [Game client lifecycle](https://github.com/bruce48x/Lakona/blob/main/docs/session.md#game-client-lifecycle): connection states, automatic recovery, transport factories, and disposal.
+- [Sessions and reliable push](https://github.com/bruce48x/Lakona/blob/main/docs/session.md): handshake, establishment, notifications, and recovery boundaries.
+- [Source generation](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/source-generation.md): generated facade configuration and contract bindings.
+- [Logging](https://github.com/bruce48x/Lakona/blob/main/docs/logging.md): provider setup and application-owned lifetime.
+- [Integrate Game client](https://github.com/bruce48x/Lakona/blob/main/skills/lakona-integrate-game-client/SKILL.md): agent workflow for connection UI, business login, recovery, and engine dispatch.
 
-Connection state is independent of `Snapshot.Phase`, business authentication,
-and game-state synchronization. Even after `IsConnected` returns true, an RPC
-can fail: this property reports locally known state, not guaranteed remote
-liveness. For progress UI, distinguish `Reconnecting` from terminal
-`Disconnected` rather than treating every false `IsConnected` as a final failure.
-
-## Logging
-
-Set `LakonaGameClientOptions.LoggerFactory` to one application-owned factory.
-The generated recoverable client reuses it across connection generations; the
-application disposes it only during application shutdown. Console, Serilog,
-NLog, Unity, and custom-provider setup is covered by
-[Logging](https://github.com/bruce48x/Lakona/blob/main/docs/logging.md).
-
-## Core Client Primitive
-
-Use `LakonaGameClientCore` directly only when you are building a custom client
-wrapper instead of using generated `Client.Generated.LakonaGameClient`.
-
-The core primitive owns framework handshake state, heartbeat state, reliable
-push client state, opaque resume tickets, and connection snapshots. Platform,
-game version, build id, runtime, and capability metadata remain application
-concerns. Generated wrappers expose business services through `gameClient.Api`.
-
-A custom wrapper must register the reserved Session-establishment notification,
-pass its `GameSessionEstablished` payload to
-`ApplyGameSessionEstablishedAsync`, and send the reserved acknowledgement.
-Calling `StartSessionAsync` alone is not a substitute: it does not apply the
-opaque resume ticket or acknowledge establishment to the server.
-
-Construct `LakonaGameClientOptions` with `Func<ITransport>` for automatic
-recovery. The wrapper creates a fresh transport per connection generation while
-application-held API/service proxies remain stable. Business code does not save
-session ids or call login again during a transient disconnect.
-
-Normal clients should not call reliable-push ack RPCs. The generated wrapper
-uses the framework protocol negotiated by handshake. If the server disables
-reliable push, the wrapper keeps the same public callback path and treats
-notifications as immediate best-effort delivery.
-
-## Engine-neutral session state
-
-`ClientSessionController` is a pure state helper. Unity, Godot, and plain .NET
-clients can render their own UI from the snapshot without the framework
-touching engine APIs or dispatchers.
-
-```csharp
-using Lakona.Game.Client.Sessions;
-
-var controller = new ClientSessionController();
-controller.StartSession(sessionId);
-controller.MarkReconnecting();
-
-if (controller.Snapshot.Phase == ClientSessionPhase.Reconnecting)
-{
-    // Render reconnecting UI until the generated client wrapper reports ready again.
-}
-```
+Use the compatible `.agents/skills/` copy in generated projects. The integration
+skill includes a Unity presenter example; application callbacks and UI remain
+owned by the engine's main-thread dispatch mechanism.

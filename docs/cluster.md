@@ -591,6 +591,9 @@ and cluster RPC stack. The package supplies two test-only boundaries:
 - one in-memory cluster transport whose links can be partitioned and healed.
 
 The network control supports both two-way partitions and one-way link blocks.
+Use `cluster.Network.Partition(source, target)` and `Heal(source, target)` for
+both directions, or `BlockOneWay(source, target)` and `HealOneWay(source, target)`
+for directed faults. `BlockedLinks` exposes a stable snapshot for assertions.
 One-way faults are useful for checking that request and reply paths fail
 independently instead of assuming every network failure is symmetric.
 
@@ -599,6 +602,9 @@ table and other nodes advance. Tests can wait until the node is provably behind
 and until an expected number of Membership waiters are blocked before releasing
 the view. This creates deterministic request-during-propagation coverage rather
 than relying on scheduler timing to happen to expose the interval.
+Use `cluster.MembershipViews.Pause(nodeId)` and
+`WaitUntilBehindAsync(nodeId)` to enter that window; call `Resume(nodeId)` in a
+`finally` block so the test releases the paused observation even on failure.
 
 Convergence timeout diagnostics include every node's current Membership view
 and the directed links blocked by the test. During whole-cluster disposal,
@@ -613,6 +619,18 @@ real server, advertises only the Actors allowed by that node's roles, and lets
 the test call them through `ActorAccess`. This exercises placement, Directory
 lookup, remote RPC, mailbox dispatch, and activation uniqueness together; it
 does not replace those layers with test doubles.
+
+`cluster.Node(id).Services` is the stable root provider. Resolve Hotfix-owned
+services from the active generation with a lease:
+
+```csharp
+using var lease = cluster.Node("data-1").Services
+    .GetRequiredService<IHotfixRuntimeAccessor>().AcquireCurrent();
+var actors = lease.Services.GetRequiredService<ActorAccess>();
+```
+
+Dispose the lease before stopping the node. `UseHotfixAssembly` uses an already
+loaded assembly; it does not simulate collectible loading or reload publication.
 
 This makes node join, graceful stop, abrupt stop, restart with a new
 incarnation, role-specific configuration, and membership convergence practical

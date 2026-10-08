@@ -1,0 +1,4 @@
+interface:
+  display_name: "Integrate Lakona Game Client"
+  short_description: "Wire client connection UI and automatic recovery"
+  default_prompt: "Use $lakona-integrate-game-client to integrate or update this generated Lakona Game client's connection, recovery, and UI flow."

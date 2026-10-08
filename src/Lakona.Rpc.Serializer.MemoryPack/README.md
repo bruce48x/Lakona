@@ -1,6 +1,7 @@
 # Lakona.Rpc.Serializer.MemoryPack
 
-MemoryPack based payload serializer for Lakona.Rpc.
+MemoryPack payload serialization for Lakona.Rpc. Pass the serializer to your
+RPC client options or server host builder.
 
 ## Install
 
@@ -8,45 +9,17 @@ MemoryPack based payload serializer for Lakona.Rpc.
 dotnet add package Lakona.Rpc.Serializer.MemoryPack
 ```
 
-## Documentation
-
-Design boundary: https://bruce48x.github.io/Lakona/concepts/design-boundary/
-
 ## Usage
 
 ```csharp
 using Lakona.Rpc.Serializer.MemoryPack;
-
 var serializer = new MemoryPackRpcSerializer();
 ```
 
-Pass `MemoryPackSerializerOptions` when the host needs non-default MemoryPack
-options:
+The constructor also accepts `MemoryPackSerializerOptions` for custom options.
 
-```csharp
-var serializer = new MemoryPackRpcSerializer(options);
-```
+## Guides
 
-Use it with `Lakona.Rpc.Server` by passing the serializer instance explicitly:
-
-```csharp
-var builder = RpcServerHostBuilder.Create()
-    .UseSerializer(new MemoryPackRpcSerializer())
-    .UseAcceptor(new TcpConnectionAcceptor(20000));
-
-using var shutdown = new CancellationTokenSource();
-ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
-{
-    eventArgs.Cancel = true;
-    shutdown.Cancel();
-};
-Console.CancelKeyPress += cancelHandler;
-try
-{
-    await builder.RunAsync(shutdown.Token);
-}
-finally
-{
-    Console.CancelKeyPress -= cancelHandler;
-}
-```
+- [Transport and serializer extensions](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/architecture.md#transport-and-serializer-are-replaceable): composition and serialization contracts.
+- [Source generation](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/source-generation.md): serializer-compatible contracts and generated APIs.
+- [Define RPC contract](https://github.com/bruce48x/Lakona/blob/main/skills/lakona-define-rpc-contract/SKILL.md): DTO authoring workflow.

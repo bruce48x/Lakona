@@ -10,8 +10,7 @@ $markdownTargets = @(
     "CONTRIBUTING.md",
     "blog",
     "docs",
-    "src/Lakona.Tool/README.md",
-    "src/Lakona.Rpc.Analyzers/README.md"
+    "src"
 )
 
 $forbiddenSnippets = @(
@@ -79,8 +78,8 @@ $requiredSnippets = @(
     },
     @{
         Path = "src/Lakona.Tool/README.md"
-        Pattern = "instance methods in sealed partial ``[HotfixBehaviorOf]`` classes"
-        Reason = "Tool package guidance must match generated Actor behavior shape"
+        Pattern = "[Actors and Hotfix](https://github.com/bruce48x/Lakona/blob/main/docs/actor.md)"
+        Reason = "Tool package guidance must link to the maintained Actor authoring contract"
     },
     @{
         Path = "src/Lakona.Rpc.Analyzers/README.md"

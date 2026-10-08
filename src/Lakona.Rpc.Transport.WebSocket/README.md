@@ -1,6 +1,7 @@
 # Lakona.Rpc.Transport.WebSocket
 
-WebSocket client/server transport implementations for Lakona.Rpc.
+WebSocket client and server transport for Lakona.Rpc. Use `WsTransport` on the
+client and `WsConnectionAcceptor` with the server host.
 
 ## Install
 
@@ -8,43 +9,8 @@ WebSocket client/server transport implementations for Lakona.Rpc.
 dotnet add package Lakona.Rpc.Transport.WebSocket
 ```
 
-## Documentation
+## Guides
 
-Design boundary: https://bruce48x.github.io/Lakona/concepts/design-boundary/
-
-## Includes
-
-- `WsTransport`
-- `WsServerTransport`
-- `WsConnectionAcceptor`
-
-## Server Usage
-
-```csharp
-var builder = RpcServerHostBuilder.Create()
-    .UseCommandLine(args)
-    .UseSerializer(new JsonRpcSerializer());
-
-builder.UseAcceptor(ct => WsConnectionAcceptor.CreateAsync(
-    20000,
-    "/ws",
-    "127.0.0.1",
-    builder.Limits.MaxPendingAcceptedConnections,
-    ct));
-
-using var shutdown = new CancellationTokenSource();
-ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
-{
-    eventArgs.Cancel = true;
-    shutdown.Cancel();
-};
-Console.CancelKeyPress += cancelHandler;
-try
-{
-    await builder.RunAsync(shutdown.Token);
-}
-finally
-{
-    Console.CancelKeyPress -= cancelHandler;
-}
-```
+- [Transport contract](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/transport-contract.md): initialization, memory ownership, cancellation, and shutdown.
+- [RPC hosting](https://github.com/bruce48x/Lakona/blob/main/docs/rpc/architecture.md): server composition and lifecycle.
+- [Game client integration](https://github.com/bruce48x/Lakona/blob/main/skills/lakona-integrate-game-client/SKILL.md): recovery-capable transport factories.

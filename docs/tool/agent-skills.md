@@ -10,7 +10,8 @@ manager.
 The public Skill Pack covers RPC contract definition, RPC service
 implementation, Application HTTP services, actor implementation,
 application-resource modules, framework-owned timer implementation, Game
-Session lifecycle policy, and advisory server code organization. New Skills
+Session lifecycle policy, generated Game client integration, and advisory server
+code organization. New Skills
 must be justified by observed project work rather than added as a speculative
 catalog.
 
@@ -340,6 +341,21 @@ Handlers implement `IGameSessionLifecycle` and carry parameterless
 no business handler. Recovery preserves that selection. Lifecycle calls expose
 only the event request, not session items or service-provider properties.
 
+### `lakona-integrate-game-client`
+
+Use this Skill when integrating or updating a generated Lakona Game client in
+Unity, Godot, or .NET, including connection progress, business login, recovery,
+callback dispatch, and disposal. Server-side session cleanup remains owned by
+the Session Lifecycle Skill.
+
+It must distinguish `ConnectionState` from business authentication,
+`Snapshot.Phase`, and game-state synchronization; preserve resumable state
+during `Reconnecting`; use a fresh transport factory for automatic recovery;
+and await disposal while rejecting stale callbacks from a replaced client.
+State observation is through the generated facade, not a saved transport or an
+invented state-change event. The Skill includes an engine presentation example
+and detects API compatibility from project dependencies and generated output.
+
 ## Acceptance Criteria
 
 Bundled distribution is complete when:
@@ -350,7 +366,8 @@ Bundled distribution is complete when:
   `skills/lakona-implement-module/SKILL.md`,
   `skills/lakona-implement-actor/SKILL.md`,
   `skills/lakona-implement-timer/SKILL.md`,
-  `skills/lakona-implement-session-lifecycle/SKILL.md`, and
+  `skills/lakona-implement-session-lifecycle/SKILL.md`,
+  `skills/lakona-integrate-game-client/SKILL.md`, and
   `skills/lakona-organize-server/SKILL.md` exist in the Lakona repository
 - both Tool and Hub release artifacts contain the complete public Skill Pack
 - every successfully created project contains the complete public Skill Pack

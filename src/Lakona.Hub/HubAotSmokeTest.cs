@@ -14,6 +14,7 @@ internal static class HubAotSmokeTest
         "lakona-implement-service",
         "lakona-implement-session-lifecycle",
         "lakona-implement-timer",
+        "lakona-integrate-game-client",
         "lakona-organize-server"
     ];
 
