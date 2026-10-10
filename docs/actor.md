@@ -192,6 +192,14 @@ await actors
 `PostAsync` is acceptance-only: it completes when the local mailbox or remote
 transport accepts ownership of the work.
 
+For local posts, the caller owns the distributed-work admission token until
+the mailbox accepts the message. Rejection or an exception before acceptance
+releases that token on the calling path. After acceptance, the execution
+callback releases it in `finally`, whether the Behavior succeeds or fails.
+Returning from `PostAsync` does not release an accepted message's token:
+shutdown must still wait for that work to finish. Cancellation between the
+initial check and mailbox admission follows the same pre-acceptance cleanup.
+
 The method selector must be a direct static lambda in the form
 `static behavior => behavior.MethodAsync`. This keeps Go to Definition pointed
 at the implementation and binds method identity without retaining an old

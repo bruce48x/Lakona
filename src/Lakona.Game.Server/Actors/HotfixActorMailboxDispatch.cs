@@ -48,31 +48,36 @@ public static class HotfixActorMailboxDispatch
             return ActorTellResult.ActorUnavailable;
         }
 
-        var result = runtime.TryTell<TActor>(
-            actorId,
-            async (actor, executionToken) =>
-            {
-                try
-                {
-                    await HotfixDispatch.InvokeActorAsync(
-                        runtimeAccessor,
-                        methodId,
-                        actor,
-                        request,
-                        executionToken).ConfigureAwait(false);
-                }
-                finally
-                {
-                    if (admission.IsAdmitted) admissionGate!.Exit(admission);
-                }
-            },
-            cancellationToken);
-        if (result != ActorTellResult.Accepted && admission.IsAdmitted)
+        var accepted = false;
+        try
         {
-            admissionGate!.Exit(admission);
+            var result = runtime.TryTell<TActor>(
+                actorId,
+                async (actor, executionToken) =>
+                {
+                    try
+                    {
+                        await HotfixDispatch.InvokeActorAsync(
+                            runtimeAccessor,
+                            methodId,
+                            actor,
+                            request,
+                            executionToken).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        if (admission.IsAdmitted) admissionGate!.Exit(admission);
+                    }
+                },
+                cancellationToken);
+            accepted = result == ActorTellResult.Accepted;
+            return result;
         }
-
-        return result;
+        finally
+        {
+            // Until the mailbox accepts ownership, every exit belongs to the caller.
+            if (!accepted && admission.IsAdmitted) admissionGate!.Exit(admission);
+        }
     }
 
     public static ValueTask<TResult> AskAsync<TActor, TRequest, TResult>(
