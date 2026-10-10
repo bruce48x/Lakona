@@ -27,7 +27,8 @@ internal sealed class MembershipTableHostedService : BackgroundService
     private uint probeRound;
     private readonly object shutdownGate = new();
     private Task? beginStoppingTask;
-    private DateTimeOffset lastTableContact;
+    private readonly MembershipTableSafetyWindow safetyWindow;
+    private readonly CancellationTokenSource safetyCancellation = new();
     private DateTimeOffset nextDefunctCleanup;
     private DateTimeOffset nextTableRefresh;
     private DateTimeOffset nextIAmAlive;
@@ -55,6 +56,9 @@ internal sealed class MembershipTableHostedService : BackgroundService
         this.lifetime = lifetime;
         this.logger = logger;
         this.timeProvider = timeProvider ?? TimeProvider.System;
+        safetyWindow = new MembershipTableSafetyWindow(this.timeProvider,
+            TimeSpan.FromSeconds(runtime.Cluster.Membership.IAmAliveSeconds), admissionGate, OnSafetyWindowExpired);
+        admissionGate.SafetyWindow = safetyWindow;
     }
 
     public override async Task StartAsync(CancellationToken cancellationToken)
@@ -77,10 +81,21 @@ internal sealed class MembershipTableHostedService : BackgroundService
                 () => manager.ActivateAsync(descriptor.Labels, descriptor.ActorHosts, descriptor.StartupActors, token)),
             "activate membership",
             cancellationToken).ConfigureAwait(false);
-        await GossipMembershipAsync(cancellationToken).ConfigureAwait(false);
+        safetyWindow.Start();
+        using var startupBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, safetyCancellation.Token);
+        try
+        {
+            await GossipMembershipAsync(startupBudget.Token).ConfigureAwait(false);
+            if (!safetyWindow.Check()) throw new ClusterMembershipFencedException("Membership safety window expired during startup.");
+        }
+        catch
+        {
+            admissionGate.Fence();
+            safetyWindow.Dispose();
+            throw;
+        }
         ClusterDiagnostics.RecordMembershipLifecycle("active");
         var now = timeProvider.GetUtcNow();
-        lastTableContact = now;
         nextDefunctCleanup = now.AddSeconds(runtime.Cluster.Membership.DefunctEntryCleanupIntervalSeconds);
         nextTableRefresh = now.AddSeconds(runtime.Cluster.Membership.TableRefreshSeconds);
         nextIAmAlive = now.AddSeconds(runtime.Cluster.Membership.IAmAliveSeconds);
@@ -94,10 +109,13 @@ internal sealed class MembershipTableHostedService : BackgroundService
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        await BeginStoppingAsync(cancellationToken).ConfigureAwait(false);
+        admissionGate.Fence();
+        safetyWindow.Dispose();
+        using var shutdownBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, safetyCancellation.Token);
+        await BeginStoppingAsync(shutdownBudget.Token).ConfigureAwait(false);
         try
         {
-            await ObserveTableOperationAsync("dead", () => manager.MarkDeadAsync(cancellationToken)).ConfigureAwait(false);
+            await ObserveTableOperationAsync("dead", () => manager.MarkDeadAsync(shutdownBudget.Token)).ConfigureAwait(false);
             ClusterDiagnostics.RecordMembershipLifecycle("dead");
         }
         catch (Exception exception)
@@ -110,8 +128,11 @@ internal sealed class MembershipTableHostedService : BackgroundService
 
     internal async ValueTask RefreshDescriptorAsync(CancellationToken cancellationToken = default)
     {
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, safetyCancellation.Token);
         var descriptor = CreateDescriptor(includeCapabilities: admissionGate.IsOpen);
-        await manager.ActivateAsync(descriptor.Labels, descriptor.ActorHosts, descriptor.StartupActors, cancellationToken).ConfigureAwait(false);
+        await manager.ActivateAsync(descriptor.Labels, descriptor.ActorHosts, descriptor.StartupActors, budget.Token).ConfigureAwait(false);
+        if (!safetyWindow.Check()) throw new ClusterMembershipFencedException("Membership safety window expired during descriptor refresh.");
+        budget.Token.ThrowIfCancellationRequested();
     }
 
     internal async ValueTask MarkUnavailableAsync()
@@ -130,9 +151,10 @@ internal sealed class MembershipTableHostedService : BackgroundService
 
     private async Task BeginStoppingCoreAsync(CancellationToken cancellationToken)
     {
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, safetyCancellation.Token);
         try
         {
-            await ObserveTableOperationAsync("stopping", () => manager.MarkStoppingAsync(cancellationToken)).ConfigureAwait(false);
+            await ObserveTableOperationAsync("stopping", () => manager.MarkStoppingAsync(budget.Token)).ConfigureAwait(false);
             ClusterDiagnostics.RecordMembershipLifecycle("stopping");
         }
         catch (Exception exception)
@@ -143,6 +165,9 @@ internal sealed class MembershipTableHostedService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // The renewable deadline cancels this token independently of any awaited operation.
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, safetyCancellation.Token);
+        stoppingToken = budget.Token;
         var options = runtime.Cluster.Membership;
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -168,13 +193,13 @@ internal sealed class MembershipTableHostedService : BackgroundService
                 if (refreshDue)
                 {
                     await ObserveTableOperationAsync("refresh", () => manager.RefreshAsync(stoppingToken)).ConfigureAwait(false);
-                    lastTableContact = timeProvider.GetUtcNow();
+                    if (!safetyWindow.Renew()) return;
                 }
 
                 if (iAmAliveDue)
                 {
                     await ObserveTableOperationAsync("heartbeat", () => manager.UpdateIAmAliveAsync(stoppingToken)).ConfigureAwait(false);
-                    lastTableContact = timeProvider.GetUtcNow();
+                    if (!safetyWindow.Renew()) return;
                 }
 
                 if (probeDue) await ProbeTargetsAsync(options, stoppingToken).ConfigureAwait(false);
@@ -187,7 +212,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
                             TimeSpan.FromSeconds(options.DefunctEntryRetentionSeconds),
                             options.DefunctEntryCleanupBatchSize,
                             stoppingToken)).ConfigureAwait(false);
-                    lastTableContact = timeProvider.GetUtcNow();
+                    if (!safetyWindow.Renew()) return;
                     if (removed > 0) logger.LogInformation("Removed {Count} expired defunct membership rows.", removed);
                 }
             }
@@ -195,6 +220,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
             {
                 logger.LogCritical(exception, "This node incarnation is Dead in the membership table and will stop.");
                 ClusterDiagnostics.RecordMembershipLifecycle("fenced");
+                admissionGate.Fence();
                 lifetime?.StopApplication();
                 return;
             }
@@ -204,21 +230,34 @@ internal sealed class MembershipTableHostedService : BackgroundService
             }
             catch (Exception exception)
             {
-                if (timeProvider.GetUtcNow() - lastTableContact >= TimeSpan.FromSeconds(options.IAmAliveSeconds))
-                {
-                    logger.LogCritical(
-                        exception,
-                        "Membership table has been unreachable for the safety window; this node will stop admitting work.");
-                    ClusterDiagnostics.RecordMembershipLifecycle("table_unavailable");
-                    await admissionGate.CloseAndDrainAsync(TimeSpan.FromSeconds(30), CancellationToken.None)
-                        .ConfigureAwait(false);
-                    lifetime?.StopApplication();
-                    return;
-                }
-
+                if (!safetyWindow.Check()) return;
                 logger.LogWarning(exception, "Membership refresh failed; continuing with the last committed snapshot.");
             }
         }
+    }
+
+    private void OnSafetyWindowExpired()
+    {
+        logger.LogCritical("Membership table contact exceeded the safety window; distributed-work admission is fenced.");
+        ClusterDiagnostics.RecordMembershipLifecycle("table_unavailable");
+        try { lifetime?.StopApplication(); }
+        finally { CancelMembershipOperations(); }
+    }
+
+    private void CancelMembershipOperations()
+    {
+        try { safetyCancellation.Cancel(); }
+        catch (ObjectDisposedException) { } // Concurrent host disposal already ended this lifetime.
+        catch (AggregateException exception) { logger.LogWarning(exception, "Membership cancellation callback failed."); }
+    }
+
+    public override void Dispose()
+    {
+        admissionGate.Fence();
+        safetyWindow.Dispose();
+        CancelMembershipOperations();
+        base.Dispose();
+        safetyCancellation.Dispose();
     }
 
     internal ValueTask RunProbeCycleAsync(

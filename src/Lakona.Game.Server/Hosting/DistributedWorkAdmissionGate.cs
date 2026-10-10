@@ -14,16 +14,23 @@ internal sealed class DistributedWorkAdmissionGate : IDistributedWorkAdmissionGa
     private readonly TimeProvider timeProvider;
     private TaskCompletionSource? drainCompletion;
     private long packedState;
+    private bool fenced;
+    internal MembershipTableSafetyWindow? SafetyWindow { private get; set; }
 
     public DistributedWorkAdmissionGate(TimeProvider? timeProvider = null)
     {
         this.timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    public bool IsOpen => IsOpenState(Volatile.Read(ref packedState));
+    public bool IsOpen => SafetyWindow?.Check() != false && IsOpenState(Volatile.Read(ref packedState));
 
     public bool TryEnter(out DistributedWorkAdmission admission)
     {
+        if (SafetyWindow?.Check() == false)
+        {
+            admission = default;
+            return false;
+        }
         if (!leases.TryTake(out var lease))
         {
             lease = new DistributedWorkAdmissionLease();
@@ -55,6 +62,12 @@ internal sealed class DistributedWorkAdmissionGate : IDistributedWorkAdmissionGa
                     GetGeneration(current),
                     lease,
                     leaseVersion);
+                if (SafetyWindow?.Check() == false)
+                {
+                    Exit(admission);
+                    admission = default;
+                    return false;
+                }
                 return true;
             }
         }
@@ -109,8 +122,10 @@ internal sealed class DistributedWorkAdmissionGate : IDistributedWorkAdmissionGa
 
     internal void Open()
     {
+        SafetyWindow?.Check();
         lock (lifecycleGate)
         {
+            if (fenced) throw new InvalidOperationException("Distributed-work admission is permanently fenced.");
             var current = Volatile.Read(ref packedState);
             if (IsOpenState(current))
             {
@@ -146,20 +161,7 @@ internal sealed class DistributedWorkAdmissionGate : IDistributedWorkAdmissionGa
         Task? drainTask;
         lock (lifecycleGate)
         {
-            while (true)
-            {
-                var current = Volatile.Read(ref packedState);
-                if (!IsOpenState(current))
-                {
-                    break;
-                }
-
-                var closed = current & ~OpenMask;
-                if (Interlocked.CompareExchange(ref packedState, closed, current) == current)
-                {
-                    break;
-                }
-            }
+            Close();
 
             if (GetActive(Volatile.Read(ref packedState)) == 0)
             {
@@ -188,6 +190,24 @@ internal sealed class DistributedWorkAdmissionGate : IDistributedWorkAdmissionGa
         {
             return false;
         }
+    }
+
+    internal void Fence()
+    {
+        lock (lifecycleGate)
+        {
+            fenced = true;
+            Close();
+        }
+    }
+
+    // Called under lifecycleGate, preserving outstanding admission leases.
+    private void Close()
+    {
+        long current;
+        do { current = Volatile.Read(ref packedState); }
+        while (Interlocked.CompareExchange(ref packedState, current & ~OpenMask, current) != current);
+        if (GetActive(current) == 0) drainCompletion?.TrySetResult();
     }
 
     private void CompleteDrain()

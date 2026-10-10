@@ -371,6 +371,25 @@ pauses membership changes. Once a node observes that its own exact row is
 `Dead` or absent—or exceeds the table-contact safety window—it closes
 distributed-work admission and stops; this is a terminal fence.
 
+The safety deadline runs independently of the membership loop, starting when
+activation in the table succeeds (before startup gossip). Successful table
+refresh, heartbeat, or cleanup renews it only while the previous window is
+still valid. Peer probes and gossip do not renew table contact. A pending
+request cannot postpone expiry, and a late successful result cannot reopen
+admission or renew an expired window.
+
+Local elapsed time is monotonic; UTC remains the format for persisted table
+timestamps. A deadline timer closes admission before requesting shutdown and
+canceling membership operations. Those operations share the remaining,
+renewable table-contact budget, including startup gossip and descriptor
+refresh. Admission also checks the deadline, so a delayed timer callback does
+not allow new work after expiry. A provider that ignores cancellation can
+delay its own completion, but cannot keep admission open. Previously admitted
+work follows the normal shutdown drain contract; expiry does not forcibly
+abort Actor methods. Shutdown disposes the deadline timer. This is an
+in-process admission guarantee, not a hard real-time process termination
+guarantee during scheduler starvation or process suspension.
+
 ## Cluster RPC Composition
 
 Node-to-node RPC is framework-owned TCP plus MemoryPack. It is separate from

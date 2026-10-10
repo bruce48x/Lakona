@@ -294,7 +294,7 @@ Membership settings and defaults:
 | `ConnectionStringName` | `LakonaClusterPostgres` | Name under `ConnectionStrings` passed to the selected Adapter. |
 | `Redis:Key` | `lakona:{membership}:table` | Redis Adapter hash key. It must contain a Redis Cluster hash tag. |
 | `TableRefreshSeconds` | `5` | Interval for reading a newer committed table view. |
-| `IAmAliveSeconds` | `30` | Table heartbeat interval and maximum time a node may keep admitting work without reaching the Membership Table. Must exceed `TableRefreshSeconds`. |
+| `IAmAliveSeconds` | `30` | Table heartbeat interval and independent, monotonic table-contact safety window. Expiry permanently closes admission and cancels membership operations, even while a request is pending. Must exceed `TableRefreshSeconds`. |
 | `AllowedIAmAliveMissSeconds` | `600` | Age after which a network-unreachable Active row can be cleared during startup. |
 | `DefunctEntryRetentionSeconds` | `604800` | How long Dead incarnation rows are retained for diagnosis before cleanup. |
 | `DefunctEntryCleanupIntervalSeconds` | `3600` | Interval between bounded cleanup passes. |
