@@ -35,8 +35,8 @@ public sealed class ClusterProtocolTests
     }
 
     [Fact]
-    public void Protocol_identifier_marks_the_cancellation_removal()
+    public void Protocol_identifier_marks_tristate_membership_probes()
     {
-        Assert.Equal("lakona.cluster.v5", ClusterProtocol.Identifier);
+        Assert.Equal("lakona.cluster.v6", ClusterProtocol.Identifier);
     }
 }

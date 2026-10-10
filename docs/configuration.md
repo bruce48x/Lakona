@@ -300,7 +300,7 @@ Membership settings and defaults:
 | `DefunctEntryCleanupIntervalSeconds` | `3600` | Interval between bounded cleanup passes. |
 | `DefunctEntryCleanupBatchSize` | `1000` | Maximum Dead rows removed by one cleanup pass. |
 | `ProbeIntervalSeconds` | `10` | Interval between network-probe rounds. |
-| `ProbeTimeoutSeconds` | `2` | Timeout for one direct or indirect probe RPC. |
+| `ProbeTimeoutSeconds` | `2` | Direct-probe budget T; indirect RPC allows 2T and forwards T to the helper. |
 | `FailedProbesBeforeSuspect` | `3` | Failed rounds before committing a suspicion vote. |
 | `MonitoredNodes` | `3` | Successors each Active node monitors on the hash ring. |
 | `IndirectProbes` | `2` | Other nodes asked to verify a failed direct probe. |

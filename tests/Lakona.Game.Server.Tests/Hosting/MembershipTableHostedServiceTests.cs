@@ -1,5 +1,8 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Membership;
+using Lakona.Game.Cluster.Rpc;
+using System.Net;
+using System.Net.Sockets;
 using Lakona.Game.Cluster.Rpc.Membership;
 using Lakona.Game.Server.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,6 +14,124 @@ namespace Lakona.Game.Server.Hosting;
 
 public sealed class MembershipTableHostedServiceTests
 {
+    [Fact]
+    public async Task Real_refused_direct_probes_reach_death_threshold_in_two_node_cluster()
+    {
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        socket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        var endpoint = new NodeEndpoint($"tcp://127.0.0.1:{((IPEndPoint)socket.LocalEndPoint!).Port}");
+        var cluster = await CreateActiveClusterAsync(2, failedProbesBeforeSuspect: 2, peerEndpoint: endpoint);
+        await using var clients = new ClusterClientFactory(new ClusterRpcChannel());
+        var probes = new RpcMembershipProbeTransport(clients, TimeSpan.FromSeconds(5));
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        var hosted = CreateHosted(cluster.Runtime, cluster.Managers[0], cluster.States[0], cluster.Table, probes, services);
+        await hosted.RunProbeCycleAsync(cluster.Runtime.Cluster.Membership, TestContext.Current.CancellationToken);
+        Assert.All((await cluster.Table.ReadOrCreateAsync(TestContext.Current.CancellationToken)).Entries,
+            row => Assert.Equal(MembershipTableStatus.Active, row.Status));
+        await hosted.RunProbeCycleAsync(cluster.Runtime.Cluster.Membership, TestContext.Current.CancellationToken);
+        var target = (await cluster.Table.ReadOrCreateAsync(TestContext.Current.CancellationToken)).Entries.Single(e => e.Reference == cluster.Managers[1].Local);
+        Assert.Equal(MembershipTableStatus.Dead, target.Status);
+    }
+
+    [Fact]
+    public async Task Unknown_helpers_are_rotated_and_direct_unknown_never_counts()
+    {
+        var cluster = await CreateActiveClusterAsync(5, failedProbesBeforeSuspect: 1);
+        var target = cluster.Managers[1].Local;
+        var probes = new RecordingProbeTransport((member, _, forward) => member.Reference != target
+            ? MembershipProbeStatus.Unknown
+            : forward ? MembershipProbeStatus.Unknown : MembershipProbeStatus.Failed);
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        var hosted = CreateHosted(cluster.Runtime, cluster.Managers[0], cluster.States[0], cluster.Table, probes, services);
+        for (var i = 0; i < 3; i++)
+            await hosted.RunProbeCycleAsync(cluster.Runtime.Cluster.Membership, TestContext.Current.CancellationToken);
+        var helpers = probes.Calls.Where(c => c.Forward && c.Target == target).Select(c => c.Contact).Distinct();
+        Assert.Equal(3, helpers.Count());
+        Assert.All((await cluster.Table.ReadOrCreateAsync(TestContext.Current.CancellationToken)).Entries,
+            row => { Assert.Equal(MembershipTableStatus.Active, row.Status); Assert.Empty(row.SuspectVotes); });
+    }
+
+    [Fact]
+    public async Task Unknown_helpers_neither_create_nor_refresh_suspicion_votes()
+    {
+        var cluster = await CreateActiveClusterAsync(3, failedProbesBeforeSuspect: 1, votesForDeath: 2);
+        var target = cluster.Managers[1].Local;
+        var helperStatus = MembershipProbeStatus.Unknown;
+        var probes = new RecordingProbeTransport((member, _, forward) => member.Reference != target
+            ? MembershipProbeStatus.Succeeded
+            : forward ? helperStatus : MembershipProbeStatus.Failed);
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        var hosted = CreateHosted(cluster.Runtime, cluster.Managers[0], cluster.States[0], cluster.Table, probes, services);
+        for (var i = 0; i < 4; i++)
+            await hosted.RunProbeCycleAsync(cluster.Runtime.Cluster.Membership, TestContext.Current.CancellationToken);
+        var row = (await cluster.Table.ReadOrCreateAsync(TestContext.Current.CancellationToken)).Entries.Single(e => e.Reference == target);
+        Assert.Empty(row.SuspectVotes);
+        helperStatus = MembershipProbeStatus.Failed;
+        await hosted.RunProbeCycleAsync(cluster.Runtime.Cluster.Membership, TestContext.Current.CancellationToken);
+        row = (await cluster.Table.ReadOrCreateAsync(TestContext.Current.CancellationToken)).Entries.Single(e => e.Reference == target);
+        Assert.Single(row.SuspectVotes);
+        helperStatus = MembershipProbeStatus.Unknown;
+        await hosted.RunProbeCycleAsync(cluster.Runtime.Cluster.Membership, TestContext.Current.CancellationToken);
+        var unchanged = (await cluster.Table.ReadOrCreateAsync(TestContext.Current.CancellationToken)).Entries.Single(e => e.Reference == target);
+        Assert.Equal(row.Version, unchanged.Version);
+        Assert.Equal(row.SuspectVotes, unchanged.SuspectVotes);
+        Assert.Equal(MembershipTableStatus.Active, unchanged.Status);
+    }
+
+    [Theory]
+    [InlineData(0)] // Unknown preserves previous failures.
+    [InlineData(1)] // Success clears previous failures, even after another helper failed.
+    public async Task Helper_results_are_aggregated_once_per_round(int middleStatus)
+    {
+        var cluster = await CreateActiveClusterAsync(4, failedProbesBeforeSuspect: 2);
+        var target = cluster.Managers[1].Local;
+        var round = 0;
+        var probes = new RecordingProbeTransport((member, contact, forward) =>
+        {
+            if (member.Reference != target) return MembershipProbeStatus.Succeeded;
+            if (!forward) return MembershipProbeStatus.Failed;
+            if (round == 1) return (MembershipProbeStatus)middleStatus;
+            return contact == cluster.States[2].Current.Members.Single(m => m.Reference == cluster.Managers[2].Local).ClusterEndpoint
+                ? MembershipProbeStatus.Failed : MembershipProbeStatus.Unknown;
+        });
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        var hosted = CreateHosted(cluster.Runtime, cluster.Managers[0], cluster.States[0], cluster.Table, probes, services);
+        for (; round < 3; round++)
+            await hosted.RunProbeCycleAsync(cluster.Runtime.Cluster.Membership, TestContext.Current.CancellationToken);
+        var row = (await cluster.Table.ReadOrCreateAsync(TestContext.Current.CancellationToken)).Entries.Single(e => e.Reference == target);
+        Assert.Equal(middleStatus == 0 ? MembershipTableStatus.Dead : MembershipTableStatus.Active, row.Status);
+    }
+
+    [Fact]
+    public async Task Later_helper_success_overrides_an_earlier_failure()
+    {
+        var cluster = await CreateActiveClusterAsync(4, failedProbesBeforeSuspect: 1);
+        var calls = 0;
+        var probes = new RecordingProbeTransport((_, _, forward) => !forward || ++calls % 2 == 1
+            ? MembershipProbeStatus.Failed : MembershipProbeStatus.Succeeded);
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        var hosted = CreateHosted(cluster.Runtime, cluster.Managers[0], cluster.States[0], cluster.Table, probes, services);
+        await hosted.RunProbeCycleAsync(cluster.Runtime.Cluster.Membership, TestContext.Current.CancellationToken);
+        Assert.All((await cluster.Table.ReadOrCreateAsync(TestContext.Current.CancellationToken)).Entries,
+            row => { Assert.Equal(MembershipTableStatus.Active, row.Status); Assert.Empty(row.SuspectVotes); });
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(0, 1)]
+    [InlineData(1, 0)]
+    [InlineData(1, 2)]
+    public async Task Startup_does_not_evict_stale_peer_without_failed_direct_probe(int direct, int reverse)
+    {
+        var cluster = await CreateJoiningNodeAgainstActivePeerAsync(TimeSpan.FromMinutes(11));
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        var probes = new RecordingProbeTransport((_, _, forward) => (MembershipProbeStatus)(forward ? reverse : direct));
+        var hosted = CreateHosted(cluster.Runtime, cluster.Joining, cluster.State, cluster.Table, probes, services);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => hosted.ValidateStartupConnectivityAsync(TestContext.Current.CancellationToken).AsTask());
+        var row = (await cluster.Table.ReadOrCreateAsync(TestContext.Current.CancellationToken)).Entries.Single(e => e.Reference == cluster.Active);
+        Assert.Equal(MembershipTableStatus.Active, row.Status);
+    }
+
     [Fact]
     public async Task IndirectProbeSuccessPreventsSuspicionAfterDirectProbeFailure()
     {
@@ -108,8 +229,10 @@ public sealed class MembershipTableHostedServiceTests
             hosted.ValidateStartupConnectivityAsync(TestContext.Current.CancellationToken).AsTask());
     }
 
-    [Fact]
-    public async Task StartupConnectivityEvictsStaleUnreachableMember()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public async Task StartupConnectivityEvictsStaleUnreachableMember(int reverseStatus)
     {
         var cluster = await CreateJoiningNodeAgainstActivePeerAsync(TimeSpan.FromMinutes(11));
         await using var services = new ServiceCollection().BuildServiceProvider();
@@ -118,7 +241,8 @@ public sealed class MembershipTableHostedServiceTests
             cluster.Joining,
             cluster.State,
             cluster.Table,
-            new RecordingProbeTransport((_, _, _) => false),
+            new RecordingProbeTransport((_, _, forward) => forward
+                ? (MembershipProbeStatus)reverseStatus : MembershipProbeStatus.Failed),
             services);
 
         await hosted.ValidateStartupConnectivityAsync(TestContext.Current.CancellationToken);
@@ -282,7 +406,7 @@ public sealed class MembershipTableHostedServiceTests
 
     private static async Task<ActiveCluster> CreateActiveClusterAsync(
         int count,
-        int failedProbesBeforeSuspect = 3)
+        int failedProbesBeforeSuspect = 3, int votesForDeath = 1, NodeEndpoint? peerEndpoint = null)
     {
         var table = new InMemoryMembershipTable();
         var managers = new List<MembershipTableManager>();
@@ -296,7 +420,7 @@ public sealed class MembershipTableHostedServiceTests
                 Membership = new LakonaGameMembershipOptions
                 {
                     FailedProbesBeforeSuspect = failedProbesBeforeSuspect,
-                    VotesForDeath = 1
+                    VotesForDeath = votesForDeath
                 }
             }
         };
@@ -306,7 +430,7 @@ public sealed class MembershipTableHostedServiceTests
             var manager = new MembershipTableManager(
                 new NodeId($"server-{index + 1}"),
                 new NodeIncarnationId(Guid.Parse($"{index + 1:x8}-1111-1111-1111-111111111111")),
-                new NodeEndpoint($"tcp://127.0.0.1:{21001 + index}"),
+                index == 1 && peerEndpoint is not null ? peerEndpoint : new NodeEndpoint($"tcp://127.0.0.1:{21001 + index}"),
                 new ClusterBuildTag("TestBuild1"),
                 table,
                 state);
@@ -381,15 +505,20 @@ public sealed class MembershipTableHostedServiceTests
     }
 
     private sealed class RecordingProbeTransport(
-        Func<ClusterMember, NodeEndpoint, bool, bool> result) : IMembershipProbeTransport
+        Func<ClusterMember, NodeEndpoint, bool, MembershipProbeStatus> result) : IMembershipProbeTransport
     {
+        public RecordingProbeTransport(Func<ClusterMember, NodeEndpoint, bool, bool> result)
+            : this((member, contact, forward) => result(member, contact, forward)
+                ? MembershipProbeStatus.Succeeded : MembershipProbeStatus.Failed) { }
+
         public List<(NodeReference Source, NodeReference Target, NodeEndpoint Contact, bool Forward)> Calls { get; } = [];
 
-        public ValueTask<bool> ProbeAsync(
+        public ValueTask<MembershipProbeStatus> ProbeAsync(
             NodeReference source,
             ClusterMember target,
             NodeEndpoint contact,
             bool forward,
+            TimeSpan? probeTimeout = null,
             CancellationToken cancellationToken = default)
         {
             Calls.Add((source, target.Reference, contact, forward));
@@ -472,8 +601,8 @@ public sealed class MembershipTableHostedServiceTests
 
     private sealed class SingleNodeProbeTransport : IMembershipProbeTransport
     {
-        public ValueTask<bool> ProbeAsync(NodeReference source, ClusterMember target, NodeEndpoint contact, bool forward, CancellationToken cancellationToken = default) =>
-            new(false);
+        public ValueTask<MembershipProbeStatus> ProbeAsync(NodeReference source, ClusterMember target, NodeEndpoint contact, bool forward, TimeSpan? probeTimeout = null, CancellationToken cancellationToken = default) =>
+            new(MembershipProbeStatus.Failed);
 
         public ValueTask GossipAsync(NodeReference source, NodeEndpoint contact, MembershipViewId version, CancellationToken cancellationToken = default) =>
             default;

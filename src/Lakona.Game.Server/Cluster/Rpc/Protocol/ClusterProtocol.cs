@@ -4,7 +4,7 @@ namespace Lakona.Game.Cluster.Rpc
 {
     internal static class ClusterProtocol
     {
-        public const string Identifier = "lakona.cluster.v5";
+        public const string Identifier = "lakona.cluster.v6";
 
         public const int ServiceId = 0x554C4301;
 

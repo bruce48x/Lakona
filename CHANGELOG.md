@@ -4,6 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-10-10 — Evidence-aware membership probes
+
+**Key releases:** `Lakona.Game.Server 0.52.0`, `Lakona.Tool 0.43.45`,
+and `Lakona Hub 0.17.47`.
+
+- Membership distinguishes failed target probes from unknown intermediary
+  outcomes. Unknown rounds do not advance suspicion or refresh votes; nested
+  probe budgets leave time for a helper's reply, and startup cleanup requires
+  failed direct contact with an expired peer.
+- Cluster protocol `lakona.cluster.v6` carries these results and budgets.
+  Upgrade the whole cluster while stopped, using a new BuildTag and Membership
+  store; old and new protocol generations cannot run together.
+
 ## 2026-10-08 — Connection notifications and integration guidance
 
 **Key releases:** `Lakona.Game.Server 0.51.5`, `Lakona.Game.Client 0.5.15`,

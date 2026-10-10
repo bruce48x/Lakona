@@ -2,11 +2,12 @@ namespace Lakona.Game.Cluster.Rpc.Membership;
 
 internal interface IMembershipProbeTransport
 {
-    ValueTask<bool> ProbeAsync(
+    ValueTask<MembershipProbeStatus> ProbeAsync(
         NodeReference source,
         ClusterMember target,
         NodeEndpoint contact,
         bool forward,
+        TimeSpan? probeTimeout = null,
         CancellationToken cancellationToken = default);
 
     ValueTask GossipAsync(

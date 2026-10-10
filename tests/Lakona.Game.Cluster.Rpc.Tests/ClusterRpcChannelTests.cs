@@ -19,7 +19,7 @@ public sealed class ClusterRpcChannelTests
         var serverChannel = new ClusterRpcChannel(
             new SingleConnectionClusterTransport(serverTransport),
             new NoopSerializer(),
-            "lakona.cluster.incompatible.v1");
+            "lakona.cluster.v5");
         var endpoint = new ClusterEndpoint("loopback", "local", 21001);
         await using var acceptor = await serverChannel.ListenAsync(
             endpoint,
@@ -35,8 +35,8 @@ public sealed class ClusterRpcChannelTests
 
         var serverException = await Assert.ThrowsAsync<ClusterRpcProtocolMismatchException>(() => serverTask);
         Assert.Equal(ClusterProtocol.Identifier, exception.LocalProtocolId);
-        Assert.Equal("lakona.cluster.incompatible.v1", exception.RemoteProtocolId);
-        Assert.Equal("lakona.cluster.incompatible.v1", serverException.LocalProtocolId);
+        Assert.Equal("lakona.cluster.v5", exception.RemoteProtocolId);
+        Assert.Equal("lakona.cluster.v5", serverException.LocalProtocolId);
         Assert.Equal(ClusterProtocol.Identifier, serverException.RemoteProtocolId);
     }
 

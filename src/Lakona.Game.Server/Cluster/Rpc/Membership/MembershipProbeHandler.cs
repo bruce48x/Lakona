@@ -44,27 +44,30 @@ internal sealed class MembershipProbeHandler(
         {
             return new MembershipProbeReply
             {
-                IsAlive = target == local,
+                Status = target == local ? MembershipProbeStatus.Succeeded : MembershipProbeStatus.Unknown,
                 MembershipVersion = snapshot.View.Value
             };
         }
 
         if (source == local
             || target == local
+            || request.TargetProbeTimeout <= TimeSpan.Zero
+            || request.TargetProbeTimeout.TotalMilliseconds > uint.MaxValue - 1
             || !string.Equals(targetMember.ClusterEndpoint.Address, request.TargetEndpoint, StringComparison.Ordinal))
         {
             return new MembershipProbeReply { MembershipVersion = snapshot.View.Value };
         }
 
-        var alive = await transport.ProbeAsync(
+        var result = await transport.ProbeAsync(
             local,
             targetMember,
             targetMember.ClusterEndpoint,
             forward: false,
+            probeTimeout: request.TargetProbeTimeout,
             cancellationToken).ConfigureAwait(false);
         return new MembershipProbeReply
         {
-            IsAlive = alive,
+            Status = result,
             MembershipVersion = snapshot.View.Value
         };
     }

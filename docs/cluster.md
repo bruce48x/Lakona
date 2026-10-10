@@ -312,11 +312,32 @@ probing every other node.
 One missed direct probe is not a death decision:
 
 1. The observer tries a direct probe.
-2. It asks up to two other Active nodes to probe the target.
-3. After three failed probe rounds, it commits a suspicion vote.
+2. On failure it asks up to two other Active nodes to probe the target, rotating
+   the selection each round.
+3. After three confirmed failed rounds since the last success, it commits a suspicion vote.
 4. The target becomes `Dead` only after enough distinct, non-expired votes.
 5. The committing node gossips the new table version; receivers fetch rows from
    the table instead of trusting gossip payloads.
+
+Probes carry `Succeeded`, `Failed`, or `Unknown` (the default) through RPC.
+Direct connection refusal, connection loss, and timeout are `Failed`. Failure
+to reach an intermediary is `Unknown`; a valid reply carries its actual target
+probe result. Rejected requests, unverified identities, missing replies, and
+remote handler errors are also `Unknown`. Caller cancellation propagates.
+
+Direct success or any successful intermediary clears the failure count. After
+a direct failure, at least one intermediary must report `Failed` and none
+report success for the round to count once. All-`Unknown` intermediary results
+preserve the count but neither add nor refresh a suspicion vote. When no
+intermediary exists, as in a two-node cluster, direct failures count. Existing
+but unreachable intermediaries do not trigger that fallback. Helpers never
+contribute additional stored votes on behalf of the observer. Persistent
+uncertainty can delay death detection indefinitely.
+
+`ProbeTimeoutSeconds` is the direct-probe budget T. An indirect RPC has a 2T
+budget and carries T to the intermediary for its target probe, leaving time
+for forwarding and the reply. Budgets use relative durations, not synchronized
+clocks or the intermediary's local timeout configuration.
 
 The effective vote threshold cannot exceed what the current cluster can
 provide. This preserves progress in a small cluster while requiring
@@ -329,8 +350,10 @@ an early death decision.
 
 `IAmAliveTime` has a different job: it helps operators and startup distinguish
 old rows. A slow table heartbeat does not itself evict a process. During
-startup, only the combination of an expired table heartbeat and failed two-way
-network probes lets the joining node clear a defunct Active row. This lets a
+startup, both directions must succeed before admission. Only an expired table
+heartbeat together with a failed direct probe to the old peer permits clearing
+its defunct Active row. An unknown result or a failed reverse probe alone blocks
+joining without evicting that peer. This lets a
 cluster recover after a complete crash without treating database congestion
 alone as network death.
 
@@ -353,10 +376,15 @@ distributed-work admission and stops; this is a terminal fence.
 Node-to-node RPC is framework-owned TCP plus MemoryPack. It is separate from
 client-facing endpoints and serializers.
 
-The protocol identifier is `lakona.cluster.v5`. Peers negotiate this
-identifier before decoding cluster payloads. There is no compatibility path
-for earlier protocols with Actor cancellation messages: mismatched generations
-fail the connection. Deploy this protocol change across the cluster together.
+The protocol identifier is `lakona.cluster.v6`. Peers negotiate this
+identifier before decoding cluster payloads. Membership replies carry a
+three-state result instead of a boolean, and requests carry the target-probe
+budget. Earlier protocol generations are rejected; mixed-version operation is
+not supported. Stop the old cluster before deploying all nodes with the new
+runtime. Use a new BuildTag and a new Membership store for this compatibility
+boundary, since a store retains its established BuildTag. An old Membership
+store may instead be cleared only after all old nodes have stopped. Do not
+roll old and new nodes through the same running cluster.
 
 Membership RPC contains only probes and version gossip. The selected Membership
 Adapter remains the authority for state transitions. Gossip is an optimization

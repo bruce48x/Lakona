@@ -1,5 +1,6 @@
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Membership;
+using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Rpc.Membership;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
@@ -23,6 +24,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
     private readonly ILogger<MembershipTableHostedService> logger;
     private readonly TimeProvider timeProvider;
     private readonly Dictionary<NodeReference, int> failedProbes = [];
+    private uint probeRound;
     private readonly object shutdownGate = new();
     private Task? beginStoppingTask;
     private DateTimeOffset lastTableContact;
@@ -242,6 +244,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
 
     private async ValueTask ProbeTargetsAsync(LakonaGameMembershipOptions options, CancellationToken cancellationToken)
     {
+        var round = probeRound++;
         var snapshot = membership.Current;
         var local = manager.Local;
         var activeReferences = snapshot.Members
@@ -255,12 +258,18 @@ internal sealed class MembershipTableHostedService : BackgroundService
 
         foreach (var target in MembershipProbeTargetSelector.Select(snapshot, local, options.MonitoredNodes))
         {
-            if (await probes.ProbeAsync(local, target, target.ClusterEndpoint, false, cancellationToken).ConfigureAwait(false)
-                || await TryIndirectProbeAsync(snapshot, local, target, options.IndirectProbes, cancellationToken).ConfigureAwait(false))
+            var result = await probes.ProbeAsync(local, target, target.ClusterEndpoint, false,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (result == MembershipProbeStatus.Failed)
+                result = await TryIndirectProbeAsync(snapshot, local, target, options.IndirectProbes, round, cancellationToken)
+                    .ConfigureAwait(false);
+            if (result == MembershipProbeStatus.Succeeded)
             {
                 failedProbes.Remove(target.Reference);
                 continue;
             }
+            // Unknown neither clears evidence nor adds/refreshes a suspicion vote.
+            if (result != MembershipProbeStatus.Failed) continue;
 
             var failures = failedProbes.GetValueOrDefault(target.Reference) + 1;
             failedProbes[target.Reference] = failures;
@@ -295,27 +304,34 @@ internal sealed class MembershipTableHostedService : BackgroundService
         }
     }
 
-    private async ValueTask<bool> TryIndirectProbeAsync(
+    private async ValueTask<MembershipProbeStatus> TryIndirectProbeAsync(
         ClusterMembershipSnapshot snapshot,
         NodeReference local,
         ClusterMember target,
         int helperCount,
+        uint round,
         CancellationToken cancellationToken)
     {
         var helpers = snapshot.Members
             .Where(member => member.State == ClusterMemberState.Active
                 && member.Reference != local
                 && member.Reference != target.Reference)
-            .Take(helperCount);
-        foreach (var helper in helpers)
+            .ToArray();
+        // A two-node cluster must still progress on direct evidence. Unreachable
+        // helpers are different: they exist, but provide no corroboration.
+        if (helpers.Length == 0) return MembershipProbeStatus.Failed;
+        var result = MembershipProbeStatus.Unknown;
+        var start = (int)(round % (uint)helpers.Length);
+        for (var index = 0; index < Math.Min(helperCount, helpers.Length); index++)
         {
-            if (await probes.ProbeAsync(local, target, helper.ClusterEndpoint, true, cancellationToken).ConfigureAwait(false))
-            {
-                return true;
-            }
+            var helper = helpers[(start + index) % helpers.Length];
+            var reply = await probes.ProbeAsync(local, target, helper.ClusterEndpoint, true,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (reply == MembershipProbeStatus.Succeeded) return reply;
+            if (reply == MembershipProbeStatus.Failed) result = reply;
         }
 
-        return false;
+        return result;
     }
 
     private async ValueTask ValidateConnectivityAsync(
@@ -334,11 +350,13 @@ internal sealed class MembershipTableHostedService : BackgroundService
                 active.Labels,
                 active.ActorHosts,
                 active.StartupActors);
-            var outgoing = await probes.ProbeAsync(local, projected, active.ClusterEndpoint, false, cancellationToken).ConfigureAwait(false);
-            var incoming = await probes.ProbeAsync(local, localMember, active.ClusterEndpoint, true, cancellationToken).ConfigureAwait(false);
-            if (!outgoing || !incoming)
+            var outgoing = await probes.ProbeAsync(local, projected, active.ClusterEndpoint, false,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            var incoming = await probes.ProbeAsync(local, localMember, active.ClusterEndpoint, true,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (outgoing != MembershipProbeStatus.Succeeded || incoming != MembershipProbeStatus.Succeeded)
             {
-                var declaredDead = await manager.TryMarkDefunctAsync(
+                var declaredDead = outgoing == MembershipProbeStatus.Failed && await manager.TryMarkDefunctAsync(
                     active.Reference,
                     TimeSpan.FromSeconds(options.AllowedIAmAliveMissSeconds),
                     cancellationToken).ConfigureAwait(false);

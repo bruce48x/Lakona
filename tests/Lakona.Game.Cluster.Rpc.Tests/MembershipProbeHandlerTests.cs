@@ -9,6 +9,47 @@ namespace Lakona.Game.Cluster.Rpc.Tests;
 public sealed class MembershipProbeHandlerTests
 {
     [Fact]
+    public async Task Forwarded_target_timeout_returns_failed_before_outer_deadline()
+    {
+        var setup = await CreateTwoNodesAsync(activateSecond: true);
+        await setup.FirstManager.RefreshAsync(TestContext.Current.CancellationToken);
+        await setup.FirstManager.RefreshAsync(TestContext.Current.CancellationToken);
+        var target = setup.FirstState.Current.Members.Single(m => m.Reference == setup.Second);
+        var inner = new RpcMembershipProbeTransport(new ProbeClientFactory(async (_, ct) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            throw new InvalidOperationException("Unreachable");
+        }), TimeSpan.FromSeconds(30)); // Must use the sender's budget, not this default.
+        var handler = new MembershipProbeHandler(setup.FirstManager, setup.FirstState, inner);
+        var outer = new RpcMembershipProbeTransport(new ProbeClientFactory(handler.HandleAsync), TimeSpan.FromMilliseconds(500));
+        Assert.Equal(MembershipProbeStatus.Failed, await outer.ProbeAsync(setup.Second, target,
+            new NodeEndpoint("tcp://127.0.0.1:21001"), true, cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Rejected_identity_or_endpoint_is_unknown_without_probing(bool wrongEndpoint)
+    {
+        var setup = await CreateTwoNodesAsync(activateSecond: true);
+        var transport = new StubProbeTransport();
+        var handler = new MembershipProbeHandler(setup.FirstManager, setup.FirstState, transport);
+        var reply = await handler.HandleAsync(new MembershipProbeRequest
+        {
+            Cluster = setup.First.Cluster.Value,
+            SourceNodeId = setup.Second.Node.Value,
+            SourceIncarnation = setup.Second.Incarnation.Value,
+            TargetNodeId = setup.Second.Node.Value,
+            TargetIncarnation = wrongEndpoint ? setup.Second.Incarnation.Value : Guid.NewGuid(),
+            TargetEndpoint = "tcp://127.0.0.1:29999",
+            Forward = true,
+            TargetProbeTimeout = TimeSpan.FromSeconds(1)
+        }, TestContext.Current.CancellationToken);
+        Assert.Equal(MembershipProbeStatus.Unknown, reply.Status);
+        Assert.Equal(0, transport.Calls);
+    }
+
+    [Fact]
     public async Task ProbeRefreshesTheTableBeforeRejectingAnUnknownJoiningSource()
     {
         var setup = await CreateTwoNodesAsync(activateSecond: false);
@@ -24,7 +65,7 @@ public sealed class MembershipProbeHandlerTests
             TargetEndpoint = "tcp://127.0.0.1:21001"
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(reply.IsAlive);
+        Assert.Equal(MembershipProbeStatus.Succeeded, reply.Status);
         Assert.True(setup.FirstState.Current.TryGetMember(setup.Second, out var joining));
         Assert.Equal(ClusterMemberState.Joining, joining!.State);
     }
@@ -90,13 +131,18 @@ public sealed class MembershipProbeHandlerTests
 
     private sealed class StubProbeTransport : IMembershipProbeTransport
     {
-        public ValueTask<bool> ProbeAsync(
+        public int Calls { get; private set; }
+        public ValueTask<MembershipProbeStatus> ProbeAsync(
             NodeReference source,
             ClusterMember target,
             NodeEndpoint contact,
             bool forward,
-            CancellationToken cancellationToken = default) =>
-            new(false);
+            TimeSpan? probeTimeout = null,
+            CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return new(MembershipProbeStatus.Failed);
+        }
 
         public ValueTask GossipAsync(
             NodeReference source,
