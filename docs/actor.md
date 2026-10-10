@@ -314,6 +314,11 @@ releases the exact Directory claim, and then removes the activation. Calls
 racing with stop are rejected; they cannot queue behind deactivation and reopen
 the Actor. Stop-hook exceptions are reported while cleanup continues.
 
+Failed creation follows the same drain, exact claim release, and removal order,
+without running `[ActorStop]`. A cancelled or timed-out start wait does not
+prove that `[ActorStart]` has finished; its claim must remain held until that
+accepted work finishes.
+
 If drain or exact claim release cannot be confirmed, admission remains closed
 and the fenced claim remains recoverable for a later destroy retry. Lifecycle
 state never moves backward, and a retired Actor is never reopened.
@@ -534,11 +539,13 @@ Every Directory acquire or release uses an exact `NodeReference` and
 `ActorActivationId`; there is no node-only ownership fallback.
 
 Failed-create compensation has a framework-owned 30-second lifetime independent
-of caller cancellation. If exact release cannot be confirmed before that
-deadline, the operation reports an unconfirmed compensation failure and keeps
-the fenced Catalog entry available to recovery. Graceful shutdown drains
-activations while Directory and cluster transport are still available; runtime
-disposal is the final safety net and does not rerun lifecycle hooks.
+of caller cancellation, covering retirement and exact claim release. If drain
+or release cannot be confirmed within the applicable timeout, the operation
+reports both the original creation failure and the compensation failure, and
+keeps the fenced Catalog entry available to recovery and a later destroy retry.
+Graceful shutdown drains activations while Directory and cluster transport are
+still available; runtime disposal is the final safety net and does not rerun
+lifecycle hooks.
 
 Continue with the owning authority for deeper mechanics:
 

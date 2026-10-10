@@ -268,15 +268,36 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
             return;
         }
 
+        await RetireAndRemoveAsync(
+            actorType,
+            actorId,
+            registeredRecord,
+            _lifecycleDispatcher.HasStopHook(actorType)
+                ? (actor, ct) => _lifecycleDispatcher.StopAsync(actorType, actorId, actor, ct)
+                : static (_, _) => default,
+            nameof(DestroyAsync),
+            cancellationToken).ConfigureAwait(false);
+
+        _rollbackRecorder.RecordDestroyed(actorType, actorId);
+    }
+
+    // The caller holds the per-Actor operation lock. Keep the Catalog entry as
+    // recovery evidence until both retirement and exact claim release succeed.
+    private async ValueTask RetireAndRemoveAsync(
+        Type actorType,
+        ActorId actorId,
+        ActorDirectoryRecord? registeredRecord,
+        Func<object, CancellationToken, ValueTask> stop,
+        string operation,
+        CancellationToken cancellationToken)
+    {
         ActorHostingLocalRetireResult retireResult;
         try
         {
             retireResult = await RetireLocalAsync(
                 actorType,
                 actorId,
-                _lifecycleDispatcher.HasStopHook(actorType)
-                    ? (actor, ct) => _lifecycleDispatcher.StopAsync(actorType, actorId, actor, ct)
-                    : static (_, _) => default,
+                stop,
                 _options.DeactivationTimeout,
                 cancellationToken).ConfigureAwait(false);
         }
@@ -285,7 +306,7 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
             throw new ActorHostingStopException(
                 actorId,
                 actorType,
-                nameof(DestroyAsync),
+                operation,
                 $"Failed while retiring actor id '{actorId.Value}' as '{actorType.FullName}'.",
                 ex);
         }
@@ -295,14 +316,15 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
                 actorId,
                 actorType,
                 retireResult.ExistingActorType ?? typeof(IActor),
-                nameof(DestroyAsync));
+                operation);
         if (retireResult.Status == ActorHostingLocalRetireStatus.TimedOut)
             throw new ActorHostingStopException(
                 actorId,
                 actorType,
-                nameof(DestroyAsync),
+                operation,
                 $"Timed out while draining actor id '{actorId.Value}' as '{actorType.FullName}'.");
 
+        cancellationToken.ThrowIfCancellationRequested();
         if (UsesDistributedLocation(actorType))
         {
             _directoryCache?.Remove(actorId);
@@ -325,19 +347,17 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
             throw new ActorHostingStopException(
                 actorId,
                 actorType,
-                nameof(DestroyAsync),
+                operation,
                 $"Failed while removing retired actor id '{actorId.Value}' as '{actorType.FullName}'.",
                 ex);
         }
         if (destroyResult.Status == ActorHostingLocalDestroyStatus.TypeMismatch)
             throw new ActorHostingTypeMismatchException(
-                actorId, actorType, destroyResult.ExistingActorType ?? typeof(IActor), nameof(DestroyAsync));
+                actorId, actorType, destroyResult.ExistingActorType ?? typeof(IActor), operation);
         if (destroyResult.Status == ActorHostingLocalDestroyStatus.TimedOut)
             throw new ActorHostingStopException(
-                actorId, actorType, nameof(DestroyAsync),
+                actorId, actorType, operation,
                 $"Timed out while removing retired actor id '{actorId.Value}'.");
-
-        _rollbackRecorder.RecordDestroyed(actorType, actorId);
     }
 
     async ValueTask IActorSelfDeactivationSink.DeactivateAsync(
@@ -532,55 +552,30 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
         catch (Exception failure)
         {
             _directoryCache?.Remove(actorId);
-            var cleanupActorType = actorType;
-            var shouldCleanupLocal = _actors.TryGetValue(actorId, out var failedCell)
-                && failedCell.ActorType == actorType;
-            failedCell?.BeginStopping();
-
-            if (registeredByThisCall)
+            if (localCreated)
             {
                 try
                 {
                     await _compensationLifetime.ExecuteAsync(
                         actorId,
-                        "failed-create directory release",
-                        async cleanupToken =>
-                        {
-                            var record = await Directory!.ResolveAsync(actorId, cleanupToken)
-                                .ConfigureAwait(false);
-                            if (registeredRecord?.ActivationId is { } failedActivation)
-                            {
-                                if (record?.ActivationId == failedActivation)
-                                    await ReleaseLocalRouteAsync(record, cleanupToken).ConfigureAwait(false);
-                            }
-                            else if (record?.Node == _localNode.NodeId)
-                            {
-                                await ReleaseLocalRouteAsync(record, cleanupToken).ConfigureAwait(false);
-                            }
-                        }).ConfigureAwait(false);
+                        "failed-create retirement and directory release",
+                        cleanupToken => RetireAndRemoveAsync(
+                            actorType,
+                            actorId,
+                            registeredByThisCall ? registeredRecord : null,
+                            static (_, _) => default,
+                            strict ? nameof(CreateAsync) : nameof(EnsureAsync),
+                            cleanupToken)).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogWarning(ex, "Failed to roll back actor directory route for {ActorId}.", actorId.Value);
+                    _logger?.LogWarning(ex, "Failed to roll back actor activation for {ActorId}.", actorId.Value);
                     throw new ActorHostingException(
                         actorId,
                         actorType,
                         strict ? nameof(CreateAsync) : nameof(EnsureAsync),
-                        $"Actor creation failed and directory compensation for actor id '{actorId.Value}' is unconfirmed.",
+                        $"Actor creation failed and activation compensation for actor id '{actorId.Value}' is unconfirmed.",
                         new AggregateException(failure, ex));
-                }
-            }
-
-            if (shouldCleanupLocal)
-            {
-                try
-                {
-                    await DestroyLocalAsync(cleanupActorType, actorId, _options.DeactivationTimeout, CancellationToken.None)
-                        .ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogWarning(ex, "Failed to roll back local actor {ActorId}.", actorId.Value);
                 }
             }
 

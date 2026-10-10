@@ -425,6 +425,12 @@ acquires the claim before opening mailbox admission. Recovery therefore cannot
 miss an acquisition in flight, and failed callers never release ownership on
 behalf of another process.
 
+If creation fails after acquiring a claim, the selected node keeps that exact
+claim until accepted startup work has drained. Unconfirmed drain or release
+leaves a non-callable Catalog entry visible to recovery and later destroy
+retries; caller cancellation alone never makes the Actor available to a new
+owner. See [Actor lifecycle](actor.md#lifecycle).
+
 If an owner leaves membership, new routing cannot use that incarnation.
 Recovery inspects surviving `ActorActivationCatalog` snapshots and re-establishes
 one authoritative owner. Incomplete recovery remains unavailable rather than

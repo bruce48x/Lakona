@@ -277,6 +277,133 @@ public sealed class ActorActivationCatalogTests
         Assert.Contains(catalog.CaptureRecoveryClaims(), record => record.ActorId == actorId);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Failed_create_keeps_exact_claim_until_start_finishes_and_destroy_is_retried(bool cancelCaller)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var dispatcher = new UncancellableStartActorLifecycleDispatcher();
+        await using var provider = CreateProvider(
+            configure: options => options.CallTimeout = TimeSpan.FromSeconds(1),
+            lifecycleDispatcher: dispatcher);
+        var catalog = provider.GetRequiredService<ActorActivationCatalog>();
+        var snapshots = provider.GetRequiredService<IActorActivationSnapshotSource>();
+        var directory = provider.GetRequiredService<IActorDirectory>();
+        var actorId = ActorId.From("hosting/unfinished-start");
+        using var caller = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var creation = catalog.CreateAsync<HostedTestActor>(actorId, caller.Token).AsTask();
+        ActorDirectoryRecord claim;
+
+        try
+        {
+            await dispatcher.Entered.Task.WaitAsync(cancellationToken);
+            claim = Assert.Single(snapshots.CaptureRecoveryClaims());
+            provider.GetRequiredService<ActorRuntimeOptions>().DeactivationTimeout = TimeSpan.FromMilliseconds(50);
+            if (cancelCaller) await caller.CancelAsync();
+
+            var exception = await Assert.ThrowsAsync<ActorHostingException>(() => creation);
+            var failures = Assert.IsType<AggregateException>(exception.InnerException).InnerExceptions;
+            Assert.Contains(failures, failure => cancelCaller
+                ? failure is OperationCanceledException
+                : failure is TimeoutException);
+            Assert.Contains(failures, failure => failure is ActorHostingStopException);
+            Assert.False(dispatcher.Finished.Task.IsCompleted);
+            Assert.Equal(ActorActivationState.Deactivating, catalog.GetActivationState(actorId));
+            Assert.Equal(claim, Assert.Single(snapshots.CaptureRecoveryClaims()));
+            Assert.Equal(claim, await directory.ResolveAsync(actorId, cancellationToken));
+            Assert.Equal(0, dispatcher.StopCalls);
+
+            var competing = await directory.AcquireAsync(
+                actorId, RemoteReference, ActorActivationId.New(), cancellationToken);
+            Assert.False(competing.Acquired);
+            Assert.Equal(claim, competing.Record);
+            await Assert.ThrowsAsync<ActorNotFoundException>(async () =>
+                await catalog.AskAsync<HostedTestActor, int>(actorId,
+                    static (actor, _) => actor.GetActivatedCountAsync(), cancellationToken));
+        }
+        finally
+        {
+            dispatcher.Release.TrySetResult();
+        }
+
+        await dispatcher.Finished.Task.WaitAsync(cancellationToken);
+        provider.GetRequiredService<ActorRuntimeOptions>().DeactivationTimeout = TimeSpan.FromSeconds(5);
+        await catalog.DestroyExactAsync<HostedTestActor>(
+            actorId, claim.OwnerReference, claim.ActivationId, cancellationToken);
+        Assert.Empty(snapshots.CaptureRecoveryClaims());
+        Assert.Equal(ActorActivationState.Invalid, catalog.GetActivationState(actorId));
+        Assert.Null(await directory.ResolveAsync(actorId, cancellationToken));
+        Assert.True((await directory.AcquireAsync(
+            actorId, RemoteReference, ActorActivationId.New(), cancellationToken)).Acquired);
+    }
+
+    [Fact]
+    public async Task Failed_create_waits_for_start_before_releasing_claim_without_running_stop_hook()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var time = new ManualDeadlineTimeProvider();
+        var dispatcher = new UncancellableStartActorLifecycleDispatcher();
+        await using var provider = CreateProvider(
+            lifecycleDispatcher: dispatcher,
+            compensationLifetime: new ActorCompensationLifetime(TimeSpan.FromSeconds(30), time));
+        var catalog = provider.GetRequiredService<ActorActivationCatalog>();
+        var directory = provider.GetRequiredService<IActorDirectory>();
+        var actorId = ActorId.From("hosting/cancelled-start-drains");
+        using var caller = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var creation = catalog.CreateAsync<HostedTestActor>(actorId, caller.Token).AsTask();
+
+        try
+        {
+            await dispatcher.Entered.Task.WaitAsync(cancellationToken);
+            await caller.CancelAsync();
+            await time.TimerScheduled.WaitAsync(cancellationToken);
+            Assert.NotNull(await directory.ResolveAsync(actorId, cancellationToken));
+            Assert.False(dispatcher.Finished.Task.IsCompleted);
+        }
+        finally
+        {
+            dispatcher.Release.TrySetResult();
+        }
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => creation);
+        Assert.True(dispatcher.Finished.Task.IsCompleted);
+        Assert.Equal(0, dispatcher.StopCalls);
+        Assert.Null(await directory.ResolveAsync(actorId, cancellationToken));
+        Assert.Empty(provider.GetRequiredService<IActorActivationSnapshotSource>().CaptureRecoveryClaims());
+        Assert.Equal(ActorActivationState.Invalid, catalog.GetActivationState(actorId));
+    }
+
+    [Fact]
+    public async Task Failed_create_keeps_retired_recovery_claim_when_release_fails_and_can_retry()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var directory = new FailingReleaseActivationDirectory();
+        var dispatcher = new ThrowingActorLifecycleDispatcher(throwOnStart: true);
+        await using var provider = CreateProvider(directory: directory, lifecycleDispatcher: dispatcher);
+        var catalog = provider.GetRequiredService<ActorActivationCatalog>();
+        var snapshots = provider.GetRequiredService<IActorActivationSnapshotSource>();
+        var actorId = ActorId.From("hosting/failed-start-release-retry");
+
+        var exception = await Assert.ThrowsAsync<ActorHostingException>(async () =>
+            await catalog.CreateAsync<HostedTestActor>(actorId, cancellationToken));
+        var failures = Assert.IsType<AggregateException>(exception.InnerException).InnerExceptions;
+        Assert.Contains(failures, failure => failure.Message == "start failed");
+        Assert.Contains(failures, failure => failure is ActorDirectoryUnavailableException);
+        var claim = Assert.Single(snapshots.CaptureRecoveryClaims());
+        Assert.Equal(directory.Record, claim);
+        Assert.Equal(ActorActivationState.Deactivating, catalog.GetActivationState(actorId));
+        Assert.Equal(0, dispatcher.StopCalls);
+
+        directory.FailRelease = false;
+        await catalog.DestroyExactAsync<HostedTestActor>(
+            actorId, claim.OwnerReference, claim.ActivationId, cancellationToken);
+        Assert.Null(directory.Record);
+        Assert.Empty(snapshots.CaptureRecoveryClaims());
+        Assert.Equal(ActorActivationState.Invalid, catalog.GetActivationState(actorId));
+        Assert.Equal(0, dispatcher.StopCalls);
+    }
+
     [Fact]
     public async Task CreateAsync_does_not_open_admission_when_registered_claim_disappears_before_revalidation()
     {
@@ -931,6 +1058,30 @@ public sealed class ActorActivationCatalogTests
             CancellationToken cancellationToken = default) => default;
     }
 
+    private sealed class UncancellableStartActorLifecycleDispatcher : IActorLifecycleDispatcher
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Finished { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int StopCalls { get; private set; }
+
+        public bool HasStartHook(Type actorType) => true;
+        public bool HasStopHook(Type actorType) => true;
+
+        public async ValueTask StartAsync(Type actorType, ActorId actorId, object actor, CancellationToken cancellationToken)
+        {
+            Entered.TrySetResult();
+            await Release.Task;
+            Finished.TrySetResult();
+        }
+
+        public ValueTask StopAsync(Type actorType, ActorId actorId, object actor, CancellationToken cancellationToken)
+        {
+            StopCalls++;
+            return default;
+        }
+    }
+
     private sealed class BlockingStopActorLifecycleDispatcher : IActorLifecycleDispatcher
     {
         public TaskCompletionSource Release { get; } =
@@ -960,6 +1111,8 @@ public sealed class ActorActivationCatalogTests
         bool throwOnStart = false,
         bool throwOnStop = false) : IActorLifecycleDispatcher
     {
+        public int StopCalls { get; private set; }
+
         public bool HasStartHook(Type actorType)
         {
             return true;
@@ -990,6 +1143,7 @@ public sealed class ActorActivationCatalogTests
             object actor,
             CancellationToken cancellationToken)
         {
+            StopCalls++;
             if (throwOnStop)
             {
                 throw new InvalidOperationException("stop failed");
@@ -1281,6 +1435,7 @@ public sealed class ActorActivationCatalogTests
     private sealed class FailingReleaseActivationDirectory : IActorDirectory
     {
         public ActorDirectoryRecord? Record { get; private set; }
+        public bool FailRelease { get; set; } = true;
 
         public ValueTask<ActorDirectoryRecord?> ResolveAsync(
             ActorId actorId,
@@ -1299,8 +1454,15 @@ public sealed class ActorActivationCatalogTests
         public ValueTask<bool> ReleaseAsync(
             ActorId actorId,
             ActorActivationId expectedActivation,
-            CancellationToken cancellationToken = default) =>
-            throw new ActorDirectoryUnavailableException("Injected release failure.");
+            CancellationToken cancellationToken = default)
+        {
+            if (FailRelease)
+                throw new ActorDirectoryUnavailableException("Injected release failure.");
+            if (Record?.ActorId != actorId || Record.ActivationId != expectedActivation)
+                return new(false);
+            Record = null;
+            return new(true);
+        }
     }
 
 }
