@@ -500,10 +500,15 @@ stays in Shared, not duplicated in server or Godot clients.
 `ServerAppRenderer` owns the stable server app:
 
 - `Server/Server.slnx`
+- `Server/BuildTag.props`
 - `Server/App/Server.App.csproj`
 - `Server/App/Program.cs`
 - `Server/App/appsettings.json`
 - stable server orchestration files
+
+`Server.slnx` exposes the shared `BuildTag.props` as a file in the
+`Solution Items` solution folder so users can find and edit the deployment
+compatibility control in the IDE's default solution view.
 
 `Program.cs` should stay a thin composition root and delegate lifecycle to
 `LakonaGameServer.RunAsync`. It explicitly registers only the transport and

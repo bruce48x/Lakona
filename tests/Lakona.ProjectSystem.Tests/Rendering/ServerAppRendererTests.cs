@@ -111,6 +111,13 @@ public sealed class ServerAppRendererTests
     {
         var plan = Render(Spec(TransportKind.Kcp, SerializerKind.MemoryPack));
         var buildTagProps = AssertPath(plan, "Server/BuildTag.props").Content;
+        var solution = XDocument.Parse(AssertPath(plan, "Server/Server.slnx").Content);
+        var solutionItems = Assert.Single(solution.Root!.Elements("Folder"),
+            folder => (string?)folder.Attribute("Name") == "/Solution Items/");
+        var buildTagItem = Assert.Single(solutionItems.Elements("File"));
+        var buildTagPath = (string?)buildTagItem.Attribute("Path");
+        Assert.Equal("BuildTag.props", buildTagPath);
+        AssertPath(plan, $"Server/{buildTagPath}");
         Assert.Contains("<LakonaBuildTag>Dev1</LakonaBuildTag>", buildTagProps, StringComparison.Ordinal);
         Assert.DoesNotContain("LakonaHotfixBuildTag", buildTagProps, StringComparison.Ordinal);
         var project = AssertPath(plan, "Server/App/Server.App.csproj").Content;

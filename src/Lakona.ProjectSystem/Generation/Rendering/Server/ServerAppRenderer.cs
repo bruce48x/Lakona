@@ -21,6 +21,9 @@ internal sealed class ServerAppRenderer : IPlanContributor
     {
         return """
         <Solution>
+          <Folder Name="/Solution Items/">
+            <File Path="BuildTag.props" />
+          </Folder>
           <Project Path="../Shared/Shared.csproj" />
           <Project Path="App/Server.App.csproj" />
           <Project Path="Hotfix/Server.Hotfix.csproj" />
