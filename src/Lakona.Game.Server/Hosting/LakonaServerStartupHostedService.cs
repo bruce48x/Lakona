@@ -2,6 +2,7 @@ using System.Reflection;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hotfix.BuildTag;
+using Lakona.Game.Server.Hotfix;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -12,7 +13,8 @@ internal sealed class LakonaServerStartupHostedService(
     LakonaServerReadinessState readiness,
     DistributedWorkAdmissionGate admissionGate,
     ILogger<LakonaServerStartupHostedService> logger,
-    IClusterNodeDescriptorRefresher? descriptorRefresher = null) : IHostedLifecycleService
+    IClusterNodeDescriptorRefresher? descriptorRefresher = null,
+    IHotfixManager? hotfixManager = null) : IHostedLifecycleService
 {
     private static readonly TimeSpan DistributedWorkDrainTimeout = TimeSpan.FromSeconds(30);
 
@@ -55,6 +57,8 @@ internal sealed class LakonaServerStartupHostedService(
     public async Task StoppingAsync(CancellationToken cancellationToken)
     {
         readiness.MarkStopping();
+        if (hotfixManager is HotfixManager manager)
+            await manager.BeginStoppingAsync().ConfigureAwait(false);
         var drained = await admissionGate.CloseAndDrainAsync(
             DistributedWorkDrainTimeout,
             cancellationToken).ConfigureAwait(false);

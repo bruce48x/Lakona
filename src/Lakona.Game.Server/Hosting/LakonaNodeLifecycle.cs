@@ -6,7 +6,6 @@ namespace Lakona.Game.Server.Hosting;
 
 internal enum LakonaNodeLifecycleStage
 {
-    ApplicationModules = 100,
     Hotfix = 200,
     ClusterTransport = 300,
     Membership = 400,
@@ -72,15 +71,7 @@ internal sealed class LakonaNodeLifecycle(
             }
 
             _startAttempted = true;
-            var rollbackTimeout = hostOptions.Value.ShutdownTimeout;
-            // Match the cancellation timer's millisecond range before acquiring resources.
-            var rollbackMilliseconds = (long)rollbackTimeout.TotalMilliseconds;
-            if (rollbackMilliseconds < -1 || rollbackMilliseconds > uint.MaxValue - 1)
-            {
-                throw new ArgumentOutOfRangeException(
-                    "HostOptions.ShutdownTimeout", rollbackTimeout,
-                    "Shutdown timeout must be infinite (-1 ms) or between 0 and 4294967294 ms.");
-            }
+            var rollbackTimeout = ValidateShutdownTimeout(hostOptions.Value.ShutdownTimeout);
 
             try
             {
@@ -93,7 +84,7 @@ internal sealed class LakonaNodeLifecycle(
             catch
             {
                 // Startup may already be canceled. Give the entire rollback its
-                // own cooperative deadline, shared by every stage and module.
+                // own cooperative deadline, shared by every stage.
                 using var rollback = new CancellationTokenSource(rollbackTimeout);
                 await StopStartedAsync(rollback.Token, preservePrimaryFailure: true)
                     .ConfigureAwait(false);
@@ -104,6 +95,16 @@ internal sealed class LakonaNodeLifecycle(
         {
             _gate.Release();
         }
+    }
+
+    internal static TimeSpan ValidateShutdownTimeout(TimeSpan timeout)
+    {
+        // Match the cancellation timer's millisecond range before acquiring resources.
+        var milliseconds = (long)timeout.TotalMilliseconds;
+        if (milliseconds < -1 || milliseconds > uint.MaxValue - 1)
+            throw new ArgumentOutOfRangeException("HostOptions.ShutdownTimeout", timeout,
+                "Shutdown timeout must be infinite (-1 ms) or between 0 and 4294967294 ms.");
+        return timeout;
     }
 
     internal async Task StopAsync(CancellationToken cancellationToken)

@@ -1,19 +1,65 @@
 using StackExchange.Redis;
+using Lakona.Game.Server;
+using Lakona.Game.Server.Hotfix.Abstractions;
+using Microsoft.Extensions.Configuration;
+using Server.App.Infrastructure.Redis;
 using Server.App.Leaderboard;
 
-namespace Server.App.Infrastructure.Redis;
+namespace Server.Hotfix.Leaderboard;
 
-public sealed class RedisLeaderboardStore(
-    RedisLeaderboardOptions options,
-    IDatabase database) :
-    ILeaderboardStore
+[HotfixComponent]
+[NodeRole("data")]
+public sealed class RedisLeaderboardStore(RedisLeaderboardState state, IConfiguration configuration)
 {
+    private IDatabase Database => (state.Connection
+        ?? throw new InvalidOperationException("Leaderboard component has not started.")).GetDatabase();
+
+    [ComponentStart]
+    public async ValueTask StartAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var name = configuration["Agar:Persistence:Redis:ConnectionStringName"] ?? "AgarGameRedis";
+        var connectionString = configuration.GetConnectionString(name);
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new InvalidOperationException($"ConnectionStrings:{name} is required on data nodes.");
+        var options = ConfigurationOptions.Parse(connectionString);
+        options.AbortOnConnectFail = true;
+        ConnectionMultiplexer? candidate = null;
+        try
+        {
+            // ConnectAsync has its own finite timeout. Await completion so cancellation cannot orphan a connection.
+            candidate = await ConnectionMultiplexer.ConnectAsync(options).ConfigureAwait(false);
+            _ = await candidate.GetDatabase().PingAsync().ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            var prefix = configuration["Agar:Persistence:Redis:KeyPrefix"];
+            state.KeyPrefix = string.IsNullOrWhiteSpace(prefix) ? "agar" : prefix.Trim();
+            state.Connection = candidate;
+            candidate = null;
+        }
+        catch (Exception startupError)
+        {
+            try { candidate?.Dispose(); }
+            catch (Exception cleanupError)
+            {
+                throw new AggregateException("Redis startup and candidate cleanup failed.", startupError, cleanupError);
+            }
+            throw;
+        }
+    }
+
+    [ComponentStop]
+    public async ValueTask StopAsync(CancellationToken cancellationToken)
+    {
+        if (state.Connection is { } connection)
+            await connection.CloseAsync(allowCommandsToComplete: true).ConfigureAwait(false);
+        // The stable state owns final disposal, after all component Stop hooks.
+    }
     public async ValueTask<string?> GetCurrentPeriodAsync(
         CancellationToken cancellationToken = default)
     {
-        var value = await database
+        cancellationToken.ThrowIfCancellationRequested();
+        var value = await Database
             .StringGetAsync(CurrentPeriodKey())
-            .WaitAsync(cancellationToken)
             .ConfigureAwait(false);
         return value.HasValue ? value.ToString() : null;
     }
@@ -22,10 +68,10 @@ public sealed class RedisLeaderboardStore(
         string periodStartLocalDate,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ValidatePeriod(periodStartLocalDate);
-        _ = await database
+        _ = await Database
             .StringSetAsync(CurrentPeriodKey(), periodStartLocalDate)
-            .WaitAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -33,12 +79,12 @@ public sealed class RedisLeaderboardStore(
         string periodStartLocalDate,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ValidatePeriod(periodStartLocalDate);
-        var scores = await database
+        var scores = await Database
             .SortedSetRangeByRankWithScoresAsync(
                 ScoresKey(periodStartLocalDate),
                 order: Order.Descending)
-            .WaitAsync(cancellationToken)
             .ConfigureAwait(false);
         if (scores.Length == 0)
         {
@@ -48,9 +94,8 @@ public sealed class RedisLeaderboardStore(
         var playerIds = scores
             .Select(static entry => (RedisValue)entry.Element.ToString())
             .ToArray();
-        var wins = await database
+        var wins = await Database
             .HashGetAsync(WinsKey(periodStartLocalDate), playerIds)
-            .WaitAsync(cancellationToken)
             .ConfigureAwait(false);
         var players = new LeaderboardPlayerState[scores.Length];
         for (var index = 0; index < scores.Length; index++)
@@ -73,6 +118,7 @@ public sealed class RedisLeaderboardStore(
         LeaderboardPlayerState player,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ValidatePeriod(periodStartLocalDate);
         ArgumentNullException.ThrowIfNull(player);
         if (string.IsNullOrWhiteSpace(player.PlayerId))
@@ -80,7 +126,7 @@ public sealed class RedisLeaderboardStore(
             throw new ArgumentException("Leaderboard player id is required.", nameof(player));
         }
 
-        var transaction = database.CreateTransaction();
+        var transaction = Database.CreateTransaction();
         _ = transaction.SortedSetAddAsync(
             ScoresKey(periodStartLocalDate),
             player.PlayerId,
@@ -91,7 +137,6 @@ public sealed class RedisLeaderboardStore(
             Math.Max(0, player.WinCount));
         var committed = await transaction
             .ExecuteAsync()
-            .WaitAsync(cancellationToken)
             .ConfigureAwait(false);
         if (!committed)
         {
@@ -100,7 +145,7 @@ public sealed class RedisLeaderboardStore(
         }
     }
 
-    private string KeyPrefix => options.KeyPrefix;
+    private string KeyPrefix => state.KeyPrefix;
 
     private RedisKey CurrentPeriodKey() => $"{KeyPrefix}:leaderboard:current-period";
 
@@ -118,7 +163,3 @@ public sealed class RedisLeaderboardStore(
         }
     }
 }
-
-public sealed record RedisLeaderboardOptions(
-    string ConnectionString,
-    string KeyPrefix);

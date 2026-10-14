@@ -5,7 +5,10 @@ using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using System.Reflection;
+using Lakona.Game.Server.Hosting;
 
 namespace Lakona.Game.Server.Hotfix;
 
@@ -27,6 +30,8 @@ public sealed class HotfixManager
     private readonly Func<HotfixDispatchTable> _dispatchTableProvider;
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
     private readonly List<Task> _retirementTasks = [];
+    private readonly HotfixComponentLifecycle _components = new();
+    private int _stopping;
     private int _disposeState;
     private long _nextVersion;
     private HotfixPublicationState _publication = HotfixPublicationState.Empty;
@@ -113,11 +118,13 @@ public sealed class HotfixManager
 
     public async ValueTask<HotfixReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _stopping) != 0, this);
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeState) != 0, this);
         await _reloadLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeState) != 0, this);
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _stopping) != 0, this);
             var result = await LoadCoreAsync(_source, publish: true, cancellationToken).ConfigureAwait(false);
             if (result.Succeeded)
                 result = NotifyReloaded(result);
@@ -155,16 +162,21 @@ public sealed class HotfixManager
         }
         try
         {
-            resolved = await source.ResolveAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            var initial = publish && ReferenceEquals(source, _source)
+                ? _rootServices?.GetService<HotfixComponentRegistration>()?.TakeInitialAssembly()
+                : null;
+            pendingContext = initial?.Context;
+            resolved = initial?.Source ?? await source.ResolveAsync(cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!File.Exists(resolved.AssemblyPath))
+            if (initial is null && !File.Exists(resolved.AssemblyPath))
             {
                 throw new FileNotFoundException("Hotfix assembly was not found.", resolved.AssemblyPath);
             }
 
-            pendingContext = new HotfixAssemblyLoadContext(resolved.AssemblyPath, _hostAssemblyNames);
-            var assembly = pendingContext.LoadMainAssemblyFromBytes(resolved.AssemblyPath);
+            pendingContext ??= new HotfixAssemblyLoadContext(resolved.AssemblyPath, _hostAssemblyNames);
+            var assembly = initial?.Assembly ?? pendingContext.LoadMainAssemblyFromBytes(resolved.AssemblyPath);
             var scan = HotfixBehaviorScanner.Scan(
                 assembly,
                 requiredServiceContracts: _requiredServiceContracts);
@@ -335,6 +347,7 @@ public sealed class HotfixManager
         HotfixRuntimeSnapshot candidate,
         CancellationToken cancellationToken)
     {
+        _components.Validate(candidate);
         _rootServices?.GetService<Sessions.GameSessionLifecycleBindings>()?.Validate(candidate.DispatchTable?.SessionLifecycleIdentities ?? []);
         var previous = Volatile.Read(ref _publication).Runtime;
         foreach (var participant in _publicationParticipants)
@@ -356,11 +369,14 @@ public sealed class HotfixManager
     {
         ArgumentNullException.ThrowIfNull(runtimeSnapshot);
         ArgumentNullException.ThrowIfNull(snapshot);
+        var rollbackTimeout = LakonaNodeLifecycle.ValidateShutdownTimeout(
+            _rootServices?.GetService<IOptions<HostOptions>>()?.Value.ShutdownTimeout ?? TimeSpan.FromSeconds(30));
         var previousPublication = Volatile.Read(ref _publication);
         var transactions = new List<IHotfixRuntimePublicationTransaction>(_publicationParticipants.Count);
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
+            _components.Validate(runtimeSnapshot);
             foreach (var participant in _publicationParticipants)
             {
                 transactions.Add(await participant.PrepareAsync(
@@ -371,6 +387,7 @@ public sealed class HotfixManager
 
             using (runtimeSnapshot.AcquireLease())
             {
+                await _components.StartAsync(runtimeSnapshot, _rootServices, cancellationToken).ConfigureAwait(false);
                 foreach (var transaction in transactions)
                 {
                     await transaction.ActivateAsync(cancellationToken).ConfigureAwait(false);
@@ -391,6 +408,7 @@ public sealed class HotfixManager
                 sessionBindings.Publish(runtimeSnapshot.DispatchTable?.SessionLifecycleIdentities ?? [], Publish);
             else
                 Publish();
+            _components.Commit();
         }
         catch (OperationCanceledException cancellationException)
         {
@@ -398,6 +416,7 @@ public sealed class HotfixManager
             using (runtimeSnapshot.AcquireLease())
             {
                 rollbackFailures = await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
+                rollbackFailures = [.. rollbackFailures, .. await RollbackComponentsAsync(runtimeSnapshot, rollbackTimeout).ConfigureAwait(false)];
             }
             var disposalFailures = await DisposePublicationTransactionsAsync(
                 transactions,
@@ -421,6 +440,7 @@ public sealed class HotfixManager
             using (runtimeSnapshot.AcquireLease())
             {
                 rollbackFailures = await RollbackPublicationTransactionsAsync(transactions).ConfigureAwait(false);
+                rollbackFailures = [.. rollbackFailures, .. await RollbackComponentsAsync(runtimeSnapshot, rollbackTimeout).ConfigureAwait(false)];
             }
             var disposalFailures = await DisposePublicationTransactionsAsync(
                 transactions,
@@ -505,7 +525,22 @@ public sealed class HotfixManager
             [.. (dependencyWarnings ?? []), .. cleanupFailures.Select(static failure => failure.Diagnostic)]);
     }
 
-    public async ValueTask DisposeAsync()
+    internal async Task BeginStoppingAsync()
+    {
+        Interlocked.Exchange(ref _stopping, 1);
+        await _reloadLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        _reloadLock.Release();
+    }
+
+    private async ValueTask<IReadOnlyList<Exception>> RollbackComponentsAsync(HotfixRuntimeSnapshot runtime, TimeSpan timeout)
+    {
+        using var rollback = new CancellationTokenSource(timeout);
+        return await _components.RollbackAsync(runtime, rollback.Token).ConfigureAwait(false);
+    }
+
+    public ValueTask DisposeAsync() => StopAsync(CancellationToken.None);
+
+    internal async ValueTask StopAsync(CancellationToken cancellationToken)
     {
         if (Interlocked.Exchange(ref _disposeState, 1) != 0)
         {
@@ -522,7 +557,14 @@ public sealed class HotfixManager
             {
                 if (!ReferenceEquals(publication.Runtime, HotfixPublicationState.Empty.Runtime))
                 {
-                    publication.Runtime.Retire();
+                    publication.Runtime.Retire(async () =>
+                    {
+                        // Old generations also share State. Wait for their existing leases
+                        // before the latest implementation closes that State's resources.
+                        await Task.WhenAll(_retirementTasks).ConfigureAwait(false);
+                        var stopFailures = await _components.StopAsync(publication.Runtime, cancellationToken).ConfigureAwait(false);
+                        if (stopFailures.Count != 0) throw new AggregateException("Component shutdown failed.", stopFailures);
+                    });
                     var failures = await ObserveAndLogRetirementAsync(
                             publication.Runtime,
                             "shutdown",

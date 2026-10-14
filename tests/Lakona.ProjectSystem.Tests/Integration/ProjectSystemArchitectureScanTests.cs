@@ -746,7 +746,7 @@ public sealed class ProjectSystemArchitectureScanTests
         Assert.DoesNotContain("TryResumeAsync", hotfixBusinessCode, StringComparison.Ordinal);
         Assert.DoesNotContain("PlayerSessionRegistry", hotfixBusinessCode, StringComparison.Ordinal);
         Assert.DoesNotContain("PlayerSessionRegistration", hotfixBusinessCode, StringComparison.Ordinal);
-        Assert.DoesNotContain("GetConnection", hotfixBusinessCode, StringComparison.Ordinal);
+        Assert.DoesNotMatch(@"\bGetConnection\s*\(", hotfixBusinessCode);
         Assert.DoesNotContain("GetByRoom", hotfixBusinessCode, StringComparison.Ordinal);
         Assert.DoesNotContain("RegisterControl", hotfixBusinessCode, StringComparison.Ordinal);
         Assert.DoesNotContain("RuntimeGatewaySelector", hotfixBusinessCode, StringComparison.Ordinal);

@@ -17,7 +17,7 @@ public sealed class LakonaNodeLifecycleTests
     {
         var events = new List<string>();
         var lifecycle = new LakonaNodeLifecycle(
-            [Participant("modules", LakonaNodeLifecycleStage.ApplicationModules, events)],
+            [Participant("components", LakonaNodeLifecycleStage.Hotfix, events)],
             NullLogger<LakonaNodeLifecycle>.Instance,
             Options.Create(new HostOptions { ShutdownTimeout = TimeSpan.FromTicks(ticks) }));
 
@@ -39,7 +39,7 @@ public sealed class LakonaNodeLifecycleTests
         var failure = new InvalidOperationException("startup failed");
         var stopped = false;
         var lifecycle = new LakonaNodeLifecycle(
-            [new DelegateParticipant("modules", LakonaNodeLifecycleStage.ApplicationModules,
+            [new DelegateParticipant("components", LakonaNodeLifecycleStage.Hotfix,
                 _ =>
                 {
                     options.ShutdownTimeout = TimeSpan.MaxValue;
@@ -62,10 +62,10 @@ public sealed class LakonaNodeLifecycleTests
         CancellationToken firstToken = default, lastToken = default;
         var lifecycle = new LakonaNodeLifecycle(
         [
-            new DelegateParticipant("modules", LakonaNodeLifecycleStage.ApplicationModules,
+            new DelegateParticipant("components", LakonaNodeLifecycleStage.Hotfix,
                 _ => Task.CompletedTask, token =>
                 {
-                    events.Add("modules");
+                    events.Add("components");
                     lastToken = token;
                     return Task.CompletedTask;
                 }),
@@ -83,7 +83,7 @@ public sealed class LakonaNodeLifecycleTests
             .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
 
         Assert.Same(failure, error);
-        Assert.Equal(new[] { "membership", "modules" }, events);
+        Assert.Equal(new[] { "membership", "components" }, events);
         Assert.True(firstToken.IsCancellationRequested);
         Assert.Equal(firstToken, lastToken);
         await lifecycle.StopAsync(TestContext.Current.CancellationToken);
@@ -153,27 +153,25 @@ public sealed class LakonaNodeLifecycleTests
             Participant("actor-directory", LakonaNodeLifecycleStage.ActorDirectory, events),
             Participant("actor-activations", LakonaNodeLifecycleStage.ActorActivations, events),
             Participant("rpc", LakonaNodeLifecycleStage.ClusterTransport, events),
-            Participant("modules", LakonaNodeLifecycleStage.ApplicationModules, events),
-            Participant("membership", LakonaNodeLifecycleStage.Membership, events),
-            Participant("hotfix", LakonaNodeLifecycleStage.Hotfix, events));
+            Participant("components", LakonaNodeLifecycleStage.Hotfix, events),
+            Participant("membership", LakonaNodeLifecycleStage.Membership, events));
 
         await lifecycle.StartAsync(TestContext.Current.CancellationToken);
         await lifecycle.StopAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(
             [
-                "start:modules", "start:hotfix", "start:rpc", "start:membership",
+                "start:components", "start:rpc", "start:membership",
                 "start:actor-directory", "start:actor-activations", "start:startup-actors",
                 "start:membership-stopping",
                 "stop:membership-stopping", "stop:startup-actors",
                 "stop:actor-activations", "stop:actor-directory",
-                "stop:membership", "stop:rpc", "stop:hotfix", "stop:modules"
+                "stop:membership", "stop:rpc", "stop:components"
             ],
             events);
     }
 
     [Theory]
-    [InlineData((int)LakonaNodeLifecycleStage.ApplicationModules)]
     [InlineData((int)LakonaNodeLifecycleStage.Hotfix)]
     [InlineData((int)LakonaNodeLifecycleStage.ClusterTransport)]
     [InlineData((int)LakonaNodeLifecycleStage.Membership)]
@@ -213,8 +211,7 @@ public sealed class LakonaNodeLifecycleTests
         var events = new List<string>();
         var failure = new InvalidOperationException("membership failed");
         var lifecycle = Create(
-            Participant("modules", LakonaNodeLifecycleStage.ApplicationModules, events),
-            Participant("hotfix", LakonaNodeLifecycleStage.Hotfix, events),
+            Participant("components", LakonaNodeLifecycleStage.Hotfix, events),
             Participant("membership", LakonaNodeLifecycleStage.Membership, events, failure),
             Participant("membership-stopping", LakonaNodeLifecycleStage.MembershipStopping, events));
 
@@ -224,8 +221,8 @@ public sealed class LakonaNodeLifecycleTests
         Assert.Same(failure, exception);
         Assert.Equal(
             [
-                "start:modules", "start:hotfix", "start:membership",
-                "stop:membership", "stop:hotfix", "stop:modules"
+                "start:components", "start:membership",
+                "stop:membership", "stop:components"
             ],
             events);
     }
@@ -237,7 +234,7 @@ public sealed class LakonaNodeLifecycleTests
         var startFailure = new InvalidOperationException("membership start failed");
         var stopFailure = new ArgumentException("membership rollback failed");
         var lifecycle = Create(
-            Participant("modules", LakonaNodeLifecycleStage.ApplicationModules, events),
+            Participant("components", LakonaNodeLifecycleStage.Hotfix, events),
             Participant(
                 "membership",
                 LakonaNodeLifecycleStage.Membership,
@@ -250,7 +247,7 @@ public sealed class LakonaNodeLifecycleTests
 
         Assert.Same(startFailure, exception);
         Assert.Equal(
-            ["start:modules", "start:membership", "stop:membership", "stop:modules"],
+            ["start:components", "start:membership", "stop:membership", "stop:components"],
             events);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             lifecycle.StartAsync(TestContext.Current.CancellationToken));
@@ -263,7 +260,7 @@ public sealed class LakonaNodeLifecycleTests
     {
         var events = new List<string>();
         var lifecycle = Create(
-            Participant("modules", LakonaNodeLifecycleStage.ApplicationModules, events, stopOnCancellation: true),
+            Participant("components", LakonaNodeLifecycleStage.Hotfix, events, stopOnCancellation: true),
             Participant("membership", LakonaNodeLifecycleStage.Membership, events, stopOnCancellation: true),
             Participant("membership-stopping", LakonaNodeLifecycleStage.MembershipStopping, events, stopOnCancellation: true));
         await lifecycle.StartAsync(TestContext.Current.CancellationToken);
@@ -275,8 +272,8 @@ public sealed class LakonaNodeLifecycleTests
 
         Assert.Equal(
             [
-                "start:modules", "start:membership", "start:membership-stopping",
-                "stop:membership-stopping", "stop:membership", "stop:modules"
+                "start:components", "start:membership", "start:membership-stopping",
+                "stop:membership-stopping", "stop:membership", "stop:components"
             ],
             events);
     }
@@ -289,8 +286,8 @@ public sealed class LakonaNodeLifecycleTests
         var membershipStoppingFailure = new ArgumentException("membership-stopping stop failed");
         var lifecycle = Create(
             Participant(
-                "modules",
-                LakonaNodeLifecycleStage.ApplicationModules,
+                "components",
+                LakonaNodeLifecycleStage.Hotfix,
                 events,
                 stopFailure: moduleFailure),
             Participant("membership", LakonaNodeLifecycleStage.Membership, events),
@@ -307,8 +304,8 @@ public sealed class LakonaNodeLifecycleTests
         Assert.Equal([membershipStoppingFailure, moduleFailure], exception.InnerExceptions);
         Assert.Equal(
             [
-                "start:modules", "start:membership", "start:membership-stopping",
-                "stop:membership-stopping", "stop:membership", "stop:modules"
+                "start:components", "start:membership", "start:membership-stopping",
+                "stop:membership-stopping", "stop:membership", "stop:components"
             ],
             events);
     }
@@ -319,8 +316,8 @@ public sealed class LakonaNodeLifecycleTests
         var events = new List<string>();
         var lifecycle = Create(
             Participant(
-                "modules",
-                LakonaNodeLifecycleStage.ApplicationModules,
+                "components",
+                LakonaNodeLifecycleStage.Hotfix,
                 events,
                 stopFailure: new InvalidOperationException("stop failed")));
         await lifecycle.StartAsync(TestContext.Current.CancellationToken);
@@ -329,11 +326,10 @@ public sealed class LakonaNodeLifecycleTests
             lifecycle.StopAsync(TestContext.Current.CancellationToken));
         await lifecycle.StopAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(["start:modules", "stop:modules"], events);
+        Assert.Equal(["start:components", "stop:components"], events);
     }
 
     [Theory]
-    [InlineData((int)LakonaNodeLifecycleStage.ApplicationModules)]
     [InlineData((int)LakonaNodeLifecycleStage.Hotfix)]
     [InlineData((int)LakonaNodeLifecycleStage.ClusterTransport)]
     [InlineData((int)LakonaNodeLifecycleStage.Membership)]
@@ -370,14 +366,14 @@ public sealed class LakonaNodeLifecycleTests
     {
         var events = new List<string>();
         var lifecycle = Create(
-            Participant("modules", LakonaNodeLifecycleStage.ApplicationModules, events));
+            Participant("components", LakonaNodeLifecycleStage.Hotfix, events));
         await lifecycle.StartAsync(TestContext.Current.CancellationToken);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             lifecycle.StartAsync(TestContext.Current.CancellationToken));
 
         Assert.Contains("already started", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(["start:modules"], events);
+        Assert.Equal(["start:components"], events);
         await lifecycle.StopAsync(TestContext.Current.CancellationToken);
     }
 
@@ -386,7 +382,7 @@ public sealed class LakonaNodeLifecycleTests
     {
         var events = new List<string>();
         var lifecycle = Create(
-            Participant("modules", LakonaNodeLifecycleStage.ApplicationModules, events));
+            Participant("components", LakonaNodeLifecycleStage.Hotfix, events));
         await lifecycle.StopAsync(TestContext.Current.CancellationToken);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -417,19 +413,19 @@ public sealed class LakonaNodeLifecycleTests
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cancellation = new CancellationTokenSource();
         var lifecycle = Create(
-            Participant("modules", LakonaNodeLifecycleStage.ApplicationModules, events),
+            Participant("components", LakonaNodeLifecycleStage.Hotfix, events),
             new DelegateParticipant(
-                "hotfix",
-                LakonaNodeLifecycleStage.Hotfix,
+                "membership",
+                LakonaNodeLifecycleStage.Membership,
                 async token =>
                 {
-                    events.Add("start:hotfix");
+                    events.Add("start:membership");
                     entered.SetResult();
                     await Task.Delay(Timeout.InfiniteTimeSpan, token);
                 },
                 _ =>
                 {
-                    events.Add("stop:hotfix");
+                    events.Add("stop:membership");
                     return Task.CompletedTask;
                 }));
 
@@ -439,7 +435,7 @@ public sealed class LakonaNodeLifecycleTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => start);
         Assert.Equal(
-            ["start:modules", "start:hotfix", "stop:hotfix", "stop:modules"],
+            ["start:components", "start:membership", "stop:membership", "stop:components"],
             events);
     }
 
@@ -451,17 +447,17 @@ public sealed class LakonaNodeLifecycleTests
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var lifecycle = Create(
             new DelegateParticipant(
-                "modules",
-                LakonaNodeLifecycleStage.ApplicationModules,
+                "components",
+                LakonaNodeLifecycleStage.Hotfix,
                 async _ =>
                 {
-                    events.Add("start:modules");
+                    events.Add("start:components");
                     entered.SetResult();
                     await release.Task;
                 },
                 _ =>
                 {
-                    events.Add("stop:modules");
+                    events.Add("stop:components");
                     return Task.CompletedTask;
                 }));
 
@@ -474,7 +470,7 @@ public sealed class LakonaNodeLifecycleTests
         await start;
         await stop;
 
-        Assert.Equal(["start:modules", "stop:modules"], events);
+        Assert.Equal(["start:components", "stop:components"], events);
     }
 
     [Fact]
@@ -487,7 +483,7 @@ public sealed class LakonaNodeLifecycleTests
             .ConfigureServices(services =>
             {
                 services.AddSingleton<ILakonaNodeLifecycleParticipant>(
-                    Participant("modules", LakonaNodeLifecycleStage.ApplicationModules, events));
+                    Participant("components", LakonaNodeLifecycleStage.Hotfix, events));
                 services.AddSingleton<ILakonaNodeLifecycleParticipant>(
                     Participant(
                         "membership",
@@ -506,14 +502,13 @@ public sealed class LakonaNodeLifecycleTests
 
         Assert.Same(failure, exception);
         Assert.Equal(
-            ["start:modules", "start:membership", "stop:membership", "stop:modules"],
+            ["start:components", "start:membership", "stop:membership", "stop:components"],
             events);
     }
 
     private static (string Name, LakonaNodeLifecycleStage Stage)[] AllStages() =>
     [
-        ("modules", LakonaNodeLifecycleStage.ApplicationModules),
-        ("hotfix", LakonaNodeLifecycleStage.Hotfix),
+        ("components", LakonaNodeLifecycleStage.Hotfix),
         ("rpc", LakonaNodeLifecycleStage.ClusterTransport),
         ("membership", LakonaNodeLifecycleStage.Membership),
         ("actor-directory", LakonaNodeLifecycleStage.ActorDirectory),

@@ -267,19 +267,14 @@ and preserve the user's choice. Generic folders such as `Services`,
 `Contracts`, and `State` are evidence to inspect rather than automatic
 violations.
 
-### `lakona-implement-module`
+### `lakona-implement-component`
 
-Use this Skill when a developer adds or revises an `ILakonaModule` for a stable,
-process-scoped resource such as PostgreSQL, Redis, a cache, a queue, or an
-application-owned background worker. It owns the workflow across synchronous
-DI declaration, asynchronous initialization, readiness gating, partial-start
-cleanup, graceful stop, and role-scoped selection.
-
-It must keep lifecycle modules out of business constructors, publish runtime
-dependencies through the final root provider, declare exactly one `[NodeRole]`,
-require configuration on selected nodes, and validate real startup when
-external connectivity affects Ready. Nodes outside that role do not construct
-the module.
+Use this Skill to implement node-level tools and resource initialization in
+HotfixComponent, with optional stable ComponentState. It covers constructor
+dependency ordering, role filtering, first Start/final Stop, State reuse across
+reload and stable resource ownership. It must prohibit detached tasks and timers;
+scheduled work uses Actor + Behavior. Real resource changes require startup and
+failure-path verification. See [Hotfix Components](../hotfix/components.md).
 
 ### `lakona-define-rpc-contract`
 
@@ -363,7 +358,7 @@ Bundled distribution is complete when:
 - `skills/lakona-define-rpc-contract/SKILL.md`,
   `skills/lakona-implement-service/SKILL.md`,
   `skills/lakona-implement-http-service/SKILL.md`,
-  `skills/lakona-implement-module/SKILL.md`,
+  `skills/lakona-implement-component/SKILL.md`,
   `skills/lakona-implement-actor/SKILL.md`,
   `skills/lakona-implement-timer/SKILL.md`,
   `skills/lakona-implement-session-lifecycle/SKILL.md`,

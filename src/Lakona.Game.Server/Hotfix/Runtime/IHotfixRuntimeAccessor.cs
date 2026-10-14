@@ -158,6 +158,7 @@ public sealed class HotfixRuntimeSnapshot
     private int _referenceCount;
     private int _retired;
     private int _retirementCompleted;
+    private Func<ValueTask>? _beforeCleanup;
 
     public IHotfixServiceInvoker Invoker { get; }
 
@@ -218,8 +219,15 @@ public sealed class HotfixRuntimeSnapshot
         }
     }
 
-    internal void Retire()
+    internal void Retire(Func<ValueTask>? beforeCleanup = null)
     {
+        // Final shutdown attaches its hook before closing generation admission. The same
+        // existing lease count protects both component Stop and provider cleanup.
+        if (beforeCleanup is not null)
+        {
+            if (Volatile.Read(ref _retired) != 0) throw new InvalidOperationException("Generation is already retired.");
+            _beforeCleanup = beforeCleanup;
+        }
         if (Interlocked.Exchange(ref _retired, 1) == 0 && Volatile.Read(ref _referenceCount) == 0)
         {
             CompleteRetirement();
@@ -264,6 +272,12 @@ public sealed class HotfixRuntimeSnapshot
         var failures = new List<Exception>();
         try
         {
+            if (_beforeCleanup is { } beforeCleanup)
+            {
+                try { await beforeCleanup().ConfigureAwait(false); }
+                catch (Exception error) { failures.Add(error); }
+                finally { _beforeCleanup = null; }
+            }
             if (_ownsRuntimeResources)
                 failures.AddRange(await HotfixResourceCleanup.RunAsync(DispatchTable, HotfixServices, LoadContext).ConfigureAwait(false));
             _onRetired?.Invoke();

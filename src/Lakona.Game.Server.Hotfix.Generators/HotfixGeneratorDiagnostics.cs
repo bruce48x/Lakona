@@ -11,7 +11,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         public static readonly DiagnosticDescriptor ComponentDependencyCycle = new DiagnosticDescriptor(
             "LAKONA20057", "Hotfix component constructor dependency cycle",
             "Hotfix component constructor dependency cycle: {0}; remove the circular dependency or extract a shared dependency",
-            "Lakona.Game.Hotfix", DiagnosticSeverity.Error, isEnabledByDefault: true);
+            "Lakona.Game.Hotfix", DiagnosticSeverity.Error, isEnabledByDefault: true, customTags: WellKnownDiagnosticTags.CompilationEnd);
         public static readonly DiagnosticDescriptor PossibleComponentDependencyCycle = new DiagnosticDescriptor(
             "LAKONA20058", "Possible Hotfix component constructor dependency cycle",
             "Default Hotfix component constructors form a cycle: {0}; custom service registration may change this graph; remove the cycle or verify the overriding factory/registration",

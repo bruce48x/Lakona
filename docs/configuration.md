@@ -342,8 +342,14 @@ coalesces or overwrites accepted business notifications.
 ## Node Roles And Actor Hosting
 
 `Lakona:Node:Roles` describes what this process is for, such as `gateway`,
-`data`, or `battle`. Every stable Actor and `ILakonaModule` declares exactly one
-role in Server.App:
+`data`, or `battle`. Every stable Actor declares exactly one role in Server.App.
+Hotfix components may declare one role; without a role they run on every node.
+Component filtering precedes construction and also filters its optional
+ComponentConfigureServices before root Build, so non-data nodes need no
+data-resource configuration. State remains a stable data/resource holder.
+See [Hotfix Components](./hotfix/components.md).
+
+For an Actor:
 
 ```csharp
 [NodeRole("battle")]

@@ -1,20 +1,10 @@
 using Lakona.Game.Server.Hotfix;
-using Lakona.Game.Server.Modules;
 using Lakona.Game.Cluster.Actors;
 using Lakona.Game.Server.Actors;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace Lakona.Game.Server.Hosting;
-
-internal sealed class LakonaModuleLifecycleParticipant(
-    LakonaModuleRuntime modules) : ILakonaNodeLifecycleParticipant
-{
-    public string Name => "application-modules";
-    public LakonaNodeLifecycleStage Stage => LakonaNodeLifecycleStage.ApplicationModules;
-    public Task StartAsync(CancellationToken cancellationToken) => modules.StartAsync(cancellationToken);
-    public Task StopAsync(CancellationToken cancellationToken) => modules.StopAsync(cancellationToken);
-}
 
 internal sealed class InitialHotfixLifecycleParticipant(
     IServiceProvider services) : ILakonaNodeLifecycleParticipant
@@ -27,7 +17,11 @@ internal sealed class InitialHotfixLifecycleParticipant(
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         var manager = services.GetRequiredService<IHotfixManager>();
-        if (manager is IAsyncDisposable asyncDisposable)
+        if (manager is HotfixManager hotfix)
+        {
+            await hotfix.StopAsync(cancellationToken).ConfigureAwait(false);
+        }
+        else if (manager is IAsyncDisposable asyncDisposable)
         {
             await asyncDisposable.DisposeAsync().ConfigureAwait(false);
         }

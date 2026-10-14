@@ -23,7 +23,7 @@ internal sealed class LakonaServerReadinessState
                     new LakonaGameDiagnostic(
                         FailedCode,
                         LakonaGameDiagnosticSeverity.Error,
-                        $"Application module '{current.ModuleName}' failed during startup: {current.Message}",
+                        $"Application component '{current.ComponentName}' failed during startup: {current.Message}",
                         "Restore the failed application dependency and restart the server.")
                 ],
                 Status.Stopping =>
@@ -39,7 +39,7 @@ internal sealed class LakonaServerReadinessState
                     new LakonaGameDiagnostic(
                         PendingCode,
                         LakonaGameDiagnosticSeverity.Error,
-                        "Lakona application modules and framework startup have not completed.",
+                        "Lakona application components and framework startup have not completed.",
                         "Wait for server startup to complete.")
                 ]
             };
@@ -54,15 +54,15 @@ internal sealed class LakonaServerReadinessState
             Snapshot.Starting);
     }
 
-    public void MarkFailed(Type moduleType, Exception exception)
+    public void MarkFailed(Type componentType, Exception exception)
     {
-        ArgumentNullException.ThrowIfNull(moduleType);
+        ArgumentNullException.ThrowIfNull(componentType);
         ArgumentNullException.ThrowIfNull(exception);
         Volatile.Write(
             ref snapshot,
             new Snapshot(
                 Status.Failed,
-                moduleType.FullName ?? moduleType.Name,
+                componentType.FullName ?? componentType.Name,
                 string.IsNullOrWhiteSpace(exception.Message)
                     ? exception.GetType().Name
                     : exception.Message));
@@ -92,7 +92,7 @@ internal sealed class LakonaServerReadinessState
 
     private sealed record Snapshot(
         Status Status,
-        string? ModuleName,
+        string? ComponentName,
         string? Message)
     {
         public static Snapshot Starting { get; } =

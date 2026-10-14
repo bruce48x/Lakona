@@ -1,6 +1,7 @@
 using Lakona.Game.Server.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Hosting;
@@ -21,6 +22,7 @@ public sealed class LakonaGameServerRunnerTests
         DisposalFailure resource = asynchronous ? new AsyncDisposalFailure() : new DisposalFailure();
         var service = default(FailingHostedService)!;
         var host = Host.CreateDefaultBuilder()
+            .ConfigureLogging(logging => logging.ClearProviders())
             .ConfigureServices(services =>
             {
                 services.AddSingleton(_ => resource);

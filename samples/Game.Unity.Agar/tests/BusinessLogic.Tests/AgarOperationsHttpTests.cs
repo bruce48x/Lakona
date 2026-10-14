@@ -4,6 +4,7 @@ using Lakona.Game.Server.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Server.App.Users;
 using Server.Hotfix.Operations;
+using Server.Hotfix.Users;
 using Xunit;
 
 namespace Agar.Unity.Tests;
@@ -13,7 +14,8 @@ public sealed class AgarOperationsHttpTests
     [Fact]
     public async Task Internal_user_query_returns_persisted_profile_without_credentials()
     {
-        var store = new InMemoryUserStore();
+        await using var persistence = TestPersistence.CreateProvider();
+        var store = persistence.GetRequiredService<PostgresUserStore>();
         await store.SaveAsync(
             new PersistedUser
             {
@@ -48,7 +50,8 @@ public sealed class AgarOperationsHttpTests
     [Fact]
     public async Task Internal_user_query_returns_not_found_for_unknown_account()
     {
-        var service = new AgarOperationsHttpService(new InMemoryUserStore());
+        await using var persistence = TestPersistence.CreateProvider();
+        var service = new AgarOperationsHttpService(persistence.GetRequiredService<PostgresUserStore>());
         await using var services = new ServiceCollection().BuildServiceProvider();
 
         var response = await service.GetUserAsync(
@@ -64,7 +67,8 @@ public sealed class AgarOperationsHttpTests
     [Fact]
     public async Task Internal_user_query_rejects_invalid_account()
     {
-        var service = new AgarOperationsHttpService(new InMemoryUserStore());
+        await using var persistence = TestPersistence.CreateProvider();
+        var service = new AgarOperationsHttpService(persistence.GetRequiredService<PostgresUserStore>());
         await using var services = new ServiceCollection().BuildServiceProvider();
 
         var response = await service.GetUserAsync(

@@ -1,6 +1,6 @@
 ---
 name: lakona-implement-service
-description: Implement or update Lakona RPC service handlers in Server/Hotfix from Shared interfaces marked with RpcService. Use when adding or completing a service, changing RPC methods, selecting the correct generated service call context, fixing Hotfix service binding, validating RPC-to-Hotfix wiring, or detecting that a service dependency such as a database or Redis client must be owned by a stable Server.App ILakonaModule.
+description: Implement or update Lakona RPC service handlers in Server/Hotfix from Shared interfaces marked with RpcService. Use when adding or completing a service, changing RPC methods, selecting the correct generated service call context, fixing Hotfix service binding, validating RPC-to-Hotfix wiring, or detecting that a service dependency such as a database or Redis client must be initialized by HotfixComponent with stable App resources or ComponentState.
 ---
 
 # Implement a Lakona RPC Service
@@ -20,7 +20,7 @@ service instances.
    IDs, and relevant tests.
 3. Locate the stable App and Hotfix projects. Inspect their project properties,
    generated namespace, neighboring service implementations, actor access,
-   dependency registration, application modules, and validation commands.
+   dependency registration, resource components, and validation commands.
 4. Search for an existing `[HotfixService(typeof(...))]` binding. Update it in
    place and preserve intentional behavior. Never create a second binding for
    the same contract.
@@ -36,15 +36,11 @@ service instances.
 8. Implement behavior from the user's request, contracts, actors, stores,
    tests, and neighboring code. Ask for a product decision only when repository
    evidence cannot determine a material behavior.
-9. When the behavior needs a database, Redis, queue, cache, external client, or
-   process-owned background worker, inject the narrow stable App interface into
-   Hotfix. Route missing lifecycle ownership to a public sealed `ILakonaModule`
-   in `Server.App` with the resource-owning `[NodeRole]`; do not create,
-   connect, register, or dispose the resource in the Hotfix service. Use
-   `lakona-implement-module` when available to complete required lifecycle work
-   within the current authorized implementation. Switching skills does not
-   require a new task or renewed approval. Ask only when a material decision
-   cannot be resolved from evidence or the work exceeds the authorized scope.
+9. When behavior needs external resources, inject the concrete HotfixComponent
+   that owns its business operations. Register stable clients through App
+   AddServices or retain asynchronously created handles in ComponentState. Use
+   `lakona-implement-component` for the required lifecycle work within the
+   authorized implementation; do not add another approval step.
 10. Reuse service or domain tests for affected behavior; add or update focused
     tests only where meaningful coverage is missing.
 11. Build the discovered Hotfix project and run the focused tests. Report what
@@ -68,11 +64,10 @@ service instances.
   `LAKONA20037` suppressions; `LAKONA20060` means remove the component marker.
   If an older package rejects unmarked exceptions, upgrade the framework rather
   than marking them as components. Verify both compilation and Hotfix loading.
-- Depend on stable business interfaces such as `IUserStore` or
-  `ILeaderboardStore`, not `NpgsqlDataSource`, `ConnectionMultiplexer`,
-  `IDatabase`, or an `ILakonaModule` implementation.
-- Never let Hotfix create, connect, register, cache, close, or dispose a stable
-  external resource. Do not make a Hotfix service publish Ready or NotReady.
+- Inject concrete resource components; component aliases, interfaces, factories
+  and overrides are unsupported. Stable infrastructure interfaces remain valid.
+- Keep resource initialization and closure in component hooks; RPC services do
+  not publish readiness or own cross-generation state.
 - Treat a service instance as a concurrent generation-scoped coordinator. Do
   not store per-request data or unsynchronized mutable game state in instance
   or static fields.
@@ -103,8 +98,8 @@ Confirm that the build sees exactly one service implementation and accepts all
 method names, request types, return types, call contexts, referenced actors, and
 generated types. Run startup or integration coverage when constructor
 availability or runtime publication cannot be proven statically. When service
-work adds or changes an external-resource module, also validate real startup:
+work adds or changes an resource component, also validate real startup:
 configured dependency failure must keep the node NotReady, successful
 `StartAsync` must prove the resource usable before Ready. Nodes carrying the
-module role must provide its configuration; nodes outside that role must not
-construct the module or its resource graph.
+component role must provide its configuration; nodes outside that role must not
+construct the component.

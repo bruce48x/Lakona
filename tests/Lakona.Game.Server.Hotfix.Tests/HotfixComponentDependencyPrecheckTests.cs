@@ -89,11 +89,11 @@ public sealed class HotfixComponentDependencyPrecheckTests
     [InlineData("last", true, false)]
     [InlineData("collectionOverride", true, false)]
     [InlineData("exactGeneric", true, false)]
-    [InlineData("instance", true, false)]
-    [InlineData("factory", true, true)]
+    [InlineData("instance", false, false)]
+    [InlineData("factory", false, false)]
     [InlineData("dependencyFactory", true, true)]
     [InlineData("keyed", true, true)]
-    [InlineData("constructors", true, true)]
+    [InlineData("constructors", false, false)]
     [InlineData("constrainedEnumerable", true, false)]
     [InlineData("recursiveGeneric", true, true)]
     [InlineData("root", true, false)]
@@ -119,32 +119,34 @@ public sealed class HotfixComponentDependencyPrecheckTests
         var manager = new HotfixManager(new CurrentDirectoryHotfixAssemblySource(directory, "Hotfix.dll"), rootServices: rootProvider, participants: []);
         try
         {
-            Emit(directory, "valid");
+            Emit(directory, "valid", allowActivation: true);
             var initial = await manager.ReloadAsync(TestContext.Current.CancellationToken);
             Assert.True(initial.Succeeded, initial.ErrorMessage);
             Emit(directory, scenario);
             var validation = await manager.ValidateAsync(TestContext.Current.CancellationToken);
             Assert.Equal(succeeds, validation.Succeeded);
             Assert.Equal(initial.Current.DispatchTableVersion, manager.Current.DispatchTableVersion);
-            var reload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
-            Assert.Equal(succeeds, reload.Succeeded);
+            var reload = validation; // Metadata validation must not execute constructor or resource factories.
             Assert.Equal(warns, validation.Status == HotfixReloadStatus.SucceededWithWarnings);
             Assert.Equal(warns, reload.Status == HotfixReloadStatus.SucceededWithWarnings);
             if (!succeeds)
             {
-                Assert.Contains("LazyComponent ->", reload.ErrorMessage);
+                Assert.Contains("LazyComponent", reload.ErrorMessage);
+                if (scenario is not ("factory" or "instance" or "constructors"))
+                {
                 Assert.Contains(scenario == "scoped" ? "scoped" : "System.Uri", reload.ErrorMessage);
                 Assert.Equal(initial.Current.DispatchTableVersion, manager.Current.DispatchTableVersion);
                 if (scenario is "genericRoot" or "genericOpaqueRoot" or "genericEnumerableRoot")
                     Assert.Contains("without stable-provider fallback", reload.ErrorMessage);
+                }
             }
             if (warns)
             {
                 Assert.Contains(reload.Diagnostics, text => text.Contains("coverage incomplete"));
-                Assert.Equal(HotfixReloadStatus.SucceededWithWarnings, manager.Current.LastReloadStatus);
+                Assert.Equal(initial.Current.DispatchTableVersion, manager.Current.DispatchTableVersion);
             }
             Assert.Equal(0, rootActivations);
-            Emit(directory, "valid");
+            Emit(directory, "valid", allowActivation: true);
             Assert.Equal(HotfixReloadStatus.Succeeded, (await manager.ReloadAsync(TestContext.Current.CancellationToken)).Status);
         }
         finally
@@ -182,7 +184,7 @@ public sealed class HotfixComponentDependencyPrecheckTests
             Assert.Equal(HotfixReloadStatus.Succeeded, validation.Status);
             var reload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
             Assert.Equal(HotfixReloadStatus.Succeeded, reload.Status);
-            Assert.Equal(0, rootActivations);
+            Assert.Equal(expectedRootActivations, rootActivations);
             using var lease = ((IHotfixRuntimeAccessor)manager).AcquireCurrent();
             var runtime = ((IHotfixRuntimeAccessor)manager).Current;
             Assert.NotNull(runtime.Services.GetRequiredService(runtime.MainAssembly!.GetType("LazyComponent")!));

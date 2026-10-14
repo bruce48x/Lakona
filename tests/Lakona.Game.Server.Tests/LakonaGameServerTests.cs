@@ -391,7 +391,6 @@ public sealed class LakonaGameServerTests
         Assert.Single(host.Services.GetServices<LakonaGameRuntimeOptions>());
         Assert.Equal(
             [
-                ("application-modules", LakonaNodeLifecycleStage.ApplicationModules),
                 ("initial-hotfix", LakonaNodeLifecycleStage.Hotfix),
                 ("rpc-listeners", LakonaNodeLifecycleStage.ClusterTransport),
                 ("membership", LakonaNodeLifecycleStage.Membership),
@@ -460,7 +459,7 @@ public sealed class LakonaGameServerTests
         {
             var hotfixRoot = Path.Combine(baseDirectory, "hotfix");
             Directory.CreateDirectory(hotfixRoot);
-            File.WriteAllText(Path.Combine(hotfixRoot, "Server.Hotfix.dll"), "");
+            WriteEmptyHotfixAssembly(Path.Combine(hotfixRoot, "Server.Hotfix.dll"));
             Assert.False(File.Exists(Path.Combine(hotfixRoot, "current.txt")));
 
             var error = await Record.ExceptionAsync(() =>
@@ -506,7 +505,7 @@ public sealed class LakonaGameServerTests
             var versionDirectory = Path.Combine(hotfixRoot, "versions", version);
             Directory.CreateDirectory(versionDirectory);
             File.WriteAllText(Path.Combine(hotfixRoot, "current.txt"), version);
-            File.WriteAllText(Path.Combine(versionDirectory, "Server.Hotfix.dll"), "");
+            WriteEmptyHotfixAssembly(Path.Combine(versionDirectory, "Server.Hotfix.dll"));
             Assert.False(File.Exists(Path.Combine(hotfixRoot, "Server.Hotfix.dll")));
 
             using var host = await BuildStartupHostAsync(
@@ -1258,7 +1257,20 @@ public sealed class LakonaGameServerTests
     {
         var hotfixPath = Path.Combine(AppContext.BaseDirectory, "hotfix", "Server.Hotfix.dll");
         Directory.CreateDirectory(Path.GetDirectoryName(hotfixPath)!);
-        File.WriteAllText(hotfixPath, "");
+        WriteEmptyHotfixAssembly(hotfixPath);
+    }
+
+    private static void WriteEmptyHotfixAssembly(string path)
+    {
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Select(file => MetadataReference.CreateFromFile(file));
+        var compilation = CSharpCompilation.Create("StartupHotfix" + Guid.NewGuid().ToString("N"),
+            [CSharpSyntaxTree.ParseText("public static class EmptyHotfix {}")], references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using var stream = new MemoryStream();
+        var result = compilation.Emit(stream);
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        File.WriteAllBytes(path, stream.ToArray());
     }
 
     private static void ConfigureDefaultHotfix(

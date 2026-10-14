@@ -64,7 +64,7 @@ public sealed class HotfixCompositionTests
     }
 
     [Fact]
-    public async Task Startup_registration_overrides_generated_default_in_a_node_owned_generation()
+    public async Task Components_use_node_owned_stable_state_and_complete_lifecycle_before_disposal()
     {
         await using var cluster = new LakonaTestClusterBuilder()
             .AddNode("data-1", "data")
@@ -76,7 +76,16 @@ public sealed class HotfixCompositionTests
         var root = cluster.Node("data-1").Services;
         var runtime = root.GetRequiredService<IHotfixRuntimeAccessor>().Current;
         var probe = Assert.Single(runtime.Services.GetServices<CompositionProbe>());
-        Assert.Equal("startup", probe.Origin);
+        Assert.Equal("generated", probe.Origin);
+        var state = root.GetRequiredService<CompositionProbeState>();
+        var registration = root.GetRequiredService<CompositionRegistrationProbe>();
+        Assert.Equal("data-1", registration.NodeId);
+        Assert.Same(registration, runtime.Services.GetRequiredService<CompositionRegistrationProbe>());
+        Assert.NotSame(registration, cluster.Node("data-2").Services.GetRequiredService<CompositionRegistrationProbe>());
+        Assert.Same(state, runtime.Services.GetRequiredService<CompositionProbeState>());
+        Assert.Equal(1, state.Starts);
+        Assert.Equal(0, state.Stops);
+        Assert.NotSame(state, cluster.Node("data-2").Services.GetRequiredService<CompositionProbeState>());
         Assert.Null(root.GetService<CompositionProbe>());
         Assert.Same(root.GetRequiredService<Lakona.Game.Server.ILakonaGameServer>(),
             runtime.Services.GetRequiredService<Lakona.Game.Server.ILakonaGameServer>());
@@ -85,5 +94,8 @@ public sealed class HotfixCompositionTests
 
         await cluster.DisposeAsync();
         Assert.Equal(1, probe.DisposeCount);
+        Assert.Equal(1, state.Stops);
+        Assert.Equal(1, state.StateDisposals);
+        Assert.Equal(1, registration.Disposals);
     }
 }

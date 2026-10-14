@@ -10,7 +10,7 @@ internal static class HubAotSmokeTest
         "lakona-define-rpc-contract",
         "lakona-implement-actor",
         "lakona-implement-http-service",
-        "lakona-implement-module",
+        "lakona-implement-component",
         "lakona-implement-service",
         "lakona-implement-session-lifecycle",
         "lakona-implement-timer",

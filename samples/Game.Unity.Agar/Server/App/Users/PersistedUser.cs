@@ -1,16 +1,5 @@
 namespace Server.App.Users;
 
-public interface IUserStore
-{
-    ValueTask<PersistedUser?> LoadAsync(
-        string userId,
-        CancellationToken cancellationToken = default);
-
-    ValueTask SaveAsync(
-        PersistedUser user,
-        CancellationToken cancellationToken = default);
-}
-
 public sealed class PersistedUser
 {
     public const int MaximumUserIdLength = 128;

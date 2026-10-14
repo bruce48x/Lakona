@@ -234,24 +234,36 @@ be registered through the `[HotfixConfigureServices]` startup method; stable
 framework dependencies should come from the root provider and must not capture
 `Server.Hotfix` types.
 
+Stable component resources are registered on the HotfixComponent in Hotfix
+using `[ComponentConfigureServices] public static void
+ConfigureServices(IServiceCollection services, IConfiguration configuration)`.
+It runs once before root Build, following the component's NodeRole, and does not
+run during Hotfix Validate/reload. Its singleton services persist across
+generations. Factories are materialized once through root DI, then their Hotfix
+delegates are cleared so the original generation can unload. This entry accepts
+only closed stable types with unkeyed singleton type/factory registrations.
+See [stable component registration](./components.md#stable-service-registration)
+for ordering and ownership. `[HotfixConfigureServices]` still registers services
+owned by each Hotfix generation.
+
 This resolution order is a permanent part of the Hotfix authoring model:
 
-- generation-local registrations may deliberately shadow stable registrations;
-- stable application-module services are automatically available through their
-  stable business interfaces;
+- ordinary generation-local services may shadow stable registrations; component
+  and State registrations are reserved to the framework;
+- stable infrastructure services and marked component State are available from
+  root DI;
 - constructor signatures remain the declaration of a Hotfix class's
   dependencies;
 - missing dependencies fail candidate activation before publication.
 
-`LAKONA20057` reports constructor dependency cycles between automatically
-registered `[HotfixComponent]` classes at compile time, including
-`IEnumerable<Component>` dependencies. It uses the selected activation
-constructor and reports the cycle path at the dependency parameter. Break the
-cycle by removing the back-reference or extracting a shared dependency.
-If the assembly declares custom service registration, `LAKONA20058` reports
-the same graph as a warning: a factory or replacement registration may change
-the actual graph. Interface, keyed, and factory dependencies require runtime
-registration information and are not inferred by this analyzer.
+[Hotfix Components](./components.md) use one public constructor and concrete,
+required, unkeyed injection. The generated singleton cannot be overridden,
+aliased, factory-created or injected as a collection. These restrictions apply
+to every component consumer. Stable infrastructure interfaces remain supported.
+`LAKONA20057` reports component constructor cycles as errors even when custom
+registration exists; `LAKONA20061` validates the component contract. All effective
+components activate at initial startup, including tools without hooks. Validate
+checks metadata without running ComponentStart.
 
 During candidate activation, re-entering the same guarded registration fails
 with an actionable dependency-cycle error instead of recursively activating
@@ -261,8 +273,7 @@ candidate leaves the current generation published and permits a later corrected
 reload.
 
 Before activating dispatch modules, validation also inspects the effective
-registrations of every `[HotfixComponent]`, including components only resolved
-later from a request. For implementation types with one public constructor it
+registrations of every `[HotfixComponent]`, including tools without lifecycle hooks. For implementation types with one public constructor it
 walks constructor dependencies without creating instances. Known missing
 registrations, cycles, invalid implementation types, and a singleton's
 generation-local scoped dependencies reject the candidate with a dependency
@@ -283,8 +294,8 @@ precheck follows this distinction for each constructor.
 
 A stable provider's `IServiceProviderIsService` metadata establishes availability
 without resolving stable services. Its internal dependency graph and lifetimes
-are not inspected. Explicit instances replace constructor requirements. Factory
-registrations, keyed parameters, multiple public constructors, recursively
+are not inspected. For ordinary infrastructure dependencies, explicit instances replace constructor
+requirements. Infrastructure factories, keyed parameters, multiple constructors, recursively
 expanding generic registrations, and stable providers without service metadata
 produce coverage warnings instead of speculative missing-service errors. These
 paths are not executed by the metadata precheck. Successful validation/reload

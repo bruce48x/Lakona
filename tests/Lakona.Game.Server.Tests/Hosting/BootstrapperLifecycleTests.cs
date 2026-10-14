@@ -5,7 +5,7 @@ using System.Runtime.Loader;
 using Lakona.Game.Cluster.Membership;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hosting;
-using Lakona.Game.Server.Modules;
+using Lakona.Game.Server.Hotfix.Abstractions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Configuration;
@@ -18,7 +18,20 @@ namespace Lakona.Game.Server.Tests.Hosting;
 public sealed class BootstrapperLifecycleTests
 {
     [Fact]
-    public async Task Http_bind_failure_never_publishes_ready_and_runner_stops_started_modules()
+    public async Task Stable_component_services_are_configured_before_host_build_and_owned_by_root()
+    {
+        await using var fixture = new Fixture();
+        var host = await fixture.BuildAsync(FreePort());
+        var resource = host.Services.GetRequiredService<RegisteredResource>();
+        Assert.Equal("lifecycle-test", resource.NodeId);
+        Assert.Equal(0, fixture.Probe.Starts);
+        Assert.Equal(0, resource.Disposals);
+        await ((IAsyncDisposable)host).DisposeAsync();
+        Assert.Equal(1, resource.Disposals);
+    }
+
+    [Fact]
+    public async Task Http_bind_failure_never_publishes_ready_and_runner_stops_started_components()
     {
         using var blocker = new TcpListener(IPAddress.Loopback, 0);
         blocker.Start();
@@ -58,7 +71,7 @@ public sealed class BootstrapperLifecycleTests
     }
 
     [Fact]
-    public async Task Later_start_failure_preserves_original_error_when_module_rollback_fails()
+    public async Task Later_start_failure_preserves_original_error_when_component_rollback_fails()
     {
         await using var fixture = new Fixture();
         fixture.Probe.FailStop = true;
@@ -77,6 +90,13 @@ public sealed class BootstrapperLifecycleTests
     {
         public int Starts, Stops;
         public bool FailStop, ObservedStart, ObservedStop;
+    }
+
+    public sealed class RegisteredResource(string nodeId) : IDisposable
+    {
+        public string NodeId { get; } = nodeId;
+        public int Disposals;
+        public void Dispose() => Disposals++;
     }
 
     private sealed class ObserveAdmissionService(
@@ -116,39 +136,49 @@ public sealed class BootstrapperLifecycleTests
 
         public Fixture()
         {
-            _ = typeof(ILakonaModule).Assembly;
+            _ = typeof(HotfixComponentAttribute).Assembly;
             Directory.CreateDirectory(Path.Combine(directory, "hotfix"));
-            File.WriteAllBytes(Path.Combine(directory, "hotfix", "Server.Hotfix.dll"), Compile("EmptyHotfix", "public static class EmptyHotfix { }"));
             application = AssemblyLoadContext.Default.LoadFromStream(new MemoryStream(Compile(
-                "LifecycleApplication" + Guid.NewGuid().ToString("N"),
+                "LifecycleApplication" + Guid.NewGuid().ToString("N"), "public sealed class ApplicationMarker {}")));
+            File.WriteAllBytes(Path.Combine(directory, "hotfix", "Server.Hotfix.dll"), Compile(
+                "LifecycleHotfix" + Guid.NewGuid().ToString("N"),
                 """
                 using System;
                 using System.Threading;
                 using System.Threading.Tasks;
                 using Lakona.Game.Server;
-                using Lakona.Game.Server.Modules;
-                using Microsoft.Extensions.Configuration;
+                using Lakona.Game.Server.Hotfix.Abstractions;
+                using Lakona.Game.Server.Hotfix;
                 using Microsoft.Extensions.DependencyInjection;
+                using Microsoft.Extensions.Configuration;
                 using Probe = Lakona.Game.Server.Tests.Hosting.BootstrapperLifecycleTests.LifecycleProbe;
-                [NodeRole("probe")]
-                public sealed class ProbeModule : ILakonaModule
+                using Resource = Lakona.Game.Server.Tests.Hosting.BootstrapperLifecycleTests.RegisteredResource;
+                [HotfixComponent, NodeRole("probe")]
+                public sealed class ProbeComponent(Probe probe)
                 {
-                    private Probe probe;
-                    public void ConfigureServices(IServiceCollection services, IConfiguration configuration) { }
-                    public Task StartAsync(ILakonaModuleContext context, CancellationToken cancellationToken)
+                    [ComponentConfigureServices]
+                    public static void Register(IServiceCollection services, IConfiguration configuration) =>
+                        services.AddSingleton(_ => new Resource(configuration["Lakona:Node:Id"]));
+
+                    [ComponentStart]
+                    public ValueTask Start(CancellationToken cancellationToken)
                     {
-                        probe = context.Services.GetRequiredService<Probe>();
                         probe.Starts++;
-                        return Task.CompletedTask;
+                        return default;
                     }
-                    public Task StopAsync(CancellationToken cancellationToken)
+                    [ComponentStop]
+                    public ValueTask Stop(CancellationToken cancellationToken)
                     {
                         probe.Stops++;
-                        if (probe.FailStop) throw new InvalidOperationException("module rollback failed");
-                        return Task.CompletedTask;
+                        if (probe.FailStop) throw new InvalidOperationException("component rollback failed");
+                        return default;
                     }
                 }
-                """)));
+                public sealed class Registration : IHotfixGeneratedServiceRegistration
+                {
+                    public void Register(IServiceCollection services) => services.AddSingleton<ProbeComponent>();
+                }
+                """));
         }
 
         public Task<IHost> BuildAsync(int httpPort, Action<IServiceCollection>? configure = null) =>
@@ -182,7 +212,7 @@ public sealed class BootstrapperLifecycleTests
         {
             var paths = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
                 .Append(typeof(BootstrapperLifecycleTests).Assembly.Location)
-                .Append(typeof(ILakonaModule).Assembly.Location)
+                .Append(typeof(HotfixComponentAttribute).Assembly.Location)
                 .Distinct(StringComparer.OrdinalIgnoreCase);
             var compilation = CSharpCompilation.Create(name, [CSharpSyntaxTree.ParseText(source)],
                 paths.Select(path => MetadataReference.CreateFromFile(path)),

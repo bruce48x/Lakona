@@ -13,7 +13,6 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.BuildTag;
 using Lakona.Game.Server.HotfixAdmin;
 using Lakona.Game.Server.Hotfix.Loading;
-using Lakona.Game.Server.Modules;
 using Lakona.Game.Server.Management;
 using Microsoft.AspNetCore.Builder;
 
@@ -96,40 +95,44 @@ internal static class LakonaGameServerBootstrapper
         // Gateway (registers RpcServersHostedService)
         builder.Services.AddLakonaGameServerGateway();
 
-        var hotfixAssemblyPath = await ResolveDefaultHotfixAssemblyPathAsync(
-            baseDirectory,
-            hotfixAdminOptions).ConfigureAwait(false);
+        var componentRegistration = await HotfixComponentRegistration.PrepareAsync(
+            builder.Services, builder.Configuration, runtimeOptions.Node.Roles,
+            CreateDefaultHotfixAssemblySource(baseDirectory, hotfixAdminOptions),
+            GetDefaultHotfixHostAssemblyNames()).ConfigureAwait(false);
+        var hotfixAssemblyPath = componentRegistration.AssemblyPath;
+        builder.Services.AddSingleton(_ => componentRegistration);
         builder.Services.Replace(ServiceDescriptor.Singleton(
             new LakonaHealthReadinessState(hotfixAssemblyPath)));
 
-        LakonaModuleDiscovery.Configure(
-            builder.Services,
-            builder.Configuration,
-            applicationAssemblies);
-        ConfigureNodeLifecycle(builder.Services);
-
-        LakonaHttpHosting.Configure(builder, runtimeOptions);
-        var app = builder.Build();
         try
         {
-            ValidateStartupRuntime(
-                app.Services,
-                runtimeOptions,
-                clusterOptions,
-                hotfixAssemblyPath);
-            LakonaHttpHosting.Map(app);
-            return app;
+            ComponentStateRegistration.Register(builder.Services, applicationAssemblies);
+            ConfigureNodeLifecycle(builder.Services);
+            LakonaHttpHosting.Configure(builder, runtimeOptions);
+            var app = builder.Build();
+            try
+            {
+                app.Services.GetRequiredService<HotfixComponentRegistration>().Initialize(app.Services);
+                ValidateStartupRuntime(app.Services, runtimeOptions, clusterOptions, hotfixAssemblyPath);
+                LakonaHttpHosting.Map(app);
+                return app;
+            }
+            catch (Exception error)
+            {
+                try { await app.DisposeAsync().ConfigureAwait(false); }
+                catch (Exception cleanup) { throw new AggregateException("Application build and resource cleanup failed.", error, cleanup); }
+                throw;
+            }
         }
         catch
         {
-            await app.DisposeAsync().ConfigureAwait(false);
+            componentRegistration.Dispose();
             throw;
         }
     }
 
     private static void ConfigureNodeLifecycle(IServiceCollection services)
     {
-        services.AddSingleton<ILakonaNodeLifecycleParticipant, LakonaModuleLifecycleParticipant>();
         services.AddSingleton<ILakonaNodeLifecycleParticipant, InitialHotfixLifecycleParticipant>();
     }
 
@@ -197,15 +200,6 @@ internal static class LakonaGameServerBootstrapper
         var noun = errors.Length == 1 ? "error" : "errors";
         throw new InvalidOperationException(
             $"{errors.Length} startup validation {noun}. First error {firstError.Code}: {firstError.Message}");
-    }
-
-    private static async Task<string> ResolveDefaultHotfixAssemblyPathAsync(
-        string baseDirectory,
-        HotfixAdminOptions adminOptions)
-    {
-        var source = CreateDefaultHotfixAssemblySource(baseDirectory, adminOptions);
-        var resolved = await source.ResolveAsync().ConfigureAwait(false);
-        return resolved.AssemblyPath;
     }
 
     private static LakonaGameRuntimeOptions CreateRuntimeOptions(IConfiguration configuration)

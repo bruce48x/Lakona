@@ -1,104 +1,105 @@
-using Server.App.Leaderboard;
-using Server.App.Users;
+using Dapper;
+using Lakona.Game.Server.Hotfix;
+using Lakona.Game.Server.Configuration;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
+using Server.App.Infrastructure.Redis;
+using Server.Hotfix.Users;
+using Server.Hotfix.Leaderboard;
+using Xunit;
+
+[assembly: AssemblyFixture(typeof(Agar.Unity.Tests.AgarPersistenceFixture))]
 
 namespace Agar.Unity.Tests;
 
-internal sealed class InMemoryUserStore : IUserStore
+// These tests exercise the real stores. Supply dedicated PostgreSQL/Redis endpoints;
+// each provider gets its own schema and Redis prefix, with cleanup owned by the fixture.
+public sealed class AgarPersistenceFixture : IAsyncDisposable
 {
-    private readonly Dictionary<string, PersistedUser> users =
-        new(StringComparer.Ordinal);
+    internal static readonly List<ServiceProvider> Providers = [];
+    internal static readonly List<string> Schemas = [];
+    internal static readonly List<string> Prefixes = [];
+    internal static string Postgres => Environment.GetEnvironmentVariable("AGAR_TEST_POSTGRES")
+        ?? "Host=127.0.0.1;Port=5432;Database=lakona-game;Username=lakona-game;Password=lakona-game_dev_password";
+    internal static string Redis => Environment.GetEnvironmentVariable("AGAR_TEST_REDIS")
+        ?? "127.0.0.1:6379,password=lakona-game_redis_dev_password";
 
-    public ValueTask<PersistedUser?> LoadAsync(
-        string userId,
-        CancellationToken cancellationToken = default)
+    public async ValueTask DisposeAsync()
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        return new ValueTask<PersistedUser?>(
-            users.TryGetValue(userId, out var user) ? Clone(user) : null);
-    }
-
-    public ValueTask SaveAsync(
-        PersistedUser user,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        users[user.UserId] = Clone(user);
-        return default;
-    }
-
-    private static PersistedUser Clone(PersistedUser user)
-    {
-        return new PersistedUser
+        foreach (var provider in Providers) await provider.DisposeAsync();
+        if (Schemas.Count != 0)
         {
-            UserId = user.UserId,
-            PasswordHash = user.PasswordHash,
-            LoginCount = user.LoginCount,
-            CreatedAtUtc = user.CreatedAtUtc,
-            LastLoginAtUtc = user.LastLoginAtUtc,
-            WinCount = user.WinCount,
-            VictoryPoints = user.VictoryPoints
-        };
+            await using var connection = new NpgsqlConnection(Postgres);
+            await connection.OpenAsync();
+            foreach (var schema in Schemas)
+                await connection.ExecuteAsync($"DROP SCHEMA IF EXISTS {schema} CASCADE;");
+        }
+        if (Prefixes.Count != 0)
+        {
+            using var connection = await StackExchange.Redis.ConnectionMultiplexer.ConnectAsync(Redis);
+            foreach (var endpoint in connection.GetEndPoints())
+            foreach (var prefix in Prefixes)
+            {
+                var server = connection.GetServer(endpoint);
+                await foreach (var key in server.KeysAsync(pattern: prefix + ":*"))
+                    await connection.GetDatabase().KeyDeleteAsync(key);
+            }
+        }
     }
 }
 
-internal sealed class InMemoryLeaderboardStore : ILeaderboardStore
+internal static class TestPersistence
 {
-    private readonly Dictionary<string, Dictionary<string, LeaderboardPlayerState>> periods =
-        new(StringComparer.Ordinal);
-
-    public string? CurrentPeriod { get; private set; }
-
-    public ValueTask<string?> GetCurrentPeriodAsync(
-        CancellationToken cancellationToken = default)
+    public static void AddServices(IServiceCollection services)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        return new ValueTask<string?>(CurrentPeriod);
-    }
-
-    public ValueTask SetCurrentPeriodAsync(
-        string periodStartLocalDate,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        CurrentPeriod = periodStartLocalDate;
-        return default;
-    }
-
-    public ValueTask<IReadOnlyList<LeaderboardPlayerState>> LoadPlayersAsync(
-        string periodStartLocalDate,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        IReadOnlyList<LeaderboardPlayerState> result =
-            periods.TryGetValue(periodStartLocalDate, out var players)
-                ? players.Values.Select(Clone).ToArray()
-                : [];
-        return new ValueTask<IReadOnlyList<LeaderboardPlayerState>>(result);
-    }
-
-    public ValueTask UpsertPlayerAsync(
-        string periodStartLocalDate,
-        LeaderboardPlayerState player,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (!periods.TryGetValue(periodStartLocalDate, out var players))
+        var id = "test_" + Guid.NewGuid().ToString("N");
+        var previous = services.LastOrDefault(item => item.ServiceType == typeof(IConfiguration))?.ImplementationInstance as IConfiguration;
+        var configuration = new ConfigurationBuilder()
+            .AddConfiguration(previous ?? new ConfigurationBuilder().Build())
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:AgarGamePostgres"] = AgarPersistenceFixture.Postgres,
+                ["ConnectionStrings:AgarGameRedis"] = AgarPersistenceFixture.Redis,
+                ["Agar:Persistence:Redis:ConnectionStringName"] = "AgarGameRedis",
+                ["Agar:Persistence:Redis:KeyPrefix"] = id
+            }).Build();
+        AgarPersistenceFixture.Prefixes.Add(id);
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton(_ =>
         {
-            players = new Dictionary<string, LeaderboardPlayerState>(StringComparer.Ordinal);
-            periods[periodStartLocalDate] = players;
-        }
-
-        players[player.PlayerId] = Clone(player);
-        return default;
+            using var connection = new NpgsqlConnection(AgarPersistenceFixture.Postgres);
+            connection.Open();
+            connection.Execute($"CREATE SCHEMA {id};");
+            AgarPersistenceFixture.Schemas.Add(id);
+            return NpgsqlDataSource.Create(new NpgsqlConnectionStringBuilder(AgarPersistenceFixture.Postgres)
+            {
+                SearchPath = id,
+                Pooling = false
+            }.ConnectionString);
+        });
+        ComponentStateRegistration.Register(services, [typeof(RedisLeaderboardState).Assembly]);
+        // Direct Behavior tests manually activate actual components; DLL tests use generated registration and framework hooks.
+        services.AddSingleton(provider =>
+        {
+            var store = new PostgresUserStore(provider.GetRequiredService<NpgsqlDataSource>());
+            store.StartAsync(TestContext.Current.CancellationToken).AsTask().GetAwaiter().GetResult();
+            return store;
+        });
+        services.AddSingleton(provider =>
+        {
+            var store = new RedisLeaderboardStore(provider.GetRequiredService<RedisLeaderboardState>(), configuration);
+            store.StartAsync(TestContext.Current.CancellationToken).AsTask().GetAwaiter().GetResult();
+            return store;
+        });
     }
 
-    private static LeaderboardPlayerState Clone(LeaderboardPlayerState player)
+    public static ServiceProvider CreateProvider()
     {
-        return new LeaderboardPlayerState
-        {
-            PlayerId = player.PlayerId,
-            VictoryPoints = player.VictoryPoints,
-            WinCount = player.WinCount
-        };
+        var services = new ServiceCollection();
+        AddServices(services);
+        var provider = services.BuildServiceProvider();
+        AgarPersistenceFixture.Providers.Add(provider);
+        return provider;
     }
 }

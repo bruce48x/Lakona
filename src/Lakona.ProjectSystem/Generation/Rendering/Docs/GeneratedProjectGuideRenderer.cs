@@ -76,9 +76,17 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
         - Edit `Shared/Contracts/` for RPC contracts, callback contracts, reliable push
           DTOs, and named contract ids.
         - Edit `Server/App/` for stable actor state shells, timer/request DTOs, host
-          metadata, and local configuration.
+            metadata and optional `[ComponentState]` data/resource holders.
         - Edit `Server/Hotfix/` for replaceable services, actor behaviors, lifecycle
           reactions, `[HotfixComponent]` helpers, actor startup, and timer callbacks.
+            A component's optional `[ComponentConfigureServices]` public static void
+            method takes `IServiceCollection, IConfiguration` and registers node-owned
+            resources before root Build, filtered by its NodeRole. Use closed stable
+            types and unkeyed singleton types/factories. Root DI creates factory
+            resources once and drops Hotfix delegates; registration edits require restart.
+          ComponentStart/ComponentStop run on first activation/final shutdown;
+          ordinary reload preserves injected State and replaces logic only. Use
+          concrete component injection, and Actor + Behavior for timers/background work.
           Every class here must declare a Hotfix role; keep data types in
           `Server/App/` or `Shared/`.
         - Edit `Client/` for the selected client UI and client-side session flow.

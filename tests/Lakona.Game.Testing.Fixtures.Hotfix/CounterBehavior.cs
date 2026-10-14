@@ -47,54 +47,12 @@ public sealed partial class CounterBehavior
 [HotfixStartup]
 public static class CounterHotfixStartup
 {
-    [HotfixConfigureServices]
-    public static void ConfigureServices(IServiceCollection services)
-    {
-        services.AddSingleton<CompositionProbeState>();
-        services.TryAddSingleton<CompositionProbe>(provider =>
-        {
-            var state = new CompositionProbeState { Origin = "startup" };
-            provider.GetService<Action<CompositionProbeState>>()?.Invoke(state);
-            return new(state);
-        });
-    }
-
     [HotfixConfigureActors]
     public static void ConfigureActors(ActorHostBuilder actors)
     {
         actors.RegisterPlacement<CounterActor, CounterId>(static context =>
             context.Candidates.OrderBy(static candidate => candidate.NodeId, StringComparer.Ordinal).First());
     }
-}
-
-public sealed class CounterControl
-{
-    private readonly TaskCompletionSource entered = new(
-        TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly TaskCompletionSource released = new(
-        TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly TaskCompletionSource completed = new(
-        TaskCreationOptions.RunContinuationsAsynchronously);
-
-    public Task Entered => entered.Task;
-
-    public Task Completed => completed.Task;
-
-    public void Release() => released.TrySetResult();
-
-    internal async Task WaitAsync(CancellationToken cancellationToken)
-    {
-        entered.TrySetResult();
-        await released.Task.WaitAsync(cancellationToken);
-    }
-
-    internal async Task WaitIgnoringCancellationAsync()
-    {
-        entered.TrySetResult();
-        await released.Task;
-    }
-
-    internal void MarkCompleted() => completed.TrySetResult();
 }
 
 public static class CounterCalls

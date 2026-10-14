@@ -292,8 +292,7 @@ public sealed class DistributedTopologyConfigurationTests
     public async Task HotfixReloadSucceedsForSplitRuntimeNodes(string nodeName)
     {
         var services = BuildProgramServices(nodeName);
-        services.RemoveAll<IUserStore>();
-        services.RemoveAll<InMemoryUserStore>();
+        services.RemoveAll<Npgsql.NpgsqlDataSource>();
         services.RemoveAll<NodeRoleCatalog>();
         services.AddSingleton(new NodeRoleCatalog(
             [nodeName[..nodeName.LastIndexOf('-')]],
@@ -1104,8 +1103,11 @@ public sealed class DistributedTopologyConfigurationTests
         services.AddLogging();
         services.AddLakonaGameServer(configuration);
         services.AddLakonaRedisClustering(configuration);
-        services.AddGeneratedActorSelectorTestDependencies();
         services.AddSingleton<IConfiguration>(configuration);
+        services.AddGeneratedActorSelectorTestDependencies();
+        services.RemoveAll<NodeRoleCatalog>();
+        services.AddSingleton(new NodeRoleCatalog(runtimeOptions.Node.Roles,
+            [typeof(UserActor), typeof(MatchmakingActor), typeof(LeaderboardActor), typeof(RoomActor)]));
         services.AddSingleton(runtimeOptions);
         services.AddSingleton(runtimeOptions.ToClusterOptions(configuration));
         services.AddLakonaGameRuntimeValidation();

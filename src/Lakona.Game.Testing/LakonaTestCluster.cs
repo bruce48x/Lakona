@@ -392,9 +392,26 @@ public sealed class LakonaTestCluster : IAsyncDisposable
             builder.Services,
             new InMemoryClusterRpcTransport(specification.NodeId, transportHub),
             specification.Roles,
-            specification.HotfixAssembly);
+            specification.HotfixAssembly,
+            builder.Configuration);
         MembershipViews.ConfigureNode(builder.Services, specification.NodeId);
-        return builder.Build();
+        var host = builder.Build();
+        try
+        {
+            clusterInfrastructure.InitializeNode(host.Services);
+            return host;
+        }
+        catch (Exception error)
+        {
+            try
+            {
+                if (host is IAsyncDisposable asyncDisposable)
+                    asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                else host.Dispose();
+            }
+            catch (Exception cleanup) { throw new AggregateException("Test node build and resource cleanup failed.", error, cleanup); }
+            throw;
+        }
     }
 
     private static Dictionary<string, string?> CreateOwnedConfiguration(

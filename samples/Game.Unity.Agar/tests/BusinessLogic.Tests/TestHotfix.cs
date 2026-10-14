@@ -215,12 +215,7 @@ internal static class AgarTestServiceCollectionExtensions
             new("room", "test:room", "test")
         ]));
         services.AddTestClusterRpc();
-        services.TryAddSingleton<InMemoryUserStore>();
-        services.TryAddSingleton<IUserStore>(provider =>
-            provider.GetRequiredService<InMemoryUserStore>());
-        services.TryAddSingleton<InMemoryLeaderboardStore>();
-        services.TryAddSingleton<ILeaderboardStore>(provider =>
-            provider.GetRequiredService<InMemoryLeaderboardStore>());
+        TestPersistence.AddServices(services);
         new global::GeneratedHotfixActorRegistration().Register(services);
         services.TryAddSingleton<LeaderboardBehavior>();
         services.TryAddSingleton<MatchmakingBehavior>();

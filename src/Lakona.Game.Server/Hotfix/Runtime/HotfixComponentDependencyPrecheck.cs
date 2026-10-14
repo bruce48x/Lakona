@@ -7,14 +7,15 @@ namespace Lakona.Game.Server.Hotfix;
 // Check registration metadata only. Never construct a component or execute a factory.
 internal static class HotfixComponentDependencyPrecheck
 {
-    public static IReadOnlyList<string> Validate(IReadOnlyList<ServiceDescriptor> services, Assembly assembly, IServiceProvider? root)
+    public static IReadOnlyList<string> Validate(IReadOnlyList<ServiceDescriptor> services, Assembly assembly, IServiceProvider? root,
+        IEnumerable<Type>? componentTypes = null)
     {
         var rootMetadata = root?.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService;
         var errors = new SortedSet<string>(StringComparer.Ordinal);
         var warnings = new SortedSet<string>(StringComparer.Ordinal);
         var pending = new Stack<Visit>();
         var visited = new HashSet<(ServiceDescriptor Descriptor, Type Type, bool Singleton)>();
-        foreach (var component in assembly.GetTypes().Where(type => type.IsDefined(typeof(HotfixComponentAttribute), false))
+        foreach (var component in (componentTypes ?? assembly.GetTypes().Where(type => type.IsDefined(typeof(HotfixComponentAttribute), false)))
                      .OrderByDescending(type => type.FullName, StringComparer.Ordinal))
         {
             if (typeof(Exception).IsAssignableFrom(component))

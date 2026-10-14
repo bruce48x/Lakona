@@ -11,7 +11,7 @@ Shared
 
 Server.App
   generated stable binder, proxy, and service-scoped call context
-  stable business interfaces, adapters, and process-resource modules
+  stable DTOs, resource registration, and optional ComponentState
 
 Server.Hotfix
   user-authored Hotfix service and reloadable business decisions
@@ -114,9 +114,8 @@ rejects missing dependencies, open generic implementations, and ambiguous
 public constructors before publishing a candidate generation.
 
 Use `[HotfixComponent]` for dependency-only helpers that the generation container
-owns; they are automatically registered once per generation. Use
-`[HotfixConfigureServices]` for explicit interface bindings, factories, or other
-registrations the project needs. Do not register `[HotfixService]` classes themselves.
+owns; they are automatically registered once per generation. Components use concrete injection only; do not override or alias their generated
+registration. Ordinary infrastructure may still use explicit DI registration. Do not register `[HotfixService]` classes themselves.
 
 Direct and indirect `System.Exception` subclasses are runtime error objects,
 not container-owned helpers. Keep them beside Hotfix business logic and create
@@ -130,73 +129,27 @@ concurrent calls. Keep request data in the call value. Put long-lived mutable
 game state in actors or Game Sessions. Synchronize any genuinely shared mutable
 coordinator field explicitly.
 
-## Detect And Route Stable Resources
+## Resource components
 
-Classify every proposed service dependency before adding it:
+Place business resource operations and initialization in HotfixComponent.
+Consumers inject the concrete component; they do not inject a component alias
+or State. Stable handles and optional marked State stay in App. Use
+`lakona-implement-component` for lifecycle work already required by the task.
 
-- Keep reloadable validation, orchestration, actor calls, reply construction,
-  and other product decisions in the Hotfix service.
-- Keep long-lived in-memory game state in actors or Game Sessions. Persist
-  state which must survive process loss through an application-owned Store.
-- Keep database pools, Redis multiplexers, queues, caches, external clients,
-  and application-owned background workers in stable `Server.App` code.
+The Agar example registers its PostgreSQL pool through Hotfix PostgresUserStore's
+ComponentConfigureServices method and implements
+schema initialization/user SQL in Hotfix PostgresUserStore. RedisLeaderboardStore
+owns startup, queries and graceful Stop while its App RedisLeaderboardState
+retains the connection and prefix across generations and performs final disposal.
+Hooks run on first activation/final shutdown, not reload. No detached tasks or
+timers belong in a component; use Actor + Behavior for scheduled work.
 
-Inject the narrow stable business interface into Hotfix. For example, follow
-the Agar persistence boundary in which Hotfix sees `IUserStore` and
-`ILeaderboardStore`, while `NpgsqlDataSource`, `ConnectionMultiplexer`,
-`IDatabase`, adapters, and modules remain in `Server.App`.
-
-If the stable resource lifecycle does not exist and is required by the
-authorized service implementation, complete it in the current task using
-`lakona-implement-module` when available. The module is a separate code owner,
-not a separate approval step. Resolve material missing decisions or scope
-extensions with the user while continuing independent authorized work. Do not
-hide lifecycle construction in a Hotfix constructor,
-`[HotfixConfigureServices]`, method body, static field, or call context service
-lookup.
-
-## Preserve Readiness And Disposal
-
-When service work also requires a `Server.App` module, preserve these current
-contracts:
-
-1. Declare the complete stable graph synchronously in
-   `ILakonaModule.ConfigureServices`. Perform no connection, migration,
-   background startup, service resolution, or temporary-provider construction
-   there.
-2. Connect or resolve, initialize, and probe in `StartAsync`. Return only when
-   consumers can use the resource. Lakona owns readiness: a configured
-   dependency failure must fail startup and keep the node NotReady; the module
-   must not publish Ready or NotReady itself.
-3. Mark the module with exactly one `[NodeRole]`. Lakona excludes it before
-   construction on other roles; on a selected node, missing required
-   configuration is a startup failure. Never use connection-string presence as
-   module selection or substitute fake in-memory persistence.
-4. Let the final root provider own a disposable created by a registered
-   implementation or factory. Resolve and probe it in the module, but do not
-   dispose it there. Never pass a pre-created disposable to
-   `AddSingleton(instance)`, because the built-in container does not own it.
-5. For an asynchronously connected resource such as Agar Redis, register a
-   gated singleton factory first. In `StartAsync`, create and probe a candidate,
-   publish it, resolve it from `context.Services`, and verify reference
-   identity. On startup failure, unpublish and gracefully close the candidate;
-   guarantee disposal even if close fails when provider ownership has not been
-   established. Otherwise leave final disposal to the provider. Preserve the
-   startup error if cleanup also fails. Do not abandon a non-cancellable
-   connection task through `WaitAsync`; await and own its result with bounded
-   connection settings, or explicitly drain and clean up late completion.
-6. In `StopAsync`, tolerate partial or repeated calls. Atomically unpublish and
-   gracefully close the provider-owned asynchronous client, then let final root
-   provider shutdown perform `Dispose`. Do not let the adapter or Hotfix
-   consumer dispose it.
-
-The PostgreSQL pattern registers `NpgsqlDataSource` through a DI factory,
-initializes the store and probes `SELECT 1` in `StartAsync`, leaves
-`StopAsync` empty, and relies on root-provider disposal. The Redis pattern
-connects and pings a candidate, exposes the exact instance through the final
-provider, cleans up a failed candidate directly, closes the published
-multiplexer during module stop, and relies on provider shutdown for final
-disposal.
+Registration is synchronous and performs no I/O. Start awaits initialization and
+probes, cleans failed local candidates and fails startup on unavailable resources.
+Optional NodeRole excludes components before construction; missing configuration
+on an enabled node must fail. Root registration separately checks node roles.
+Dependencies start first, Stop runs in reverse after callers have stopped, and
+root resources are disposed last. See the current component authority.
 
 ## Callbacks And Sessions
 

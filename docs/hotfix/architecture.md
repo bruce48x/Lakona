@@ -114,7 +114,7 @@ duplicate stable-service allow-list.
 
 DLL reload and `Lakona.Game.Testing.UseHotfixAssembly` share the internal
 generation composition rules: Startup registrations precede generated
-`TryAdd` defaults, modules belong to a generation provider, and Actor roles
+generated concrete component singletons, modules belong to a generation provider, and Actor roles
 and enabled HTTP services filter the dispatch table. In-process tests use an
 already loaded assembly and retire that provider when the node stops. They do
 not exercise collectible assembly loading or the reload publication transaction;
@@ -254,3 +254,18 @@ a parallel owner.
 validation and activation before publication. Detailed registration and
 placement rules are defined under
 [Startup Actors](../actor.md#startup-actors).
+
+## Component resource lifecycle
+
+[Hotfix Components](./components.md) keep replaceable node-level business logic in
+Hotfix with optional root-owned State in App. The component's optional
+`ComponentConfigureServices` runs before root Build to register stable resources;
+it uses the component's NodeRole and does not run during Hotfix Validate/reload.
+Root factories are materialized once and released, and the prepared first assembly
+transfers to HotfixManager rather than being loaded a second time.
+Initial activation starts the
+constructor dependency graph before consumers. Reload validates the fixed set,
+State binding and recorded order without rerunning hooks. Final shutdown waits
+for managed generation leases, runs latest-version Stop in recorded reverse
+order, then retires provider resources. Root State is disposed last. Components
+have no mailbox or background-task support; timer work stays in Actor + Behavior.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Lakona Component"
+  short_description: "Implement Hotfix tools with stable State and lifecycle hooks"
+  default_prompt: "Use $lakona-implement-component to implement a Hotfix tool with optional stable State, dependency ordering, readiness, and resource ownership."

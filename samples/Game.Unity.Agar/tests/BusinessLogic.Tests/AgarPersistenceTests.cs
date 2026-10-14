@@ -1,12 +1,13 @@
 using Lakona.Game.Server;
 using Lakona.Game.Server.Actors;
-using Lakona.Game.Server.Modules;
+using Lakona.Game.Server.Hotfix;
+using Server.Hotfix.Users;
+using Server.Hotfix.Leaderboard;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using StackExchange.Redis;
 using Server.App.Routing;
-using Server.App.Infrastructure.Postgres;
 using Server.App.Infrastructure.Redis;
 using Server.App.Leaderboard;
 using Server.App.Users;
@@ -16,84 +17,62 @@ namespace Agar.Unity.Tests;
 
 public sealed class AgarPersistenceTests
 {
-    [Fact]
-    public async Task Gateway_role_skips_data_modules_before_service_registration()
+    [Theory]
+    [InlineData("Lakona:Node:Roles", "[\"data\"]")]
+    [InlineData("Lakona:Node:Roles:0", "data")]
+    public async Task Data_registration_uses_framework_role_parsing(string key, string value)
     {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Lakona:Node:Roles:0"] = "gateway"
-            })
-            .Build();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [key] = value,
+            ["ConnectionStrings:AgarGamePostgres"] = "Host=localhost;Database=test;Username=test"
+        }).Build();
         var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton<IConfiguration>(configuration);
-        services.AddSingleton<Lakona.Game.Server.Health.LakonaServerReadinessState>();
-        LakonaModuleDiscovery.ConfigureTypes(
-            services,
-            configuration,
-            LakonaModuleDiscovery.DiscoverTypes(
-                [typeof(AgarPostgresModule).Assembly]));
+        using var registration = HotfixComponentRegistration.Configure(services, typeof(PostgresUserStore).Assembly, configuration,
+            Lakona.Game.Server.Configuration.LakonaGameNodeOptions.FromConfiguration(configuration.GetSection("Lakona:Node")).Roles);
         await using var provider = services.BuildServiceProvider();
-
-        Assert.Empty(provider.GetServices<ILakonaModule>());
-        Assert.Null(provider.GetService<IUserStore>());
-        Assert.Null(provider.GetService<ILeaderboardStore>());
-        Assert.Null(provider.GetService<NpgsqlDataSource>());
-        Assert.Null(provider.GetService<RedisLeaderboardOptions>());
-        Assert.Null(provider.GetService<ConnectionMultiplexer>());
+        registration.Initialize(provider);
+        Assert.NotNull(provider.GetService<NpgsqlDataSource>());
     }
 
     [Fact]
-    public async Task Stable_modules_register_postgres_and_redis_adapters_in_the_root_provider()
+    public async Task Gateway_registration_does_not_require_data_configuration()
     {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Lakona:Node:Roles:0"] = "data",
-                ["ConnectionStrings:AgarGamePostgres"] =
-                    "Host=127.0.0.1;Database=agar;Username=agar;Password=test",
-                ["ConnectionStrings:AgarGameRedis"] =
-                    "127.0.0.1:6379,password=test"
-            })
-            .Build();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Lakona:Node:Roles:0"] = "gateway"
+        }).Build();
         var services = new ServiceCollection();
-        var discovered = LakonaModuleDiscovery.DiscoverTypes(
-            [typeof(AgarPostgresModule).Assembly]);
-        var catalog = LakonaModuleDiscovery.ConfigureTypes(
-            services,
-            configuration,
-            discovered);
+        using var registration = HotfixComponentRegistration.Configure(services, typeof(PostgresUserStore).Assembly, configuration, ["gateway"]);
         await using var provider = services.BuildServiceProvider();
+        registration.Initialize(provider);
+        Assert.Null(provider.GetService<NpgsqlDataSource>());
+        Assert.Null(provider.GetService<RedisLeaderboardState>());
+    }
 
-        var userStore = provider.GetRequiredService<IUserStore>();
-        var modules = provider.GetServices<ILakonaModule>().ToArray();
-
-        Assert.IsType<PostgresUserStore>(userStore);
-        Assert.Contains(
-            services,
-            static descriptor =>
-                descriptor.ServiceType == typeof(ConnectionMultiplexer)
-                && descriptor.Lifetime == ServiceLifetime.Singleton);
-        Assert.Contains(
-            services,
-            static descriptor =>
-                descriptor.ServiceType == typeof(IDatabase)
-                && descriptor.Lifetime == ServiceLifetime.Singleton);
-        var leaderboardConstructor = Assert.Single(
-            typeof(RedisLeaderboardStore).GetConstructors());
-        Assert.Contains(
-            leaderboardConstructor.GetParameters(),
-            static parameter => parameter.ParameterType == typeof(IDatabase));
-        Assert.DoesNotContain(
-            leaderboardConstructor.GetParameters(),
-            static parameter => parameter.ParameterType == typeof(AgarRedisModule));
-        Assert.Collection(
-            catalog.Modules,
-            module => Assert.IsType<AgarPostgresModule>(module.Instance),
-            module => Assert.IsType<AgarRedisModule>(module.Instance));
-        Assert.Contains(modules, static module => module is AgarPostgresModule);
-        Assert.Contains(modules, static module => module is AgarRedisModule);
+    [Fact]
+    public async Task Hotfix_stores_reuse_stable_resources_across_reload()
+    {
+        await using var root = TestHotfix.CreateRootServiceProvider();
+        var path = TestHotfix.FindHotfixAssemblyPath();
+        await using var manager = new HotfixManager(
+            new Lakona.Game.Server.Hotfix.Loading.CurrentDirectoryHotfixAssemblySource(Path.GetDirectoryName(path)!, Path.GetFileName(path)),
+            TestHotfix.HostAssemblyNames(), rootServices: root);
+        var first = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(first.Succeeded, TestHotfix.BuildReloadDiagnostics(first));
+        var original = ((IHotfixRuntimeAccessor)manager).Current;
+        var state = root.GetRequiredService<RedisLeaderboardState>();
+        var connection = state.Connection;
+        var dataSource = root.GetRequiredService<NpgsqlDataSource>();
+        await connection!.GetDatabase().StringSetAsync(state.KeyPrefix + ":reload-probe", "retained");
+        var second = await manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(second.Succeeded, TestHotfix.BuildReloadDiagnostics(second));
+        var latest = ((IHotfixRuntimeAccessor)manager).Current;
+        Assert.NotSame(original, latest);
+        Assert.Same(state, latest.Services.GetRequiredService<RedisLeaderboardState>());
+        Assert.Same(connection, state.Connection);
+        Assert.Same(dataSource, latest.Services.GetRequiredService<NpgsqlDataSource>());
+        Assert.Equal("retained", (string?)await connection.GetDatabase().StringGetAsync(state.KeyPrefix + ":reload-probe"));
     }
 
     [Fact]

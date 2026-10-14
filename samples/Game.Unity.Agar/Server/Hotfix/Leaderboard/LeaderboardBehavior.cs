@@ -13,13 +13,13 @@ namespace Server.Hotfix.Leaderboard;
 public sealed partial class LeaderboardBehavior
 {
     private readonly ActorAccess _actors;
-    private readonly ILeaderboardStore _leaderboards;
-    private readonly IUserStore _userStore;
+    private readonly RedisLeaderboardStore _leaderboards;
+    private readonly PostgresUserStore _userStore;
 
     public LeaderboardBehavior(
         ActorAccess actors,
-        ILeaderboardStore leaderboards,
-        IUserStore userStore)
+        RedisLeaderboardStore leaderboards,
+        PostgresUserStore userStore)
     {
         _actors = actors;
         _leaderboards = leaderboards;

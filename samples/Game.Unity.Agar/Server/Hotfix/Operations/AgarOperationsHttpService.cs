@@ -1,3 +1,4 @@
+using Server.Hotfix.Users;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Http;
 using Server.App.Users;
@@ -7,9 +8,9 @@ namespace Server.Hotfix.Operations;
 [LakonaHttpService("agar-operations")]
 public sealed class AgarOperationsHttpService
 {
-    private readonly IUserStore _userStore;
+    private readonly PostgresUserStore _userStore;
 
-    public AgarOperationsHttpService(IUserStore userStore)
+    public AgarOperationsHttpService(PostgresUserStore userStore)
     {
         _userStore = userStore;
     }

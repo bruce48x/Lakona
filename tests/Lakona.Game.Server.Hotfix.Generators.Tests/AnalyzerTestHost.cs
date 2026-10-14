@@ -57,7 +57,7 @@ internal static class AnalyzerTestHost
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(
-            new HotfixActorBoundaryAnalyzer(), new HotfixStartupAnalyzer(), new HotfixDependencyAnalyzer(), new HotfixLifecycleAnalyzer());
+            new HotfixActorBoundaryAnalyzer(), new HotfixStartupAnalyzer(), new HotfixDependencyAnalyzer(), new HotfixLifecycleAnalyzer(), new HotfixComponentAnalyzer());
         var analyzerOptions = optionsProvider is null
             ? null
             : new AnalyzerOptions(ImmutableArray<AdditionalText>.Empty, optionsProvider);
@@ -117,6 +117,10 @@ internal static class AnalyzerTestHost
                 MetadataReference.CreateFromFile(typeof(Task).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(ValueTask).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(CancellationToken).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.Configuration.IConfiguration).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.DependencyInjection.IServiceCollection).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.Configuration.IConfiguration).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.DependencyInjection.IServiceCollection).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Lakona.Rpc.Core.RpcMethodAttribute).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Actors.Actor).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Lakona.Game.Server.Hotfix.Abstractions.HotfixBehaviorOfAttribute).Assembly.Location)

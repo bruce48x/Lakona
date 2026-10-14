@@ -147,8 +147,11 @@ internal static class HotfixRuntimeComposition
             }
         }
 
-        var warnings = HotfixComponentDependencyPrecheck.Validate(rawServices.ToArray(), hotfixAssembly, rootServices);
+        var components = HotfixComponentCatalog.Compose(rawServices, hotfixAssembly, startupServices, rootServices);
+        var warnings = HotfixComponentDependencyPrecheck.Validate(rawServices.ToArray(), hotfixAssembly, rootServices,
+            components.Ordered.Select(component => component.Type));
         dependencyWarnings?.AddRange(warnings);
+        rawServices.AddSingleton(components);
         var services = new ServiceCollection();
         var activationTracker = new HotfixActivationTracker();
         foreach (var descriptor in rawServices)

@@ -9,12 +9,8 @@ namespace Lakona.Game.Server.Hotfix.Generators;
 public sealed class HotfixDependencyAnalyzer : DiagnosticAnalyzer
 {
     private const string ComponentAttribute = "Lakona.Game.Server.Hotfix.Abstractions.HotfixComponentAttribute";
-    private const string ConfigureAttribute = "Lakona.Game.Server.Hotfix.Abstractions.HotfixConfigureServicesAttribute";
-    private const string RegistrationInterface = "Lakona.Game.Server.Hotfix.IHotfixGeneratedServiceRegistration";
-
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(
-        HotfixGeneratorDiagnostics.ComponentDependencyCycle,
-        HotfixGeneratorDiagnostics.PossibleComponentDependencyCycle);
+        HotfixGeneratorDiagnostics.ComponentDependencyCycle);
 
     public override void Initialize(AnalysisContext context)
     {
@@ -26,10 +22,6 @@ public sealed class HotfixDependencyAnalyzer : DiagnosticAnalyzer
     private static void Analyze(CompilationAnalysisContext context)
     {
         var types = EnumerateTypes(context.Compilation.Assembly.GlobalNamespace).ToArray();
-        var customRegistration = types.Any(type =>
-            type.GetMembers().OfType<IMethodSymbol>().Any(method => HasAttribute(method, ConfigureAttribute)) ||
-            (type.AllInterfaces.Any(contract => contract.ToDisplayString() == RegistrationInterface) &&
-                type.ToDisplayString() != "Lakona.Game.Server.Hotfix.Generated.GeneratedHotfixComponentRegistration"));
         var constructors = new Dictionary<INamedTypeSymbol, IMethodSymbol>(SymbolEqualityComparer.Default);
         foreach (var type in types)
         {
@@ -69,9 +61,7 @@ public sealed class HotfixDependencyAnalyzer : DiagnosticAnalyzer
                 if (state != 1) continue;
                 var start = path.FindIndex(type => SymbolEqualityComparer.Default.Equals(type, edge.Type));
                 var chain = string.Join(" -> ", path.Skip(start).Append(edge.Type).Select(type => type.ToDisplayString()));
-                context.ReportDiagnostic(Diagnostic.Create(customRegistration
-                        ? HotfixGeneratorDiagnostics.PossibleComponentDependencyCycle
-                        : HotfixGeneratorDiagnostics.ComponentDependencyCycle,
+                context.ReportDiagnostic(Diagnostic.Create(HotfixGeneratorDiagnostics.ComponentDependencyCycle,
                     edge.Parameter.Locations.FirstOrDefault(location => location.IsInSource), chain));
             }
         }

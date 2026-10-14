@@ -26,7 +26,9 @@
 - 房间分配和房间生命周期快照状态。
 - 排行榜聚合查询、周期检查和 Redis 排行榜索引。
 
-PostgreSQL 是用户状态持久化后端，稳定的 `PostgresUserStore` 通过
+PostgreSQL 连接池由 Hotfix 的 `PostgresUserStore` 通过
+`ComponentConfigureServices` 自动在 data 节点注册，跨热更代复用并由根容器释放。
+PostgreSQL 是用户状态持久化后端，Hotfix 的 `PostgresUserStore` 通过
 Dapper + Npgsql 读写；Npgsql data source 由 `Server.App` root provider
 拥有，不随 Hotfix reload 重建。
 
@@ -35,9 +37,9 @@ Dapper + Npgsql 读写；Npgsql data source 由 `Server.App` root provider
 - 接收排行榜查询请求，从 Redis sorted set/hash 读取由结算写入维护的排行榜积分索引。
 - 接收结算后的 `RecordVictoryPointsAsync` 写入，更新当前周期胜利积分、胜场索引和玩家快照。
 - 从 Redis 取候选集合后，按积分降序、胜场降序、玩家标识升序排序并返回 top N。
-- 榜单当地时间周一 00:00 触发重置：切换当前周期 key，并重置上一周期 Redis 索引中玩家的 PostgreSQL 当前周期胜利积分。活跃用户通过 `UserActor` 串行更新；没有活动 actor 的历史用户直接从 `IUserStore` 加载并写回 PostgreSQL，不能阻塞排行榜查询。旧周期 key 的保留和清理由部署策略决定。
+- 榜单当地时间周一 00:00 触发重置：切换当前周期 key，并重置上一周期 Redis 索引中玩家的 PostgreSQL 当前周期胜利积分。活跃用户通过 `UserActor` 串行更新；没有活动 actor 的历史用户直接从 `PostgresUserStore` 加载并写回 PostgreSQL，不能阻塞排行榜查询。旧周期 key 的保留和清理由部署策略决定。
 - Redis connection multiplexer 和 PostgreSQL data source 都由稳定层拥有，
-  并由 `AgarPostgresModule`、`AgarRedisModule` 管理；任一连接或 PostgreSQL schema 初始化失败，
+  业务生命周期由 Hotfix Store 的 ComponentStart/ComponentStop 管理；Redis 使用稳定 ComponentState，PostgreSQL 使用 root 连接池。任一连接或 schema 初始化失败，
   节点都不会打开监听器或发布 cluster Ready。
 
 ## Docker 部署边界

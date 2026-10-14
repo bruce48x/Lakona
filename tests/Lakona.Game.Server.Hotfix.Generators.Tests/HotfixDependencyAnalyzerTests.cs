@@ -30,7 +30,7 @@ public sealed class HotfixDependencyAnalyzerTests
     {
         var source = Cycle[..Cycle.IndexOf("[HotfixComponent]", StringComparison.Ordinal)] +
             $"[HotfixComponent] public sealed class A {{ public A({dependency} value) {{}} }}";
-        var diagnostic = Assert.Single(await Analyze(source));
+        var diagnostic = Assert.Single((await Analyze(source)).Where(item => item.Id == "LAKONA20057"));
         Assert.Equal("LAKONA20057", diagnostic.Id);
         Assert.Contains("A -> A", diagnostic.GetMessage());
     }
@@ -49,25 +49,25 @@ public sealed class HotfixDependencyAnalyzerTests
             public void Register(IServiceCollection services) => services.AddSingleton<A>(_ => new A(null!));
         }
         """)]
-    public async Task Custom_registration_downgrades_default_graph_cycle_to_warning(string registration)
+    public async Task Custom_registration_cannot_override_component_cycles(string registration)
     {
         var diagnostic = Assert.Single(await Analyze(Cycle + registration));
-        Assert.Equal("LAKONA20058", diagnostic.Id);
-        Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
+        Assert.Equal("LAKONA20057", diagnostic.Id);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("A -> B -> A", diagnostic.GetMessage());
     }
 
     [Fact]
-    public async Task Selected_constructor_avoids_false_cycle()
+    public async Task Components_require_one_public_constructor_even_with_activation_attribute()
     {
-        Assert.Empty(await Analyze(Cycle.Replace("public A(B b) {}",
-            "public A(B b) {} [ActivatorUtilitiesConstructor] public A() {}")));
+        Assert.Contains(await Analyze(Cycle.Replace("public A(B b) {}",
+            "public A(B b) {} [ActivatorUtilitiesConstructor] public A() {}")), item => item.Id == "LAKONA20061");
     }
 
     [Fact]
     public async Task Does_not_guess_interface_or_keyed_registration()
     {
-        Assert.Empty(await Analyze(Cycle.Replace("public A(B b)", "public A([FromKeyedServices(\"other\")] B b)")));
+        Assert.Contains(await Analyze(Cycle.Replace("public A(B b)", "public A([FromKeyedServices(\"other\")] B b)")), item => item.Id == "LAKONA20061");
         Assert.Empty(await Analyze(Cycle.Replace("public A(B b)", "public A(System.IDisposable b)")));
     }
 

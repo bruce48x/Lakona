@@ -12,6 +12,7 @@ internal static class TestServiceProviderExtensions
         CancellationToken cancellationToken = default)
     {
         var provider = services.BuildServiceProvider();
+        AgarPersistenceFixture.Providers.Add(provider);
         var membership = provider.GetService<MembershipTableHostedService>();
         if (membership is null || provider.GetService<IMembershipTable>() is not InMemoryMembershipTable)
         {

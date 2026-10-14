@@ -19,6 +19,13 @@ namespace Lakona.Game.Server.Hotfix.Generators
             HotfixActorGenerator.Register(context);
             HotfixTimerGenerator.Register(context);
             HotfixComponentGenerator.Register(context);
+            context.RegisterSourceOutput(options, static (output, value) =>
+            {
+                if (value.GenerateStableRpcServices || value.IsHotfixProject)
+                    output.AddSource("LakonaProjectRole.g.cs",
+                        "[assembly: global::System.Reflection.AssemblyMetadataAttribute(\"LakonaProjectRole\", \""
+                        + (value.IsHotfixProject ? "Hotfix" : "ServerApp") + "\")]\n");
+            });
         }
     }
 }

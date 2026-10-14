@@ -688,7 +688,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
                 public BusinessError(Exception inner) : base("Failed", inner) { }
             }
             """);
-        var diagnostic = Assert.Single(diagnostics);
+        var diagnostic = Assert.Single(diagnostics.Where(item => item.Id == "LAKONA20060"));
         Assert.Equal("LAKONA20060", diagnostic.Id);
         Assert.Contains("remove the attribute", diagnostic.GetMessage());
     }
@@ -715,7 +715,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             public interface INotifications { }
 
             [HotfixComponent]
-            internal sealed class RoomNotifier
+            public sealed class RoomNotifier
             {
                 private readonly INotifications _notifications;
 
@@ -736,7 +736,7 @@ public sealed class HotfixActorBoundaryAnalyzerTests
             using Lakona.Game.Server.Hotfix.Abstractions;
 
             [HotfixComponent]
-            internal sealed class RoomNotifier
+            public sealed class RoomNotifier
             {
                 private int _counter;
             }

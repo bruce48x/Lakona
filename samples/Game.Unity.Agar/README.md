@@ -292,16 +292,14 @@ key 只用于选择亲和性，不是物理 actor id。当前三节点拓扑只�
 
 本地 `docker-compose.yml` 会把 `infra/postgres/init` 挂载到 Postgres
 `/docker-entrypoint-initdb.d`，其中 `001-agar-users.sql` 创建用户持久化表。
-`Server.App` 通过 Dapper + Npgsql 持久化用户，并通过 Redis sorted set/hash
-持久化排行榜；`AgarPostgresModule` 和 `AgarRedisModule` 由 Lakona
-自动发现，在最终 DI provider 创建前注册稳定 adapter，并在启动阶段建立连接。
-模块始终提供 Hotfix 构造所需的稳定 Store 接口，但只在对应连接字符串存在时创建
-客户端和建立连接；未配置时使用不会连接外部资源的 fail-fast adapter，并视为模块
-启动成功。如果业务被错误路由到该节点，adapter 会报告明确的拓扑错误。已配置的
-连接或 schema 初始化失败时，节点不会加载初始 Hotfix、发布 Ready 或打开 RPC
-监听器。Redis multiplexer 连接成功后作为最终根 DI provider 中的唯一 singleton
-提供，排行榜 Store 只注入 `IDatabase`，不依赖生命周期 Module。Lakona
-cluster 不创建 SQL directory schema；生产业务表仍应通过受控迁移更新。
+用户 SQL 和 Redis 排行榜操作由 `Server.Hotfix` 中的具体 HotfixComponent
+负责。Hotfix 的 `PostgresUserStore` 通过 `[ComponentConfigureServices]`
+自动在 data 节点注册稳定 NpgsqlDataSource，无须 Program 手动调用；
+PostgresUserStore 在 ComponentStart 建表并探测。RedisLeaderboardState 保留连接
+和启动时的 key 前缀；RedisLeaderboardStore 负责连接、探测、业务读写和最终关闭。
+普通热更只替换 Store 逻辑，不重新初始化资源；最新一代 Stop 后由 root 最终释放。
+初始化失败不会打开业务入口或发布 Ready。定时工作仍由 Actor + Behavior 承担。
+详见 [Hotfix Components](../../docs/hotfix/components.md)。生产业务表仍应通过受控迁移更新。
 
 ## 开发命令
 
@@ -344,3 +342,9 @@ dotnet test tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
 - Unity 编辑器内完整单机流程回归。
 - 联机模式下 UI 交互、积分发放、排行榜刷新和视觉细节的最终打磨。
 - 跨网关实时路由设计与实现。
+
+持久化业务测试使用真实存储，先运行
+`docker compose -f samples/Game.Unity.Agar/docker-compose.yml up -d --wait postgres redis`，
+再运行 `dotnet test samples/Game.Unity.Agar/tests/BusinessLogic.Tests`。
+可通过 `AGAR_TEST_POSTGRES`、`AGAR_TEST_REDIS` 指定专用测试实例；每个测试 provider
+使用独立 schema 和 Redis 前缀，由测试 fixture 清理。测试不覆盖组件注册或提供假的 Store。

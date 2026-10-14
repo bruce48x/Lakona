@@ -60,14 +60,14 @@ Maintainers should treat the following as active simplification pressure:
 
 `LakonaGameServer.RunAsync` is therefore a thin public facade. The internal
 bootstrapper owns pre-provider discovery, service composition, validation, and
-host construction. The internal node lifecycle owns module startup, initial
+host construction. The internal node lifecycle owns component startup, initial
 Hotfix loading, dependency ordering, and reverse cleanup. The standard Host
 lifecycle publishes readiness after all hosted services start and closes
 admission before they stop. The runner executes the Host, stops it after a
 startup failure, and disposes the provider. Their order
 remains explicit and testable instead of becoming another extensibility
 contract. Startup, readiness, rollback, and resource ownership are detailed in
-[Application Modules](./application-modules.md#startup).
+[Hotfix Components](./hotfix/components.md#startup).
 
 Complexity review is separate from runtime correctness. Tests can prove that a
 capability works without proving that the authoring model is minimal. Generated
@@ -106,12 +106,15 @@ process-local route manifest and stable hosting assigns internal endpoint
 slots. Later Hotfix generations may replace behavior but may not mutate that
 manifest without a process restart.
 
-Stable external dependencies belong to automatically discovered application
-modules in `Server.App`. Modules declare their services before the final root
-provider is built, then complete asynchronous initialization before initial
-Hotfix loading, listener startup, or cluster Ready publication. Reloadable
-behavior therefore never owns database pools, Redis multiplexers, or their
-process lifecycle. See [Application Modules](./application-modules.md).
+Stable resource handles and optional component State belong in Server.App.
+Register component-owned stable services through HotfixComponent's optional
+ComponentConfigureServices method before root Build; AddServices remains the
+host-wide composition entry. Business resource
+initialization, operations and graceful closure belong to HotfixComponent in
+Server.Hotfix. Start runs once before consumers and Ready; reload replaces logic
+while preserving State; final Stop uses the latest generation in reverse
+dependency order. No background-task framework or Actor-like mailbox is added.
+See [Hotfix Components](./hotfix/components.md).
 
 `Server.App` and `Server.Hotfix` are paired parts of one application, not a
 host and an untrusted third-party plugin. Hotfix constructors may therefore

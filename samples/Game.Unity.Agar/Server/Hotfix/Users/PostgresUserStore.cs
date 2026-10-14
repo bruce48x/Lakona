@@ -1,13 +1,28 @@
 using Dapper;
+using Lakona.Game.Server;
+using Lakona.Game.Server.Hotfix.Abstractions;
 using Npgsql;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Server.App.Users;
 
-namespace Server.App.Infrastructure.Postgres;
+namespace Server.Hotfix.Users;
 
-public sealed class PostgresUserStore(NpgsqlDataSource dataSource) :
-    IUserStore,
-    IDisposable
+[HotfixComponent]
+[NodeRole("data")]
+public sealed class PostgresUserStore(NpgsqlDataSource dataSource)
 {
+    [ComponentConfigureServices]
+    public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    {
+        var name = configuration["Agar:Persistence:Postgres:ConnectionStringName"] ?? "AgarGamePostgres";
+        var connectionString = configuration.GetConnectionString(name);
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new InvalidOperationException($"ConnectionStrings:{name} is required on data nodes.");
+        services.TryAddSingleton(_ => NpgsqlDataSource.Create(connectionString));
+    }
+
     private const string EnsureSchemaSql =
         """
         CREATE TABLE IF NOT EXISTS agar_users (
@@ -64,16 +79,12 @@ public sealed class PostgresUserStore(NpgsqlDataSource dataSource) :
             updated_at_utc = CURRENT_TIMESTAMP;
         """;
 
-    private readonly SemaphoreSlim schemaGate = new(1, 1);
-    private int schemaReady;
-
-    internal async Task InitializeAsync(
-        CancellationToken cancellationToken = default)
+    [ComponentStart]
+    public async ValueTask StartAsync(CancellationToken cancellationToken)
     {
-        await using var connection = await dataSource
-            .OpenConnectionAsync(cancellationToken)
-            .ConfigureAwait(false);
-        await EnsureSchemaAsync(connection, cancellationToken).ConfigureAwait(false);
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await connection.ExecuteAsync(new CommandDefinition(EnsureSchemaSql, cancellationToken: cancellationToken)).ConfigureAwait(false);
+        _ = await connection.ExecuteScalarAsync<int>(new CommandDefinition("SELECT 1;", cancellationToken: cancellationToken)).ConfigureAwait(false);
     }
 
     public async ValueTask<PersistedUser?> LoadAsync(
@@ -106,40 +117,6 @@ public sealed class PostgresUserStore(NpgsqlDataSource dataSource) :
                 SaveSql,
                 user,
                 cancellationToken: cancellationToken)).ConfigureAwait(false);
-    }
-
-    public void Dispose()
-    {
-        schemaGate.Dispose();
-    }
-
-    private async Task EnsureSchemaAsync(
-        NpgsqlConnection connection,
-        CancellationToken cancellationToken)
-    {
-        if (Volatile.Read(ref schemaReady) != 0)
-        {
-            return;
-        }
-
-        await schemaGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            if (Volatile.Read(ref schemaReady) != 0)
-            {
-                return;
-            }
-
-            await connection.ExecuteAsync(
-                new CommandDefinition(
-                    EnsureSchemaSql,
-                    cancellationToken: cancellationToken)).ConfigureAwait(false);
-            Volatile.Write(ref schemaReady, 1);
-        }
-        finally
-        {
-            schemaGate.Release();
-        }
     }
 
     private static void ValidateUserId(string userId)

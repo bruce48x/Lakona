@@ -14,10 +14,10 @@ namespace Server.Hotfix.Users;
 [HotfixBehaviorOf(typeof(UserActor))]
 public sealed partial class UserBehavior
 {
-    private readonly IUserStore _userStore;
+    private readonly PostgresUserStore _userStore;
     private readonly ActorAccess _actors;
 
-    public UserBehavior(IUserStore userStore, ActorAccess actors)
+    public UserBehavior(PostgresUserStore userStore, ActorAccess actors)
     {
         _userStore = userStore;
         _actors = actors;

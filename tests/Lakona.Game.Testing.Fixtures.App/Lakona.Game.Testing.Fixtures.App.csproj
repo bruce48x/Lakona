@@ -4,9 +4,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <LakonaProjectRole>ServerApp</LakonaProjectRole>
   </PropertyGroup>
 
   <ItemGroup>
+    <CompilerVisibleProperty Include="LakonaProjectRole" />
+    <ProjectReference Include="../../src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj"
+                      ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
     <ProjectReference Include="../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
   </ItemGroup>
 

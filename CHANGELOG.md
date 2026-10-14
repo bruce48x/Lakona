@@ -4,6 +4,21 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-10-14 — Hotfix components with stable resource state
+
+**Key releases:** `Lakona.Game.Server 0.53.0`, `Lakona.Tool 0.43.49`,
+and `Lakona Hub 0.17.51`.
+
+- HotfixComponent unifies node-level tools and resource lifecycles. Optional App
+  ComponentState survives reload; constructor dependencies order first Start and
+  reverse final Stop, with the latest generation performing shutdown.
+- Breaking change: remove ILakonaModule without an adapter. Move stable resource
+  registration to HotfixComponent's ComponentConfigureServices and business lifecycle logic to ComponentStart/ComponentStop;
+  inject concrete components, rebuild App/Hotfix together and restart. Components
+  do not support detached work; scheduled work stays in Actor + Behavior.
+- Agar persistence, runtime/test hosting and generated project guidance use the
+  same State ownership, role selection and lifecycle rules.
+
 ## 2026-10-10 — Membership failure evidence and safety deadlines
 
 **Key releases:** `Lakona.Game.Server 0.52.1`, `Lakona.Tool 0.43.46`,

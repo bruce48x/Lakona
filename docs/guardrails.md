@@ -7,7 +7,7 @@ contracts.
 ## Ownership And Validation API
 
 Guardrails check framework configuration. Application configuration and resource
-initialization belong in `ILakonaModule` in `Server.App`; a failed module startup
+initialization belong in `[ComponentStart]` in `Server.Hotfix`; a failed component startup
 already prevents readiness and triggers cleanup. Guardrails do not expose a
 custom rule registration mechanism or track which configuration provider supplied
 a value.
@@ -25,8 +25,8 @@ This release removes `ILakonaGameValidationRule`, `LakonaGameResolved*`, and
 Consumers of those APIs must rebuild and migrate:
 
 - Move custom rule logic and its DI registrations to the appropriate application
-  module's startup checks. Throw a descriptive exception when startup must fail;
-  the normal module readiness diagnostic reports the failure.
+  component's startup checks. Throw a descriptive exception when startup must fail;
+  the normal component readiness diagnostic reports the failure.
 - Replace construction of resolved DTOs and injected rule lists with
   `new LakonaGameRuntimeValidator().Validate(runtimeOptions, clusterOptions,
   hotfixAssemblyPath)`. The last two arguments are optional; normal server
@@ -52,14 +52,13 @@ Readiness validation checks:
 - heartbeat interval and timeout
 - hotfix assembly source
 - management admin listener exposure
-- application module and full framework startup state
+- component and full framework startup state
 
-Stable application dependencies implement `ILakonaModule` in `Server.App`.
-Lakona discovers and initializes them before initial Hotfix loading, management
-HTTP, RPC listeners, cluster Ready publication, and Startup Actors. Module
-startup failure fails the process and reverses already-started modules.
-Pending, failed, and stopping lifecycle states appear in the normal readiness
-snapshot. See [Application Modules](./application-modules.md).
+Stable resource registration uses AddServices in App. Component Start initializes
+business resources during first Hotfix activation, before listeners, Ready
+publication and Startup Actors. Failure reverses successfully activated
+components. Pending, failed and stopping states appear in the normal readiness
+snapshot. See [Hotfix Components](./hotfix/components.md).
 
 Run readiness validation through the health route on the management HTTP listener:
 
@@ -120,7 +119,18 @@ Lakona Hub. Keep configuration changes aligned with the package upgrade.
 - `LAKONA10090-LAKONA10099`: heartbeat policy
 - `LAKONA10101-LAKONA10109`: node role configuration
 - `LAKONA10130-LAKONA10149`: management admin exposure
-- `LAKONA10150-LAKONA10159`: application module and server lifecycle readiness
+- `LAKONA10150-LAKONA10159`: component and server lifecycle readiness
+
+## Component diagnostics
+
+- `LAKONA20057`: component constructor dependency cycle (custom registration cannot override it).
+- `LAKONA20061`: invalid component, ComponentConfigureServices/lifecycle hook, or component/State injection shape.
+- `LAKONA20062`: invalid stable State declaration or obvious execution references stored in State.
+- `LAKONA20063`: direct State access outside its class and owning component.
+
+Runtime candidate checks also enforce State registration/ownership, role filtering,
+fixed component identity and compatible activation order. See
+[Hotfix Components](./hotfix/components.md).
 
 ## Production Boundary
 
@@ -137,7 +147,7 @@ ambiguous or unsafe. In particular:
 - node role entries must be non-empty and unique; Actor hosting follows
   [typed declarations and node roles](./configuration.md#node-roles-and-actor-hosting)
 - management admin routes must remain loopback-only unless explicitly deployed on a trusted network
-- every application module must complete startup before the node publishes
+- every component must complete startup before the node publishes
   Ready or opens application listeners
 
 ## Generated Projects
@@ -145,7 +155,7 @@ ambiguous or unsafe. In particular:
 Generated starter projects should keep `appsettings.json` compact. Derived
 runtime state is shown by the readiness endpoint rather than copied into
 generated configuration. When a generated project is split across nodes, use
-`Lakona:Node:Roles`, Actor and Module `[NodeRole]` declarations, `Lakona:Endpoints[]`, endpoint `RpcServices`, and
+`Lakona:Node:Roles`, Actor and optional component `[NodeRole]` declarations, `Lakona:Endpoints[]`, endpoint `RpcServices`, and
 `Lakona:Cluster`; declare Startup Actor groups in
 `HotfixStartup.ConfigureActors`. Exact key shapes and defaults belong to
 [Configuration](./configuration.md).
