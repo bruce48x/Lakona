@@ -36,7 +36,7 @@ foreach ($project in $projects) {
     Write-Host "[$index/$($projects.Count)] $($project.FullName)"
     $resultsDirectory = Join-Path $artifactsPath "results/$($project.BaseName)"
     & dotnet test $project.FullName --artifacts-path $artifactsPath -c $Configuration `
-        --logger "console;verbosity=normal" --logger "trx" `
+        --logger "console;verbosity=minimal" --logger "trx" `
         --results-directory $resultsDirectory `
         --blame-hang-timeout 5m --blame-hang-dump-type none
     if ($LASTEXITCODE -ne 0) {
