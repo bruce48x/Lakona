@@ -264,6 +264,21 @@ otherwise uses `ToString()`. The default identity is:
 room, user, queue, or zone key uses `Key`; it must not strip the Actor-name
 prefix from `Id` itself.
 
+`ActorContext.ActivationId` identifies this particular in-memory activation.
+Behavior can read `self.Context.ActivationId` from `[ActorStart]` onward,
+including ordinary calls, timers, and `[ActorStop]`. It is available for both
+local-only and distributed Actors. For distributed Actors it matches the
+Directory record's `ActivationId`.
+
+The value stays unchanged across Hotfix reloads and idempotent `EnsureAsync`
+calls. Destroying and recreating an Actor produces a new value even when its
+`ActorContext.Id` stays the same. Use it to distinguish instance lifetimes, for
+example when recognizing callbacks from an older activation. It is a random
+identity, not an ordered version or a persistent business id; external storage
+must enforce any conditional writes that use it. A context created directly
+with the public constructor has the default activation id until replaced by
+the framework-assigned context during hosting.
+
 Use `[ActorName]` to pin a long-lived Actor wire name and `[ActorMethod]` to pin
 a method wire name. Actor, request, and result type identities remain part of
 the generated method id.

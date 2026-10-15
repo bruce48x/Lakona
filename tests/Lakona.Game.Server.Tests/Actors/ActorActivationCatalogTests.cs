@@ -51,6 +51,13 @@ public sealed class ActorActivationCatalogTests
             static async (actor, _) => await actor.GetActivatedCountAsync(),
             cancellationToken);
         Assert.Equal(1, activated);
+
+        var activationId = await runtime.AskAsync<HostedTestActor, ActorActivationId>(
+            actorId,
+            static (actor, _) => new ValueTask<ActorActivationId>(actor.Context.ActivationId),
+            cancellationToken);
+        Assert.NotEqual(default, activationId);
+        Assert.Equal(record.ActivationId, activationId);
     }
 
     [Fact]
@@ -689,7 +696,17 @@ public sealed class ActorActivationCatalogTests
         var actorId = ActorId.From("hosting/hotfix-lifecycle");
 
         await hosting.CreateAsync<HotfixLifecycleHostedFixture.RoomActor>(actorId, cancellationToken);
+        var actor = await hosting.AskAsync<HotfixLifecycleHostedFixture.RoomActor, HotfixLifecycleHostedFixture.RoomActor>(
+            actorId,
+            static (self, _) => new ValueTask<HotfixLifecycleHostedFixture.RoomActor>(self),
+            cancellationToken);
+        var record = await provider.GetRequiredService<IActorDirectory>().ResolveAsync(actorId, cancellationToken);
+        Assert.NotNull(record);
+        Assert.NotEqual(default, actor.Context.ActivationId);
+        Assert.Equal(record.ActivationId, actor.Context.ActivationId);
+        Assert.Equal(record.ActivationId, actor.StartedActivationId);
         await hosting.DestroyAsync<HotfixLifecycleHostedFixture.RoomActor>(actorId, cancellationToken);
+        Assert.Equal(record.ActivationId, actor.StoppedActivationId);
 
         Assert.Equal(["start:hosting/hotfix-lifecycle:hotfix", "stop:hosting/hotfix-lifecycle:hotfix"], HotfixLifecycleHostedFixture.Events);
     }
@@ -1159,6 +1176,8 @@ public sealed class ActorActivationCatalogTests
 
         public sealed class RoomActor : GameActor
         {
+            public ActorActivationId StartedActivationId;
+            public ActorActivationId StoppedActivationId;
         }
 
         public sealed record Marker(string Value);
@@ -1169,7 +1188,7 @@ public sealed class ActorActivationCatalogTests
             [Lakona.Game.Server.Hotfix.Abstractions.ActorStart]
             public ValueTask StartAsync(RoomActor self, Lakona.Game.Server.Hotfix.Abstractions.ActorStartCall call)
             {
-                _ = self;
+                self.StartedActivationId = self.Context.ActivationId;
                 var marker = call.Services.GetRequiredService<Marker>();
                 Events.Add($"start:{call.ActorId}:{marker.Value}");
                 return default;
@@ -1178,7 +1197,7 @@ public sealed class ActorActivationCatalogTests
             [Lakona.Game.Server.Hotfix.Abstractions.ActorStop]
             public ValueTask StopAsync(RoomActor self, Lakona.Game.Server.Hotfix.Abstractions.ActorStopCall call)
             {
-                _ = self;
+                self.StoppedActivationId = self.Context.ActivationId;
                 var marker = call.Services.GetRequiredService<Marker>();
                 Events.Add($"stop:{call.ActorId}:{marker.Value}");
                 return default;

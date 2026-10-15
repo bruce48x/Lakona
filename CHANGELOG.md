@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-10-15 — Actor activation identity for business behavior
+
+**Key releases:** `Lakona.Game.Server 0.53.3`, `Lakona.Tool 0.43.53`,
+and `Lakona Hub 0.17.55`.
+
+- `ActorContext.ActivationId` exposes the hosted instance's identity from
+  `[ActorStart]` onward for local and distributed Actors. It survives Hotfix
+  reloads and changes when the same Actor id is destroyed and recreated.
+
 ## 2026-10-14 — Hotfix components with stable resource state
 
 **Key releases:** `Lakona.Game.Server 0.53.0`, `Lakona.Tool 0.43.49`,

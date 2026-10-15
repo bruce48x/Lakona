@@ -28,9 +28,11 @@ public sealed class ActorContext
         IServiceProvider services,
         IActorRuntime runtime,
         Action? requestDeactivation,
-        ActorTimerOwner? timerOwner = null)
+        ActorTimerOwner? timerOwner = null,
+        ActorActivationId activationId = default)
     {
         Id = id;
+        ActivationId = activationId;
         Key = ActorIdentity.GetKey(id);
         Services = services ?? throw new ArgumentNullException(nameof(services));
         Runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
@@ -42,6 +44,18 @@ public sealed class ActorContext
     /// Gets the stable id of the hosted actor instance.
     /// </summary>
     public ActorId Id { get; }
+
+    /// <summary>
+    /// Gets the identity of this in-memory actor activation.
+    /// </summary>
+    /// <remarks>
+    /// The framework assigns this value before the Hotfix <c>[ActorStart]</c>
+    /// hook runs. It remains unchanged across Hotfix reloads and changes when
+    /// the actor is destroyed and recreated, even with the same <see cref="Id"/>.
+    /// Contexts constructed directly with the public constructor have the default
+    /// value because they are not associated with a framework-hosted activation.
+    /// </remarks>
+    public ActorActivationId ActivationId { get; }
 
     internal ActorTimerOwner? TimerOwner { get; }
 

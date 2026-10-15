@@ -1162,7 +1162,7 @@ internal sealed partial class ActorActivationCatalog :
                             }
 
                             turn.RequestDeactivation();
-                        }, _timerOwner));
+                        }, _timerOwner, activationId: _activationId));
             }
 
             _activated = true;

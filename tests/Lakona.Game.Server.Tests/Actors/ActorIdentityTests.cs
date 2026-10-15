@@ -52,6 +52,7 @@ public sealed class ActorIdentityTests
 
         Assert.Equal("room/a%2Fb%20c", context.Id.Value);
         Assert.Equal("a/b c", context.Key);
+        Assert.Equal(default, context.ActivationId);
     }
 
     [ActorName("room")]
