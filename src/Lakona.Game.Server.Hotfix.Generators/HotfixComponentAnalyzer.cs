@@ -105,6 +105,7 @@ public sealed class HotfixComponentAnalyzer : DiagnosticAnalyzer
 
             start.RegisterOperationAction(operationContext =>
             {
+                if (options.IsHotfixProject) AnalyzeUnmarkedStateWrite(operationContext);
                 var member = operationContext.Operation switch
                 {
                     IFieldReferenceOperation field => (ISymbol)field.Field,
@@ -128,6 +129,74 @@ public sealed class HotfixComponentAnalyzer : DiagnosticAnalyzer
                     end.ReportDiagnostic(Diagnostic.Create(Contract, pair.Owner.Locations.FirstOrDefault(), $"Component state '{pair.State}' has more than one owner."));
             });
         });
+    }
+
+    private static void AnalyzeUnmarkedStateWrite(OperationAnalysisContext context)
+    {
+        var instance = context.Operation switch
+        {
+            IFieldReferenceOperation field => field.Instance,
+            IPropertyReferenceOperation property => property.Instance,
+            _ => null
+        };
+        if (instance is null || !IsWrite(context.Operation)) return;
+        var component = context.ContainingSymbol.ContainingType;
+        if (component is null || !HasAttribute(component, Prefix + "HotfixComponentAttribute")
+            || HotfixActorBoundaryAnalyzer.ResolveActivationConstructor(component) is not { } constructor) return;
+
+        var receiver = Unwrap(instance);
+        var dependency = receiver switch
+        {
+            IParameterReferenceOperation parameter when SymbolEqualityComparer.Default.Equals(parameter.Parameter.ContainingSymbol, constructor)
+                => parameter.Parameter.Type,
+            IFieldReferenceOperation field when field.Instance is IInstanceReferenceOperation
+                && SymbolEqualityComparer.Default.Equals(field.Field.ContainingType, component)
+                && HotfixActorBoundaryAnalyzer.IsDirectConstructorDependency(field.Field, constructor, context.CancellationToken)
+                => field.Field.Type,
+            IPropertyReferenceOperation property when property.Instance is IInstanceReferenceOperation
+                && SymbolEqualityComparer.Default.Equals(property.Property.ContainingType, component)
+                && HotfixActorBoundaryAnalyzer.IsDirectConstructorDependency(property.Property, constructor, context.CancellationToken)
+                => property.Property.Type,
+            _ => null
+        };
+        if (dependency is null) return;
+        var stateType = IsServerAppType(dependency) ? dependency
+            : instance.Type is { } converted && IsServerAppType(converted) ? converted : null;
+        if (stateType is null || !stateType.IsReferenceType || HasAttribute(stateType, Prefix + "ComponentStateAttribute")) return;
+        context.ReportDiagnostic(Diagnostic.Create(StateDeclaration, context.Operation.Syntax.GetLocation(),
+            $"Component '{component.ToDisplayString()}' directly writes injected ServerApp dependency '{stateType.ToDisplayString()}'. "
+            + "Use an explicitly marked [ComponentState] with framework-owned registration, or use a stable resource API instead of direct state mutation."));
+    }
+
+    private static bool IsServerAppType(ITypeSymbol type) => type.ContainingAssembly?.GetAttributes().Any(attribute =>
+        attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute"
+        && attribute.ConstructorArguments.Length == 2
+        && attribute.ConstructorArguments[0].Value is "LakonaProjectRole"
+        && attribute.ConstructorArguments[1].Value is string role
+        && string.Equals(role.Trim(), "ServerApp", StringComparison.OrdinalIgnoreCase)) == true;
+
+    private static IOperation Unwrap(IOperation operation)
+    {
+        while (true)
+        {
+            if (operation is IConversionOperation { OperatorMethod: null } conversion) operation = conversion.Operand;
+            else if (operation is IParenthesizedOperation parenthesized) operation = parenthesized.Operand;
+            else return operation;
+        }
+    }
+
+    private static bool IsWrite(IOperation operation)
+    {
+        // Tuple targets and transparent wrappers still write the same member.
+        while (operation.Parent is IConversionOperation or IParenthesizedOperation or ITupleOperation)
+            operation = operation.Parent;
+        return operation.Parent switch
+        {
+            IAssignmentOperation assignment => assignment.Target == operation,
+            IIncrementOrDecrementOperation increment => increment.Target == operation,
+            IArgumentOperation argument => argument.Parameter?.RefKind is RefKind.Ref or RefKind.Out,
+            _ => false
+        };
     }
 
     private static bool ForbiddenStateType(ITypeSymbol type)

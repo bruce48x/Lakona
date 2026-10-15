@@ -202,7 +202,16 @@ public sealed class FeedSender
 
 State's implicit public parameterless constructor initializes only basic
 structures. The framework registers and root-owns it; only FeedSender accesses
-it. Its stable gate serializes sends across generation overlap because
+it.
+
+The `[ComponentState]` marker cannot be omitted: an unmarked App carrier
+manually registered as a Singleton loses State ownership checks. Direct component
+writes through such an injected carrier report `LAKONA20062`, including compound
+assignments, increments and `ref`/`out` arguments. Add the marker and remove the
+manual registration. Reads and stable resource method calls remain valid, as do
+new DTOs and third-party client types. The check uses project-role metadata,
+not type names, and does not follow local aliases or arbitrary method effects.
+FeedState's stable gate serializes sends across generation overlap because
 ClientWebSocket permits only one send at a time. Ordinary component calls have
 no mailbox. Callers must stop and await their sends before Stop closes the socket.
 

@@ -6,6 +6,167 @@ public sealed class HotfixComponentAnalyzerTests
 {
     private const string Imports = "using System.Threading; using System.Threading.Tasks; using Lakona.Game.Server.Hotfix.Abstractions; ";
 
+    private static Microsoft.CodeAnalysis.MetadataReference MutableResourceReference(string role = "ServerApp", bool marked = false) =>
+        AnalyzerTestHost.CreateReference("StableResources", $$"""
+            using System;
+            using System.Reflection;
+            using Lakona.Game.Server.Hotfix.Abstractions;
+            [assembly: AssemblyMetadata("LakonaProjectRole", "{{role}}")]
+            namespace App;
+            public interface IResource
+            {
+                int Count { get; set; }
+                void Update();
+            }
+            {{(marked ? "[ComponentState]" : "")}}
+            public sealed class MutableResource
+            {
+                public int Count;
+                public string Text { get; set; }
+                public object Connection;
+                public int this[int index] { get => Count; set => Count = value; }
+                public void Update() { Count++; }
+                public static explicit operator ResourceSnapshot(MutableResource resource) => new() { Count = resource.Count };
+            }
+            public sealed class ResourceSnapshot { public int Count; }
+            """);
+
+    [Theory]
+    [InlineData("client.Connection = new object();")]
+    [InlineData("client.Count += 1;")]
+    [InlineData("client.Text ??= \"ready\";")]
+    [InlineData("++client.Count;")]
+    [InlineData("client.Count--;")]
+    [InlineData("(client.Count, _) = (1, 2);")]
+    [InlineData("System.Threading.Interlocked.Exchange(ref client.Count, 1);")]
+    [InlineData("int.TryParse(\"1\", out client.Count);")]
+    [InlineData("client[0] = 1;")]
+    [InlineData("((MutableResource)client).Count = 1;")]
+    public async Task Direct_writes_to_injected_App_dependencies_require_a_State_marker(string write)
+    {
+        var source = Imports + """
+            using App;
+            using Microsoft.Extensions.Configuration;
+            using Microsoft.Extensions.DependencyInjection;
+            [HotfixComponent] public sealed class Component(MutableResource client)
+            {
+                [ComponentConfigureServices]
+                public static void Configure(IServiceCollection services, IConfiguration configuration) =>
+                    services.AddSingleton<MutableResource>();
+                public void Write() {
+            """ + write + "} }";
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(source, MutableResourceReference());
+        var diagnostic = Assert.Single(diagnostics.Where(diagnostic => diagnostic.Id == "LAKONA20062"));
+        Assert.Contains("[ComponentState]", diagnostic.GetMessage());
+        Assert.Contains("MutableResource", diagnostic.GetMessage());
+        Assert.Contains("client", source.Substring(diagnostic.Location.SourceSpan.Start, diagnostic.Location.SourceSpan.Length));
+    }
+
+    [Theory]
+    [InlineData("private readonly MutableResource _client; public Component(MutableResource client) { _client = client; }")]
+    [InlineData("private MutableResource _client { get; } public Component(MutableResource client) { _client = client ?? throw new System.ArgumentNullException(nameof(client)); }")]
+    public async Task Direct_writes_through_injected_fields_and_properties_require_a_State_marker(string storage)
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports + "using App; [HotfixComponent] public sealed class Component { "
+            + storage + " public void Write() { _client.Connection = new object(); } }", MutableResourceReference());
+        Assert.Single(diagnostics.Where(diagnostic => diagnostic.Id == "LAKONA20062"));
+    }
+
+    [Theory]
+    [InlineData("private readonly MutableResource _client = client;")]
+    [InlineData("private MutableResource _client { get; } = client;")]
+    public async Task Primary_constructor_dependency_initializers_are_checked(string storage)
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports
+            + "using App; [HotfixComponent] public sealed class Component(MutableResource client) { "
+            + storage + " public void Write() { _client.Text = \"ready\"; } }", MutableResourceReference());
+        Assert.Single(diagnostics.Where(diagnostic => diagnostic.Id == "LAKONA20062"));
+    }
+
+    [Theory]
+    [InlineData("resource.Update(); var count = resource.Count;", false)]
+    [InlineData("resource.Count = 1;", true)]
+    public async Task Stable_App_interfaces_allow_APIs_and_reads_but_require_State_for_direct_writes(string body, bool fails)
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports
+            + "using App; [HotfixComponent] public sealed class Component(IResource resource) { public void Execute() { "
+            + body + " } }", MutableResourceReference());
+        Assert.Equal(fails, diagnostics.Any(diagnostic => diagnostic.Id == "LAKONA20062"));
+        if (!fails) Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public async Task Casting_an_injected_object_to_an_App_carrier_does_not_bypass_the_marker()
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports + """
+            using App;
+            [HotfixComponent] public sealed class Component(object client)
+            {
+                public void Write() { ((MutableResource)client).Count = 1; }
+            }
+            """, MutableResourceReference());
+        Assert.Single(diagnostics.Where(diagnostic => diagnostic.Id == "LAKONA20062"));
+    }
+
+    [Theory]
+    [InlineData("ServerApp", "Hotfix")]
+    [InlineData(" serverapp ", " HoTfIx ")]
+    public async Task State_write_detection_uses_project_roles_instead_of_names(string appRole, string hotfixRole)
+    {
+        var diagnostics = await AnalyzerTestHost.RunProjectRoleAsync(Imports + """
+            using App;
+            [HotfixComponent] public sealed class Component(MutableResource client)
+            {
+                public void Write() { client.Count = 1; }
+            }
+            """, hotfixRole, MutableResourceReference(appRole));
+        Assert.Single(diagnostics.Where(diagnostic => diagnostic.Id == "LAKONA20062"));
+    }
+
+    [Theory]
+    [InlineData("Shared", false)]
+    [InlineData("", false)]
+    [InlineData("ServerApp", true)]
+    public async Task Marked_State_and_other_stable_dependency_assemblies_remain_valid(string role, bool marked)
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports + """
+            using App;
+            [HotfixComponent] public sealed class Component(MutableResource client)
+            {
+                public void Write() { client.Count = 1; }
+            }
+            """, MutableResourceReference(role, marked));
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public async Task Resource_APIs_reads_DTO_arguments_and_new_object_initialization_remain_valid()
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports + """
+            using App;
+            using System;
+            using Microsoft.Extensions.Configuration;
+            using Microsoft.Extensions.DependencyInjection;
+            [HotfixComponent] public sealed class Component(MutableResource client, System.Net.Http.HttpClient http)
+            {
+                public int Read() => client.Count;
+                public void Update(MutableResource request)
+                {
+                    client.Update();
+                    http.Timeout = TimeSpan.FromSeconds(10);
+                    request.Count = 1;
+                    var local = new MutableResource { Count = 2 };
+                    local.Text = "ready";
+                    ((ResourceSnapshot)client).Count = 3;
+                }
+                [ComponentConfigureServices]
+                public static void Configure(IServiceCollection services, IConfiguration configuration) =>
+                    services.AddSingleton(_ => new MutableResource { Connection = new object() });
+            }
+            """, MutableResourceReference(), Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(typeof(System.Net.Http.HttpClient).Assembly.Location));
+        Assert.Empty(diagnostics);
+    }
+
     [Theory]
     [InlineData("public void Configure(IServiceCollection services, IConfiguration config) {}")]
     [InlineData("private static void Configure(IServiceCollection services, IConfiguration config) {}")]

@@ -48,6 +48,23 @@ identify them; filenames and directory names do not. The framework registers
 each concrete State type once in root DI. Applications must not override this
 registration, create State manually or shadow it in generation DI.
 
+State classes are optional; their `[ComponentState]` marker is mandatory. A
+component directly writing fields or properties of a constructor-injected
+ServerApp object must use marked State (`LAKONA20062`). Manually registering an
+unmarked carrier as a Singleton does not exempt these writes. Mark the carrier
+and remove its manual registration, or use the operations of a stable resource.
+
+The compile-time check covers constructor parameters and their directly assigned
+component fields/get-only properties, including primary constructors and
+transparent casts. Assignments, compound/coalescing/deconstruction assignments,
+increments/decrements and `ref`/`out` arguments are writes. Reads, resource API
+calls, ordinary method DTO parameters and newly constructed objects remain
+valid. App identity comes from `LakonaProjectRole` assembly metadata, not names;
+third-party client types are not inferred to be State because they are mutable.
+This direct-write check does not follow local aliases or inspect called method
+bodies and nested object graphs. Those paths still obey the State ownership
+contract; runtime discovery only recognizes explicitly marked State.
+
 `LakonaProjectRole` uses the existing project-role rules: surrounding whitespace
 is ignored and `ServerApp`/`Hotfix` comparisons are case-insensitive. Component
 and State diagnostics use the same parsing as generation.
@@ -268,7 +285,7 @@ interface injection with concrete component injection and migrate tests which
 overrode components. Rebuild App and Hotfix together and restart the node.
 
 Compile-time diagnostics: `LAKONA20061` covers component/hook/injection
-and registration contracts, `LAKONA20062` State declarations, and `LAKONA20063`
-direct ownership
-violations. `LAKONA20057` remains the component dependency-cycle diagnostic;
+and registration contracts, `LAKONA20062` State declarations and unmarked injected
+App state writes, and `LAKONA20063` direct ownership violations.
+`LAKONA20057` remains the component dependency-cycle diagnostic;
 custom registration cannot downgrade a forbidden component graph to a warning.

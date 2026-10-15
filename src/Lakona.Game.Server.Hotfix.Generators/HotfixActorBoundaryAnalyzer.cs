@@ -481,7 +481,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     : null;
         }
 
-        private static bool IsDirectConstructorDependency(
+        internal static bool IsDirectConstructorDependency(
             ISymbol member,
             IMethodSymbol activationConstructor,
             System.Threading.CancellationToken cancellationToken)

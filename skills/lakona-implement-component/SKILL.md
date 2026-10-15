@@ -21,7 +21,11 @@ background-task framework or extra container.
    constructor. Keep injected fields private and readonly. If needed, add
    ComponentState in App: top-level, public, sealed, non-generic, with a public
    parameterless constructor initializing basic structures only. Do not register
-   State manually or add empty State to stateless tools.
+   State manually or add empty State to stateless tools. State is optional, but
+   its `[ComponentState]` marker is mandatory when used. Directly writing fields
+   or properties through an injected App object requires marked State; manual
+   Singleton registration is not a substitute (`LAKONA20062`). Reads, stable
+   resource APIs, third-party clients and new DTO initialization remain valid.
 4. Read [resource-patterns.md](references/resource-patterns.md) for initialization
    and disposal. Put optional stable resource registration on the HotfixComponent:
    `[ComponentConfigureServices] public static void ConfigureServices(IServiceCollection
