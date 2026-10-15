@@ -37,8 +37,10 @@ service instances.
    tests, and neighboring code. Ask for a product decision only when repository
    evidence cannot determine a material behavior.
 9. When behavior needs external resources, inject the concrete HotfixComponent
-   that owns its business operations. Register stable clients through App
-   AddServices or retain asynchronously created handles in ComponentState. Use
+   that owns its business operations. Prefer its Hotfix
+   `[ComponentConfigureServices]` for stable root-DI clients, or retain
+   asynchronously created handles in App ComponentState. App `AddServices`
+   remains valid for global host composition. Use
    `lakona-implement-component` for the required lifecycle work within the
    authorized implementation; do not add another approval step.
 10. Reuse service or domain tests for affected behavior; add or update focused

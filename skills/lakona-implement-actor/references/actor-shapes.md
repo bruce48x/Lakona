@@ -60,9 +60,10 @@ public sealed partial class RoomBehavior
 ```
 
 Use public behavior methods as the generated actor API. Mutate only the target
-actor's state during its turn. Use constructor injection for actors, stores,
-notifiers, loggers, and generation-scoped policy helpers needed by the
-behavior.
+actor's state during its turn; `self` is supplied by dispatch. Constructor-inject
+`ActorAccess` for calls to other actors through generated selectors, plus concrete
+HotfixComponent stores, notifiers, loggers, and policy helpers as needed. Do not
+inject actor instances or access another actor's mutable state directly.
 
 Follow repository `ValueTask` rules. Return `default` for a completed
 non-generic operation and `new ValueTask<T>(value)` for an immediately

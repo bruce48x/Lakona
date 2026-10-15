@@ -9,6 +9,10 @@ Model one long-lived mutable game entity as a stable actor state shell plus one
 reloadable Hotfix behavior. Keep the actor boundary explicit and preserve
 sequential turn execution.
 
+Use HotfixComponent for tools whose ordinary calls may run concurrently and need
+no actor identity or mailbox. Use Actor + Behavior for serialized mutable state
+and timers; a Startup Actor is not a general resource-initialization mechanism.
+
 ## Workflow
 
 1. Read `AGENTS.md`, the project README, and scoped repository instructions.

@@ -33,7 +33,10 @@ public sealed class PaymentWebhookService
 
 The generated validation requires a top-level public sealed non-generic class
 and public instance handlers returning exactly
-`ValueTask<LakonaHttpResponse>`. Constructor-inject narrow stable dependencies.
+`ValueTask<LakonaHttpResponse>`. Constructor-inject concrete HotfixComponent
+Store/Util dependencies for business operations. Stable infrastructure interfaces
+(configuration, secret providers, third-party clients) remain valid; component
+aliases, interfaces, factories, and overrides are unsupported.
 Use `call.Actors` or `call.GameServer` only when the product behavior needs
 them.
 
@@ -123,5 +126,12 @@ For a signed webhook:
    failure must not fall through to a successful response.
 7. Pass `call.CancellationToken` through every asynchronous dependency.
 
-Keep provider-specific policy in Hotfix and secret/resource lifecycle behind a
-stable App interface.
+Keep provider-specific policy and business resource operations in Hotfix.
+Inject their concrete HotfixComponent. Prefer its Hotfix
+`[ComponentConfigureServices]` for stable root-DI client registration, or App
+`[ComponentState]` for asynchronously acquired handles. App `AddServices` still
+serves global host composition. Use the component Skill for first Start/final
+Stop, role filtering, candidate cleanup and disposal; HTTP handlers do not own
+cross-generation resource initialization. A stable infrastructure interface may
+still provide secrets or a third-party client without moving business policy
+into App.

@@ -1,46 +1,233 @@
 # Component Resource Patterns
 
+## Contents
+
+- [Project setup](#project-setup)
+- [Root-owned synchronous client](#root-owned-synchronous-client)
+- [State-owned asynchronous client](#state-owned-asynchronous-client)
+- [Agar mapping](#agar-mapping)
+
+## Project setup
+
+Use these patterns with the installed component-capable framework APIs. App
+references `Lakona.Game.Server` with `LakonaProjectRole=ServerApp`; Hotfix
+references App with `LakonaProjectRole=Hotfix`. Keep third-party client packages
+in App's deployment dependency closure so all generations share their stable
+types. These minimal examples use .NET clients and need no extra client package.
+Replace `Example.App` / `Example.Hotfix` with the project's namespaces and actual
+assembly names, including the friend-assembly declaration below.
+
+Both components use `[NodeRole("data")]`: enable `data` in `Lakona:Node:Roles`
+on the owning node and supply its configuration. Remove the marker for a tool
+enabled on every node. Consumers constructor-inject the concrete component;
+never register the component or State manually, alias it, or expose its State.
+
 ## Root-owned synchronous client
 
-Use optional ComponentConfigureServices on the HotfixComponent before root
-Build; its NodeRole filters registration automatically. The exact method is
-public static non-generic void(IServiceCollection, IConfiguration). It needs
-no State. Register a provider-owned client
-factory, for example NpgsqlDataSource. Inject the client into a concrete Hotfix
-Store, initialize and probe in ComponentStart. Omit ComponentStop unless a
-separate graceful closure is needed; root DI performs final disposal. SQL and
-business rules remain in Hotfix. Use closed stable types and unkeyed singleton
-type/factory registrations only. Root DI creates factory resources before first
-activation, then the framework drops Hotfix factory delegates. Never retain
-Hotfix objects, callbacks or metadata in the resulting resource; registration
-edits take effect after restart. The first assembly is reused by HotfixManager.
+No App State class is needed. This component declares a dedicated root-owned
+HttpClient for a remote catalog API with `health` and `catalog` endpoints.
+Configure `Catalog:BaseUrl` as an absolute HTTP(S) URI ending in `/`.
+
+```csharp
+// Server.Hotfix/Catalog/RemoteCatalog.cs
+using System;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+using Lakona.Game.Server;
+using Lakona.Game.Server.Hotfix.Abstractions;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
+namespace Example.Hotfix;
+
+[HotfixComponent, NodeRole("data")]
+public sealed class RemoteCatalog
+{
+    private readonly HttpClient _client;
+
+    public RemoteCatalog(HttpClient client) => _client = client;
+
+    [ComponentConfigureServices]
+    public static void ConfigureServices(
+        IServiceCollection services, IConfiguration configuration)
+    {
+        var address = new Uri(configuration["Catalog:BaseUrl"]
+            ?? throw new InvalidOperationException("Catalog:BaseUrl is required."));
+        services.TryAddSingleton(_ => new HttpClient
+        {
+            BaseAddress = address,
+            Timeout = TimeSpan.FromSeconds(10)
+        });
+    }
+
+    [ComponentStart]
+    public async ValueTask StartAsync(CancellationToken cancellationToken)
+    {
+        using var response = await _client.GetAsync("health", cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async ValueTask<string> LoadAsync(CancellationToken cancellationToken)
+        => await _client.GetStringAsync("catalog", cancellationToken).ConfigureAwait(false);
+}
+```
+
+Registration is synchronous and performs no I/O. It accepts only unkeyed
+Singleton registrations of closed stable types using types or factories, not
+prebuilt instances. Root DI materializes resources before activation; the
+framework then clears Hotfix factory delegates. **Resources stay alive** across
+reload until root disposal. Do not retain Hotfix objects, delegates, tasks,
+providers or collectible metadata inside a resource. In particular, do not add
+a Hotfix HttpMessageHandler or long-lived Hotfix client callback. The framework
+does not inspect arbitrary third-party object graphs for these references.
+
+Here the factory captures only a stable Uri; Start performs the health probe.
+No Stop is needed because HttpClient has no separate graceful-close protocol.
+Root DI owns final Dispose. Do not share this unnamed HttpClient registration
+with clients needing other settings; choose an appropriate dedicated stable
+client type in that case. App `AddServices` remains valid for global host
+composition. Registration and Start edits take effect after restart.
 
 ## State-owned asynchronous client
 
-Declare ComponentState in App holding stable client handles and startup values
-needed by later generations. Its constructor initializes basic structures only;
-root DI creates and owns the State. Mechanical Dispose releases its handle once.
+This outbound WebSocket tool connects on first Start and supports finite sends;
+it owns no receive loop or background work. Configure `Feed:Uri` as a `ws`/`wss`
+endpoint. Connection establishment includes the protocol handshake.
 
-Start awaits connection creation/probe completely, checks cancellation and
-transfers the successful candidate to State. Dispose failed local candidates.
-Configure finite client timeouts; do not abandon creation with WaitAsync(token).
-Preserve the original startup error if cleanup fails too.
+```csharp
+// Server.App/Feed/FeedState.cs
+using System;
+using System.Net.WebSockets;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using Lakona.Game.Server.Hotfix.Abstractions;
 
-Other constructors inject the component, never a gated client factory which
-requires Start to have finished. Methods obtain the handle from State. Latest
-generation Stop gracefully closes it; State/root performs final Dispose. Do not
-register another DI disposal owner for a State-owned handle.
+[assembly: InternalsVisibleTo("Example.Hotfix")]
 
-## Agar
+namespace Example.App;
 
-PostgresUserStore in Hotfix injects the App-registered NpgsqlDataSource, initializes
-the schema and probes on first Start, then owns user SQL. Its own
-ComponentConfigureServices declares the stable pool registration, with no Program
-call or extra State. RedisLeaderboardStore connects/probes in Start, performs operations and
-closes in Stop. App RedisLeaderboardState retains the connection and key prefix
-across reload and disposes it finally. Both stores use NodeRole(data); consumers
-inject concrete Store types. Matchmaking/room timers remain Actor + Behavior.
+[ComponentState]
+public sealed class FeedState : IDisposable
+{
+    internal ClientWebSocket? Connection;
+    internal readonly SemaphoreSlim SendGate = new(1, 1);
+
+    public void Dispose()
+    {
+        try { Interlocked.Exchange(ref Connection, null)?.Dispose(); }
+        finally { SendGate.Dispose(); }
+    }
+}
+```
+
+```csharp
+// Server.Hotfix/Feed/FeedSender.cs
+using System;
+using System.Net.WebSockets;
+using System.Threading;
+using System.Threading.Tasks;
+using Example.App;
+using Lakona.Game.Server;
+using Lakona.Game.Server.Hotfix.Abstractions;
+using Microsoft.Extensions.Configuration;
+
+namespace Example.Hotfix;
+
+[HotfixComponent, NodeRole("data")]
+public sealed class FeedSender
+{
+    private readonly FeedState _state;
+    private readonly IConfiguration _configuration;
+
+    public FeedSender(FeedState state, IConfiguration configuration)
+    {
+        _state = state;
+        _configuration = configuration;
+    }
+
+    [ComponentStart]
+    public async ValueTask StartAsync(CancellationToken cancellationToken)
+    {
+        var uri = new Uri(_configuration["Feed:Uri"]
+            ?? throw new InvalidOperationException("Feed:Uri is required."));
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        ClientWebSocket? candidate = new();
+        try
+        {
+            await candidate.ConnectAsync(uri, timeout.Token).ConfigureAwait(false);
+            timeout.Token.ThrowIfCancellationRequested();
+            _state.Connection = candidate;
+            candidate = null; // Ownership transfers only after successful initialization.
+        }
+        catch (Exception startupError)
+        {
+            try { candidate?.Dispose(); }
+            catch (Exception cleanupError)
+            {
+                throw new AggregateException("Feed startup and cleanup failed.",
+                    startupError, cleanupError);
+            }
+            throw;
+        }
+    }
+
+    public async ValueTask SendAsync(
+        ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
+    {
+        var connection = _state.Connection
+            ?? throw new InvalidOperationException("Feed has not started.");
+        await _state.SendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await connection.SendAsync(payload, WebSocketMessageType.Binary,
+                endOfMessage: true, cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+        finally { _state.SendGate.Release(); }
+    }
+
+    [ComponentStop]
+    public async ValueTask StopAsync(CancellationToken cancellationToken)
+    {
+        if (_state.Connection is { State: WebSocketState.Open or WebSocketState.CloseReceived } connection)
+            await connection.CloseAsync(WebSocketCloseStatus.NormalClosure,
+                "Node stopping", cancellationToken).ConfigureAwait(false);
+        // State/root DI performs final Dispose even if graceful close fails.
+    }
+}
+```
+
+State's implicit public parameterless constructor initializes only basic
+structures. The framework registers and root-owns it; only FeedSender accesses
+it. Its stable gate serializes sends across generation overlap because
+ClientWebSocket permits only one send at a time. Ordinary component calls have
+no mailbox. Callers must stop and await their sends before Stop closes the socket.
+
+Start awaits acquisition completely and disposes failed local candidates. For
+libraries without cancellable acquisition, configure finite native timeouts and
+await completion before checking cancellation; do not abandon acquisition with
+`WaitAsync(token)`. Preserve the original startup error if cleanup also fails.
+Do not register the State-owned handle with another DI disposal owner. Other
+constructors inject the component, not a factory that requires completed Start.
+
+## Agar mapping
+
+The framework's Agar sample applies the same ownership patterns; it is not
+required to use this Skill:
+
+| Pattern | Agar implementation |
+| --- | --- |
+| Root-owned client, no State | Hotfix PostgresUserStore declares its stable NpgsqlDataSource through ComponentConfigureServices, probes/initializes schema in Start, and owns user SQL. Root DI disposes the pool. |
+| State-owned asynchronous client | Hotfix RedisLeaderboardStore connects/probes in Start and closes in Stop. App RedisLeaderboardState retains the stable connection and key prefix and performs final Dispose. |
+
+Both Stores use NodeRole(data); consumers inject their concrete types.
+Matchmaking/room timers remain Actor + Behavior.
 
 Reload does not reconnect clients, rerun migrations or change startup prefixes.
-Component set or State shape changes require restart. Ensure custom callers have
-stopped before closing resources, and test real persistence/readiness failures.
+Start and Stop can run on different Hotfix instances. Component names, effective
+set (including stateless tools), State binding/layout and registration changes
+require restart. Ensure custom callers have stopped before closing resources,
+and verify affected persistence/readiness failures against real dependencies.

@@ -32,7 +32,10 @@ recommendations and keep harmless variation when it expresses the user's model.
    folders that have one clear reason to change; reshape only folders whose
    mixed responsibilities make ordinary changes scatter.
 6. When authorized to edit, move complete responsibility clusters, then update
-   namespaces, imports, fully qualified names, configuration, tests, and docs.
+   imports, configuration, tests, and docs. Decide namespace/type renames
+   separately: HotfixComponent identity is `Type.FullName`. Renames, effective
+   component set changes (including stateless helpers), and State binding
+   changes require restart. A file move preserving identity can remain reloadable.
    Preserve assembly references, public contract shapes, serialized state, and
    numeric protocol IDs unless the user separately requested their evolution.
 7. Split large source files only where the extracted responsibility has a

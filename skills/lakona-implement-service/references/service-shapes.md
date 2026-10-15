@@ -11,10 +11,10 @@ Shared
 
 Server.App
   generated stable binder, proxy, and service-scoped call context
-  stable DTOs, resource registration, and optional ComponentState
+  stable DTOs, resource types/dependencies, and optional ComponentState
 
 Server.Hotfix
-  user-authored Hotfix service and reloadable business decisions
+  user-authored Hotfix service, resource components/registration, business decisions
 ```
 
 Adding a Shared service and a matching Hotfix implementation must not require a
@@ -113,9 +113,11 @@ For container-owned services and helpers, use a public constructor, or the proje
 rejects missing dependencies, open generic implementations, and ambiguous
 public constructors before publishing a candidate generation.
 
-Use `[HotfixComponent]` for dependency-only helpers that the generation container
-owns; they are automatically registered once per generation. Components use concrete injection only; do not override or alias their generated
-registration. Ordinary infrastructure may still use explicit DI registration. Do not register `[HotfixService]` classes themselves.
+Use `[HotfixComponent]` for tools and resource owners that the generation
+container owns; they are automatically registered once per generation.
+Components use concrete injection only; do not override or alias their generated
+registration. Ordinary infrastructure may still use explicit DI registration.
+Do not register `[HotfixService]` classes themselves.
 
 Direct and indirect `System.Exception` subclasses are runtime error objects,
 not container-owned helpers. Keep them beside Hotfix business logic and create
@@ -144,12 +146,14 @@ retains the connection and prefix across generations and performs final disposal
 Hooks run on first activation/final shutdown, not reload. No detached tasks or
 timers belong in a component; use Actor + Behavior for scheduled work.
 
+Prefer the component's `[ComponentConfigureServices]` for stable root-DI
+resources; App `AddServices` remains valid for global host composition.
 Registration is synchronous and performs no I/O. Start awaits initialization and
 probes, cleans failed local candidates and fails startup on unavailable resources.
 Optional NodeRole excludes components before construction; missing configuration
-on an enabled node must fail. Root registration separately checks node roles.
+on an enabled node must fail. The same NodeRole filters component registration.
 Dependencies start first, Stop runs in reverse after callers have stopped, and
-root resources are disposed last. See the current component authority.
+root resources are disposed last. See the component Skill's resource patterns.
 
 ## Callbacks And Sessions
 

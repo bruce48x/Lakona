@@ -6,11 +6,11 @@ These constraints follow runtime ownership rather than directory taste:
 
 - Shared contracts own wire DTOs, RPC service and notification contracts, and
   stable numeric IDs. Keep server runtime dependencies out of Shared.
-- `Server.App` owns stable process resources, application modules, stable actor
-  state shells, and types that must survive a Hotfix generation change.
+- `Server.App` owns stable resource types/dependencies, optional ComponentState,
+  stable actor state shells, and types that must survive a generation change.
 - `Server.Hotfix` owns reloadable product behavior: RPC handlers, complete HTTP
-  service declarations and handlers, actor behavior, timer callbacks, and
-  lifecycle policy.
+  service declarations and handlers, actor behavior, timer callbacks,
+  lifecycle policy, and HotfixComponent tools, registration, and resource hooks.
 - Business exceptions deriving directly or indirectly from `System.Exception`
   may stay beside Hotfix business logic. They are created with `new` from runtime
   data, require no role or DI registration, and must not use `[HotfixComponent]`.
@@ -22,6 +22,10 @@ These constraints follow runtime ownership rather than directory taste:
   generator rather than editing generated output.
 - Project references must keep the stable-to-reloadable dependency direction;
   stable assemblies cannot depend on Hotfix implementation types.
+- HotfixComponent identity is `Type.FullName`. Its effective set (including
+  stateless helpers) and State binding freeze until restart. Renaming a type or
+  namespace, adding/removing a component, or rebinding State requires restart;
+  moving a file while preserving these contracts can remain reloadable.
 
 A different folder name is valid when these ownership and dependency rules
 still hold.
@@ -35,7 +39,9 @@ Evaluate these as signals, not laws:
   capability.
 - Keep a technical folder when its contents share one lifecycle, abstraction,
   or maintenance reason.
-- Align namespaces with paths when the repository already uses that convention.
+- Align namespaces with paths when the repository already uses that convention,
+  after assessing type identity and restart requirements. A path convention does
+  not justify silently changing a running component's identity.
 - Keep sibling concepts at comparable granularity. A single tiny type does not
   need a new folder merely to make the tree symmetric.
 - Optimize for the next likely change, not for a complete taxonomy.

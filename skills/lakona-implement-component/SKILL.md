@@ -11,23 +11,27 @@ background-task framework or extra container.
 
 ## Workflow
 
-1. Read repository instructions and the current Hotfix component authority.
-   Inspect the installed framework APIs and neighboring components.
+1. Read project instructions, relevant README sections, and neighboring
+   components. Inspect installed framework APIs and project roles (`ServerApp`
+   for App, `Hotfix` for Hotfix); do not assume this framework's source checkout
+   or contributor docs are present.
 2. Identify consumers, resource ownership and node roles. Consumers inject the
    concrete component; State has one owner and must not escape it.
-3. Declare a public sealed non-generic component with one public constructor.
-   Keep injected fields private and readonly. If needed, add ComponentState in
-   App: public, sealed, non-generic, with a public parameterless constructor
-   initializing basic structures only. Do not register State manually or add
-   empty State to stateless tools.
+3. Declare a top-level public sealed non-generic component with one public
+   constructor. Keep injected fields private and readonly. If needed, add
+   ComponentState in App: top-level, public, sealed, non-generic, with a public
+   parameterless constructor initializing basic structures only. Do not register
+   State manually or add empty State to stateless tools.
 4. Read [resource-patterns.md](references/resource-patterns.md) for initialization
    and disposal. Put optional stable resource registration on the HotfixComponent:
    `[ComponentConfigureServices] public static void ConfigureServices(IServiceCollection
    services, IConfiguration configuration)`. Framework discovery invokes it before
    root Build. Do not add a State solely for registration. This entry accepts
-   unkeyed singletons of closed stable types using types or factories; factories
-   are created once through root DI and released before activation. No Hotfix
-   objects/callbacks may survive in the resource. Constructors and registration do no I/O.
+   unkeyed singletons of closed stable types using types or factories. Root DI
+   materializes resources once; the framework then clears the Hotfix factory
+   delegates, while resources remain alive until node disposal. No Hotfix
+   objects/callbacks may survive in a resource. Constructors and registration do
+   no I/O. Keep client-library dependencies in the App deployment closure.
 5. Add optional ComponentStart/ComponentStop methods: public instance non-generic
    ValueTask(CancellationToken), with one mandatory by-value token. Each kind
    occurs at most once; the attribute binds the method, not its name.
@@ -39,7 +43,9 @@ background-task framework or extra container.
    Registration has deterministic component-name ordering,
    not constructor dependency ordering. Normal DI and TryAdd semantics apply.
 8. Verify changed contracts with focused tests. Resource/readiness changes need
-   real dependency startup or the repository E2E, including explicit failures.
+   real dependency startup or the project's integration/E2E check, including
+   explicit failures. Reuse existing coverage rather than running every scenario
+   below for every edit.
 
 ## Lifecycle and reload
 
@@ -67,3 +73,15 @@ illegal registration, failed-candidate cleanup and final disposal. Validate does
 not run Start. Startup failure keeps readiness closed and preserves the original
 error. Cleanup failures do not skip other owners; cancellation is not forced
 interruption. Stop after relevant checks pass and report unverified outcomes.
+
+For framework lifecycle or hosting changes, select the relevant failure paths:
+
+- Stop failure still permits remaining Stops and disposal; rollback shares one
+  deadline rather than resetting a timeout per component.
+- A publication/activation failure after successful component Start cleans up
+  initial startup; an ordinary failed reload preserves the running generation.
+- A root resource factory failure disposes already-created resources; a prepared
+  Hotfix assembly unloads even if activation never reached Start.
+- Awaited Start gates readiness and awaited Stop gates disposal. Preserve
+  ActorStop → ComponentStop → generation cleanup → State disposal, and verify
+  frozen component identity/set/State binding during publication.

@@ -9,11 +9,10 @@ manager.
 
 The public Skill Pack covers RPC contract definition, RPC service
 implementation, Application HTTP services, actor implementation,
-application-resource modules, framework-owned timer implementation, Game
+HotfixComponent tools and resource lifecycles, framework-owned timers, Game
 Session lifecycle policy, generated Game client integration, and advisory server
-code organization. New Skills
-must be justified by observed project work rather than added as a speculative
-catalog.
+code organization. New Skills must be justified by observed project work rather
+than added as a speculative catalog.
 
 ## Distribution Decision
 
@@ -117,239 +116,59 @@ gates pass, further verification requires new changes, failures, or a concrete
 unresolved risk. Preserve real runtime evidence where the changed contract
 requires it and report any unverified outcomes.
 
-## Initial Skill: `lakona-implement-service`
+## Public Skill Responsibilities
 
-### Trigger
+The canonical workflows, API examples and validation guidance live in the
+Skills shipped with each project. This document owns distribution and
+maintenance policy rather than a second copy of those workflows.
 
-Use `lakona-implement-service` when a developer has created or changed an
-interface marked with `[RpcService]` in the project's Shared assembly and wants
-to create or update its server implementation.
+| Skill | Responsibility |
+| --- | --- |
+| [Define RPC contract](../../skills/lakona-define-rpc-contract/SKILL.md) | Shared contracts, stable wire IDs and serializer-compatible DTO evolution. |
+| [Implement RPC service](../../skills/lakona-implement-service/SKILL.md) | Generated Hotfix binding, service-scoped call contexts and concurrent request coordination. |
+| [Implement HTTP service](../../skills/lakona-implement-http-service/SKILL.md) | Hotfix-owned routes/handlers, listener exposure, raw-body security and durable acceptance. |
+| [Implement component](../../skills/lakona-implement-component/SKILL.md) | Concurrent tools, resource registration, first Start/final Stop and optional stable State. |
+| [Implement actor](../../skills/lakona-implement-actor/SKILL.md) | Stable Actor state, Hotfix Behavior, serialized turns, placement and actor lifecycle. |
+| [Implement timer](../../skills/lakona-implement-timer/SKILL.md) | Actor-owned scheduled work and stable timer arguments. |
+| [Implement Session lifecycle](../../skills/lakona-implement-session-lifecycle/SKILL.md) | Per-session disconnect, recovery and final cleanup policy. |
+| [Integrate Game client](../../skills/lakona-integrate-game-client/SKILL.md) | Generated client ownership, connection progress, business login, recovery and disposal. |
+| [Organize server](../../skills/lakona-organize-server/SKILL.md) | Assembly ownership, component identity/restart boundaries and project-owned directory choices. |
 
-The Skill is not a source generator. It guides an agent through a repository-
-aware implementation task in which business behavior still requires judgment.
+Service and HTTP workflows use the component Skill when resource lifecycle work
+is required by the authorized task; this handoff does not require renewed
+approval. Concrete HotfixComponent dependencies own business resource operations.
+Stable infrastructure interfaces remain valid for configuration, secrets and
+third-party clients. Prefer the component's Hotfix ComponentConfigureServices
+entry for stable root-DI resource registration; App AddServices remains valid for
+global host composition. See [Hotfix Components](../hotfix/components.md) for the
+framework contract and the Skill's [resource examples](../../skills/lakona-implement-component/references/resource-patterns.md)
+for complete authoring patterns, including the Agar mapping.
 
-### Required Workflow
+The client Skill observes the generated facade's actual `ConnectionStateChanged`
+event and initial `ConnectionState`, separately from authentication and session
+phase. It detects compatibility from the project's dependencies and generated
+output and upgrades a matching dependency set if required members are absent;
+it must not invent an event or infer APIs from the installed Tool/Hub version.
 
-The Skill must instruct the agent to:
+## Maintenance Checks
 
-1. Follow the project's agent entry instructions and read relevant root README
-   sections and instructions that apply to `Shared` and `Server`. Reuse reading
-   already satisfied in the current context under the policy above.
-2. Locate the selected `[RpcService]` interface, its `[RpcMethod]` members,
-   request and reply DTOs, notification contract, and contract IDs.
-3. Find the Hotfix project and inspect neighboring service implementations,
-   generated namespaces, actor boundaries, dependency-injection conventions,
-   and tests. Project evidence takes precedence over a generic template.
-4. Determine whether an implementation already exists. Update it in place and
-   preserve intentional business logic; never create a second
-   `[HotfixService]` for the same contract.
-5. Place a new implementation under `Server/Hotfix/<Domain>/` by default and
-   annotate it with `[HotfixService(typeof(I...Service))]`.
-6. Preserve each RPC method's name and `ValueTask` return shape while replacing
-   its contract request parameter with the call-context type required by that
-   project version. Use `call.Request` for the request and use connection,
-   session, service-provider, or actor context only when the behavior
-   requires it.
-7. Prefer the service-specific generated call context, such as
-   `StageServiceCall<GetStageProgressRequest>`, when the project generates one.
-   Use the generic `HotfixServiceCall<TRequest>` form only when that is the
-   established contract for the detected Lakona version and project settings.
-8. Reuse existing constructor injection and actor APIs. Do not put mutable game
-   state into the service merely to make the method compile.
-9. Implement behavior that can be established from contracts, neighboring
-   code, tests, and the developer's request. Do not turn an unknown business
-   decision into a fake successful reply, an empty DTO, or silent no-op. Ask for
-   the missing decision when repository evidence cannot resolve it.
-10. Build the Hotfix project and run focused tests when they exist. Report the
-    exact files changed and any behavior that still requires a product decision.
+Reuse the existing ProjectSystem embedded pack and transactional writer. Keep
+these focused checks alongside the affected Skill changes:
 
-Required stable-resource lifecycle work belongs to the same authorized service
-implementation. The agent may use the Module Skill to complete that work without
-requiring a new task or renewed approval. Ask for a material decision only when
-project evidence cannot resolve it or the next action exceeds the authorized
-scope; continue independent authorized work while awaiting the decision.
+- Repository Guards validate public metadata names, default-prompt skill targets,
+  bundled local references and removed Module API/Skill identifiers.
+- Generator/analyzer tests compile the component Skill's complete C# resource
+  examples directly from its reference document with the real App/Hotfix roles.
+- Project creation tests compare the entire emitted Skill Pack with canonical
+  source; release smoke checks verify the packed Tool and Hub artifacts.
+- Relevant document/link checks cover this authority and changed references.
 
-### Signature Example
-
-Given a Shared contract:
-
-```csharp
-[RpcService(RpcContractIds.Services.Stage)]
-public interface IStageService
-{
-    [RpcMethod(RpcContractIds.StageServiceMethods.GetProgressAsync)]
-    ValueTask<GetStageProgressReply> GetProgressAsync(GetStageProgressRequest request);
-}
-```
-
-A current generated-call project uses this service shape:
-
-```csharp
-[HotfixService(typeof(IStageService))]
-internal sealed class StageService
-{
-    public ValueTask<GetStageProgressReply> GetProgressAsync(
-        StageServiceCall<GetStageProgressRequest> call)
-    {
-        // Implement from the project's state and actor model.
-    }
-}
-```
-
-The example is illustrative, not a literal template. Older or differently
-configured projects may require `HotfixServiceCall<GetStageProgressRequest>`.
-The Skill must detect that distinction from the project instead of assuming the
-newest Lakona API.
-
-### Validation Contract
-
-For service implementation changes, validate the Hotfix build, directly or
-through a focused test command that builds the same graph and configuration:
-
-```powershell
-dotnet build Server/Hotfix/Server.Hotfix.csproj
-```
-
-Use the actual discovered Hotfix project path when a project has renamed its
-roots. A successful build must verify, through Lakona's analyzers and source
-generators, that:
-
-- exactly one Hotfix implementation binds the RPC contract
-- method names, request types, return types, and call contexts match
-- referenced Shared, App, actor, and generated types are valid
-
-The Skill should reuse focused service or domain tests for affected behavior
-and add coverage only where it is missing. Constructor dependency availability and
-runtime binding must be covered by an existing startup or integration check
-when they cannot be established statically. The Skill must not claim that a
-compiling service has correct business behavior when no behavioral test or
-evidence supports that claim.
-
-### Non-Goals
-
-The Service Skill does not:
-
-- invent or renumber RPC contract IDs
-- redesign Shared DTOs without an explicit request
-- generate client code or invoke RPC from a client
-- move actor state into Hotfix services
-- create deployment configuration
-- install or update Agent Skills
-- bypass analyzers or suppress diagnostics to obtain a successful build
-
-## Additional Initial Skills
-
-### `lakona-implement-http-service`
-
-Use this Skill when a developer adds or changes a Lakona Application HTTP
-service for operations, webhooks, payment callbacks, or other product
-request/response ingress. It owns the workflow across the Hotfix-owned service
-and route declaration, generation-pinned handler, physical listener exposure,
-cancellation, security policy, idempotency, and focused validation.
-
-It must keep Application HTTP separate from RPC and Management HTTP, preserve
-exact raw bytes for signature verification, treat route shape as stable
-protocol, return materialized responses, and route durable acceptance through
-an application-owned inbox or Store. An Actor may serialize the operation but
-its memory alone is not durable. Application HTTP has no stable `Server.App`
-service interface or user-authored numeric method id.
-
-### `lakona-organize-server`
-
-Use this Skill when a developer audits, explains, or reorganizes the server
-directory tree. It protects Lakona's Shared, stable App, Hotfix, and generated
-ownership boundaries while treating feature-first, layer-first, hybrid, and
-project-specific folder choices as user-owned design.
-
-It must distinguish hard framework boundaries from soft change-locality
-heuristics, use the project's domain vocabulary, present valid alternatives,
-and preserve the user's choice. Generic folders such as `Services`,
-`Contracts`, and `State` are evidence to inspect rather than automatic
-violations.
-
-### `lakona-implement-component`
-
-Use this Skill to implement node-level tools and resource initialization in
-HotfixComponent, with optional stable ComponentState. It covers constructor
-dependency ordering, role filtering, first Start/final Stop, State reuse across
-reload and stable resource ownership. It must prohibit detached tasks and timers;
-scheduled work uses Actor + Behavior. Real resource changes require startup and
-failure-path verification. See [Hotfix Components](../hotfix/components.md).
-
-### `lakona-define-rpc-contract`
-
-Use this Skill when a developer adds or evolves a Shared RPC service,
-notification contract, DTO, or numeric contract ID. It owns stable wire IDs,
-method and notification shapes, serializer-compatible DTO evolution, Unity
-compatibility, and contract-generator validation.
-
-It must keep server runtime types out of Shared, reserve published IDs instead
-of reusing them, preserve serialized member order, and leave implementation to
-the Service Skill.
-
-### `lakona-implement-actor`
-
-Use this Skill when a developer creates or changes long-lived mutable game
-state. It owns the workflow across the stable `Server.App` actor state shell,
-stable message DTOs, reloadable `[HotfixBehaviorOf]` methods, actor lifecycle,
-generated selectors, placement choice, and focused validation.
-
-It must preserve the stable-state/Hotfix-behavior boundary, declare exactly one
-`[NodeRole]`, use business actor keys, distinguish `Local`, `Route`, `Place`,
-and `Startup`, provision missing actors and coordinate external destruction through generated
-`ActorAccess.Place`, use `Context.RequestDeactivation()` for actor-owned
-completion, implement user-authored lifecycle work only through `[ActorStart]`
-and `[ActorStop]`, and keep the internal `ActorActivationCatalog` out of
-business code. Stable Actor classes use field initializers for context-free
-state and do not declare lifecycle overrides. Actor memory is not persistent,
-and ordinary calls must not create actors implicitly.
-
-### `lakona-implement-timer`
-
-Use this Skill when a developer adds or changes scheduled Hotfix work. It owns
-stable timer arguments, optional stable `TimerId` storage, `[ActorTimer]` callbacks,
-typed callback selectors, one-shot and periodic creation, actor lifecycle
-integration, destruction, serialization, and focused validation.
-
-It must create timers through `self.CreateOnceTimer` or
-`self.CreatePeriodicTimer` in the owning Actor turn and active Hotfix scope.
-Callbacks run directly in that activation; stopping it cancels its timers.
-Use `self.DestroyTimer` for early cancellation. Lakona timers do not survive process loss; products
-requiring durable schedules integrate an application-selected persistent
-scheduler or Store.
-
-### `lakona-implement-session-lifecycle`
-
-Use this Skill when a developer defines what happens when a resumable Lakona
-Game Session disconnects, reconnects, expires, or is explicitly terminated. It
-owns per-session `IGameSessionLifecycle` handler selection, disconnect/resume/expiration callbacks, stale-event protection,
-application-defined session ownership, durable cleanup routing, and lifecycle
-tests.
-
-It must distinguish an RPC connection from a Game Session and a product Player
-Session, retain recoverable state during the resume window, and perform
-irreversible cleanup only under an explicit product policy. It must not treat
-application traffic roles such as control or realtime as Lakona Session types.
-Handlers implement `IGameSessionLifecycle` and carry parameterless
-`[HotfixLifecycle]`. Multiple implementations are supported; creation through
-`StartSessionAsync<TLifecycle>` selects one, while non-generic creation selects
-no business handler. Recovery preserves that selection. Lifecycle calls expose
-only the event request, not session items or service-provider properties.
-
-### `lakona-integrate-game-client`
-
-Use this Skill when integrating or updating a generated Lakona Game client in
-Unity, Godot, or .NET, including connection progress, business login, recovery,
-callback dispatch, and disposal. Server-side session cleanup remains owned by
-the Session Lifecycle Skill.
-
-It must distinguish `ConnectionState` from business authentication,
-`Snapshot.Phase`, and game-state synchronization; preserve resumable state
-during `Reconnecting`; use a fresh transport factory for automatic recovery;
-and await disposal while rejecting stale callbacks from a replaced client.
-State observation is through the generated facade, not a saved transport or an
-invented state-change event. The Skill includes an engine presentation example
-and detects API compatibility from project dependencies and generated output.
+These checks do not replace runtime evidence for changed framework behavior.
+Choose affected failure paths from the component Skill and existing lifecycle
+coverage; do not require every failure scenario for an unrelated content edit.
+Public Skill changes advance both Tool and Hub versions because both ship the
+same embedded snapshot. No new installer, per-Skill dependency system or
+existing-project synchronization is needed.
 
 ## Acceptance Criteria
 

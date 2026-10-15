@@ -12,7 +12,7 @@ hosting mechanics separate from product policy.
 
 ## Workflow
 
-1. Read repository instructions and the project's HTTP architecture authority.
+1. Read project instructions and any project HTTP architecture guidance.
    Detect the installed Lakona version, stable App project, Hotfix project,
    listener configuration, neighboring HTTP services, and tests. Complete this
    step when the actual project conventions and validation commands are known.
@@ -37,9 +37,13 @@ hosting mechanics separate from product policy.
    return exactly `ValueTask<LakonaHttpResponse>`. Application HTTP has no
    stable App interface or user-authored numeric method id.
 6. Implement product behavior in the same Hotfix class. Use `call.Request`,
-   `call.CancellationToken`, actors, and narrow stable App dependencies
-   according to the behavior. Treat method and route changes as protocol
-   changes that require a process restart after the new Hotfix build.
+   `call.CancellationToken`, actors, and concrete HotfixComponent Store/Util
+   dependencies. Stable infrastructure interfaces for configuration, secrets,
+   and third-party clients remain valid; do not introduce a stable business
+   Store interface merely to reach Hotfix logic. Use `lakona-implement-component`
+   for resource initialization already required by the task. Treat method and
+   route changes as protocol changes that require a process restart after the
+   new Hotfix build.
 7. Apply edge semantics explicitly. Validate bounded inputs, verify signatures
    against `RawBody`, authorize from trusted identity or stable dependencies,
    choose product status and headers, and route durable acceptance through an

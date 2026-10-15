@@ -57,6 +57,55 @@ public sealed class SkillPublicationRepositoryTests
     }
 
     [Fact]
+    public void Public_skill_names_prompts_and_local_references_resolve_in_the_bundled_pack()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var packRoot = Path.Combine(repositoryRoot, "skills");
+        foreach (var skillFile in GetSkillFiles(repositoryRoot, "skills"))
+        {
+            var skillDirectory = Path.GetDirectoryName(skillFile)!;
+            var name = Path.GetFileName(skillDirectory);
+            Assert.Matches($@"(?m)^name: {Regex.Escape(name)}$", ReadNormalizedFrontmatter(skillFile));
+
+            var metadata = File.ReadAllText(Path.Combine(skillDirectory, "agents", "openai.yaml"));
+            var prompt = Regex.Match(metadata, "(?m)^  default_prompt: \"(?<prompt>[^\"\\r\\n]+)\"\\r?$");
+            Assert.True(prompt.Success, $"Missing quoted default_prompt: {name}");
+            var targets = Regex.Matches(prompt.Groups["prompt"].Value, @"\$(?<name>lakona-[a-z0-9-]+)")
+                .Select(match => match.Groups["name"].Value).ToArray();
+            Assert.Contains(name, targets);
+            Assert.All(targets, target => Assert.True(
+                File.Exists(Path.Combine(packRoot, target, "SKILL.md")),
+                $"Unknown Skill prompt target: {name} -> {target}"));
+
+            foreach (var document in Directory.EnumerateFiles(skillDirectory, "*.md", SearchOption.AllDirectories))
+            foreach (Match link in Regex.Matches(File.ReadAllText(document), @"\[[^\]\r\n]+\]\((?<target>[^)\s]+)\)"))
+            {
+                var target = link.Groups["target"].Value.Split('#')[0];
+                if (target.Length == 0 || Uri.TryCreate(target, UriKind.Absolute, out _)) continue;
+                var fullPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(document)!, target));
+                Assert.True(fullPath.StartsWith(packRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal),
+                    $"Public Skill depends on a file outside the bundled pack: {document} -> {target}");
+                Assert.True(File.Exists(fullPath), $"Missing public Skill reference: {document} -> {target}");
+            }
+        }
+    }
+
+    [Fact]
+    public void Public_skills_do_not_reintroduce_removed_module_apis_or_workflows()
+    {
+        var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
+        var files = GetSkillFiles(repositoryRoot, "skills")
+            .SelectMany(skill => Directory.EnumerateFiles(Path.GetDirectoryName(skill)!, "*", SearchOption.AllDirectories))
+            .Append(Path.Combine(repositoryRoot, "docs", "tool", "agent-skills.md"));
+        const string removed = @"\bILakonaModule\b|\blakona-implement-module\b|\blakona-test-cluster\b|Server\.App\s+modules\b|application(?:-resource)?\s+modules\b|\bModule\s+Skill\b";
+        foreach (var file in files)
+        {
+            Assert.False(Regex.IsMatch(File.ReadAllText(file), removed, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant),
+                $"Removed Module API/Skill guidance in {Path.GetRelativePath(repositoryRoot, file)}");
+        }
+    }
+
+    [Fact]
     public void Repository_private_skill_document_references_exist()
     {
         var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();
