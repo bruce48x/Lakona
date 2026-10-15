@@ -3,6 +3,9 @@ using Lakona.Game.Cluster.Rpc;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Microsoft.Extensions.Logging;
+using Lakona.Rpc.Transport.Tcp;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading.Channels;
 using Xunit;
 
@@ -11,6 +14,7 @@ namespace Lakona.Game.Cluster.Rpc.Tests;
 public sealed class ClusterClientFactoryTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(5);
+    private const string TestProtocol = "lakona.cluster.test.v1";
 
     [Fact]
     public async Task GetClientAsync_propagates_the_server_logger_factory_to_outbound_rpc_clients()
@@ -149,6 +153,114 @@ public sealed class ClusterClientFactoryTests
 
         Assert.Equal(1, transportFactory.ConnectCount);
         Assert.All(clients, client => Assert.Same(clients[0], client));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Overlapping_incarnation_requests_do_not_dispose_a_client_before_its_call(bool requestPreviousAgain)
+    {
+        var transportFactory = new RecordingTransportFactory();
+        await using var factory = new ClusterClientFactory(CreateChannel(transportFactory));
+        var previousTarget = CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001");
+        var currentTarget = CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000002");
+        var previous = Assert.IsType<RpcClientRuntime>(await factory.GetClientAsync(previousTarget, TestContext.Current.CancellationToken));
+        var current = Assert.IsType<RpcClientRuntime>(await factory.GetClientAsync(currentTarget, TestContext.Current.CancellationToken));
+        if (requestPreviousAgain)
+        {
+            // Directory handoff can still contact an old owner after a new view is installed.
+            await factory.GetClientAsync(previousTarget, TestContext.Current.CancellationToken);
+        }
+        foreach (var transport in transportFactory.Transports) transport.RespondToRequests = true;
+
+        // A different exact incarnation must not invalidate a client already handed to a caller.
+        var selected = requestPreviousAgain ? current : previous;
+        using var response = await selected.CallRawAsync(1, 1, new byte[] { 42 }, TestContext.Current.CancellationToken)
+            .AsTask().WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        Assert.Equal(new byte[] { 42 }, response.Memory.ToArray());
+        Assert.Equal(2, transportFactory.Calls.Count);
+        Assert.Same(current, await factory.GetClientAsync(currentTarget, TestContext.Current.CancellationToken));
+
+        // Disconnection, rather than another incarnation's lookup, still triggers cleanup.
+        transportFactory.Transports[0].Disconnect();
+        await transportFactory.Transports[0].Disposed.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        Assert.Equal(RpcClientConnectionState.Connected, current.ConnectionState);
+    }
+
+    [Fact]
+    public async Task Fixed_TCP_endpoint_restarts_reclaim_connections_including_late_previous_incarnation_lookups()
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        var ct = timeout.Token;
+        var transport = new RecordingTcpTransport();
+        await using var factory = new ClusterClientFactory(CreateChannel(transport));
+        RouteLocation? previous = null;
+        var port = 0;
+        for (var generation = 0; generation < 10; generation++)
+        {
+            using var listener = new TcpListener(IPAddress.Loopback, port);
+            listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            listener.Start();
+            port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            var target = CreateTarget($"tcp://127.0.0.1:{port}", Guid.NewGuid().ToString());
+            var servers = new List<TcpServerTransport>();
+            try
+            {
+                var current = await ConnectAsync(() => factory.GetClientAsync(target, ct));
+                var contact = await ConnectAsync(() => factory.GetClientAsync(target.Endpoint, ct));
+                Assert.Same(current, await factory.GetClientAsync(target, ct));
+                Assert.Same(contact, await factory.GetClientAsync(target.Endpoint, ct));
+                if (previous is not null)
+                {
+                    // The old key reconnects to the same endpoint, now served by the new process.
+                    var late = await ConnectAsync(() => factory.GetClientAsync(previous, ct));
+                    Assert.NotSame(current, late);
+                    Assert.Same(late, await factory.GetClientAsync(previous, ct));
+                    Assert.Same(current, await factory.GetClientAsync(target, ct));
+                }
+
+                Assert.Equal(generation == 0 ? 2 : 3, transport.Connections.Count(connection => !connection.Disposed.Task.IsCompleted));
+                Assert.Equal(2 + generation * 3, transport.Connections.Count);
+                Assert.All(transport.Connections.Where(connection => !connection.Disposed.Task.IsCompleted),
+                    connection => Assert.True(connection.IsConnected));
+                listener.Stop();
+                if (generation == 9)
+                {
+                    // Final factory shutdown must close live sockets without a peer disconnect.
+                    await factory.DisposeAsync().AsTask().WaitAsync(Deadline, ct);
+                    foreach (var server in servers)
+                    {
+                        await Assert.ThrowsAnyAsync<IOException>(async () =>
+                        {
+                            using var unexpected = await server.ReceiveFrameAsync(ct);
+                        });
+                    }
+                }
+                else
+                {
+                    foreach (var server in servers) await server.DisposeAsync();
+                }
+                await Task.WhenAll(transport.Connections.Select(connection => connection.Disposed.Task)).WaitAsync(Deadline, ct);
+                Assert.All(transport.Connections, connection => Assert.Equal(1, connection.DisposeCount));
+                Assert.All(transport.Connections, connection => Assert.False(connection.IsConnected));
+                previous = target;
+            }
+            finally
+            {
+                foreach (var server in servers) await server.DisposeAsync();
+            }
+
+            async Task<IRpcClient> ConnectAsync(Func<ValueTask<IRpcClient>> acquire)
+            {
+                var connecting = acquire().AsTask();
+                var server = new TcpServerTransport(await listener.AcceptTcpClientAsync(ct));
+                servers.Add(server);
+                await ClusterRpcProtocolNegotiation.NegotiateServerAsync(server, TestProtocol, ct);
+                return await connecting.WaitAsync(Deadline, ct);
+            }
+        }
+        Assert.Equal(29, transport.Connections.Count);
     }
 
     [Fact]
@@ -361,6 +473,39 @@ public sealed class ClusterClientFactoryTests
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
+    private sealed class RecordingTcpTransport : IClusterRpcTransport
+    {
+        public string Scheme => "tcp";
+        public List<RecordedConnection> Connections { get; } = new();
+
+        public async ValueTask<ITransport> ConnectAsync(ClusterEndpoint endpoint, CancellationToken cancellationToken = default)
+        {
+            var connection = new RecordedConnection(await TcpClusterRpcTransport.Default.ConnectAsync(endpoint, cancellationToken));
+            Connections.Add(connection);
+            return connection;
+        }
+
+        public ValueTask<IRpcConnectionAcceptor> ListenAsync(ClusterEndpoint endpoint, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+    }
+
+    private sealed class RecordedConnection(ITransport inner) : ITransport
+    {
+        public TaskCompletionSource Disposed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int DisposeCount;
+        public bool IsConnected => inner.IsConnected;
+        public ValueTask ConnectAsync(CancellationToken cancellationToken) => inner.ConnectAsync(cancellationToken);
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken) => inner.SendFrameAsync(frame, cancellationToken);
+        public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken cancellationToken) => inner.ReceiveFrameAsync(cancellationToken);
+
+        public async ValueTask DisposeAsync()
+        {
+            Interlocked.Increment(ref DisposeCount);
+            await inner.DisposeAsync();
+            Disposed.TrySetResult();
+        }
+    }
+
     private sealed class BlockingTransportFactory : IClusterRpcTransport
     {
         public string Scheme => "tcp";
@@ -470,7 +615,7 @@ public sealed class ClusterClientFactoryTests
     }
 
     private static ClusterRpcChannel CreateChannel(IClusterRpcTransport transport) =>
-        new(transport, new NoopSerializer(), "lakona.cluster.test.v1");
+        new(transport, new NoopSerializer(), TestProtocol);
 
     private static RouteLocation CreateTarget(string endpoint, string incarnation) => new(
         new RouteKey("room/1"),

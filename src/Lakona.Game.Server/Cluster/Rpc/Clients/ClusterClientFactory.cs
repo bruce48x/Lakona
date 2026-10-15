@@ -65,14 +65,12 @@ namespace Lakona.Game.Cluster.Rpc
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                ClientEntry candidate;
                 ClientEntry selected;
                 Task<RpcClientRuntime> runtimeTask;
                 lock (_lifecycleGate)
                 {
                     ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-                    candidate = new ClientEntry(entry => ConnectAsync(endpoint, key, entry));
-                    selected = _clients.GetOrAdd(key, candidate);
+                    selected = _clients.GetOrAdd(key, new ClientEntry(entry => ConnectAsync(endpoint, key, entry)));
                     _ownedClients.Add(selected);
                     runtimeTask = selected.RuntimeTask;
                 }
@@ -91,11 +89,8 @@ namespace Lakona.Game.Cluster.Rpc
                         continue;
                     }
 
-                    if (ReferenceEquals(candidate, selected))
-                    {
-                        RemoveSuperseded(key);
-                    }
-
+                    // Different incarnations can overlap during directory handoff. Only the
+                    // connection's own termination (or factory shutdown) ends its lifetime.
                     return runtime;
                 }
                 catch
@@ -193,29 +188,6 @@ namespace Lakona.Game.Cluster.Rpc
         public void Dispose()
         {
             DisposeAsync().AsTask().GetAwaiter().GetResult();
-        }
-
-        private void RemoveSuperseded(ClientKey current)
-        {
-            var superseded = new List<ClientEntry>();
-            lock (_lifecycleGate)
-            {
-                foreach (var cached in _clients)
-                {
-                    if (!current.IsExact || !cached.Key.IsExact
-                        || cached.Key.Node != current.Node || cached.Key.Equals(current) ||
-                        !((ICollection<KeyValuePair<ClientKey, ClientEntry>>)_clients)
-                            .Remove(cached))
-                    {
-                        continue;
-                    }
-                    superseded.Add(cached.Value);
-                }
-            }
-            foreach (var entry in superseded)
-            {
-                _ = DisposeWhenReadyAsync(entry);
-            }
         }
 
         private void RemoveCached(ClientKey key, ClientEntry entry)

@@ -423,6 +423,20 @@ draining responses already received, and transport cleanup follows
 `Disconnected`. The factory retains ownership of evicted clients until cleanup
 finishes so shutdown also cancels and joins clients still draining.
 
+Connections are cached by exact node incarnation and endpoint. Directory
+handoff may still contact an old incarnation while a newer one is already in
+use, so acquiring either connection does not evict or dispose the other. Each
+connection ends on its own disconnect/disposal or factory shutdown; NodeId
+alone does not determine its lifetime.
+
+A late request using an old incarnation can reconnect to a reused endpoint and
+leave an additional live connection under the old cache key. That connection
+is retained until its actual disconnect or factory shutdown; this is not an
+idle-connection eviction policy. Fixed-endpoint TCP restart coverage verifies
+that current-incarnation, endpoint-contact, and late previous-incarnation
+connections are reused within each generation, reclaimed after each peer
+restart, and all closed at final factory shutdown.
+
 These local connection observations do not update Membership or Actor
 Directory ownership. Failure detection and exact-incarnation routing remain
 authoritative; a connected runtime does not guarantee a subsequent RPC succeeds.
