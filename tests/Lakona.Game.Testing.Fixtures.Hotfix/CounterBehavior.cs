@@ -42,6 +42,13 @@ public sealed partial class CounterBehavior
         control.MarkCompleted();
         return new CounterReply { Value = self.Value };
     }
+
+    [ActorStop]
+    public ValueTask StopAsync(CounterActor self, ActorStopCall call)
+    {
+        call.Services.GetRequiredService<CompositionProbe>().RecordActorStop();
+        return default;
+    }
 }
 
 [HotfixStartup]

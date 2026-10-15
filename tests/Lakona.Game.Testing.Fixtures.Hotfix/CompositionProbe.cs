@@ -24,7 +24,9 @@ public sealed class CompositionProbe : IAsyncDisposable
     public ValueTask StartAsync(CancellationToken token) { state.Starts++; return default; }
 
     [ComponentStop]
-    public ValueTask StopAsync(CancellationToken token) { state.Stops++; return default; }
+    public ValueTask StopAsync(CancellationToken token) { state.LifecycleEvents.Add("component-stop"); state.Stops++; return default; }
+
+    public void RecordActorStop() => state.LifecycleEvents.Add("actor-stop");
 
     public string Origin => state.Origin;
     public int DisposeCount => state.DisposeCount;
@@ -32,6 +34,7 @@ public sealed class CompositionProbe : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await Task.Yield();
+        state.LifecycleEvents.Add("generation-dispose");
         state.DisposeCount++;
     }
 }

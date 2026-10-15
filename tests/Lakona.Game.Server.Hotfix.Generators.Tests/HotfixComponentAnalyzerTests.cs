@@ -28,6 +28,10 @@ public sealed class HotfixComponentAnalyzerTests
     [InlineData("ServerApp", "[ComponentState]", true)]
     [InlineData("ServerApp", "", true)]
     [InlineData("Hotfix", "[HotfixComponent]", false)]
+    [InlineData("hotfix", "[HotfixComponent]", false)]
+    [InlineData("HoTfIx", "[HotfixComponent]", false)]
+    [InlineData(" Hotfix ", "[HotfixComponent]", false)]
+    [InlineData("\thotfix\t", "[HotfixComponent]", false)]
     public async Task Service_configuration_requires_hotfix_component(string role, string marker, bool fails)
     {
         var diagnostics = await AnalyzerTestHost.RunProjectRoleAsync(Imports
@@ -48,6 +52,19 @@ public sealed class HotfixComponentAnalyzerTests
                 [ComponentConfigureServices] public static void Second(IServiceCollection services, IConfiguration config) {}
             }
             """, "Hotfix");
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "LAKONA20061");
+    }
+
+    [Theory]
+    [InlineData("ServerApp")]
+    [InlineData("serverapp")]
+    [InlineData("SeRvErApP")]
+    [InlineData(" ServerApp ")]
+    [InlineData("\tserverapp\t")]
+    public async Task Stable_project_cannot_declare_components_regardless_of_role_spelling(string role)
+    {
+        var diagnostics = await AnalyzerTestHost.RunProjectRoleAsync(
+            Imports + "[HotfixComponent] public sealed class Component {}", role);
         Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "LAKONA20061");
     }
 
@@ -82,6 +99,10 @@ public sealed class HotfixComponentAnalyzerTests
     [InlineData("ServerApp", "public sealed class State<T> { }", true)]
     [InlineData("ServerApp", "public sealed class State { public State(int value) {} }", true)]
     [InlineData("ServerApp", "public sealed class State { }", false)]
+    [InlineData("serverapp", "public sealed class State { }", false)]
+    [InlineData("SeRvErApP", "public sealed class State { }", false)]
+    [InlineData(" ServerApp ", "public sealed class State { }", false)]
+    [InlineData("\tserverapp\t", "public sealed class State { }", false)]
     public async Task State_requires_stable_project_and_simple_construction(string role, string declaration, bool fails)
     {
         var diagnostics = await AnalyzerTestHost.RunProjectRoleAsync(Imports + "[ComponentState] " + declaration, role);

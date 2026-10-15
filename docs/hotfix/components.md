@@ -48,6 +48,10 @@ identify them; filenames and directory names do not. The framework registers
 each concrete State type once in root DI. Applications must not override this
 registration, create State manually or shadow it in generation DI.
 
+`LakonaProjectRole` uses the existing project-role rules: surrounding whitespace
+is ignored and `ServerApp`/`Hotfix` comparisons are case-insensitive. Component
+and State diagnostics use the same parsing as generation.
+
 Both hooks are optional and independent. Methods are identified by attribute,
 not by name. Each kind appears at most once, and a method cannot carry both:
 

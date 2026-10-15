@@ -10,7 +10,8 @@ public sealed class CompositionProbeState : IDisposable
     public int Starts { get; set; }
     public int Stops { get; set; }
     public int StateDisposals { get; private set; }
-    public void Dispose() => StateDisposals++;
+    public List<string> LifecycleEvents { get; } = [];
+    public void Dispose() { LifecycleEvents.Add("state-dispose"); StateDisposals++; }
 }
 
 public sealed class CompositionRegistrationProbe(string nodeId) : IDisposable

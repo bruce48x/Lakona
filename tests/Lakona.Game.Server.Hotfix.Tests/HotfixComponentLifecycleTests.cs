@@ -5,6 +5,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 [assembly: AssemblyMetadata("LakonaProjectRole", "ServerApp")]
@@ -23,6 +25,12 @@ public sealed class ComponentRegistrationResource : IDisposable
 {
     public int Disposals;
     public void Dispose() => Disposals++;
+}
+
+public sealed class ComponentRollbackProbe
+{
+    public CancellationToken SlowToken, RemainingToken;
+    public bool CanceledOnEntry;
 }
 
 public sealed class HotfixComponentLifecycleTests
@@ -112,15 +120,141 @@ public sealed class HotfixComponentLifecycleTests
         Assert.Contains(failed.Diagnostics, message => message.Contains("stop", StringComparison.OrdinalIgnoreCase));
     }
 
-    [Fact]
-    public async Task Reverse_stop_continues_after_failure_and_uses_fresh_rollback_token()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Reverse_stop_continues_after_first_failure_and_reports_all_errors(bool alsoFailDependency)
     {
         using var fixture = new Fixture();
-        fixture.Write("v1", second: true, failStop: true);
+        fixture.Write("v1", second: true, failStop: alsoFailDependency, failSecondStop: true);
+        var resource = fixture.Root.GetRequiredService<ComponentRegistrationResource>();
         await using var manager = fixture.Manager;
         Assert.True((await manager.ReloadAsync(TestContext.Current.CancellationToken)).Succeeded);
-        await Assert.ThrowsAsync<AggregateException>(() => manager.DisposeAsync().AsTask());
+        var error = await Assert.ThrowsAsync<AggregateException>(() => manager.DisposeAsync().AsTask());
+        Assert.Contains("B stop failed", error.ToString());
+        Assert.Equal(alsoFailDependency ? 2 : 1, error.Flatten().InnerExceptions.Count);
+        await manager.DisposeAsync();
         Assert.Equal(["start:v1", "start:B", "stop:B", "stop:v1"], fixture.Root.GetRequiredService<ComponentProbeState>().Events);
+        Assert.Equal(0, resource.Disposals);
+        await fixture.Root.DisposeAsync();
+        Assert.Equal(1, resource.Disposals);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Rollback_deadline_is_shared_and_expiry_does_not_skip_remaining_components(bool cancelStartup)
+    {
+        var probe = new ComponentRollbackProbe();
+        using var fixture = new Fixture(configure: services => services.AddSingleton(probe));
+        fixture.Root.GetRequiredService<IOptions<HostOptions>>().Value.ShutdownTimeout = TimeSpan.FromMilliseconds(100);
+        fixture.Compile("""
+            [HotfixComponent] public sealed class A(ComponentProbeState state, ComponentRollbackProbe probe)
+            {
+                public void Record(string item) => state.Events.Add(item);
+                [ComponentStart] public ValueTask Begin(CancellationToken token) { Record("start:A"); return default; }
+                [ComponentStop] public ValueTask End(CancellationToken token)
+                { probe.RemainingToken = token; Record("stop:A"); return default; }
+            }
+            [HotfixComponent] public sealed class B(A a, ComponentRollbackProbe probe)
+            {
+                [ComponentStart] public ValueTask Begin(CancellationToken token) { a.Record("start:B"); return default; }
+                [ComponentStop] public async ValueTask End(CancellationToken token)
+                {
+                    a.Record("stop:B"); probe.SlowToken = token; probe.CanceledOnEntry = token.IsCancellationRequested;
+                    if (token.CanBeCanceled) await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                }
+            }
+            """ + $$"""
+            [HotfixComponent] public sealed class C(B b, CancellationTokenSource startup)
+            {
+                [ComponentStart] public ValueTask Begin(CancellationToken token)
+                {
+                    {{(cancelStartup ? "startup.Cancel(); throw new OperationCanceledException(\"startup canceled\", token);" : "throw new InvalidOperationException(\"start failed\");")}}
+                }
+                [ComponentStop] public ValueTask End(CancellationToken token) => throw new Exception("failed component must not stop");
+            }
+            """, "services.AddSingleton<A>(); services.AddSingleton<B>(); services.AddSingleton<C>();");
+        var reload = fixture.Manager.ReloadAsync(fixture.Cancellation.Token).AsTask();
+        var failed = await reload.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Assert.False(failed.Succeeded);
+        Assert.Contains(cancelStartup ? "startup canceled" : "start failed", failed.ErrorMessage);
+        Assert.Equal(typeof(AggregateException).FullName, failed.ExceptionType);
+        Assert.Contains(failed.Diagnostics, message => message.Contains("Component 'B' failed to stop"));
+        Assert.True(probe.SlowToken.CanBeCanceled);
+        Assert.False(probe.CanceledOnEntry);
+        Assert.NotEqual(fixture.Cancellation.Token, probe.SlowToken);
+        Assert.Equal(probe.SlowToken, probe.RemainingToken);
+        Assert.True(probe.RemainingToken.IsCancellationRequested);
+        var state = fixture.Root.GetRequiredService<ComponentProbeState>();
+        await fixture.Manager.DisposeAsync();
+        Assert.Equal(["start:A", "start:B", "stop:B", "stop:A"], state.Events);
+        await fixture.Root.DisposeAsync();
+        Assert.Equal(1, state.Disposals);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Publication_activation_failure_only_rolls_back_components_on_initial_start(bool afterPublication)
+    {
+        var participant = new ControlledPublicationParticipant();
+        using var fixture = new Fixture(participants: [participant]);
+        fixture.Write("v1", second: true);
+        var resource = fixture.Root.GetRequiredService<ComponentRegistrationResource>();
+        var state = fixture.Root.GetRequiredService<ComponentProbeState>();
+        if (afterPublication)
+            Assert.True((await fixture.Manager.ReloadAsync(TestContext.Current.CancellationToken)).Succeeded);
+        var previous = ((IHotfixRuntimeAccessor)fixture.Manager).Current;
+        participant.FailActivation = true;
+        fixture.Write("v2", second: true);
+        var failed = await fixture.Manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.False(failed.Succeeded);
+        Assert.Contains("publication activation failed", failed.ErrorMessage);
+        Assert.Same(previous, ((IHotfixRuntimeAccessor)fixture.Manager).Current);
+        Assert.Equal(1, participant.Rollbacks);
+        Assert.Equal(afterPublication ? ["start:v1", "start:B"] : ["start:v2", "start:B", "stop:B", "stop:v2"], state.Events);
+        Assert.Equal(0, resource.Disposals);
+        await fixture.Manager.DisposeAsync();
+        Assert.Equal(afterPublication ? ["start:v1", "start:B", "stop:B", "stop:v1"] : ["start:v2", "start:B", "stop:B", "stop:v2"], state.Events);
+        await fixture.Root.DisposeAsync();
+        Assert.Equal(1, resource.Disposals);
+    }
+
+    [Fact]
+    public async Task Stopping_waits_for_in_progress_publication_and_rejects_queued_and_new_reloads()
+    {
+        var participant = new ControlledPublicationParticipant();
+        using var fixture = new Fixture(participants: [participant]);
+        fixture.Write("v1", second: true);
+        Assert.True((await fixture.Manager.ReloadAsync(TestContext.Current.CancellationToken)).Succeeded);
+        var previous = ((IHotfixRuntimeAccessor)fixture.Manager).Current;
+        participant.BlockActivation = true;
+        fixture.Write("v2", second: true);
+        var reload = fixture.Manager.ReloadAsync(TestContext.Current.CancellationToken).AsTask();
+        try
+        {
+            await participant.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            var queued = fixture.Manager.ReloadAsync(TestContext.Current.CancellationToken).AsTask();
+            var freezing = fixture.Manager.BeginStoppingAsync();
+            Assert.False(freezing.IsCompleted);
+            Assert.False(queued.IsCompleted);
+            Assert.Same(previous, ((IHotfixRuntimeAccessor)fixture.Manager).Current);
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => fixture.Manager.ReloadAsync(TestContext.Current.CancellationToken).AsTask());
+            participant.Release.TrySetResult();
+            Assert.True((await reload.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)).Succeeded);
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => queued);
+            await freezing.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            Assert.NotSame(previous, ((IHotfixRuntimeAccessor)fixture.Manager).Current);
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => fixture.Manager.ReloadAsync(TestContext.Current.CancellationToken).AsTask());
+            await fixture.Manager.DisposeAsync();
+            Assert.Equal(["start:v1", "start:B", "stop:B", "stop:v2"], fixture.Root.GetRequiredService<ComponentProbeState>().Events);
+        }
+        finally
+        {
+            participant.Release.TrySetResult();
+            await reload;
+        }
     }
 
     [Theory]
@@ -239,7 +373,8 @@ public sealed class HotfixComponentLifecycleTests
         public HotfixManager Manager { get; }
         public CancellationTokenSource Cancellation { get; } = new();
 
-        public Fixture(string[]? roles = null)
+        public Fixture(string[]? roles = null, Action<IServiceCollection>? configure = null,
+            IEnumerable<IHotfixRuntimePublicationParticipant>? participants = null)
         {
             Directory.CreateDirectory(directory);
             var services = new ServiceCollection();
@@ -248,13 +383,14 @@ public sealed class HotfixComponentLifecycleTests
             services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new Microsoft.Extensions.Hosting.HostOptions()));
             ComponentStateRegistration.Register(services, [typeof(ComponentProbeState).Assembly]);
             if (roles is not null) services.AddSingleton(new NodeRoleCatalog(roles, []));
+            configure?.Invoke(services);
             Root = services.BuildServiceProvider();
             Manager = new HotfixManager(new CurrentDirectoryHotfixAssemblySource(directory, "Components.dll"),
-                [typeof(ComponentProbeState).Assembly.GetName().Name!], rootServices: Root);
+                [typeof(ComponentProbeState).Assembly.GetName().Name!], rootServices: Root, participants: participants);
         }
 
         public void Write(string version, bool second = false, bool extra = false, bool noState = false,
-            bool reversed = false, bool failStart = false, bool failStop = false)
+            bool reversed = false, bool failStart = false, bool failStop = false, bool failSecondStop = false)
         {
             var source = $$"""
                 [HotfixComponent] public sealed class A({{(noState ? "" : "ComponentProbeState state")}}{{(reversed ? ", B b" : "")}})
@@ -268,7 +404,7 @@ public sealed class HotfixComponentLifecycleTests
                 [HotfixComponent] public sealed class B({{(reversed ? "" : "A a")}})
                 {
                     [ComponentStart] public ValueTask Begin(CancellationToken token) { {{(reversed ? "" : "a.Record(\"start:B\");")}} {{(failStart ? "throw new Exception(\"start failed\");" : "return default;")}} }
-                    [ComponentStop] public ValueTask End(CancellationToken token) { {{(reversed ? "" : "a.Record(\"stop:B\");")}} return default; }
+                    [ComponentStop] public ValueTask End(CancellationToken token) { {{(reversed ? "" : "a.Record(\"stop:B\");")}} {{(failSecondStop ? "throw new Exception(\"B stop failed\");" : "return default;")}} }
                 }
                 """;
             if (extra) source += "[HotfixComponent] public sealed class C { }";
@@ -305,6 +441,33 @@ public sealed class HotfixComponentLifecycleTests
             Root.Dispose();
             Cancellation.Dispose();
             Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private sealed class ControlledPublicationParticipant : IHotfixRuntimePublicationParticipant
+    {
+        public bool FailActivation, BlockActivation;
+        public int Rollbacks;
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask<IHotfixRuntimePublicationTransaction> PrepareAsync(HotfixRuntimeSnapshot previous,
+            HotfixRuntimeSnapshot candidate, CancellationToken cancellationToken = default) => new(new Transaction(this));
+
+        private sealed class Transaction(ControlledPublicationParticipant owner) : IHotfixRuntimePublicationTransaction
+        {
+            public async ValueTask ActivateAsync(CancellationToken cancellationToken = default)
+            {
+                if (owner.BlockActivation)
+                {
+                    owner.Entered.TrySetResult();
+                    await owner.Release.Task.WaitAsync(cancellationToken);
+                }
+                if (owner.FailActivation) throw new InvalidOperationException("publication activation failed");
+            }
+            public ValueTask RollbackAsync(CancellationToken cancellationToken = default) { owner.Rollbacks++; return default; }
+            public ValueTask CommitAsync(CancellationToken cancellationToken = default) => default;
+            public ValueTask DisposeAsync() => default;
         }
     }
 }

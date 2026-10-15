@@ -6,6 +6,7 @@ using Lakona.Game.Cluster.Membership;
 using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Configuration;
@@ -28,6 +29,93 @@ public sealed class BootstrapperLifecycleTests
         Assert.Equal(0, resource.Disposals);
         await ((IAsyncDisposable)host).DisposeAsync();
         Assert.Equal(1, resource.Disposals);
+        Assert.Equal(1, fixture.Probe.Unloads);
+        Assert.NotNull(fixture.Probe.PreparedContext);
+        for (var attempt = 0; attempt < 30 && fixture.Probe.PreparedContext.IsAlive; attempt++)
+        {
+            GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
+        Assert.False(fixture.Probe.PreparedContext.IsAlive);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Root_factory_failure_releases_prior_async_resource_and_prepared_context(bool failCleanup)
+    {
+        await using var fixture = new Fixture();
+        fixture.Probe.FailFactory = true;
+        fixture.Probe.FailResourceDispose = failCleanup;
+        var error = await Assert.ThrowsAnyAsync<Exception>(() => fixture.BuildAsync(FreePort()));
+        Assert.Contains("root factory failed", error.ToString());
+        if (failCleanup)
+        {
+            var aggregate = Assert.IsType<AggregateException>(error);
+            Assert.Contains(aggregate.InnerExceptions, item => item.Message == "root factory failed");
+            Assert.Contains("resource cleanup failed", aggregate.ToString());
+        }
+        else Assert.IsType<InvalidOperationException>(error);
+        Assert.NotNull(fixture.Probe.Resource);
+        Assert.Equal(1, fixture.Probe.Resource.Disposals);
+        Assert.Equal(1, fixture.Probe.Unloads);
+        Assert.Equal(0, fixture.Probe.Starts);
+        Assert.Equal(0, fixture.Probe.Stops);
+    }
+
+    [Fact]
+    public async Task Async_component_start_completes_before_publication_and_readiness()
+    {
+        await using var fixture = new Fixture();
+        fixture.Probe.BlockStart = true;
+        var host = await fixture.BuildAsync(FreePort());
+        var starting = host.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            await fixture.Probe.StartEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            Assert.False(starting.IsCompleted);
+            Assert.Null(host.Services.GetRequiredService<IHotfixManager>().Current.LoadedAtUtc);
+            Assert.False(host.Services.GetRequiredService<LakonaGameReadinessEvaluator>().Evaluate().Succeeded);
+            Assert.False(host.Services.GetRequiredService<DistributedWorkAdmissionGate>().IsOpen);
+            fixture.Probe.StartRelease.TrySetResult();
+            await starting.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            Assert.NotNull(host.Services.GetRequiredService<IHotfixManager>().Current.LoadedAtUtc);
+            Assert.True(host.Services.GetRequiredService<LakonaGameReadinessEvaluator>().Evaluate().Succeeded);
+        }
+        finally
+        {
+            fixture.Probe.StartRelease.TrySetResult();
+            try { await starting; }
+            finally { await StopAndDisposeAsync(host); }
+        }
+    }
+
+    [Fact]
+    public async Task Async_component_stop_completes_before_generation_and_root_resource_disposal()
+    {
+        await using var fixture = new Fixture();
+        var host = await fixture.BuildAsync(FreePort());
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        fixture.Probe.BlockStop = true;
+        var stopping = host.StopAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            await fixture.Probe.StopEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            Assert.False(stopping.IsCompleted);
+            Assert.Equal(0, fixture.Probe.GenerationDisposals);
+            Assert.Equal(0, fixture.Probe.Resource!.Disposals);
+            fixture.Probe.StopRelease.TrySetResult();
+            await stopping.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            Assert.Equal(1, fixture.Probe.GenerationDisposals);
+            Assert.Equal(0, fixture.Probe.Resource.Disposals);
+        }
+        finally
+        {
+            fixture.Probe.StopRelease.TrySetResult();
+            try { await stopping; }
+            finally { await ((IAsyncDisposable)host).DisposeAsync(); }
+        }
+        Assert.Equal(1, fixture.Probe.Resource.Disposals);
     }
 
     [Fact]
@@ -90,13 +178,27 @@ public sealed class BootstrapperLifecycleTests
     {
         public int Starts, Stops;
         public bool FailStop, ObservedStart, ObservedStop;
+        public bool FailFactory, FailResourceDispose, BlockStart, BlockStop;
+        public int Unloads, GenerationDisposals;
+        public RegisteredResource? Resource;
+        public WeakReference? PreparedContext;
+        public TaskCompletionSource StartEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource StartRelease { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource StopEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource StopRelease { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
-    public sealed class RegisteredResource(string nodeId) : IDisposable
+    public sealed class RegisteredResource(string nodeId) : IAsyncDisposable
     {
         public string NodeId { get; } = nodeId;
         public int Disposals;
-        public void Dispose() => Disposals++;
+        public bool FailDispose;
+        public async ValueTask DisposeAsync()
+        {
+            await Task.Yield();
+            Disposals++;
+            if (FailDispose) throw new InvalidOperationException("resource cleanup failed");
+        }
     }
 
     private sealed class ObserveAdmissionService(
@@ -146,6 +248,7 @@ public sealed class BootstrapperLifecycleTests
                 using System;
                 using System.Threading;
                 using System.Threading.Tasks;
+                using System.Runtime.Loader;
                 using Lakona.Game.Server;
                 using Lakona.Game.Server.Hotfix.Abstractions;
                 using Lakona.Game.Server.Hotfix;
@@ -154,25 +257,39 @@ public sealed class BootstrapperLifecycleTests
                 using Probe = Lakona.Game.Server.Tests.Hosting.BootstrapperLifecycleTests.LifecycleProbe;
                 using Resource = Lakona.Game.Server.Tests.Hosting.BootstrapperLifecycleTests.RegisteredResource;
                 [HotfixComponent, NodeRole("probe")]
-                public sealed class ProbeComponent(Probe probe)
+                public sealed class ProbeComponent(Probe probe) : IAsyncDisposable
                 {
                     [ComponentConfigureServices]
-                    public static void Register(IServiceCollection services, IConfiguration configuration) =>
-                        services.AddSingleton(_ => new Resource(configuration["Lakona:Node:Id"]));
+                    public static void Register(IServiceCollection services, IConfiguration configuration)
+                    {
+                        services.AddSingleton(provider =>
+                        {
+                            var probe = provider.GetRequiredService<Probe>();
+                            var context = AssemblyLoadContext.GetLoadContext(typeof(ProbeComponent).Assembly);
+                            probe.PreparedContext = new WeakReference(context);
+                            context.Unloading += _ => probe.Unloads++;
+                            return probe.Resource = new Resource(configuration["Lakona:Node:Id"]) { FailDispose = probe.FailResourceDispose };
+                        });
+                        services.AddSingleton<object>(provider => provider.GetRequiredService<Probe>().FailFactory
+                            ? throw new InvalidOperationException("root factory failed") : new object());
+                    }
 
                     [ComponentStart]
-                    public ValueTask Start(CancellationToken cancellationToken)
+                    public async ValueTask Start(CancellationToken cancellationToken)
                     {
                         probe.Starts++;
-                        return default;
+                        probe.StartEntered.TrySetResult();
+                        if (probe.BlockStart) await probe.StartRelease.Task.WaitAsync(cancellationToken);
                     }
                     [ComponentStop]
-                    public ValueTask Stop(CancellationToken cancellationToken)
+                    public async ValueTask Stop(CancellationToken cancellationToken)
                     {
                         probe.Stops++;
+                        probe.StopEntered.TrySetResult();
+                        if (probe.BlockStop) await probe.StopRelease.Task.WaitAsync(cancellationToken);
                         if (probe.FailStop) throw new InvalidOperationException("component rollback failed");
-                        return default;
                     }
+                    public ValueTask DisposeAsync() { probe.GenerationDisposals++; return default; }
                 }
                 public sealed class Registration : IHotfixGeneratedServiceRegistration
                 {
@@ -222,6 +339,12 @@ public sealed class BootstrapperLifecycleTests
             Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
             return stream.ToArray();
         }
+    }
+
+    private static async Task StopAndDisposeAsync(IHost host)
+    {
+        try { await host.StopAsync(CancellationToken.None); }
+        finally { await ((IAsyncDisposable)host).DisposeAsync(); }
     }
 
     private static int FreePort()

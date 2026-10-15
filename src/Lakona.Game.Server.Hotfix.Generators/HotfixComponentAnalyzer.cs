@@ -26,19 +26,19 @@ public sealed class HotfixComponentAnalyzer : DiagnosticAnalyzer
         context.EnableConcurrentExecution();
         context.RegisterCompilationStartAction(start =>
         {
-            start.Options.AnalyzerConfigOptionsProvider.GlobalOptions.TryGetValue("build_property.LakonaProjectRole", out var role);
+            var options = HotfixGeneratorOptions.From(start.Options.AnalyzerConfigOptionsProvider.GlobalOptions);
             var owners = new ConcurrentBag<(INamedTypeSymbol State, INamedTypeSymbol Owner)>();
             start.RegisterSymbolAction(symbolContext =>
             {
                 var type = (INamedTypeSymbol)symbolContext.Symbol;
                 var component = HasAttribute(type, Prefix + "HotfixComponentAttribute");
                 var state = HasAttribute(type, Prefix + "ComponentStateAttribute");
-                if (state && (role != "ServerApp" || type.TypeKind != TypeKind.Class || !type.IsSealed
+                if (state && (!options.GenerateStableRpcServices || type.TypeKind != TypeKind.Class || !type.IsSealed
                     || type.IsAbstract || type.IsGenericType || type.DeclaredAccessibility != Accessibility.Public
                     || type.ContainingType is not null || !type.InstanceConstructors.Any(ctor => ctor.DeclaredAccessibility == Accessibility.Public && ctor.Parameters.Length == 0)))
                     Report(StateDeclaration, type, "ComponentState must be a public sealed non-generic ServerApp class with a public parameterless constructor.");
                 var constructors = type.InstanceConstructors.Where(ctor => ctor.DeclaredAccessibility == Accessibility.Public).ToArray();
-                if (component && (role == "ServerApp" || constructors.Length != 1 || type.DeclaredAccessibility != Accessibility.Public))
+                if (component && (options.GenerateStableRpcServices || constructors.Length != 1 || type.DeclaredAccessibility != Accessibility.Public))
                     Report(Contract, type, "HotfixComponent must be public, live in Hotfix, and have exactly one public constructor.");
                 foreach (var constructor in constructors)
                 {
@@ -79,7 +79,7 @@ public sealed class HotfixComponentAnalyzer : DiagnosticAnalyzer
                 if (configurations.Length > 1)
                     Report(Contract, type, "A HotfixComponent may declare at most one ComponentConfigureServices method.");
                 foreach (var method in configurations)
-                    if (!component || role != "Hotfix" || method.DeclaredAccessibility != Accessibility.Public
+                    if (!component || !options.IsHotfixProject || method.DeclaredAccessibility != Accessibility.Public
                         || !method.IsStatic || method.IsGenericMethod || !method.ReturnsVoid
                         || method.IsAsync || method.PartialImplementationPart?.IsAsync == true
                         || method.Parameters.Length != 2

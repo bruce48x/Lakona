@@ -10,6 +10,31 @@ namespace Lakona.Game.Testing.Tests;
 public sealed class HotfixCompositionTests
 {
     [Fact]
+    public async Task Actor_stop_precedes_component_stop_generation_cleanup_and_state_disposal()
+    {
+        await using var cluster = new LakonaTestClusterBuilder()
+            .AddNode("data-1", "data")
+            .AddNode("battle-1", "battle")
+            .ConfigureNodes(node =>
+            {
+                node.UseHotfixAssembly(typeof(CounterBehavior).Assembly);
+                if (node.Roles.Contains("battle", StringComparer.Ordinal))
+                    node.ConfigureServices((services, _) => services.AddSingleton<CounterControl>());
+            })
+            .Build();
+        await cluster.StartAsync(TestContext.Current.CancellationToken);
+        var root = cluster.Node("battle-1").Services;
+        var state = root.GetRequiredService<CompositionProbeState>();
+        var actors = root.GetRequiredService<IHotfixRuntimeAccessor>().Current.Services.GetRequiredService<ActorAccess>();
+        await actors.Place<CounterActor>(new CounterId("shutdown-order")).EnsureAsync(TestContext.Current.CancellationToken);
+        Assert.Empty(state.LifecycleEvents);
+
+        await cluster.DisposeAsync();
+
+        Assert.Equal(["actor-stop", "component-stop", "generation-dispose", "state-dispose"], state.LifecycleEvents);
+    }
+
+    [Fact]
     public async Task Failed_activation_releases_partially_constructed_generation_asynchronously()
     {
         CompositionProbeState? state = null;
