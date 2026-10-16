@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Lakona.Game.Server.Hotfix.Generators.GeneratorSymbolFacts;
 
 namespace Lakona.Game.Server.Hotfix.Generators;
@@ -47,14 +48,26 @@ public sealed class HotfixComponentAnalyzer : DiagnosticAnalyzer
                     if (component && states.Length == 1 && states[0].Type is INamedTypeSymbol stateType) owners.Add((stateType, type));
                     foreach (var parameter in constructor.Parameters)
                     {
+                        if (ContainsState(parameter.Type) && !HasAttribute(parameter.Type, Prefix + "ComponentStateAttribute"))
+                            Report(Contract, parameter, "Inject ComponentState directly by its concrete type; state collections and wrappers are unsupported.");
                         if ((HasAttribute(parameter.Type, Prefix + "HotfixComponentAttribute") || HasAttribute(parameter.Type, Prefix + "ComponentStateAttribute"))
-                            && (parameter.IsOptional || HasAttribute(parameter, "Microsoft.Extensions.DependencyInjection.FromKeyedServicesAttribute")))
+                            && (parameter.IsOptional || parameter.RefKind != RefKind.None || HasAttribute(parameter, "Microsoft.Extensions.DependencyInjection.FromKeyedServicesAttribute")))
                             Report(Contract, parameter, "Component and state injection must use required, unkeyed concrete parameters.");
                         if (component && parameter.Type.ToDisplayString() is "System.IServiceProvider" or "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory")
                             Report(Contract, parameter, "Component dependencies must be constructor-injected directly; service locators are unsupported.");
                         if (parameter.Type is INamedTypeSymbol named && named.OriginalDefinition.ToDisplayString() != "Microsoft.Extensions.Logging.ILogger<TCategoryName>" && named.TypeArguments.Any(argument => HasAttribute(argument, Prefix + "HotfixComponentAttribute")))
                             Report(Contract, parameter, "Inject the concrete component directly; collections and wrappers are unsupported.");
                     }
+                }
+                if (component && HotfixActorBoundaryAnalyzer.ResolveActivationConstructor(type) is { } activationConstructor)
+                {
+                    var storage = StateStorage(type, activationConstructor, symbolContext.CancellationToken).ToArray();
+                    if (storage.Length > 1)
+                        Report(Contract, type, "A component may retain ComponentState in at most one field or auto-property.");
+                    foreach (var member in storage)
+                        if (!activationConstructor.Parameters.Any(parameter => HasAttribute(parameter.Type, Prefix + "ComponentStateAttribute")
+                            && SymbolEqualityComparer.Default.Equals(parameter.Type, MemberType(member))))
+                            Report(Contract, member, "Store ComponentState directly by the concrete type injected into its owner; type-erased state storage is unsupported.");
                 }
                 foreach (var member in type.GetMembers())
                 {
@@ -67,7 +80,9 @@ public sealed class HotfixComponentAnalyzer : DiagnosticAnalyzer
                     };
                     if (state && member is IFieldSymbol or IPropertySymbol && valueType is not null && ForbiddenStateType(valueType))
                         Report(StateDeclaration, member, "ComponentState cannot retain delegates, tasks, service providers, or Hotfix logic.");
-                    if (!state && valueType is not null && HasAttribute(valueType, Prefix + "ComponentStateAttribute")
+                    if (component && valueType is not null && ContainsState(valueType) && !HasAttribute(valueType, Prefix + "ComponentStateAttribute"))
+                        Report(Contract, member, "ComponentState members must use the concrete state type, without collections or wrappers.");
+                    if (!state && valueType is not null && ContainsState(valueType)
                         && member.DeclaredAccessibility != Accessibility.Private)
                         Report(Contract, member, "The injected state must remain private to its owning component.");
                     if (state && member is IEventSymbol)
@@ -122,6 +137,22 @@ public sealed class HotfixComponentAnalyzer : DiagnosticAnalyzer
                 if (!owner || operationContext.Operation is IObjectCreationOperation)
                     operationContext.ReportDiagnostic(Diagnostic.Create(StateAccess, operationContext.Operation.Syntax.GetLocation(), state.ToDisplayString()));
             }, OperationKind.FieldReference, OperationKind.PropertyReference, OperationKind.Invocation, OperationKind.ObjectCreation);
+            start.RegisterOperationAction(operationContext =>
+            {
+                var reference = (IParameterReferenceOperation)operationContext.Operation;
+                var parameter = reference.Parameter;
+                if (!HasAttribute(parameter.Type, Prefix + "ComponentStateAttribute")
+                    || parameter.ContainingSymbol is not IMethodSymbol constructor
+                    || !HasAttribute(constructor.ContainingType, Prefix + "HotfixComponentAttribute")
+                    || !parameter.DeclaringSyntaxReferences.Any(syntax => syntax.GetSyntax(operationContext.CancellationToken)
+                        is ParameterSyntax { Parent.Parent: TypeDeclarationSyntax })
+                    || operationContext.ContainingSymbol is IFieldSymbol or IMethodSymbol { MethodKind: MethodKind.Constructor }) return;
+                for (var parent = reference.Parent; parent is not null; parent = parent.Parent)
+                    if (parent is IFieldInitializerOperation or IPropertyInitializerOperation or INameOfOperation) return;
+                if (StateStorage(constructor.ContainingType, constructor, operationContext.CancellationToken).Any())
+                    operationContext.ReportDiagnostic(Diagnostic.Create(Contract, reference.Syntax.GetLocation(),
+                        "Do not capture the primary-constructor State parameter as well as storing it in a field or auto-property; choose one storage location."));
+            }, OperationKind.ParameterReference);
             start.RegisterCompilationEndAction(end =>
             {
                 foreach (var group in owners.GroupBy(pair => pair.State, SymbolEqualityComparer.Default).Where(group => group.Count() > 1))
@@ -130,6 +161,28 @@ public sealed class HotfixComponentAnalyzer : DiagnosticAnalyzer
             });
         });
     }
+
+    private static ITypeSymbol? MemberType(ISymbol member) => member switch
+    {
+        IFieldSymbol field => field.Type,
+        IPropertySymbol property => property.Type,
+        _ => null
+    };
+
+    private static IEnumerable<ISymbol> StateStorage(INamedTypeSymbol component, IMethodSymbol constructor,
+        System.Threading.CancellationToken cancellationToken) => component.GetMembers().Where(member =>
+        !member.IsStatic && !member.IsImplicitlyDeclared
+        && (member is IFieldSymbol || member is IPropertySymbol property && HotfixActorBoundaryAnalyzer.IsAutoProperty(property, cancellationToken))
+        && (MemberType(member) is { } type && HasAttribute(type, Prefix + "ComponentStateAttribute")
+            || constructor.Parameters.Any(parameter => HasAttribute(parameter.Type, Prefix + "ComponentStateAttribute")
+                && HotfixActorBoundaryAnalyzer.IsDirectConstructorDependency(member, constructor, cancellationToken, parameter.Type))));
+
+    private static bool ContainsState(ITypeSymbol type) => HasAttribute(type, Prefix + "ComponentStateAttribute")
+        || type is IArrayTypeSymbol array && ContainsState(array.ElementType)
+        || type is INamedTypeSymbol named
+            && named.OriginalDefinition.ToDisplayString() != "Microsoft.Extensions.Logging.ILogger<TCategoryName>"
+            && (named.TypeArguments.Any(ContainsState)
+            || named.ContainingType is { } containing && ContainsState(containing));
 
     private static void AnalyzeUnmarkedStateWrite(OperationAnalysisContext context)
     {

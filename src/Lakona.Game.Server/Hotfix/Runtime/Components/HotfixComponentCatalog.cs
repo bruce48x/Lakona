@@ -46,10 +46,20 @@ internal sealed class HotfixComponentCatalog(IReadOnlyList<HotfixComponentDescri
                 || typeof(Exception).IsAssignableFrom(type) || type.GetConstructors().Length != 1)
                 throw new InvalidOperationException($"Hotfix component '{type.FullName}' must be public sealed non-generic with exactly one public constructor.");
             var parameters = type.GetConstructors()[0].GetParameters();
+            if (parameters.Any(parameter => ComponentStateRegistration.RefersToState(parameter.ParameterType)
+                && !ComponentStateRegistration.IsState(parameter.ParameterType)))
+                throw new InvalidOperationException($"Component '{type}' must inject ComponentState directly by concrete type; state collections and wrappers are unsupported.");
             var states = parameters.Where(parameter => ComponentStateRegistration.IsState(parameter.ParameterType)).ToArray();
             if (states.Length > 1)
                 throw new InvalidOperationException($"Component '{type.FullName}' may own at most one state.");
             var state = states.SingleOrDefault()?.ParameterType;
+            // Includes auto-property backing fields and primary-constructor captures.
+            var stateFields = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Where(field => ComponentStateRegistration.RefersToState(field.FieldType)).ToArray();
+            if (stateFields.Length > 1)
+                throw new InvalidOperationException($"Component '{type}' may retain ComponentState in at most one field or auto-property.");
+            if (stateFields.Any(field => field.FieldType != state))
+                throw new InvalidOperationException($"Component '{type}' must store the directly injected concrete ComponentState, without state collections or wrappers.");
             if (state is not null)
             {
                 if (states[0].IsOptional || states[0].IsDefined(typeof(FromKeyedServicesAttribute)))
@@ -95,6 +105,8 @@ internal sealed class HotfixComponentCatalog(IReadOnlyList<HotfixComponentDescri
         foreach (var parameter in type.GetConstructors().SelectMany(constructor => constructor.GetParameters()))
         {
             var dependency = parameter.ParameterType;
+            if (ComponentStateRegistration.RefersToState(dependency) && !ComponentStateRegistration.IsState(dependency))
+                throw new InvalidOperationException($"'{type}' must not inject ComponentState through collections or wrappers; inject its owner.");
             if (all.Contains(dependency) && (parameter.IsOptional || parameter.IsDefined(typeof(FromKeyedServicesAttribute))))
                 throw new InvalidOperationException($"'{type}' must inject component '{dependency}' as a required, unkeyed concrete parameter.");
             if (ComponentStateRegistration.IsState(dependency)

@@ -124,7 +124,7 @@ Lakona Hub. Keep configuration changes aligned with the package upgrade.
 ## Component diagnostics
 
 - `LAKONA20057`: component constructor dependency cycle (custom registration cannot override it).
-- `LAKONA20061`: invalid component, ComponentConfigureServices/lifecycle hook, or component/State injection shape.
+- `LAKONA20061`: invalid component, ComponentConfigureServices/lifecycle hook, or component/State injection shape; State wrappers, multiple storage locations (including primary-constructor capture), type-erased State storage or multiple owners.
 - `LAKONA20062`: invalid stable State declaration, obvious execution references stored in State, or direct writes through an injected unmarked ServerApp dependency.
 - `LAKONA20063`: direct State access outside its class and owning component.
 

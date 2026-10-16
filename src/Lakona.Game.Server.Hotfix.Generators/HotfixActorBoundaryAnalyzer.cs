@@ -484,7 +484,8 @@ namespace Lakona.Game.Server.Hotfix.Generators
         internal static bool IsDirectConstructorDependency(
             ISymbol member,
             IMethodSymbol activationConstructor,
-            System.Threading.CancellationToken cancellationToken)
+            System.Threading.CancellationToken cancellationToken,
+            ITypeSymbol? dependencyType = null)
         {
             var assignments = 0;
             foreach (var syntaxReference in member.DeclaringSyntaxReferences)
@@ -501,7 +502,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     continue;
                 }
 
-                if (!IsDirectParameterReference(initializer, activationConstructor))
+                if (!IsDirectParameterReference(initializer, activationConstructor, dependencyType))
                 {
                     return false;
                 }
@@ -526,7 +527,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
                     if (assignment.Ancestors().TakeWhile(node => node != constructor).Any(static node =>
                             node is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax) ||
-                        !IsDirectParameterReference(assignment.Right, activationConstructor))
+                        !IsDirectParameterReference(assignment.Right, activationConstructor, dependencyType))
                     {
                         return false;
                     }
@@ -554,30 +555,32 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         private static bool IsDirectParameterReference(
             ExpressionSyntax expression,
-            IMethodSymbol activationConstructor)
+            IMethodSymbol activationConstructor,
+            ITypeSymbol? dependencyType = null)
         {
             switch (expression)
             {
                 case ParenthesizedExpressionSyntax parenthesized:
-                    return IsDirectParameterReference(parenthesized.Expression, activationConstructor);
+                    return IsDirectParameterReference(parenthesized.Expression, activationConstructor, dependencyType);
                 case CastExpressionSyntax cast:
-                    return IsDirectParameterReference(cast.Expression, activationConstructor);
+                    return IsDirectParameterReference(cast.Expression, activationConstructor, dependencyType);
                 case PostfixUnaryExpressionSyntax postfix
                     when postfix.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.SuppressNullableWarningExpression):
-                    return IsDirectParameterReference(postfix.Operand, activationConstructor);
+                    return IsDirectParameterReference(postfix.Operand, activationConstructor, dependencyType);
                 case BinaryExpressionSyntax coalesce
                     when coalesce.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.CoalesceExpression) &&
                          coalesce.Right is ThrowExpressionSyntax:
-                    return IsDirectParameterReference(coalesce.Left, activationConstructor);
+                    return IsDirectParameterReference(coalesce.Left, activationConstructor, dependencyType);
                 case IdentifierNameSyntax identifier:
                     return activationConstructor.Parameters.Any(parameter =>
-                        string.Equals(parameter.Name, identifier.Identifier.ValueText, StringComparison.Ordinal));
+                        string.Equals(parameter.Name, identifier.Identifier.ValueText, StringComparison.Ordinal) &&
+                        (dependencyType is null || SymbolEqualityComparer.Default.Equals(parameter.Type, dependencyType)));
                 default:
                     return false;
             }
         }
 
-        private static bool IsAutoProperty(IPropertySymbol property, System.Threading.CancellationToken cancellationToken)
+        internal static bool IsAutoProperty(IPropertySymbol property, System.Threading.CancellationToken cancellationToken)
         {
             return property.DeclaringSyntaxReferences
                 .Select(reference => reference.GetSyntax(cancellationToken))

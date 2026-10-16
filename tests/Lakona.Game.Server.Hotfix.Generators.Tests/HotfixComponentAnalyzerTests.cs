@@ -6,6 +6,143 @@ public sealed class HotfixComponentAnalyzerTests
 {
     private const string Imports = "using System.Threading; using System.Threading.Tasks; using Lakona.Game.Server.Hotfix.Abstractions; ";
 
+    private static Microsoft.CodeAnalysis.MetadataReference StateReference() =>
+        AnalyzerTestHost.CreateReference("StableStates", Imports + """
+            [ComponentState] public sealed class State { public int Value; }
+            [ComponentState] public sealed class OtherState { }
+            public sealed class Box<T> { public sealed class Nested { } }
+            """);
+
+    [Theory]
+    [InlineData("State[]")]
+    [InlineData("System.Collections.Generic.IEnumerable<State>")]
+    [InlineData("System.Func<State>")]
+    [InlineData("System.Lazy<State>")]
+    [InlineData("System.Collections.Generic.Dictionary<string, System.Lazy<State[]>>")]
+    [InlineData("(State, int)")]
+    [InlineData("Box<State>.Nested")]
+    public async Task State_wrappers_are_rejected_for_components_and_other_consumers(string dependency)
+    {
+        foreach (var marker in new[] { "[HotfixComponent]", "" })
+        {
+            var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports
+                + marker + " public sealed class Consumer(" + dependency + " states) { }", StateReference());
+            Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "LAKONA20061"
+                && diagnostic.GetMessage().Contains("directly"));
+        }
+    }
+
+    [Theory]
+    [InlineData("State state = null")]
+    [InlineData("ref State state")]
+    [InlineData("in State state")]
+    [InlineData("[Microsoft.Extensions.DependencyInjection.FromKeyedServices(\"other\")] State state")]
+    public async Task State_injection_is_required_unkeyed_and_by_value(string parameter)
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports
+            + "[HotfixComponent] public sealed class Component { public Component(" + parameter + ") { } }", StateReference());
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "LAKONA20061");
+    }
+
+    [Theory]
+    [InlineData("private readonly State _a, _b; public Component(State state) { _a = state; _b = state; }")]
+    [InlineData("private readonly State _a; private State B { get; } public Component(State state) { _a = state; B = state; }")]
+    [InlineData("private State A { get; } private State B { get; } public Component(State state) { A = state; B = state; }")]
+    public async Task State_can_be_stored_in_only_one_field_or_auto_property(string storage)
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports
+            + "[HotfixComponent] public sealed class Component { " + storage + " }", StateReference());
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "LAKONA20061"
+            && diagnostic.GetMessage().Contains("at most one field"));
+    }
+
+    [Theory]
+    [InlineData("private readonly State _state = state; public int Read() => state.Value;")]
+    [InlineData("private State Stored { get; } = state; public int Read() { var local = state; return local.Value; }")]
+    public async Task Primary_constructor_capture_cannot_duplicate_explicit_State_storage(string body)
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports
+            + "[HotfixComponent] public sealed class Component(State state) { " + body + " }", StateReference());
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "LAKONA20061"
+            && diagnostic.GetMessage().Contains("capture"));
+    }
+
+    [Theory]
+    [InlineData("private readonly object _state = state;")]
+    [InlineData("private object Stored { get; } = (object)state;")]
+    [InlineData("private readonly System.Func<State> _state = () => state;")]
+    public async Task State_storage_cannot_erase_or_wrap_its_type(string body)
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports
+            + "[HotfixComponent] public sealed class Component(State state) { " + body + " }", StateReference());
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "LAKONA20061");
+    }
+
+    [Theory]
+    [InlineData("private System.Func<State> Factory() => () => state;")]
+    [InlineData("private State[] Values => new[] { state };")]
+    public async Task State_cannot_be_exposed_through_wrapped_member_types(string member)
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports
+            + "[HotfixComponent] public sealed class Component(State state) { " + member + " }", StateReference());
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "LAKONA20061"
+            && diagnostic.GetMessage().Contains("without collections or wrappers"));
+    }
+
+    [Theory]
+    [InlineData("public int Read() => state.Value;")]
+    [InlineData("private readonly State _state = state; public int Read() => _state.Value; private State View => _state;")]
+    [InlineData("private State Stored { get; } = state; public int Read() => Stored.Value;")]
+    [InlineData("private readonly State _state = state ?? throw new System.ArgumentNullException(nameof(state));")]
+    [InlineData("private readonly State _state = state; public string Name => nameof(state);")]
+    public async Task One_State_storage_location_and_computed_views_remain_valid(string body)
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports
+            + "[HotfixComponent] public sealed class Component(State state) { " + body + " }", StateReference());
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public async Task Stable_resource_interfaces_wrappers_and_multiple_dependencies_remain_valid()
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports + """
+            using App;
+            using System;
+            using System.Collections.Generic;
+            using Microsoft.Extensions.Configuration;
+            using Microsoft.Extensions.Logging;
+            [HotfixComponent] public sealed class Component(State state, IResource resource,
+                IEnumerable<IResource> resources, Func<MutableResource> factory, Lazy<IResource> lazy,
+                IConfiguration configuration, ILogger<Component> logger, ILogger<State> stateLogger)
+            {
+                private readonly State _state = state;
+                private readonly IResource _resource = resource;
+                public void Update() { _resource.Update(); _state.Value++; }
+            }
+            """, StateReference(), MutableResourceReference(),
+            Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.Logging.ILogger<>).Assembly.Location));
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public async Task State_ownership_does_not_depend_on_NodeRole()
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports + """
+            [NodeRole("gateway")] [HotfixComponent] public sealed class A(State state) { }
+            [NodeRole("data")] [HotfixComponent] public sealed class B(State state) { }
+            """, StateReference());
+        Assert.Equal(2, diagnostics.Count(diagnostic => diagnostic.Id == "LAKONA20061"));
+    }
+
+    [Fact]
+    public async Task Component_cannot_inject_two_different_States()
+    {
+        var diagnostics = await AnalyzerTestHost.RunHotfixProjectAsync(Imports
+            + "[HotfixComponent] public sealed class Component(State state, OtherState other) { }", StateReference());
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "LAKONA20061"
+            && diagnostic.GetMessage().Contains("at most one state"));
+    }
+
     private static Microsoft.CodeAnalysis.MetadataReference MutableResourceReference(string role = "ServerApp", bool marked = false) =>
         AnalyzerTestHost.CreateReference("StableResources", $$"""
             using System;

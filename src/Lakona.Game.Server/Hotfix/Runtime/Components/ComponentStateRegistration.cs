@@ -33,6 +33,11 @@ internal sealed class ComponentStateRegistration(IReadOnlySet<Type> types)
 
     internal static bool IsState(Type type) => type.IsDefined(typeof(ComponentStateAttribute), false);
 
+    internal static bool RefersToState(Type type) => IsState(type)
+        || (type.HasElementType && RefersToState(type.GetElementType()!))
+        || (type.IsGenericType && type.GetGenericTypeDefinition() != typeof(Microsoft.Extensions.Logging.ILogger<>)
+            && type.GetGenericArguments().Any(RefersToState));
+
     internal static void Validate(Type type)
     {
         if (!type.IsClass || !type.IsPublic || !type.IsSealed || type.IsAbstract || type.IsGenericType

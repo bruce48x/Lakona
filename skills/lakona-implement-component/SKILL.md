@@ -26,6 +26,13 @@ background-task framework or extra container.
    or properties through an injected App object requires marked State; manual
    Singleton registration is not a substitute (`LAKONA20062`). Reads, stable
    resource APIs, third-party clients and new DTO initialization remain valid.
+   Inject at most one State directly by its concrete type, with a required,
+   unkeyed, by-value parameter. Retain it in one private readonly field or private
+   get-only auto-property, or use the primary-constructor capture directly;
+   do not retain both. Do not erase State to object/interfaces or wrap it in
+   arrays, collections, factories or nested generics (`LAKONA20061`). One State
+   type has one component owner even when NodeRole differs. This restriction
+   concerns marked State; ordinary stable resource interfaces/wrappers remain valid.
 4. Read [resource-patterns.md](references/resource-patterns.md) for initialization
    and disposal. Put optional stable resource registration on the HotfixComponent:
    `[ComponentConfigureServices] public static void ConfigureServices(IServiceCollection

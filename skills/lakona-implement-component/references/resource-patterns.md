@@ -204,6 +204,13 @@ State's implicit public parameterless constructor initializes only basic
 structures. The framework registers and root-owns it; only FeedSender accesses
 it.
 
+FeedSender injects FeedState directly and stores it only in `_state`. Keep that
+single storage location: do not add another field/auto-property, wrap State in
+Func/Lazy/collections, or retain it as object/an interface. With a primary
+constructor, choose direct parameter capture or one explicit storage member;
+using both retains two copies of the reference. Stable resource dependencies
+such as client interfaces and resource factories are still allowed.
+
 The `[ComponentState]` marker cannot be omitted: an unmarked App carrier
 manually registered as a Singleton loses State ownership checks. Direct component
 writes through such an injected carrier report `LAKONA20062`, including compound

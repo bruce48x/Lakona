@@ -325,6 +325,28 @@ public sealed class HotfixComponentLifecycleTests
     }
 
     [Theory]
+    [InlineData("[HotfixComponent] public sealed class A(ComponentProbeState first, ComponentProbeState second) {}",
+        "services.AddSingleton<A>();", "at most one state")]
+    [InlineData("[HotfixComponent] public sealed class A(ComponentProbeState[] states) {}",
+        "services.AddSingleton<A>();", "state collections and wrappers")]
+    [InlineData("[HotfixComponent] public sealed class A(System.Collections.Generic.IEnumerable<ComponentProbeState> states) {}",
+        "services.AddSingleton<A>();", "state collections and wrappers")]
+    [InlineData("[HotfixComponent] public sealed class A(Func<ComponentProbeState> state) {}",
+        "services.AddSingleton<A>();", "state collections and wrappers")]
+    [InlineData("[HotfixComponent] public sealed class A(Lazy<System.Collections.Generic.IEnumerable<ComponentProbeState[]>> state) {}",
+        "services.AddSingleton<A>();", "state collections and wrappers")]
+    [InlineData("[HotfixComponent] public sealed class A(ComponentProbeState state) { private readonly ComponentProbeState _a = state, _b = state; }",
+        "services.AddSingleton<A>();", "at most one field")]
+    [InlineData("[HotfixComponent] public sealed class A(ComponentProbeState state) { private readonly ComponentProbeState _a = state; private ComponentProbeState B { get; } = state; }",
+        "services.AddSingleton<A>();", "at most one field")]
+    [InlineData("[HotfixComponent] public sealed class A(ComponentProbeState state) { private readonly ComponentProbeState _a = state; public void Read() => state.Events.Add(\"read\"); }",
+        "services.AddSingleton<A>();", "at most one field")]
+    [InlineData("[HotfixComponent] public sealed class A(ComponentProbeState state) { private readonly ComponentProbeState[] _states = [state]; }",
+        "services.AddSingleton<A>();", "without state collections or wrappers")]
+    [InlineData("[HotfixComponent] public sealed class A { private readonly ComponentProbeState _state; }",
+        "services.AddSingleton<A>();", "directly injected concrete ComponentState")]
+    [InlineData("[HotfixComponent] public sealed class A {} public sealed class Consumer(Func<ComponentProbeState> state) {}",
+        "services.AddSingleton<A>(); services.AddSingleton<Consumer>();", "ComponentState through collections or wrappers")]
     [InlineData("[HotfixComponent] public sealed class A(ComponentProbeState state) {} [HotfixComponent] public sealed class B(ComponentProbeState state) {}",
         "services.AddSingleton<A>(); services.AddSingleton<B>();", "multiple owners")]
     [InlineData("[HotfixComponent] public sealed class A(ComponentProbeState state) {}",
@@ -345,6 +367,52 @@ public sealed class HotfixComponentLifecycleTests
         Assert.False(result.Succeeded);
         Assert.Contains(error, result.ErrorMessage);
         Assert.Empty(fixture.Root.GetRequiredService<ComponentProbeState>().Events);
+    }
+
+    [Fact]
+    public async Task State_cannot_have_another_owner_even_on_a_different_NodeRole()
+    {
+        using var fixture = new Fixture(roles: ["gateway"]);
+        fixture.Compile("""
+            [NodeRole("gateway")] [HotfixComponent] public sealed class A(ComponentProbeState state) { }
+            [NodeRole("data")] [HotfixComponent] public sealed class B(ComponentProbeState state) { }
+            """, "services.AddSingleton<A>(); services.AddSingleton<B>();");
+        var result = await fixture.Manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.False(result.Succeeded);
+        Assert.Contains("multiple owners", result.ErrorMessage);
+        Assert.Empty(fixture.Root.GetRequiredService<ComponentProbeState>().Events);
+    }
+
+    [Theory]
+    [InlineData("private readonly ComponentProbeState _state = state; private ComponentProbeState View => _state;", "View")]
+    [InlineData("private ComponentProbeState Stored { get; } = state;", "Stored")]
+    [InlineData("", "state")]
+    public async Task Single_State_storage_and_stable_resource_wrappers_load_successfully(string storage, string access)
+    {
+        using var fixture = new Fixture(configure: services =>
+        {
+            services.AddLogging();
+            services.AddSingleton<Func<ComponentRegistrationResource>>(provider => provider.GetRequiredService<ComponentRegistrationResource>);
+            services.AddSingleton(provider => new Lazy<ComponentRegistrationResource>(provider.GetRequiredService<ComponentRegistrationResource>));
+        });
+        fixture.Compile($$"""
+            [HotfixComponent] public sealed class A(ComponentProbeState state,
+                System.Collections.Generic.IEnumerable<ComponentRegistrationResource> resources,
+                Func<ComponentRegistrationResource> factory, Lazy<ComponentRegistrationResource> lazy,
+                Microsoft.Extensions.Logging.ILogger<ComponentProbeState> logger)
+            {
+                {{storage}}
+                [ComponentStart] public ValueTask Begin(CancellationToken token)
+                {
+                    if (!System.Linq.Enumerable.Any(resources) || !ReferenceEquals(factory(), lazy.Value)) throw new Exception("missing resources");
+                    {{access}}.Events.Add("started");
+                    return default;
+                }
+            }
+            """, "services.AddSingleton<A>();");
+        var result = await fixture.Manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(result.Succeeded, result.ErrorMessage);
+        Assert.Equal(["started"], fixture.Root.GetRequiredService<ComponentProbeState>().Events);
     }
 
     [Fact]

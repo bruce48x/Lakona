@@ -41,6 +41,19 @@ State type has exactly one component owner; consumers inject that component, nev
 its State. App can expose State fields to its paired Hotfix assembly through
 `InternalsVisibleTo`. This is an ownership contract, not a security boundary.
 
+State injection uses a required, unkeyed, by-value parameter of its concrete
+marked type. Arrays, collections, factories, Lazy and other nested generic
+wrappers containing State are unsupported, including for non-component
+consumers. Ordinary stable resource interfaces and wrappers remain supported.
+`ILogger<State>` is a logging category, so it does not count as State injection.
+Retain State in at most one private readonly field or private get-only auto-property,
+using that same concrete State type. A captured primary-constructor parameter
+also counts as storage: use it directly, or initialize one member and use that
+member thereafter. Do not retain both or erase State to object/interface storage.
+Private computed views add no storage. These violations use `LAKONA20061`;
+runtime composition also rejects wrapped injection, duplicate stored State fields
+(including compiler-generated fields) and multiple component owners before Start.
+
 State classes are public, sealed, top-level, non-generic App classes with a
 public parameterless constructor. Constructors only initialize basic structures.
 Application assembly discovery and generated `LakonaProjectRole` metadata
