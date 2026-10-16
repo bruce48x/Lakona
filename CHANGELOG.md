@@ -4,6 +4,21 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-10-16 — Explicit component dependency and State boundaries
+
+**Key releases:** `Lakona.Game.Server 0.53.6`, `Lakona.Tool 0.43.57`,
+and `Lakona Hub 0.17.59`.
+
+- Component constructors now require concrete marked ComponentState for custom
+  App dependencies, including method-only use. State keeps data and actual
+  disposal implementations; business methods and computed properties belong
+  in Hotfix. Framework services, generated ActorAccess and third-party clients
+  retain their existing injection paths.
+- Breaking authoring change: migrate custom App resource APIs into Hotfix
+  components, remove manual State registration and route consumers through the
+  unique owner. Rebuild App/Hotfix together and restart; compiler/runtime checks,
+  generated guidance and the public Skill Pack enforce the same declarations.
+
 ## 2026-10-15 — Actor activation identity for business behavior
 
 **Key releases:** `Lakona.Game.Server 0.53.3`, `Lakona.Tool 0.43.53`,

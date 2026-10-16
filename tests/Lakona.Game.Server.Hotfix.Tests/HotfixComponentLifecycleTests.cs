@@ -18,6 +18,7 @@ public sealed class ComponentProbeState : IDisposable
 {
     public List<string> Events { get; } = [];
     public int Disposals;
+    public ComponentRollbackProbe Rollback { get; } = new();
     public void Dispose() => Disposals++;
 }
 
@@ -145,23 +146,25 @@ public sealed class HotfixComponentLifecycleTests
     [InlineData(true)]
     public async Task Rollback_deadline_is_shared_and_expiry_does_not_skip_remaining_components(bool cancelStartup)
     {
-        var probe = new ComponentRollbackProbe();
-        using var fixture = new Fixture(configure: services => services.AddSingleton(probe));
+        using var fixture = new Fixture();
+        var probe = fixture.Root.GetRequiredService<ComponentProbeState>().Rollback;
         fixture.Root.GetRequiredService<IOptions<HostOptions>>().Value.ShutdownTimeout = TimeSpan.FromMilliseconds(100);
         fixture.Compile("""
-            [HotfixComponent] public sealed class A(ComponentProbeState state, ComponentRollbackProbe probe)
+            [HotfixComponent] public sealed class A(ComponentProbeState state)
             {
                 public void Record(string item) => state.Events.Add(item);
+                public void RecordSlowToken(CancellationToken token)
+                { state.Rollback.SlowToken = token; state.Rollback.CanceledOnEntry = token.IsCancellationRequested; }
                 [ComponentStart] public ValueTask Begin(CancellationToken token) { Record("start:A"); return default; }
                 [ComponentStop] public ValueTask End(CancellationToken token)
-                { probe.RemainingToken = token; Record("stop:A"); return default; }
+                { state.Rollback.RemainingToken = token; Record("stop:A"); return default; }
             }
-            [HotfixComponent] public sealed class B(A a, ComponentRollbackProbe probe)
+            [HotfixComponent] public sealed class B(A a)
             {
                 [ComponentStart] public ValueTask Begin(CancellationToken token) { a.Record("start:B"); return default; }
                 [ComponentStop] public async ValueTask End(CancellationToken token)
                 {
-                    a.Record("stop:B"); probe.SlowToken = token; probe.CanceledOnEntry = token.IsCancellationRequested;
+                    a.Record("stop:B"); a.RecordSlowToken(token);
                     if (token.CanBeCanceled) await Task.Delay(Timeout.InfiniteTimeSpan, token);
                 }
             }
@@ -325,6 +328,12 @@ public sealed class HotfixComponentLifecycleTests
     }
 
     [Theory]
+    [InlineData("[HotfixComponent] public sealed class A(ComponentRegistrationResource resource) {}",
+        "services.AddSingleton<A>();", "custom ServerApp dependencies")]
+    [InlineData("[HotfixComponent] public sealed class A(Func<ComponentRegistrationResource> resource) {}",
+        "services.AddSingleton<A>();", "custom ServerApp dependencies")]
+    [InlineData("[HotfixComponent] public sealed class A(object resource) {}",
+        "services.AddSingleton<A>();", "object and unmarked App")]
     [InlineData("[HotfixComponent] public sealed class A(ComponentProbeState first, ComponentProbeState second) {}",
         "services.AddSingleton<A>();", "at most one state")]
     [InlineData("[HotfixComponent] public sealed class A(ComponentProbeState[] states) {}",
@@ -392,13 +401,14 @@ public sealed class HotfixComponentLifecycleTests
         using var fixture = new Fixture(configure: services =>
         {
             services.AddLogging();
-            services.AddSingleton<Func<ComponentRegistrationResource>>(provider => provider.GetRequiredService<ComponentRegistrationResource>);
-            services.AddSingleton(provider => new Lazy<ComponentRegistrationResource>(provider.GetRequiredService<ComponentRegistrationResource>));
+            services.AddSingleton<System.Net.Http.HttpClient>();
+            services.AddSingleton<Func<System.Net.Http.HttpClient>>(provider => provider.GetRequiredService<System.Net.Http.HttpClient>);
+            services.AddSingleton(provider => new Lazy<System.Net.Http.HttpClient>(provider.GetRequiredService<System.Net.Http.HttpClient>));
         });
         fixture.Compile($$"""
             [HotfixComponent] public sealed class A(ComponentProbeState state,
-                System.Collections.Generic.IEnumerable<ComponentRegistrationResource> resources,
-                Func<ComponentRegistrationResource> factory, Lazy<ComponentRegistrationResource> lazy,
+                System.Collections.Generic.IEnumerable<System.Net.Http.HttpClient> resources,
+                Func<System.Net.Http.HttpClient> factory, Lazy<System.Net.Http.HttpClient> lazy,
                 Microsoft.Extensions.Logging.ILogger<ComponentProbeState> logger)
             {
                 {{storage}}

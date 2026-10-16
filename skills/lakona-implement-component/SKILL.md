@@ -22,17 +22,23 @@ background-task framework or extra container.
    ComponentState in App: top-level, public, sealed, non-generic, with a public
    parameterless constructor initializing basic structures only. Do not register
    State manually or add empty State to stateless tools. State is optional, but
-   its `[ComponentState]` marker is mandatory when used. Directly writing fields
-   or properties through an injected App object requires marked State; manual
-   Singleton registration is not a substitute (`LAKONA20062`). Reads, stable
-   resource APIs, third-party clients and new DTO initialization remain valid.
+   its `[ComponentState]` marker is mandatory for every custom ServerApp dependency
+   injected into a component, including read-only or method-only use. Manual
+   Singleton registration, App interfaces/wrappers and object/dynamic injection
+   do not bypass this rule (`LAKONA20061`). Keep resource/business APIs in Hotfix;
+   framework services, generated ActorAccess and third-party clients remain valid.
+   State declares fields/auto-properties and basic initialization; ordinary methods,
+   computed properties, indexers and operators belong in Hotfix (`LAKONA20062`).
+   Only actual IDisposable/IAsyncDisposable implementations may perform mechanical
+   release; inline that release rather than adding State helper methods.
    Inject at most one State directly by its concrete type, with a required,
    unkeyed, by-value parameter. Retain it in one private readonly field or private
    get-only auto-property, or use the primary-constructor capture directly;
    do not retain both. Do not erase State to object/interfaces or wrap it in
    arrays, collections, factories or nested generics (`LAKONA20061`). One State
    type has one component owner even when NodeRole differs. This restriction
-   concerns marked State; ordinary stable resource interfaces/wrappers remain valid.
+   also covers unmarked custom App types; external resource interfaces/wrappers
+   and ILogger<T> categories remain valid. App DTO method arguments are unaffected.
 4. Read [resource-patterns.md](references/resource-patterns.md) for initialization
    and disposal. Put optional stable resource registration on the HotfixComponent:
    `[ComponentConfigureServices] public static void ConfigureServices(IServiceCollection

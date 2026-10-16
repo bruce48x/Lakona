@@ -211,13 +211,14 @@ constructor, choose direct parameter capture or one explicit storage member;
 using both retains two copies of the reference. Stable resource dependencies
 such as client interfaces and resource factories are still allowed.
 
-The `[ComponentState]` marker cannot be omitted: an unmarked App carrier
-manually registered as a Singleton loses State ownership checks. Direct component
-writes through such an injected carrier report `LAKONA20062`, including compound
-assignments, increments and `ref`/`out` arguments. Add the marker and remove the
-manual registration. Reads and stable resource method calls remain valid, as do
-new DTOs and third-party client types. The check uses project-role metadata,
-not type names, and does not follow local aliases or arbitrary method effects.
+Every custom App dependency injected into a component requires `[ComponentState]`,
+even for reads or method-only use. Unmarked App classes/interfaces and wrappers
+report `LAKONA20061`; manual Singleton registration is not a substitute. Keep only
+data and actual disposal implementations in State; initialization, queries and
+refresh helpers belong in the component (`LAKONA20062`). Framework services,
+generated ActorAccess, third-party resources and ILogger<T> categories remain
+valid. App DTO method arguments and new local values are unaffected. Checks use
+project-role metadata and declarations, not names or arbitrary method effects.
 FeedState's stable gate serializes sends across generation overlap because
 ClientWebSocket permits only one send at a time. Ordinary component calls have
 no mailbox. Callers must stop and await their sends before Stop closes the socket.

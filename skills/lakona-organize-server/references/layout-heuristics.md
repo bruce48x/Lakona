@@ -11,6 +11,12 @@ These constraints follow runtime ownership rather than directory taste:
 - `Server.Hotfix` owns reloadable product behavior: RPC handlers, complete HTTP
   service declarations and handlers, actor behavior, timer callbacks,
   lifecycle policy, and HotfixComponent tools, registration, and resource hooks.
+- A component may inject a custom App dependency only as its concrete marked
+  ComponentState. App interfaces, resource wrappers and object injection cannot
+  hide business state. Keep State data-only, with basic initialization and actual
+  IDisposable/IAsyncDisposable implementations; move ordinary methods and computed
+  properties to the Hotfix owner. Framework services, generated ActorAccess and
+  external stable resource interfaces remain valid dependencies.
 - Business exceptions deriving directly or indirectly from `System.Exception`
   may stay beside Hotfix business logic. They are created with `new` from runtime
   data, require no role or DI registration, and must not use `[HotfixComponent]`.

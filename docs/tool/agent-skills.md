@@ -145,8 +145,11 @@ maintenance policy rather than a second copy of those workflows.
 Service and HTTP workflows use the component Skill when resource lifecycle work
 is required by the authorized task; this handoff does not require renewed
 approval. Concrete HotfixComponent dependencies own business resource operations.
-Stable infrastructure interfaces remain valid for configuration, secrets and
-third-party clients. Prefer the component's Hotfix ComponentConfigureServices
+Framework and third-party infrastructure interfaces remain valid for
+configuration, secrets and clients. Component constructors require concrete
+marked State for custom App dependencies, including method-only use; State
+declares data, basic initialization and actual disposal implementations rather
+than business methods. Prefer the component's Hotfix ComponentConfigureServices
 entry for stable root-DI resource registration; App AddServices remains valid for
 global host composition. See [Hotfix Components](../hotfix/components.md) for the
 framework contract and the Skill's [resource examples](../../skills/lakona-implement-component/references/resource-patterns.md)

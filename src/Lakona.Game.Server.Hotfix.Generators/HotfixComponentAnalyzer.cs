@@ -48,6 +48,8 @@ public sealed class HotfixComponentAnalyzer : DiagnosticAnalyzer
                     if (component && states.Length == 1 && states[0].Type is INamedTypeSymbol stateType) owners.Add((stateType, type));
                     foreach (var parameter in constructor.Parameters)
                     {
+                        if (component && IsUnsupportedAppDependency(parameter.Type))
+                            Report(Contract, parameter, "Custom ServerApp dependencies must be directly injected concrete [ComponentState] types. Move business logic to HotfixComponent; object and unmarked App interfaces/wrappers are unsupported.");
                         if (ContainsState(parameter.Type) && !HasAttribute(parameter.Type, Prefix + "ComponentStateAttribute"))
                             Report(Contract, parameter, "Inject ComponentState directly by its concrete type; state collections and wrappers are unsupported.");
                         if ((HasAttribute(parameter.Type, Prefix + "HotfixComponentAttribute") || HasAttribute(parameter.Type, Prefix + "ComponentStateAttribute"))
@@ -89,6 +91,19 @@ public sealed class HotfixComponentAnalyzer : DiagnosticAnalyzer
                         Report(StateDeclaration, member, "ComponentState cannot retain callbacks or event subscriptions.");
                 }
                 var methods = type.GetMembers().OfType<IMethodSymbol>().ToArray();
+                if (state)
+                {
+                    for (var current = type; current is not null && current.SpecialType != SpecialType.System_Object; current = current.BaseType)
+                    foreach (var member in current.GetMembers().Where(member => !member.IsImplicitlyDeclared))
+                    {
+                        if (member is IMethodSymbol method
+                            && method.MethodKind is not (MethodKind.Constructor or MethodKind.StaticConstructor or MethodKind.PropertyGet or MethodKind.PropertySet or MethodKind.EventAdd or MethodKind.EventRemove)
+                            && !IsStateDisposal(type, method))
+                            Report(StateDeclaration, type, "ComponentState may only contain data, initialization and IDisposable/IAsyncDisposable implementations; move ordinary methods and operators to its HotfixComponent.");
+                        if (member is IPropertySymbol property && !HotfixActorBoundaryAnalyzer.IsAutoProperty(property, symbolContext.CancellationToken))
+                            Report(StateDeclaration, type, "ComponentState properties must be auto-properties; move computed properties and indexers to its HotfixComponent.");
+                    }
+                }
                 var configurations = methods.Where(method => method.PartialDefinitionPart is null
                     && HasAttribute(method, Prefix + "ComponentConfigureServicesAttribute")).ToArray();
                 if (configurations.Length > 1)
@@ -120,7 +135,6 @@ public sealed class HotfixComponentAnalyzer : DiagnosticAnalyzer
 
             start.RegisterOperationAction(operationContext =>
             {
-                if (options.IsHotfixProject) AnalyzeUnmarkedStateWrite(operationContext);
                 var member = operationContext.Operation switch
                 {
                     IFieldReferenceOperation field => (ISymbol)field.Field,
@@ -184,42 +198,23 @@ public sealed class HotfixComponentAnalyzer : DiagnosticAnalyzer
             && (named.TypeArguments.Any(ContainsState)
             || named.ContainingType is { } containing && ContainsState(containing));
 
-    private static void AnalyzeUnmarkedStateWrite(OperationAnalysisContext context)
+    private static bool IsUnsupportedAppDependency(ITypeSymbol type)
     {
-        var instance = context.Operation switch
-        {
-            IFieldReferenceOperation field => field.Instance,
-            IPropertyReferenceOperation property => property.Instance,
-            _ => null
-        };
-        if (instance is null || !IsWrite(context.Operation)) return;
-        var component = context.ContainingSymbol.ContainingType;
-        if (component is null || !HasAttribute(component, Prefix + "HotfixComponentAttribute")
-            || HotfixActorBoundaryAnalyzer.ResolveActivationConstructor(component) is not { } constructor) return;
-
-        var receiver = Unwrap(instance);
-        var dependency = receiver switch
-        {
-            IParameterReferenceOperation parameter when SymbolEqualityComparer.Default.Equals(parameter.Parameter.ContainingSymbol, constructor)
-                => parameter.Parameter.Type,
-            IFieldReferenceOperation field when field.Instance is IInstanceReferenceOperation
-                && SymbolEqualityComparer.Default.Equals(field.Field.ContainingType, component)
-                && HotfixActorBoundaryAnalyzer.IsDirectConstructorDependency(field.Field, constructor, context.CancellationToken)
-                => field.Field.Type,
-            IPropertyReferenceOperation property when property.Instance is IInstanceReferenceOperation
-                && SymbolEqualityComparer.Default.Equals(property.Property.ContainingType, component)
-                && HotfixActorBoundaryAnalyzer.IsDirectConstructorDependency(property.Property, constructor, context.CancellationToken)
-                => property.Property.Type,
-            _ => null
-        };
-        if (dependency is null) return;
-        var stateType = IsServerAppType(dependency) ? dependency
-            : instance.Type is { } converted && IsServerAppType(converted) ? converted : null;
-        if (stateType is null || !stateType.IsReferenceType || HasAttribute(stateType, Prefix + "ComponentStateAttribute")) return;
-        context.ReportDiagnostic(Diagnostic.Create(StateDeclaration, context.Operation.Syntax.GetLocation(),
-            $"Component '{component.ToDisplayString()}' directly writes injected ServerApp dependency '{stateType.ToDisplayString()}'. "
-            + "Use an explicitly marked [ComponentState] with framework-owned registration, or use a stable resource API instead of direct state mutation."));
+        // ILogger's type argument is only a category. ActorAccess is the generated framework entry.
+        if (type is INamedTypeSymbol logger && logger.OriginalDefinition.ToDisplayString() == "Microsoft.Extensions.Logging.ILogger<TCategoryName>"
+            || type.ToDisplayString() == "Lakona.Game.Server.Hotfix.ActorAccess") return false;
+        if (type.SpecialType == SpecialType.System_Object || type.TypeKind == TypeKind.Dynamic) return true;
+        if (ContainsState(type)) return false; // Existing state-wrapper validation owns these diagnostics.
+        return IsServerAppType(type)
+            || type is IArrayTypeSymbol array && IsUnsupportedAppDependency(array.ElementType)
+            || type is INamedTypeSymbol named && (named.TypeArguments.Any(IsUnsupportedAppDependency)
+                || named.ContainingType is { } containing && IsUnsupportedAppDependency(containing));
     }
+
+    private static bool IsStateDisposal(INamedTypeSymbol state, IMethodSymbol method) => state.AllInterfaces
+        .Where(type => type.ToDisplayString() is "System.IDisposable" or "System.IAsyncDisposable")
+        .SelectMany(type => type.GetMembers().OfType<IMethodSymbol>())
+        .Any(contract => SymbolEqualityComparer.Default.Equals(state.FindImplementationForInterfaceMember(contract), method));
 
     private static bool IsServerAppType(ITypeSymbol type) => type.ContainingAssembly?.GetAttributes().Any(attribute =>
         attribute.AttributeClass?.ToDisplayString() == "System.Reflection.AssemblyMetadataAttribute"
@@ -227,30 +222,6 @@ public sealed class HotfixComponentAnalyzer : DiagnosticAnalyzer
         && attribute.ConstructorArguments[0].Value is "LakonaProjectRole"
         && attribute.ConstructorArguments[1].Value is string role
         && string.Equals(role.Trim(), "ServerApp", StringComparison.OrdinalIgnoreCase)) == true;
-
-    private static IOperation Unwrap(IOperation operation)
-    {
-        while (true)
-        {
-            if (operation is IConversionOperation { OperatorMethod: null } conversion) operation = conversion.Operand;
-            else if (operation is IParenthesizedOperation parenthesized) operation = parenthesized.Operand;
-            else return operation;
-        }
-    }
-
-    private static bool IsWrite(IOperation operation)
-    {
-        // Tuple targets and transparent wrappers still write the same member.
-        while (operation.Parent is IConversionOperation or IParenthesizedOperation or ITupleOperation)
-            operation = operation.Parent;
-        return operation.Parent switch
-        {
-            IAssignmentOperation assignment => assignment.Target == operation,
-            IIncrementOrDecrementOperation increment => increment.Target == operation,
-            IArgumentOperation argument => argument.Parameter?.RefKind is RefKind.Ref or RefKind.Out,
-            _ => false
-        };
-    }
 
     private static bool ForbiddenStateType(ITypeSymbol type)
     {

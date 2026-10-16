@@ -582,6 +582,9 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         internal static bool IsAutoProperty(IPropertySymbol property, System.Threading.CancellationToken cancellationToken)
         {
+            if (property.DeclaringSyntaxReferences.Length == 0)
+                return property.GetMethod is { } getter && GeneratorSymbolFacts.HasAttribute(getter, "System.Runtime.CompilerServices.CompilerGeneratedAttribute")
+                    && (property.SetMethod is null || GeneratorSymbolFacts.HasAttribute(property.SetMethod, "System.Runtime.CompilerServices.CompilerGeneratedAttribute"));
             return property.DeclaringSyntaxReferences
                 .Select(reference => reference.GetSyntax(cancellationToken))
                 .OfType<PropertyDeclarationSyntax>()

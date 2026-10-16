@@ -56,27 +56,39 @@ runtime composition also rejects wrapped injection, duplicate stored State field
 
 State classes are public, sealed, top-level, non-generic App classes with a
 public parameterless constructor. Constructors only initialize basic structures.
+State contains fields and auto-properties, not business methods, computed
+properties, indexers or operators, including inherited business members. The
+only allowed non-constructor methods implement `IDisposable.Dispose` or
+`IAsyncDisposable.DisposeAsync`, implicitly or explicitly. A method merely named
+Dispose is not enough; keep mechanical release inline in the actual interface
+implementation and move helpers and business operations into the component.
 Application assembly discovery and generated `LakonaProjectRole` metadata
 identify them; filenames and directory names do not. The framework registers
 each concrete State type once in root DI. Applications must not override this
 registration, create State manually or shadow it in generation DI.
 
-State classes are optional; their `[ComponentState]` marker is mandatory. A
-component directly writing fields or properties of a constructor-injected
-ServerApp object must use marked State (`LAKONA20062`). Manually registering an
-unmarked carrier as a Singleton does not exempt these writes. Mark the carrier
-and remove its manual registration, or use the operations of a stable resource.
+State classes are optional; their `[ComponentState]` marker is mandatory for
+custom ServerApp types injected into a HotfixComponent (`LAKONA20061`). This
+applies even when the component only reads data or calls a method. Custom App
+interfaces, values, arrays and generic wrappers do not bypass the requirement;
+neither do manual Singleton registration or opaque object/dynamic injection.
+Custom App resource wrappers and typed configuration dependencies must be
+reorganized: keep business APIs in HotfixComponent and their stable data/handles
+in its single State. Merely marking a business class as State is insufficient.
 
-The compile-time check covers constructor parameters and their directly assigned
-component fields/get-only properties, including primary constructors and
-transparent casts. Assignments, compound/coalescing/deconstruction assignments,
-increments/decrements and `ref`/`out` arguments are writes. Reads, resource API
-calls, ordinary method DTO parameters and newly constructed objects remain
-valid. App identity comes from `LakonaProjectRole` assembly metadata, not names;
-third-party client types are not inferred to be State because they are mutable.
-This direct-write check does not follow local aliases or inspect called method
-bodies and nested object graphs. Those paths still obey the State ownership
-contract; runtime discovery only recognizes explicitly marked State.
+Framework services, the generated ActorAccess entry, and external stable
+resources remain valid, including ILogger<T>, IConfiguration, HttpClient and
+database clients and their ordinary resource wrappers. ILogger's type argument
+is only a category. App identity uses LakonaProjectRole assembly metadata, not
+names or folders. App DTOs as ordinary method arguments and newly created local
+values remain valid; this dependency rule applies to component constructors.
+
+State declaration violations use `LAKONA20062`. Both compiler and runtime reject
+unsupported dependencies and executable State members. These are declaration
+checks, not method-body or heap analysis: constructors must perform only basic
+initialization, disposal implementations only mechanical release, and resource
+objects must not hide Hotfix logic or State references. Authors retain those
+usage responsibilities.
 
 `LakonaProjectRole` uses the existing project-role rules: surrounding whitespace
 is ignored and `ServerApp`/`Hotfix` comparisons are case-insensitive. Component
@@ -302,7 +314,7 @@ interface injection with concrete component injection and migrate tests which
 overrode components. Rebuild App and Hotfix together and restart the node.
 
 Compile-time diagnostics: `LAKONA20061` covers component/hook/injection
-and registration contracts, `LAKONA20062` State declarations and unmarked injected
-App state writes, and `LAKONA20063` direct ownership violations.
+and custom App dependency contracts, `LAKONA20062` State declarations/executable
+members, and `LAKONA20063` direct ownership violations.
 `LAKONA20057` remains the component dependency-cycle diagnostic;
 custom registration cannot downgrade a forbidden component graph to a warning.

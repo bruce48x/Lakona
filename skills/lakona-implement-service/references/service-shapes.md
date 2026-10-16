@@ -137,6 +137,10 @@ Place business resource operations and initialization in HotfixComponent.
 Consumers inject the concrete component; they do not inject a component alias
 or State. Stable handles and optional marked State stay in App. Use
 `lakona-implement-component` for lifecycle work already required by the task.
+Component constructors require marked State for custom App dependencies; a
+read-only API or App interface does not exempt a business class. Keep ordinary
+methods in Hotfix and only data/initialization/mechanical disposal in State.
+Framework services and third-party resource interfaces remain valid.
 
 Hooks run on first activation/final shutdown, not reload. No detached tasks or
 timers belong in a component; use Actor + Behavior for scheduled work.

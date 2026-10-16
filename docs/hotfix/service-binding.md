@@ -259,7 +259,11 @@ This resolution order is a permanent part of the Hotfix authoring model:
 [Hotfix Components](./components.md) use one public constructor and concrete,
 required, unkeyed injection. The generated singleton cannot be overridden,
 aliased, factory-created or injected as a collection. These restrictions apply
-to every component consumer. Stable infrastructure interfaces remain supported.
+to every component consumer. Framework and third-party infrastructure interfaces
+remain supported. A HotfixComponent's custom ServerApp dependencies must be
+concrete marked ComponentState, even when used through read or method calls;
+App interfaces and wrappers cannot hide them. State contains data and mechanical
+disposal only. See [Hotfix Components](components.md) for the declaration rules.
 `LAKONA20057` reports component constructor cycles as errors even when custom
 registration exists; `LAKONA20061` validates the component contract. All effective
 components activate at initial startup, including tools without hooks. Validate

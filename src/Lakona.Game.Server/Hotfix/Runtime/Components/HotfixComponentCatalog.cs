@@ -46,6 +46,8 @@ internal sealed class HotfixComponentCatalog(IReadOnlyList<HotfixComponentDescri
                 || typeof(Exception).IsAssignableFrom(type) || type.GetConstructors().Length != 1)
                 throw new InvalidOperationException($"Hotfix component '{type.FullName}' must be public sealed non-generic with exactly one public constructor.");
             var parameters = type.GetConstructors()[0].GetParameters();
+            if (parameters.Any(parameter => ComponentStateRegistration.IsUnsupportedAppDependency(parameter.ParameterType)))
+                throw new InvalidOperationException($"Component '{type}' requires directly injected concrete [ComponentState] for custom ServerApp dependencies; object and unmarked App interfaces/wrappers are unsupported. Move business logic to HotfixComponent.");
             if (parameters.Any(parameter => ComponentStateRegistration.RefersToState(parameter.ParameterType)
                 && !ComponentStateRegistration.IsState(parameter.ParameterType)))
                 throw new InvalidOperationException($"Component '{type}' must inject ComponentState directly by concrete type; state collections and wrappers are unsupported.");

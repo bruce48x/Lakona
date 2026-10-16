@@ -1,4 +1,5 @@
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Testing.Fixtures.App;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,7 +16,7 @@ public sealed class CompositionProbe : IAsyncDisposable
     private readonly CompositionProbeState state;
     private readonly Action<int>? observeDisposal;
 
-    public CompositionProbe(CompositionProbeState state, Action<int>? observeDisposal = null)
+    public CompositionProbe(CompositionProbeState state, ActorAccess actors, Action<int>? observeDisposal = null)
     {
         this.state = state;
         this.observeDisposal = observeDisposal;

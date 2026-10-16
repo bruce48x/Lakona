@@ -87,6 +87,10 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
           ComponentStart/ComponentStop run on first activation/final shutdown;
           ordinary reload preserves injected State and replaces logic only. Use
           concrete component injection, and Actor + Behavior for timers/background work.
+          Custom App dependencies injected into a component must be concrete marked
+          ComponentState; keep State data-only, with basic initialization and mechanical
+          disposal. Framework services, generated ActorAccess and third-party clients
+          remain valid dependencies. Move ordinary State methods into Hotfix.
           Every class here must declare a Hotfix role; keep data types in
           `Server/App/` or `Shared/`.
         - Edit `Client/` for the selected client UI and client-side session flow.
