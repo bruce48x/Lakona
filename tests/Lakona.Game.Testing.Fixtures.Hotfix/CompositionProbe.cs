@@ -13,11 +13,12 @@ public sealed class CompositionProbe : IAsyncDisposable
         services.AddSingleton(_ => new CompositionRegistrationProbe(configuration["Lakona:Node:Id"]!));
 
     private readonly CompositionProbeState state;
+    private readonly Action<int>? observeDisposal;
 
-    public CompositionProbe(CompositionProbeState state, Action<CompositionProbeState>? observe = null)
+    public CompositionProbe(CompositionProbeState state, Action<int>? observeDisposal = null)
     {
         this.state = state;
-        observe?.Invoke(state);
+        this.observeDisposal = observeDisposal;
     }
 
     [ComponentStart]
@@ -36,5 +37,6 @@ public sealed class CompositionProbe : IAsyncDisposable
         await Task.Yield();
         state.LifecycleEvents.Add("generation-dispose");
         state.DisposeCount++;
+        observeDisposal?.Invoke(state.DisposeCount);
     }
 }

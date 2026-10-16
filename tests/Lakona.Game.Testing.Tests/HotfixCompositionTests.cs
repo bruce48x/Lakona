@@ -37,14 +37,14 @@ public sealed class HotfixCompositionTests
     [Fact]
     public async Task Failed_activation_releases_partially_constructed_generation_asynchronously()
     {
-        CompositionProbeState? state = null;
+        var disposeCount = 0;
         await using var cluster = new LakonaTestClusterBuilder()
             .AddNode("data-1", "data")
             .ConfigureNodes(node =>
             {
                 node.UseHotfixAssembly(typeof(HttpCompositionProbe).Assembly);
                 node.ConfigureServices((services, _) =>
-                    services.AddSingleton<Action<CompositionProbeState>>(value => state = value));
+                    services.AddSingleton<Action<int>>(value => disposeCount = value));
                 node.ConfigureAppConfiguration(configuration =>
                     configuration.AddInMemoryCollection(new Dictionary<string, string?>
                     {
@@ -60,8 +60,7 @@ public sealed class HotfixCompositionTests
             cluster.StartAsync(TestContext.Current.CancellationToken));
 
         Assert.Contains("Disabled HTTP module was activated", error.ToString());
-        Assert.NotNull(state);
-        Assert.Equal(1, state.DisposeCount);
+        Assert.Equal(1, disposeCount);
     }
 
     [Fact]

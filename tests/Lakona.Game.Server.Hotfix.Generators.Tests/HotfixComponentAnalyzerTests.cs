@@ -17,6 +17,7 @@ public sealed class HotfixComponentAnalyzerTests
     [InlineData("State[]")]
     [InlineData("System.Collections.Generic.IEnumerable<State>")]
     [InlineData("System.Func<State>")]
+    [InlineData("System.Action<State>")]
     [InlineData("System.Lazy<State>")]
     [InlineData("System.Collections.Generic.Dictionary<string, System.Lazy<State[]>>")]
     [InlineData("(State, int)")]
