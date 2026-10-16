@@ -85,14 +85,12 @@ not run Start. Startup failure keeps readiness closed and preserves the original
 error. Cleanup failures do not skip other owners; cancellation is not forced
 interruption. Stop after relevant checks pass and report unverified outcomes.
 
-For framework lifecycle or hosting changes, select the relevant failure paths:
+Select checks for the application's changed resource behavior:
 
-- Stop failure still permits remaining Stops and disposal; rollback shares one
-  deadline rather than resetting a timeout per component.
-- A publication/activation failure after successful component Start cleans up
-  initial startup; an ordinary failed reload preserves the running generation.
-- A root resource factory failure disposes already-created resources; a prepared
-  Hotfix assembly unloads even if activation never reached Start.
-- Awaited Start gates readiness and awaited Stop gates disposal. Preserve
-  ActorStop → ComponentStop → generation cleanup → State disposal, and verify
-  frozen component identity/set/State binding during publication.
+- Initialization failure keeps the node NotReady and releases failed candidates;
+  successful Start proves the resource usable before Ready.
+- A reload reuses stable State/resources and runs neither lifecycle hook.
+- Custom callers finish before Stop; a failed graceful close does not prevent
+  final disposal or skip other cleanup.
+- Enabled nodes provide the required dependencies/configuration; other nodes
+  do not construct role-specific components or register their resources.

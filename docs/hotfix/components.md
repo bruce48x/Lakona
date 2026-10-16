@@ -267,7 +267,11 @@ Start/Stop to a tool does not turn it into an Actor or a background-worker host.
 
 ## Agar example
 
-The runnable example is `samples/Game.Unity.Agar`:
+The runnable example is [Game.Unity.Agar](../../samples/Game.Unity.Agar/README.md).
+Its [PostgresUserStore](../../samples/Game.Unity.Agar/Server/Hotfix/Users/PostgresUserStore.cs),
+[RedisLeaderboardStore](../../samples/Game.Unity.Agar/Server/Hotfix/Leaderboard/RedisLeaderboardStore.cs)
+and [RedisLeaderboardState](../../samples/Game.Unity.Agar/Server/App/Infrastructure/Redis/RedisLeaderboardState.cs)
+demonstrate the two resource ownership patterns:
 
 | Concern | Stable App | Hotfix |
 | --- | --- | --- |

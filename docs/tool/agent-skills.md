@@ -116,6 +116,14 @@ gates pass, further verification requires new changes, failures, or a concrete
 unresolved risk. Preserve real runtime evidence where the changed contract
 requires it and report any unverified outcomes.
 
+Public Skills and their references contain reusable project workflows and
+self-contained examples whose illustrative names can be adapted to the target
+project. Keep sample-specific class mappings and repository maintenance or
+implementation history in framework docs or sample documentation. Local Skill
+links must resolve inside the bundled pack; framework contributor scripts,
+internal test suites and source-checkout paths must not be prerequisites for
+using a Skill in a generated project.
+
 ## Public Skill Responsibilities
 
 The canonical workflows, API examples and validation guidance live in the
@@ -142,7 +150,9 @@ third-party clients. Prefer the component's Hotfix ComponentConfigureServices
 entry for stable root-DI resource registration; App AddServices remains valid for
 global host composition. See [Hotfix Components](../hotfix/components.md) for the
 framework contract and the Skill's [resource examples](../../skills/lakona-implement-component/references/resource-patterns.md)
-for complete authoring patterns, including the Agar mapping.
+for complete authoring patterns. The framework guide's
+[Agar example](../hotfix/components.md#agar-example) maps those patterns to the
+runnable sample.
 
 The client Skill observes the generated facade's actual `ConnectionStateChanged`
 event and initial `ConnectionState`, separately from authentication and session
@@ -162,6 +172,10 @@ these focused checks alongside the affected Skill changes:
 - Project creation tests compare the entire emitted Skill Pack with canonical
   source; release smoke checks verify the packed Tool and Hub artifacts.
 - Relevant document/link checks cover this authority and changed references.
+- Framework lifecycle/hosting changes also select regression coverage for shared
+  rollback deadlines, initial publication failure, partial root-factory cleanup,
+  prepared-assembly unload and shutdown ordering. These framework checks do not
+  require application users to have the Lakona source checkout.
 
 These checks do not replace runtime evidence for changed framework behavior.
 Choose affected failure paths from the component Skill and existing lifecycle

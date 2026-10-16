@@ -11,8 +11,10 @@ recommendations and keep harmless variation when it expresses the user's model.
 
 ## Workflow
 
-1. Read the repository instructions and architecture authorities before
-   judging the tree. Inventory the Shared, stable App, Hotfix, generated,
+1. Read the target project's instructions, relevant README sections and any
+   architecture documentation it provides before judging the tree. Do not
+   require the Lakona source repository or its contributor documentation.
+   Inventory the Shared, stable App, Hotfix, generated,
    configuration, and test projects. Complete this step when every relevant
    assembly boundary and scoped instruction is accounted for.
 2. Establish the requested outcome: diagnosis, options, a proposed tree, or an

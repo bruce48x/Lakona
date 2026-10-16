@@ -5,7 +5,7 @@
 - [Project setup](#project-setup)
 - [Root-owned synchronous client](#root-owned-synchronous-client)
 - [State-owned asynchronous client](#state-owned-asynchronous-client)
-- [Agar mapping](#agar-mapping)
+- [Reload and shutdown](#reload-and-shutdown)
 
 ## Project setup
 
@@ -229,21 +229,11 @@ await completion before checking cancellation; do not abandon acquisition with
 Do not register the State-owned handle with another DI disposal owner. Other
 constructors inject the component, not a factory that requires completed Start.
 
-## Agar mapping
+## Reload and shutdown
 
-The framework's Agar sample applies the same ownership patterns; it is not
-required to use this Skill:
-
-| Pattern | Agar implementation |
-| --- | --- |
-| Root-owned client, no State | Hotfix PostgresUserStore declares its stable NpgsqlDataSource through ComponentConfigureServices, probes/initializes schema in Start, and owns user SQL. Root DI disposes the pool. |
-| State-owned asynchronous client | Hotfix RedisLeaderboardStore connects/probes in Start and closes in Stop. App RedisLeaderboardState retains the stable connection and key prefix and performs final Dispose. |
-
-Both Stores use NodeRole(data); consumers inject their concrete types.
-Matchmaking/room timers remain Actor + Behavior.
-
-Reload does not reconnect clients, rerun migrations or change startup prefixes.
+Reload does not reconnect clients, rerun initialization or change values captured
+during Start.
 Start and Stop can run on different Hotfix instances. Component names, effective
 set (including stateless tools), State binding/layout and registration changes
 require restart. Ensure custom callers have stopped before closing resources,
-and verify affected persistence/readiness failures against real dependencies.
+and verify affected resource/readiness failures against real dependencies.

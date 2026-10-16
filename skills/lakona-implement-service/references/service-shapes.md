@@ -138,11 +138,6 @@ Consumers inject the concrete component; they do not inject a component alias
 or State. Stable handles and optional marked State stay in App. Use
 `lakona-implement-component` for lifecycle work already required by the task.
 
-The Agar example registers its PostgreSQL pool through Hotfix PostgresUserStore's
-ComponentConfigureServices method and implements
-schema initialization/user SQL in Hotfix PostgresUserStore. RedisLeaderboardStore
-owns startup, queries and graceful Stop while its App RedisLeaderboardState
-retains the connection and prefix across generations and performs final disposal.
 Hooks run on first activation/final shutdown, not reload. No detached tasks or
 timers belong in a component; use Actor + Behavior for scheduled work.
 
@@ -153,7 +148,9 @@ probes, cleans failed local candidates and fails startup on unavailable resource
 Optional NodeRole excludes components before construction; missing configuration
 on an enabled node must fail. The same NodeRole filters component registration.
 Dependencies start first, Stop runs in reverse after callers have stopped, and
-root resources are disposed last. See the component Skill's resource patterns.
+root resources are disposed last. See the component Skill's
+[resource patterns](../../lakona-implement-component/references/resource-patterns.md)
+for complete examples with and without State.
 
 ## Callbacks And Sessions
 
