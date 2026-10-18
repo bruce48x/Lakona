@@ -54,7 +54,7 @@ internal sealed class HubUpdateService : IHubUpdateService
     private const string Repository = "bruce48x/Lakona";
     private const string ManifestAssetName = "lakona-hub-manifest.json";
     private readonly HttpClient httpClient;
-    private readonly string platform;
+    private readonly Func<string> platformProvider;
     private readonly string updateRoot;
     private readonly IHubSystemPackageLauncher systemPackageLauncher;
 
@@ -62,7 +62,7 @@ internal sealed class HubUpdateService : IHubUpdateService
         : this(
             CreateHttpClient(),
             CurrentApplicationVersion(),
-            HubPlatform.Current(),
+            HubPlatform.Current,
             HubInstallation.UpdateRoot(),
             new HubSystemPackageLauncher())
     {
@@ -74,10 +74,20 @@ internal sealed class HubUpdateService : IHubUpdateService
         string platform,
         string updateRoot,
         IHubSystemPackageLauncher? systemPackageLauncher = null)
+        : this(httpClient, currentVersion, () => platform, updateRoot, systemPackageLauncher)
+    {
+    }
+
+    internal HubUpdateService(
+        HttpClient httpClient,
+        string currentVersion,
+        Func<string> platformProvider,
+        string updateRoot,
+        IHubSystemPackageLauncher? systemPackageLauncher = null)
     {
         this.httpClient = httpClient;
         CurrentVersion = currentVersion;
-        this.platform = platform;
+        this.platformProvider = platformProvider;
         this.updateRoot = updateRoot;
         this.systemPackageLauncher = systemPackageLauncher ?? new HubSystemPackageLauncher();
     }
@@ -86,6 +96,8 @@ internal sealed class HubUpdateService : IHubUpdateService
 
     public async Task<HubAvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        var platform = platformProvider();
         using var releasesResponse = await httpClient.GetAsync(
             $"https://api.github.com/repos/{Repository}/releases?per_page=30",
             cancellationToken);
@@ -287,11 +299,14 @@ internal static class HubPlatform
 
 internal static class LinuxPackageFormat
 {
-    public static string Current()
+    public static string Current() => Current(File.Exists, File.ReadAllText);
+
+    internal static string Current(Func<string, bool> fileExists, Func<string, string> readAllText)
     {
-        const string osReleasePath = "/etc/os-release";
-        var osRelease = File.Exists(osReleasePath) ? File.ReadAllText(osReleasePath) : string.Empty;
-        return Detect(osRelease, File.Exists);
+        var isFlatpak = fileExists("/.flatpak-info");
+        var osReleasePath = isFlatpak ? "/run/host/os-release" : "/etc/os-release";
+        var osRelease = fileExists(osReleasePath) ? readAllText(osReleasePath) : string.Empty;
+        return Detect(osRelease, path => fileExists(isFlatpak ? "/run/host" + path : path));
     }
 
     internal static string Detect(string osRelease, Func<string, bool> fileExists)
@@ -378,7 +393,7 @@ internal sealed class HubSystemPackageLauncher : IHubSystemPackageLauncher
         }
         else if (OperatingSystem.IsLinux())
         {
-            startInfo = LinuxPackageInstaller.CreateStartInfo(packagePath, File.Exists);
+            startInfo = LinuxPackageInstaller.CreateStartInfo(packagePath, File.Exists, File.Exists("/.flatpak-info"));
         }
         else
         {
@@ -403,7 +418,7 @@ internal sealed class HubSystemPackageLauncher : IHubSystemPackageLauncher
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        using var installedHub = Process.Start(LinuxPackageInstaller.CreateInstalledHubStartInfo())
+        using var installedHub = Process.Start(LinuxPackageInstaller.CreateInstalledHubStartInfo(File.Exists("/.flatpak-info")))
             ?? throw new InvalidOperationException("The updated Lakona Hub could not be started.");
         return HubUpdateLaunchResult.ApplicationRestartInitiated;
     }
@@ -604,10 +619,16 @@ internal static class LinuxPackageInstaller
 {
     private const string InstalledHubPath = "/usr/bin/lakona-hub";
 
-    internal static ProcessStartInfo CreateStartInfo(string packagePath, Func<string, bool> fileExists)
+    internal static ProcessStartInfo CreateStartInfo(string packagePath, Func<string, bool> fileExists, bool isFlatpak = false)
     {
+        if (isFlatpak && !fileExists("/usr/bin/flatpak-spawn"))
+        {
+            throw new PlatformNotSupportedException("Flatpak Hub updates require flatpak-spawn with permission to run host commands.");
+        }
+
+        bool HostFileExists(string path) => fileExists(isFlatpak ? "/run/host" + path : path);
         const string policyKitPath = "/usr/bin/pkexec";
-        if (!fileExists(policyKitPath))
+        if (!HostFileExists(policyKitPath))
         {
             throw new PlatformNotSupportedException(
                 "Linux Hub updates require PolicyKit (pkexec) to request system package installation.");
@@ -617,10 +638,10 @@ internal static class LinuxPackageInstaller
         var (packageManager, arguments) = extension switch
         {
             ".deb" => FindPackageManager(
-                fileExists,
+                HostFileExists,
                 ("/usr/bin/apt-get", new[] { "install", "--yes" })),
             ".rpm" => FindPackageManager(
-                fileExists,
+                HostFileExists,
                 ("/usr/bin/dnf5", new[] { "install", "--assumeyes" }),
                 ("/usr/bin/dnf", new[] { "install", "--assumeyes" }),
                 ("/usr/bin/yum", new[] { "install", "--assumeyes" }),
@@ -641,15 +662,36 @@ internal static class LinuxPackageInstaller
         }
 
         startInfo.ArgumentList.Add(Path.GetFullPath(packagePath));
-        return startInfo;
+        return isFlatpak ? OnFlatpakHost(startInfo) : startInfo;
     }
 
-    internal static ProcessStartInfo CreateInstalledHubStartInfo() =>
-        new(InstalledHubPath)
+    internal static ProcessStartInfo CreateInstalledHubStartInfo(bool isFlatpak = false)
+    {
+        var startInfo = new ProcessStartInfo(InstalledHubPath)
         {
             UseShellExecute = true,
             WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
         };
+        return isFlatpak ? OnFlatpakHost(startInfo) : startInfo;
+    }
+
+    private static ProcessStartInfo OnFlatpakHost(ProcessStartInfo command)
+    {
+        var startInfo = new ProcessStartInfo("/usr/bin/flatpak-spawn")
+        {
+            UseShellExecute = false,
+            WorkingDirectory = command.WorkingDirectory
+        };
+        startInfo.ArgumentList.Add("--host");
+        startInfo.ArgumentList.Add("--directory=" + command.WorkingDirectory);
+        startInfo.ArgumentList.Add(command.FileName);
+        foreach (var argument in command.ArgumentList)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        return startInfo;
+    }
 
     private static (string Path, string[] Arguments) FindPackageManager(
         Func<string, bool> fileExists,

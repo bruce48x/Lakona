@@ -269,10 +269,30 @@ The preference is persisted, changes apply immediately, and follow-system uses
 Avalonia's default theme variant so operating-system appearance changes do not
 require platform-specific code.
 
+Light appearance uses neutral gray page surfaces, white cards, and dark text.
+Primary actions use mango yellow (`#FFB824`) suited to white surfaces, with
+matching warm yellow hover and pressed fills rather than brown shades. Selected
+items use pale yellow with black text; accent text, meaningful icons, progress indicators,
+and accent borders use black in light appearance. The selected sidebar item
+uses a separate mango tint (`#FFD782`), with matching
+hover and pressed shades; it does not change other selected-item surfaces. Color
+and opacity overrides for control states are scoped to the actual light theme,
+including when following the system. Dark appearance retains its established
+palette and control-state colors; font and size improvements are shared.
+Enabled text must maintain at least 4.5:1 contrast against its surface, and
+control boundaries and focus indicators at least 3:1 against the surrounding
+surface. Hover, pressed, selected, and keyboard-focus states must preserve
+those foreground/background pairings. Supporting text starts at 12 logical
+pixels, and form hints and body copy use 13 and 14 pixels respectively. The
+shared font stack includes Windows, macOS, and Linux CJK sans-serif families so
+missing platform fonts do not silently degrade Chinese text into thin serif
+fallbacks. Form hints wrap within their columns at the minimum window size.
+
 The desktop window is user-resizable even though Hub draws its own frame. Its
 minimum supported size is 1000 by 800 logical pixels, and its last normal size,
 position, and maximized state are restored on the next launch.
-In normal window mode, that frame uses a theme-yellow edge whose emphasis
+In normal window mode, that frame uses a black edge in light appearance and
+the established yellow edge in dark appearance. Its emphasis
 tracks activation, follows the complete rounded outline, and uses a soft
 exterior shadow that separates Hub from the desktop. Maximized windows remove
 the edge, shadow, outer inset, and corner radius so content remains flush with
@@ -378,6 +398,17 @@ The update module exposes only check and install operations to the window.
 GitHub discovery, platform and Linux package-family selection, semantic-version
 comparison, delta selection, downloading, verification, staging, replacement,
 package-installer launch, and rollback remain behind that interface.
+Platform detection runs during update checks, not window construction. An
+unsupported Linux environment reports an update error without preventing Hub
+startup. Inside Flatpak, Hub identifies the host through `/run/host/os-release`
+and checks host package-manager paths under `/run/host/usr/bin`, never the
+runtime's distribution or package manager. Installation and restarting the
+installed Hub use `flatpak-spawn --host`; the IDE must already permit host
+commands and expose the host tools. PolicyKit still owns installation
+authorization. The downloaded package must be reachable at the same absolute
+path on the host, as it is in Rider's per-app data directory under `~/.var/app`.
+Missing host tools or denied host-command permissions produce an update error;
+Hub does not change Flatpak permissions.
 
 Before opening an installer, Hub verifies its length and SHA-256 against the
 Release manifest. A failed download or verification leaves the installed Hub

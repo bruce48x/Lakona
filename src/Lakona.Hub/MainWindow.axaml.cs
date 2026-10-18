@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Lakona.Hub.Applications;
 using Lakona.Hub.Sdk;
@@ -115,6 +116,8 @@ public sealed partial class MainWindow : Window
         CreationForm = new ProjectCreationForm(localization);
         CreationForm.ApplyDraft(settings.CreationDraft);
         InitializeComponent();
+        ActualThemeVariantChanged += (_, _) => UpdateThemeVariantStyles();
+        UpdateThemeVariantStyles();
         RestoreWindow(settings.Window);
         DataContext = this;
         userSettingsPersistence = new HubUserSettingsPersistence(CaptureUserSettings, userSettingsStore.Save);
@@ -163,6 +166,9 @@ public sealed partial class MainWindow : Window
     public HubLocalization Localization { get; }
 
     public HubThemeSettings ThemeSettings { get; }
+
+    private void UpdateThemeVariantStyles()
+        => Classes.Set("light", ActualThemeVariant == ThemeVariant.Light);
 
     private async void MainWindow_Opened(object? sender, EventArgs e)
     {

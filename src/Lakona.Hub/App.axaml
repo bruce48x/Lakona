@@ -15,11 +15,15 @@
           <SolidColorBrush x:Key="HubBrush.SurfaceHover" Color="#181816" />
           <SolidColorBrush x:Key="HubBrush.SurfaceListHover" Color="#121313" />
           <SolidColorBrush x:Key="HubBrush.SurfaceSelected" Color="#1B1B18" />
+          <SolidColorBrush x:Key="HubBrush.NavSelected" Color="#1B1B18" />
+          <SolidColorBrush x:Key="HubBrush.NavSelectedHover" Color="#1B1B18" />
+          <SolidColorBrush x:Key="HubBrush.NavSelectedPressed" Color="#1B1B18" />
           <SolidColorBrush x:Key="HubBrush.SurfaceFeedback" Color="#20201B" />
           <SolidColorBrush x:Key="HubBrush.SurfaceAccentMuted" Color="#211F17" />
           <SolidColorBrush x:Key="HubBrush.Overlay" Color="#B8000000" />
           <SolidColorBrush x:Key="HubBrush.Accent" Color="#EFBE3E" />
           <SolidColorBrush x:Key="HubBrush.AccentHover" Color="#F7CE62" />
+          <SolidColorBrush x:Key="HubBrush.AccentPressed" Color="#DBA924" />
           <!-- Text on surfaces: keep brand gold on dark; light uses HubBrush.TextAccent. -->
           <SolidColorBrush x:Key="HubBrush.TextAccent" Color="#EFBE3E" />
           <SolidColorBrush x:Key="HubBrush.TextPrimary" Color="#F2F1ED" />
@@ -34,6 +38,7 @@
           <SolidColorBrush x:Key="HubBrush.BorderDefault" Color="#4A4944" />
           <SolidColorBrush x:Key="HubBrush.BorderAccentMuted" Color="#6F5923" />
           <SolidColorBrush x:Key="HubBrush.BorderAccent" Color="#B68E2F" />
+          <SolidColorBrush x:Key="HubBrush.BorderInteraction" Color="#EFBE3E" />
           <SolidColorBrush x:Key="HubBrush.WindowBorderActive" Color="#C7EFBE3E" />
           <SolidColorBrush x:Key="HubBrush.WindowBorderInactive" Color="#52EFBE3E" />
           <LinearGradientBrush x:Key="HubBrush.SidebarGradient" StartPoint="0%,0%" EndPoint="0%,100%">
@@ -50,46 +55,51 @@
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Light">
-          <!-- Light: warm paper canvas so white cards lift and brand gold stays cohesive. -->
-          <SolidColorBrush x:Key="HubBrush.Window" Color="#F2EFE8" />
-          <SolidColorBrush x:Key="HubBrush.Sidebar" Color="#E9E4DA" />
+          <!-- Neutral canvas, white surfaces, and dark ink keep light mode readable. -->
+          <SolidColorBrush x:Key="HubBrush.Window" Color="#F4F5F7" />
+          <SolidColorBrush x:Key="HubBrush.Sidebar" Color="#ECEEF2" />
           <SolidColorBrush x:Key="HubBrush.Surface" Color="#FFFFFF" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceRaised" Color="#EDE8DE" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceHover" Color="#E8E2D6" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceListHover" Color="#EDE7DB" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceSelected" Color="#F8ECC8" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceFeedback" Color="#FFF8E7" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceAccentMuted" Color="#FFF3CC" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceRaised" Color="#ECEEF2" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceHover" Color="#E2E5EA" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceListHover" Color="#E9ECF1" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceSelected" Color="#FFF0CB" />
+          <SolidColorBrush x:Key="HubBrush.NavSelected" Color="#FFD782" />
+          <SolidColorBrush x:Key="HubBrush.NavSelectedHover" Color="#FFE0A0" />
+          <SolidColorBrush x:Key="HubBrush.NavSelectedPressed" Color="#FFCD68" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceFeedback" Color="#FFFAED" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceAccentMuted" Color="#FFF5DE" />
           <SolidColorBrush x:Key="HubBrush.Overlay" Color="#73000000" />
-          <SolidColorBrush x:Key="HubBrush.Accent" Color="#EFBE3E" />
-          <SolidColorBrush x:Key="HubBrush.AccentHover" Color="#F7CE62" />
-          <!-- Brand gold stays on Accent fills; text uses a darker gold for AA contrast. -->
-          <SolidColorBrush x:Key="HubBrush.TextAccent" Color="#7A5C12" />
-          <SolidColorBrush x:Key="HubBrush.TextPrimary" Color="#1C1814" />
-          <SolidColorBrush x:Key="HubBrush.TextSecondary" Color="#3A342C" />
-          <SolidColorBrush x:Key="HubBrush.TextMuted" Color="#5C5348" />
-          <SolidColorBrush x:Key="HubBrush.TextOnAccent" Color="#17130A" />
+          <SolidColorBrush x:Key="HubBrush.Accent" Color="#FFB824" />
+          <SolidColorBrush x:Key="HubBrush.AccentHover" Color="#FFC64A" />
+          <SolidColorBrush x:Key="HubBrush.AccentPressed" Color="#F5AC18" />
+          <!-- Mango yellow fills retain their warm hue in every state; text and interaction borders use black. -->
+          <SolidColorBrush x:Key="HubBrush.TextAccent" Color="#000000" />
+          <SolidColorBrush x:Key="HubBrush.TextPrimary" Color="#20242C" />
+          <SolidColorBrush x:Key="HubBrush.TextSecondary" Color="#3E4652" />
+          <SolidColorBrush x:Key="HubBrush.TextMuted" Color="#596273" />
+          <SolidColorBrush x:Key="HubBrush.TextOnAccent" Color="#000000" />
           <SolidColorBrush x:Key="HubBrush.TextError" Color="#A52A2A" />
           <SolidColorBrush x:Key="HubBrush.Danger" Color="#B3261E" />
-          <SolidColorBrush x:Key="HubBrush.BorderSidebar" Color="#C9C0B0" />
-          <SolidColorBrush x:Key="HubBrush.BorderCard" Color="#C4BBA8" />
-          <SolidColorBrush x:Key="HubBrush.BorderSubtle" Color="#D0C8B8" />
-          <SolidColorBrush x:Key="HubBrush.BorderDefault" Color="#7A7264" />
-          <SolidColorBrush x:Key="HubBrush.BorderAccentMuted" Color="#6F5923" />
-          <SolidColorBrush x:Key="HubBrush.BorderAccent" Color="#B68E2F" />
-          <SolidColorBrush x:Key="HubBrush.WindowBorderActive" Color="#C7EFBE3E" />
-          <SolidColorBrush x:Key="HubBrush.WindowBorderInactive" Color="#52EFBE3E" />
+          <SolidColorBrush x:Key="HubBrush.BorderSidebar" Color="#C5CBD3" />
+          <SolidColorBrush x:Key="HubBrush.BorderCard" Color="#BCC3CD" />
+          <SolidColorBrush x:Key="HubBrush.BorderSubtle" Color="#CFD4DC" />
+          <SolidColorBrush x:Key="HubBrush.BorderDefault" Color="#7A8492" />
+          <SolidColorBrush x:Key="HubBrush.BorderAccentMuted" Color="#000000" />
+          <SolidColorBrush x:Key="HubBrush.BorderAccent" Color="#000000" />
+          <SolidColorBrush x:Key="HubBrush.BorderInteraction" Color="#000000" />
+          <SolidColorBrush x:Key="HubBrush.WindowBorderActive" Color="#A6000000" />
+          <SolidColorBrush x:Key="HubBrush.WindowBorderInactive" Color="#33000000" />
           <LinearGradientBrush x:Key="HubBrush.SidebarGradient" StartPoint="0%,0%" EndPoint="0%,100%">
-            <GradientStop Color="#EDE8DE" Offset="0" />
-            <GradientStop Color="#E2DCCF" Offset="1" />
+            <GradientStop Color="#ECEEF2" Offset="0" />
+            <GradientStop Color="#E5E8ED" Offset="1" />
           </LinearGradientBrush>
           <RadialGradientBrush x:Key="HubBrush.DialogGradient">
             <GradientStop Color="#FFFFFF" Offset="0" />
-            <GradientStop Color="#F2EFE8" Offset="1" />
+            <GradientStop Color="#F4F5F7" Offset="1" />
           </RadialGradientBrush>
-          <Color x:Key="SystemAccentColor">#EFBE3E</Color>
-          <Color x:Key="SystemAccentColorLight1">#F7CE62</Color>
-          <Color x:Key="SystemAccentColorDark1">#B68E2F</Color>
+          <Color x:Key="SystemAccentColor">#FFB824</Color>
+          <Color x:Key="SystemAccentColorLight1">#FFC64A</Color>
+          <Color x:Key="SystemAccentColorDark1">#000000</Color>
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
 
@@ -100,10 +110,10 @@
     <BoxShadows x:Key="HubShadow.WindowActive">0 8 24 2 #59000000</BoxShadows>
     <BoxShadows x:Key="HubShadow.WindowInactive">0 6 20 1 #40000000</BoxShadows>
 
-    <x:Double x:Key="HubFont.Metadata">10</x:Double>
-    <x:Double x:Key="HubFont.Caption">11</x:Double>
-    <x:Double x:Key="HubFont.Control">12</x:Double>
-    <x:Double x:Key="HubFont.Body">13</x:Double>
+    <x:Double x:Key="HubFont.Metadata">12</x:Double>
+    <x:Double x:Key="HubFont.Caption">13</x:Double>
+    <x:Double x:Key="HubFont.Control">14</x:Double>
+    <x:Double x:Key="HubFont.Body">14</x:Double>
     <x:Double x:Key="HubFont.Status">14</x:Double>
     <x:Double x:Key="HubFont.Navigation">15</x:Double>
     <x:Double x:Key="HubFont.Action">16</x:Double>

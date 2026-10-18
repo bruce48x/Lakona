@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using Xunit;
 
 namespace Lakona.Hub.Tests;
@@ -97,11 +98,15 @@ public sealed class HubArchitectureSourceTests
         Assert.Contains("RequestedThemeVariant=\"Default\"", app, StringComparison.Ordinal);
         Assert.Contains("<ResourceDictionary x:Key=\"Dark\">", app, StringComparison.Ordinal);
         Assert.Contains("<ResourceDictionary x:Key=\"Light\">", app, StringComparison.Ordinal);
-        Assert.Equal(
-            2,
-            app.Split("<SolidColorBrush x:Key=\"HubBrush.Accent\" Color=\"#EFBE3E\" />", StringSplitOptions.None).Length - 1);
-        Assert.Contains("<SolidColorBrush x:Key=\"HubBrush.Window\" Color=\"#F2EFE8\" />", app, StringComparison.Ordinal);
-        Assert.Contains("<GradientStop Color=\"#EDE8DE\" Offset=\"0\" />", app, StringComparison.Ordinal);
+        var xamlNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var dictionaries = XDocument.Parse(app).Descendants()
+            .Where(element => element.Name.LocalName == "ResourceDictionary"
+                && element.Attribute(xamlNamespace + "Key")?.Value is "Dark" or "Light")
+            .ToDictionary(element => element.Attribute(xamlNamespace + "Key")!.Value,
+                element => element.Elements().Select(resource => resource.Attribute(xamlNamespace + "Key")!.Value)
+                    .Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(dictionaries["Dark"], dictionaries["Light"]);
+        Assert.Contains("HubBrush.Accent", dictionaries["Light"]);
         Assert.Contains("x:Name=\"ThemeSettingsCard\"", window, StringComparison.Ordinal);
         Assert.Contains("HubThemePreference.System", settings, StringComparison.Ordinal);
         Assert.Contains("HubThemePreference.Dark", settings, StringComparison.Ordinal);

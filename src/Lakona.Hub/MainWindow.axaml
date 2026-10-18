@@ -14,7 +14,7 @@
     MinHeight="800"
     CanResize="True"
     Background="Transparent"
-    FontFamily="Microsoft YaHei UI"
+    FontFamily="Microsoft YaHei UI, PingFang SC, Noto Sans CJK SC, WenQuanYi Micro Hei, sans-serif"
     ExtendClientAreaToDecorationsHint="True"
     TransparencyLevelHint="Transparent"
     WindowDecorations="None"
@@ -91,6 +91,7 @@
     </Style>
     <Style Selector="TextBlock.form-hint">
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Caption}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
     <Style Selector="TextBlock.card-description">
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Control}" />
@@ -99,7 +100,6 @@
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Body}" />
     </Style>
     <Style Selector="Button">
-      <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -113,8 +113,16 @@
         </Transitions>
       </Setter>
     </Style>
+    <!-- Light-only state overrides leave the original dark Fluent colors intact. -->
+    <Style Selector=":is(Window).light Button:pointerover /template/ ContentPresenter, :is(Window).light Button:pressed /template/ ContentPresenter">
+      <Setter Property="Foreground" Value="{Binding $parent[Button].Foreground}" />
+    </Style>
     <Style Selector="Button:pressed /template/ ContentPresenter">
       <Setter Property="RenderTransform" Value="scale(0.97)" />
+    </Style>
+    <Style Selector=":is(Window).light Button:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceSelected}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderAccent}" />
     </Style>
     <Style Selector="Button > StackPanel">
       <Setter Property="VerticalAlignment" Value="Center" />
@@ -160,7 +168,7 @@
     </Style>
     <Style Selector="Button.secondary:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceRaised}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderInteraction}" />
     </Style>
     <Style Selector="Button.nav">
       <Setter Property="Background" Value="Transparent" />
@@ -179,8 +187,18 @@
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceSelected}" />
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextAccent}" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderInteraction}" />
       <Setter Property="BorderThickness" Value="4,0,0,0" />
+    </Style>
+    <Style Selector=":is(Window).light Button.nav.selected">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.NavSelected}" />
+    </Style>
+    <Style Selector=":is(Window).light Button.nav.selected:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.NavSelectedHover}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderInteraction}" />
+    </Style>
+    <Style Selector=":is(Window).light Button.nav.selected:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.NavSelectedPressed}" />
     </Style>
     <Style Selector="Button.project-action">
       <Setter Property="Height" Value="{DynamicResource HubControl.Height.Action}" />
@@ -219,11 +237,23 @@
     <Style Selector="Button.server-open:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource HubBrush.AccentHover}" />
     </Style>
+    <Style Selector=":is(Window).light Button.primary:pressed /template/ ContentPresenter, :is(Window).light Button.server-open:pressed /template/ ContentPresenter, :is(Window).light Button.update-badge:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.AccentPressed}" />
+    </Style>
     <Style Selector="Button:disabled">
       <Setter Property="Opacity" Value="0.72" />
     </Style>
+    <Style Selector=":is(Window).light Button:disabled">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextMuted}" />
+    </Style>
+    <Style Selector=":is(Window).light Button:disabled /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceRaised}" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextMuted}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderDefault}" />
+    </Style>
     <Style Selector="Button:focus-visible /template/ ContentPresenter">
-      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderInteraction}" />
       <Setter Property="BorderThickness" Value="2" />
     </Style>
     <Style Selector="ComboBox.server-editor">
@@ -238,11 +268,11 @@
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Body}" />
     </Style>
     <Style Selector="ComboBox.server-editor:pointerover /template/ Border#Background">
-      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderInteraction}" />
     </Style>
     <Style Selector="ProgressBar.hub-progress">
       <Setter Property="Height" Value="8" />
-      <Setter Property="Foreground" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextAccent}" />
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceRaised}" />
       <Setter Property="CornerRadius" Value="4" />
     </Style>
@@ -288,7 +318,20 @@
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Status}" />
     </Style>
     <Style Selector="TextBox.form-field:focus /template/ Border#PART_BorderElement">
-      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderInteraction}" />
+    </Style>
+    <Style Selector=":is(Window).light TextBox.form-field">
+      <Setter Property="PlaceholderForeground" Value="{DynamicResource HubBrush.TextMuted}" />
+      <Setter Property="SelectionBrush" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="SelectionForegroundBrush" Value="{DynamicResource HubBrush.TextOnAccent}" />
+      <Setter Property="CaretBrush" Value="{DynamicResource HubBrush.TextPrimary}" />
+    </Style>
+    <Style Selector=":is(Window).light TextBox.form-field:pointerover, :is(Window).light TextBox.form-field:focus">
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextPrimary}" />
+    </Style>
+    <Style Selector=":is(Window).light TextBox.form-field:pointerover /template/ Border#PART_BorderElement, :is(Window).light TextBox.form-field:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.Surface}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderAccent}" />
     </Style>
     <Style Selector="ComboBox.form-field">
       <Setter Property="Height" Value="{DynamicResource HubControl.Height.Field}" />
@@ -302,7 +345,48 @@
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Status}" />
     </Style>
     <Style Selector="ComboBox.form-field:pointerover /template/ Border#Background">
-      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderInteraction}" />
+    </Style>
+    <!-- Keep Fluent opacity in dark mode; light placeholders use legible muted ink. -->
+    <Style Selector=":is(Window).light TextBox.form-field /template/ TextBlock#PART_Placeholder, :is(Window).light ComboBox /template/ TextBlock#PlaceholderTextBlock">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector=":is(Window).light ComboBox">
+      <Setter Property="PlaceholderForeground" Value="{DynamicResource HubBrush.TextMuted}" />
+    </Style>
+    <Style Selector=":is(Window).light ComboBox:pointerover /template/ Border#Background, :is(Window).light ComboBox:pressed /template/ Border#Background">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceHover}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderAccent}" />
+    </Style>
+    <Style Selector=":is(Window).light ComboBox:focus-visible /template/ Border#HighlightBackground">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.Surface}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderAccent}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector=":is(Window).light ComboBox:focus-visible /template/ ContentControl#ContentPresenter, :is(Window).light ComboBox:focus:pressed /template/ ContentControl#ContentPresenter">
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextPrimary}" />
+    </Style>
+    <Style Selector=":is(Window).light ComboBox:focus-visible /template/ PathIcon#DropDownGlyph, :is(Window).light ComboBox:focus:pressed /template/ PathIcon#DropDownGlyph">
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextPrimary}" />
+    </Style>
+    <Style Selector=":is(Window).light ComboBox:disabled /template/ Border#Background, :is(Window).light TextBox.form-field:disabled /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceRaised}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderCard}" />
+    </Style>
+    <Style Selector=":is(Window).light ComboBox:disabled /template/ ContentControl#ContentPresenter, :is(Window).light ComboBox:disabled /template/ PathIcon#DropDownGlyph, :is(Window).light TextBox.form-field:disabled">
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextMuted}" />
+    </Style>
+    <Style Selector=":is(Window).light ComboBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceHover}" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextPrimary}" />
+    </Style>
+    <Style Selector=":is(Window).light ComboBoxItem:selected /template/ ContentPresenter, :is(Window).light ComboBoxItem:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceSelected}" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextAccent}" />
+    </Style>
+    <Style Selector=":is(Window).light ComboBoxItem:disabled /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceRaised}" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextMuted}" />
     </Style>
     <Style Selector="Button.form-browse">
       <Setter Property="Width" Value="{DynamicResource HubControl.Width.Browse}" />
@@ -316,7 +400,7 @@
     </Style>
     <Style Selector="Button.form-browse:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceAccentMuted}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderInteraction}" />
     </Style>
     <Style Selector="Button.back">
       <Setter Property="Width" Value="40" />
@@ -330,7 +414,7 @@
     </Style>
     <Style Selector="Button.back:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceHover}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderInteraction}" />
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextAccent}" />
     </Style>
     <Style Selector="ListBox.project-list">
@@ -458,7 +542,7 @@
       <Grid RowDefinitions="160,Auto,*,Auto" Margin="10,18,10,20">
         <StackPanel Grid.Row="0" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
           <TextBlock Text="Lakona Hub"
-                     Foreground="{DynamicResource HubBrush.Accent}"
+                     Foreground="{DynamicResource HubBrush.TextAccent}"
                      FontSize="{DynamicResource HubFont.CardTitle}"
                      FontWeight="SemiBold"
                      HorizontalAlignment="Center"
@@ -488,7 +572,7 @@
                 <StackPanel Orientation="Horizontal" Spacing="10">
                   <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size20"
                                      IsVisible="{Binding UpdateWorkflow.IsUpdateAvailable}"
-                                     Foreground="{DynamicResource HubBrush.Accent}" />
+                                     Foreground="{DynamicResource HubBrush.TextAccent}" />
                   <TextBlock Text="{Binding UpdateWorkflow.CurrentVersionText}" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
@@ -547,7 +631,7 @@
             </WrapPanel>
 
             <WrapPanel HorizontalAlignment="Center">
-              <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" />
+              <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" />
               <TextBlock Text="{Binding EnvironmentWorkflow.SdkStatusText}" Classes="status" VerticalAlignment="Center" Margin="15,0,0,0" />
               <Border Width="1" Height="22" Background="{DynamicResource HubBrush.BorderDefault}" Margin="8,0" />
               <TextBlock Text="{Binding EnvironmentWorkflow.EnvironmentSummaryText}" Classes="muted" VerticalAlignment="Center" />
@@ -575,7 +659,7 @@
             </WrapPanel>
 
             <WrapPanel Margin="0,16,0,0">
-              <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" />
+              <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" />
               <TextBlock Text="{Binding EnvironmentWorkflow.SdkStatusText}" Classes="muted" VerticalAlignment="Center" Margin="15,0,0,0" />
               <Border Width="1" Height="22" Background="{DynamicResource HubBrush.BorderDefault}" Margin="8,0" />
               <TextBlock Text="{Binding EnvironmentWorkflow.EnvironmentSummaryText}" Classes="muted" VerticalAlignment="Center" />
@@ -641,7 +725,7 @@
                             <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectMore" />
                           </Grid.ColumnDefinitions>
                           <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" Margin="0,0,10,0" HorizontalAlignment="Left" VerticalAlignment="Center">
-                            <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.Accent}" />
+                            <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" />
                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                           </StackPanel>
                           <TextBlock Grid.Column="2" Text="{Binding LakonaVersion}" Classes="muted status" Margin="10,0" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" />
@@ -668,7 +752,7 @@
                         <Grid RowDefinitions="Auto,Auto">
                           <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                           <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                            <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" />
+                            <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" />
                             <TextBlock Text="{Binding Name}" FontSize="{DynamicResource HubFont.Navigation}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                           </StackPanel>
                           <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
@@ -799,7 +883,7 @@
               <Border x:Name="LanguageSettingsCard" Classes="settings-card">
                 <Grid ColumnDefinitions="48,16,*,Auto">
                   <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
-                    <icons:FluentIcon Icon="LocalLanguage" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <icons:FluentIcon Icon="LocalLanguage" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
                   <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
                     <TextBlock Text="{Binding Localization.Text.LanguageAndRegion}" Classes="card-title" TextWrapping="Wrap" />
@@ -815,7 +899,7 @@
               <Border x:Name="ThemeSettingsCard" Classes="settings-card">
                 <Grid ColumnDefinitions="48,16,*,Auto">
                   <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
-                    <icons:FluentIcon Icon="Desktop" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <icons:FluentIcon Icon="Desktop" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
                   <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
                     <TextBlock Text="{Binding Localization.Text.Appearance}" Classes="card-title" TextWrapping="Wrap" />
@@ -832,7 +916,7 @@
                 <StackPanel Spacing="0">
                   <Grid ColumnDefinitions="48,16,*,Auto">
                     <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
-                      <icons:FluentIcon Icon="Desktop" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <icons:FluentIcon Icon="Desktop" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
                       <TextBlock Text="{Binding Localization.Text.RuntimeStatus}" Classes="card-title" />
@@ -858,7 +942,7 @@
               <Border x:Name="ServerEditorCard" Classes="settings-card">
                 <Grid ColumnDefinitions="48,16,*,Auto">
                   <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
-                    <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
                   <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
                     <TextBlock Text="{Binding Localization.Text.ServerEditor}" Classes="card-title" />
@@ -871,7 +955,7 @@
                     <ComboBox.ItemTemplate>
                       <DataTemplate x:DataType="applications:LocalApplicationInstallation">
                         <StackPanel Orientation="Horizontal" Spacing="9">
-                          <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.Accent}" />
+                          <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" />
                           <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
                         </StackPanel>
                       </DataTemplate>
@@ -884,7 +968,7 @@
                 <StackPanel Spacing="0">
                   <Grid ColumnDefinitions="48,16,*,12,Auto,16,Auto">
                     <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
-                      <icons:FluentIcon Icon="DeveloperBoard" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <icons:FluentIcon Icon="DeveloperBoard" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
                       <TextBlock Text="{Binding Localization.Text.DetectedTools}" Classes="card-title" />
@@ -953,7 +1037,7 @@
       <Border Classes="dialog-surface" MaxWidth="460" MinWidth="400" HorizontalAlignment="Center" VerticalAlignment="Center" DataContext="{Binding CreationForm}">
         <StackPanel x:DataType="local:ProjectCreationForm" Spacing="0">
           <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
-            <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <TextBlock Text="{Binding Text.ProjectCreationProgressTitle}" Classes="dialog-title" Margin="0,16,0,0" />
           <TextBlock Text="{Binding Text.ProjectCreationProgressDescription}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,8,0,0" />
@@ -967,7 +1051,7 @@
       <Border Classes="dialog-surface" MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="0">
           <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
-            <icons:FluentIcon Icon="QuestionCircle" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <icons:FluentIcon Icon="QuestionCircle" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <TextBlock Text="{Binding Localization.Text.HelpAndFeedback}" Classes="dialog-title" Margin="0,16,0,0" />
           <TextBlock Text="{Binding Localization.Text.HelpDialogDescription}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,8,0,0" />
@@ -986,7 +1070,7 @@
       <Border Classes="dialog-surface" MaxWidth="520" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="0">
           <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
-            <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <TextBlock Text="{Binding Localization.Text.ApplicationUpdates}" Classes="dialog-title" Margin="0,16,0,0" />
           <TextBlock Text="{Binding Localization.Text.ApplicationUpdatesDescription}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,8,0,0" />
@@ -1017,7 +1101,7 @@
       <Border Classes="dialog-surface" MaxWidth="560" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="0">
           <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
-            <icons:FluentIcon Icon="Warning" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <icons:FluentIcon Icon="Warning" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <TextBlock Text="{Binding Localization.Text.PreviousCrashTitle}" Classes="dialog-title" Margin="0,16,0,0" />
           <TextBlock Text="{Binding Localization.Text.PreviousCrashDescription}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,8,0,0" />
@@ -1037,7 +1121,7 @@
       <Border Classes="dialog-surface" MaxWidth="540" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="0">
           <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
-            <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <TextBlock Text="{Binding Localization.Text.DotNetSdkRequiredTitle}" Classes="dialog-title" Margin="0,16,0,0" />
           <TextBlock Text="{Binding Localization.Text.DotNetSdkRequiredDescription}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,8,0,0" />
@@ -1074,7 +1158,7 @@
           <ScrollViewer x:Name="PackageDialogScrollViewer" Grid.Row="0" VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="0">
           <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
-            <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="28" Foreground="{DynamicResource HubBrush.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="28" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <TextBlock Text="{Binding Text.Package}" Classes="dialog-title" Margin="0,16,0,0" />
           <TextBlock Text="{Binding ProjectName}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,8,0,0" />

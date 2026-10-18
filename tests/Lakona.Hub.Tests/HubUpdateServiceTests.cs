@@ -11,6 +11,34 @@ namespace Lakona.Hub.Tests;
 public sealed class HubUpdateServiceTests
 {
     [Fact]
+    public async Task UnsupportedLinuxRuntimeReportsUpdateFailureWithoutPreventingStartup()
+    {
+        using var client = new HttpClient(new StubHandler(new Dictionary<string, string>()));
+        var detectionCount = 0;
+        var service = new HubUpdateService(client, "1.2.0", () =>
+        {
+            detectionCount++;
+            return "linux-x64-" + LinuxPackageFormat.Detect("ID=org.freedesktop.Platform", _ => false);
+        }, Path.GetTempPath());
+        using var workflow = new HubUpdateWorkflow(service, new HubLocalization(HubLanguage.English));
+
+        Assert.Equal(0, detectionCount);
+        await workflow.StartAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, detectionCount);
+        Assert.Contains("Debian-family or RPM-family", workflow.StatusText, StringComparison.Ordinal);
+        Assert.True(workflow.CanExecute);
+        Assert.Null(workflow.Capture());
+
+        var outcome = await workflow.ExecutePrimaryActionAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HubUpdateActionOutcome.Failed, outcome);
+        Assert.Equal(2, detectionCount);
+        Assert.True(workflow.CanExecute);
+        Assert.Null(workflow.Capture());
+    }
+
+    [Fact]
     public async Task CheckAsync_UsesWindowsInstallerInsteadOfPortableDelta()
     {
         using var fixture = new UpdateFeedFixture("1.2.0", "win-x64", "1.3.0", deltaFrom: "1.2.0");
@@ -48,6 +76,49 @@ public sealed class HubUpdateServiceTests
     public void LinuxPackageFormat_FallsBackToInstalledPackageManager()
     {
         Assert.Equal("deb", LinuxPackageFormat.Detect("ID=unknown", path => path.EndsWith("dpkg", StringComparison.Ordinal)));
+    }
+
+    [Theory]
+    [InlineData("ID=fedora", "rpm")]
+    [InlineData("ID=ubuntu\nID_LIKE=debian", "deb")]
+    public void LinuxPackageFormat_FlatpakUsesHostInsteadOfRuntime(string hostRelease, string expected)
+    {
+        var files = new Dictionary<string, string>
+        {
+            ["/.flatpak-info"] = "",
+            ["/etc/os-release"] = "ID=org.freedesktop.platform",
+            ["/run/host/os-release"] = hostRelease
+        };
+
+        Assert.Equal(expected, LinuxPackageFormat.Current(files.ContainsKey, path => files[path]));
+    }
+
+    [Fact]
+    public void LinuxPackageFormat_MissingHostMetadataDoesNotUseSandboxPackageManager()
+    {
+        var files = new Dictionary<string, string>
+        {
+            ["/.flatpak-info"] = "",
+            ["/etc/os-release"] = "ID=ubuntu",
+            ["/usr/bin/dpkg"] = ""
+        };
+
+        Assert.Throws<PlatformNotSupportedException>(() =>
+            LinuxPackageFormat.Current(files.ContainsKey, path => files[path]));
+        files["/run/host/usr/bin/rpm"] = "";
+        Assert.Equal("rpm", LinuxPackageFormat.Current(files.ContainsKey, path => files[path]));
+    }
+
+    [Fact]
+    public void LinuxPackageFormat_NativeUsesLocalReleaseEvenIfHostMetadataExists()
+    {
+        var files = new Dictionary<string, string>
+        {
+            ["/etc/os-release"] = "ID=ubuntu",
+            ["/run/host/os-release"] = "ID=fedora"
+        };
+
+        Assert.Equal("deb", LinuxPackageFormat.Current(files.ContainsKey, path => files[path]));
     }
 
     [Fact]
@@ -150,6 +221,46 @@ public sealed class HubUpdateServiceTests
         Assert.Equal(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             startInfo.WorkingDirectory);
+    }
+
+    [Theory]
+    [InlineData("rpm", "/usr/bin/dnf5", "--assumeyes")]
+    [InlineData("deb", "/usr/bin/apt-get", "--yes")]
+    public void LinuxPackageInstaller_FlatpakRunsHostPolicyKitAndPackageManager(string extension, string manager, string yes)
+    {
+        var packagePath = Path.Combine(Path.GetTempPath(), "lakona hub." + extension);
+        var paths = new HashSet<string>
+        {
+            "/usr/bin/flatpak-spawn", "/run/host/usr/bin/pkexec", "/run/host" + manager
+        };
+        var startInfo = LinuxPackageInstaller.CreateStartInfo(packagePath, paths.Contains, isFlatpak: true);
+
+        Assert.Equal("/usr/bin/flatpak-spawn", startInfo.FileName);
+        Assert.False(startInfo.UseShellExecute);
+        Assert.Equal(new[] { "--host", "--directory=" + Path.GetDirectoryName(packagePath),
+            "/usr/bin/pkexec", manager, "install", yes, packagePath }, startInfo.ArgumentList);
+    }
+
+    [Fact]
+    public void LinuxPackageInstaller_FlatpakRequiresBridgeAndHostPolicyKit()
+    {
+        var missingBridge = Assert.Throws<PlatformNotSupportedException>(() =>
+            LinuxPackageInstaller.CreateStartInfo("/tmp/hub.rpm", _ => false, isFlatpak: true));
+        Assert.Contains("flatpak-spawn", missingBridge.Message, StringComparison.Ordinal);
+        var missingHostPolicyKit = Assert.Throws<PlatformNotSupportedException>(() =>
+            LinuxPackageInstaller.CreateStartInfo("/tmp/hub.rpm",
+                path => path is "/usr/bin/flatpak-spawn" or "/usr/bin/pkexec" or "/usr/bin/dnf5", isFlatpak: true));
+        Assert.Contains("PolicyKit", missingHostPolicyKit.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LinuxPackageInstaller_FlatpakRestartsOnHostWithoutTyingLifetimeToBridge()
+    {
+        var startInfo = LinuxPackageInstaller.CreateInstalledHubStartInfo(isFlatpak: true);
+
+        Assert.Equal("/usr/bin/flatpak-spawn", startInfo.FileName);
+        Assert.False(startInfo.UseShellExecute);
+        Assert.Equal(new[] { "--host", "--directory=" + startInfo.WorkingDirectory, "/usr/bin/lakona-hub" }, startInfo.ArgumentList);
     }
 
     [Fact]
