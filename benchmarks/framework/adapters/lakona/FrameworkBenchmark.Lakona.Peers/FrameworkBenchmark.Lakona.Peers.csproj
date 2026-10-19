@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <LakonaRpcGeneratedNamespace>FrameworkBenchmark.Lakona.Peers.Generated</LakonaRpcGeneratedNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
+    <ProjectReference Include="../FrameworkBenchmark.Lakona.Contracts/FrameworkBenchmark.Lakona.Contracts.csproj" />
+    <ProjectReference Include="../../../../../src/Lakona.Game.Client/Lakona.Game.Client.csproj" />
+    <ProjectReference Include="../../../../../src/Lakona.Rpc.Analyzers/Lakona.Rpc.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

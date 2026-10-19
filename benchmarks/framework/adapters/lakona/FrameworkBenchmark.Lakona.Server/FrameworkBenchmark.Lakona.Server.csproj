@@ -6,23 +6,25 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
-    <LakonaRpcServerGeneratedNamespace>FrameworkBenchmark.Lakona.Server.Generated</LakonaRpcServerGeneratedNamespace>
-    <LakonaRpcGeneratedNamespace>FrameworkBenchmark.Lakona.Server.Generated</LakonaRpcGeneratedNamespace>
+    <LakonaProjectRole>ServerApp</LakonaProjectRole>
+    <LakonaBuildTag>FrameworkBenchmarkNativeV2</LakonaBuildTag>
   </PropertyGroup>
   <ItemGroup>
-    <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
-    <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
-    <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\FrameworkBenchmark.Lakona.Contracts\FrameworkBenchmark.Lakona.Contracts.csproj" />
-    <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
-    <ProjectReference Include="..\..\..\..\..\src\Lakona.Game.Server\Lakona.Game.Server.csproj" />
-    <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Client\Lakona.Rpc.Client.csproj" />
-    <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj" />
-    <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
-    <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Transport.Tcp\Lakona.Rpc.Transport.Tcp.csproj" />
-    <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Transport.WebSocket\Lakona.Rpc.Transport.WebSocket.csproj" />
+    <CompilerVisibleProperty Include="LakonaProjectRole" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
+    <ProjectReference Include="../FrameworkBenchmark.Lakona.Contracts/FrameworkBenchmark.Lakona.Contracts.csproj" />
+    <ProjectReference Include="../FrameworkBenchmark.Lakona.Peers/FrameworkBenchmark.Lakona.Peers.csproj" />
+    <ProjectReference Include="../../../../../src/Lakona.Game.Clustering.Redis/Lakona.Game.Clustering.Redis.csproj" />
+    <ProjectReference Include="../../../../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
+    <ProjectReference Include="../../../../../src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+    <ProjectReference Include="../../../../../src/Lakona.Rpc.Analyzers/Lakona.Rpc.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+    <ProjectReference Include="../../../../../src/Lakona.Rpc.Serializer.MemoryPack/Lakona.Rpc.Serializer.MemoryPack.csproj" />
+    <ProjectReference Include="../../../../../src/Lakona.Rpc.Transport.Tcp/Lakona.Rpc.Transport.Tcp.csproj" />
+    <ProjectReference Include="../../../../../src/Lakona.Rpc.Transport.WebSocket/Lakona.Rpc.Transport.WebSocket.csproj" />
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>LakonaBuildTag</_Parameter1>
+      <_Parameter2>$(LakonaBuildTag)</_Parameter2>
+    </AssemblyAttribute>
+    <InternalsVisibleTo Include="Server.Hotfix" />
   </ItemGroup>
 </Project>

@@ -60,6 +60,16 @@ internal static class BenchmarkReportWriter
         }
 
         builder.AppendLine();
+        builder.AppendLine("## Adapter metadata");
+        foreach (var group in summary.Cases.GroupBy(static item => item.Case.Framework))
+        {
+            builder.AppendLine();
+            builder.Append("### ").AppendLine(group.Key);
+            builder.AppendLine();
+            foreach (var pair in group.First().Result.Metadata.OrderBy(static item => item.Key, StringComparer.Ordinal))
+                builder.Append("- ").Append(pair.Key).Append(": `").Append(pair.Value.Replace("`", "'", StringComparison.Ordinal)).AppendLine("`");
+        }
+        builder.AppendLine();
         builder.AppendLine("## Rerun");
         builder.AppendLine();
         builder.AppendLine("The same command preserves suite and case identities and creates a new run identity:");

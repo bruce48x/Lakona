@@ -75,6 +75,8 @@ public static class BenchmarkDefinitionValidator
             }
 
             ValidateCommand(server.Command, $"server '{server.Role}'");
+            if (server.Shutdown is not null)
+                ValidateCommand(server.Shutdown, $"server '{server.Role}' shutdown");
             foreach (var port in server.Ports)
             {
                 RequireName(port, "Port placeholder");

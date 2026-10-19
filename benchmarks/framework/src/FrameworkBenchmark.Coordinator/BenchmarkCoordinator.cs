@@ -180,10 +180,12 @@ public sealed class BenchmarkCoordinator
             ["caseFile"] = caseFile,
             ["resultFile"] = resultFile,
             ["caseId"] = benchmarkCase.Id,
+            ["runId"] = runId,
             ["framework"] = benchmarkCase.Framework
         };
         var servers = new List<ManagedServerProcess>();
         var endpoints = new Dictionary<string, string>(StringComparer.Ordinal);
+        Exception? caseError = null;
 
         try
         {
@@ -194,7 +196,8 @@ public sealed class BenchmarkCoordinator
                     adapterRoot,
                     server.Role,
                     Path.Combine(runDirectory, "logs", $"{safeCaseId}-{server.Role}.stdout.log"),
-                    Path.Combine(runDirectory, "logs", $"{safeCaseId}-{server.Role}.stderr.log"));
+                    Path.Combine(runDirectory, "logs", $"{safeCaseId}-{server.Role}.stderr.log"),
+                    server.Shutdown is null ? null : CommandTemplateExpander.Expand(server.Shutdown, placeholders));
                 servers.Add(process);
                 var readyEndpoints = await process.WaitForReadyAsync(
                     TimeSpan.FromMilliseconds(benchmarkCase.Timing.ReadinessTimeoutMilliseconds),
@@ -262,11 +265,23 @@ public sealed class BenchmarkCoordinator
             BenchmarkJson.Write(Path.Combine(runDirectory, "histograms", $"{safeCaseId}.json"), result.Histogram);
             return validated;
         }
+        catch (Exception error)
+        {
+            caseError = error;
+            throw;
+        }
         finally
         {
+            var cleanupErrors = new List<Exception>();
             for (var index = servers.Count - 1; index >= 0; index--)
             {
-                await servers[index].DisposeAsync().ConfigureAwait(false);
+                try { await servers[index].DisposeAsync().ConfigureAwait(false); }
+                catch (Exception error) { cleanupErrors.Add(error); }
+            }
+            if (cleanupErrors.Count > 0)
+            {
+                if (caseError is not null) cleanupErrors.Insert(0, caseError);
+                throw new AggregateException("Benchmark case resource cleanup failed.", cleanupErrors);
             }
         }
     }
@@ -277,7 +292,7 @@ public sealed class BenchmarkCoordinator
     {
         var metadata = new Dictionary<string, string>(driverMetadata, StringComparer.Ordinal)
         {
-            ["adapterRevision"] = manifest.Revision,
+            ["adapterRevision"] = driverMetadata.TryGetValue("frameworkRevision", out var revision) ? revision : manifest.Revision,
             ["adapterRuntime"] = manifest.Runtime,
             ["adapterBuildMode"] = manifest.BuildMode,
             ["adapterLicenseUrl"] = manifest.LicenseUrl

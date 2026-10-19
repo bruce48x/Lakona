@@ -134,6 +134,21 @@ Lifecycle operations must cover prepare, start, readiness, reset to a known
 seed, diagnostics snapshot, and shutdown. They are never part of measured
 request latency.
 
+The local Lakona adapter starts three Game hosts with App/Hotfix binding and
+an isolated Redis Membership container for each case. Its routed workload
+preplaces 256 Actors before readiness, then uses native ActorAccess and the
+distributed Actor Directory over TCP/MemoryPack. It measures steady-state
+routing; placement and Game handshakes happen before measurement. The direct
+workload calls a known worker's Game endpoint using a generated TCP client.
+Adapter metadata must disclose these paths and native-stack differences.
+
+Server manifest entries may include an optional `shutdown` process command
+for resources outside the process tree, such as containers. The coordinator
+runs it even after readiness failure or cancellation, then stops the process
+tree. Cleanup attempts every server in reverse startup order and fails the run
+if resource release fails. Abrupt termination of the coordinator itself is
+outside this cleanup guarantee.
+
 ### Load Generator
 
 The load policy, case command, histogram contract, and result schema are

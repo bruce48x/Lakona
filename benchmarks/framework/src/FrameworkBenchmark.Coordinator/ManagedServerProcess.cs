@@ -14,6 +14,9 @@ internal sealed class ManagedServerProcess : IAsyncDisposable
     private readonly TaskCompletionSource<IReadOnlyDictionary<string, string>> readiness =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly string role;
+    private readonly ProcessCommand? shutdownCommand;
+    private readonly string workingDirectory;
+    private readonly string shutdownLogPath;
     private Exception? lifecycleFailure;
     private int readyEventCount;
 
@@ -21,12 +24,18 @@ internal sealed class ManagedServerProcess : IAsyncDisposable
         Process process,
         StreamWriter stdoutLog,
         StreamWriter stderrLog,
-        string role)
+        string role,
+        ProcessCommand? shutdownCommand,
+        string workingDirectory,
+        string shutdownLogPath)
     {
         this.process = process;
         this.stdoutLog = stdoutLog;
         this.stderrLog = stderrLog;
         this.role = role;
+        this.shutdownCommand = shutdownCommand;
+        this.workingDirectory = workingDirectory;
+        this.shutdownLogPath = shutdownLogPath;
         stdoutPump = PumpStdoutAsync();
         stderrPump = PumpStderrAsync();
     }
@@ -40,7 +49,8 @@ internal sealed class ManagedServerProcess : IAsyncDisposable
         string workingDirectory,
         string role,
         string stdoutLogPath,
-        string stderrLogPath)
+        string stderrLogPath,
+        ProcessCommand? shutdownCommand = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(stdoutLogPath)!);
         var stdoutLog = new StreamWriter(stdoutLogPath, append: false) { AutoFlush = true };
@@ -49,7 +59,7 @@ internal sealed class ManagedServerProcess : IAsyncDisposable
         {
             var process = Process.Start(CreateStartInfo(command, workingDirectory)) ??
                 throw new BenchmarkToolException($"Failed to start server role '{role}'.");
-            return new ManagedServerProcess(process, stdoutLog, stderrLog, role);
+            return new ManagedServerProcess(process, stdoutLog, stderrLog, role, shutdownCommand, workingDirectory, stdoutLogPath + ".shutdown");
         }
         catch (Exception ex)
         {
@@ -75,6 +85,19 @@ internal sealed class ManagedServerProcess : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        Exception? shutdownError = null;
+        if (shutdownCommand is not null)
+        {
+            try
+            {
+                var exitCode = await ProcessCommandRunner.RunAsync(shutdownCommand, workingDirectory,
+                    shutdownLogPath + ".stdout.log", shutdownLogPath + ".stderr.log",
+                    TimeSpan.FromSeconds(15), CancellationToken.None).ConfigureAwait(false);
+                if (exitCode != 0)
+                    throw new BenchmarkToolException($"Shutdown for server role '{role}' exited with code {exitCode}.");
+            }
+            catch (Exception error) { shutdownError = error; }
+        }
         try
         {
             if (!process.HasExited)
@@ -94,6 +117,8 @@ internal sealed class ManagedServerProcess : IAsyncDisposable
             await stdoutLog.DisposeAsync().ConfigureAwait(false);
             await stderrLog.DisposeAsync().ConfigureAwait(false);
         }
+        if (shutdownError is not null)
+            throw new BenchmarkToolException($"Failed to release resources for server role '{role}'.", shutdownError);
     }
 
     public void EnsureHealthy()

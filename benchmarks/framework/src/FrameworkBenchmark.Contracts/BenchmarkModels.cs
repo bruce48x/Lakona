@@ -47,7 +47,8 @@ public sealed record AdapterManifest(
 public sealed record ServerProcessSpecification(
     string Role,
     IReadOnlyList<string> Ports,
-    ProcessCommand Command);
+    ProcessCommand Command,
+    ProcessCommand? Shutdown = null);
 
 public sealed record ProcessCommand(
     string FileName,

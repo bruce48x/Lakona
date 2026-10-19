@@ -18,8 +18,9 @@ pwsh -NoProfile -File benchmarks/framework/run.ps1
 
 The command prepares both adapters, owns every native server and driver
 process, and writes a six-row local development comparison. It requires
-PowerShell 7, the .NET 10 SDK, Node.js, and npm; the entry point checks these
-prerequisites before starting work.
+PowerShell 7, the .NET 10 SDK, Git, Node.js, npm, and a running Docker engine.
+The Lakona adapter prepares a pinned Redis image and owns an isolated Redis
+container per case, alongside three Game server processes.
 
 Use the 48-case version 1 matrix for a deliberate acceptance run:
 
@@ -48,7 +49,8 @@ These are same-workstation native-mode development results, not publishable
 network-cluster evidence.
 
 Ctrl+C cancels through the coordinator, marks the run incomplete, and stops
-owned driver/server process trees. Startup and driver failures follow the same
+owned driver/server process trees and removes the case's Redis container.
+Startup and driver failures follow the same
 cleanup path; inspect `run-manifest.json` and the run's `logs/` directory for
 the actionable failure details.
 

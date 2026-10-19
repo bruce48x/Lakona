@@ -30,6 +30,10 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
 }
 
 Assert-Command "dotnet" "Install the .NET 10 SDK, then rerun the same command."
+if ($Framework -in @("all", "lakona")) {
+    Assert-Command "git" "Install Git to record the source revision."
+    Assert-Command "docker" "Start a Docker engine for Redis Membership."
+}
 if ($Framework -in @("all", "pinus")) {
     Assert-Command "node" "Install Node.js, then rerun the same command."
     Assert-Command "npm" "Install npm with Node.js, then rerun the same command."
@@ -63,6 +67,7 @@ else {
     if ($Framework -in @("all", "lakona")) {
         $requiredOutputs += @(
             (Join-Path $benchmarkRoot "adapters/lakona/FrameworkBenchmark.Lakona.Server/bin/Release/net10.0/FrameworkBenchmark.Lakona.Server.dll"),
+            (Join-Path $benchmarkRoot "adapters/lakona/FrameworkBenchmark.Lakona.Server/bin/Release/net10.0/hotfix/versions/benchmark/Server.Hotfix.dll"),
             (Join-Path $benchmarkRoot "adapters/lakona/FrameworkBenchmark.Lakona.Driver/bin/Release/net10.0/FrameworkBenchmark.Lakona.Driver.dll")
         )
     }

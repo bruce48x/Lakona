@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("prepare", "server", "driver")]
+    [ValidateSet("prepare", "server", "driver", "shutdown")]
     [string]$Mode,
 
     [string]$Role,
@@ -16,10 +16,11 @@ if ([string]::IsNullOrWhiteSpace($behavior)) {
     $behavior = "normal"
 }
 
-if ($Mode -eq "prepare") {
+if ($Mode -in @("prepare", "shutdown")) {
     $pidDirectory = Split-Path -Parent $PidFile
     New-Item -ItemType Directory -Force -Path $pidDirectory | Out-Null
     Set-Content -LiteralPath $PidFile -Value $PID -NoNewline
+    if ($Mode -eq "shutdown" -and $behavior -eq "shutdown-failure") { exit 31 }
     exit 0
 }
 

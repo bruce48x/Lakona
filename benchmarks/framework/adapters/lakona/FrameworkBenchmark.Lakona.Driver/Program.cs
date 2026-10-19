@@ -1,9 +1,11 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Reflection;
 using FrameworkBenchmark.Contracts;
 using FrameworkBenchmark.Lakona.Contracts;
 using FrameworkBenchmark.Lakona.Driver;
 using FrameworkBenchmark.Lakona.Driver.Generated;
+using Lakona.Game.Client;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.MemoryPack;
@@ -62,10 +64,10 @@ internal static class DriverProgram
         }
     }
 
-    private static async Task<RpcClient[]> ConnectAsync(string endpoint, int count)
+    private static async Task<LakonaGameClient[]> ConnectAsync(string endpoint, int count)
     {
         var clients = Enumerable.Range(0, count)
-            .Select(_ => new RpcClient(new RpcClientOptions(
+            .Select(_ => new LakonaGameClient(new LakonaGameClientOptions(
                 new WsTransport(endpoint),
                 new MemoryPackRpcSerializer())))
             .ToArray();
@@ -86,7 +88,7 @@ internal static class DriverProgram
     }
 
     private static Task RunWarmupAsync(
-        IReadOnlyList<RpcClient> clients,
+        IReadOnlyList<LakonaGameClient> clients,
         CaseCommand command,
         RequestIdSource requestIds)
     {
@@ -100,7 +102,7 @@ internal static class DriverProgram
     }
 
     private static async Task RunWarmupWorkerAsync(
-        RpcClient client,
+        LakonaGameClient client,
         CaseCommand command,
         RequestIdSource requestIds,
         long end)
@@ -118,7 +120,7 @@ internal static class DriverProgram
     }
 
     private static async Task RunMeasurementWorkerAsync(
-        RpcClient client,
+        LakonaGameClient client,
         CaseCommand command,
         RequestIdSource requestIds,
         ResultAccumulator accumulator,
@@ -164,7 +166,7 @@ internal static class DriverProgram
     }
 
     private static async Task<EchoResponse> CallAsync(
-        RpcClient client,
+        LakonaGameClient client,
         CaseCommand command,
         long requestId,
         byte[] payload)
@@ -293,9 +295,11 @@ internal static class DriverProgram
                 new Dictionary<string, string>
                 {
                     ["runtime"] = $".NET {Environment.Version}",
-                    ["transport"] = "Lakona.Rpc WebSocket",
+                    ["transport"] = "Lakona.Game WebSocket; handshake before warmup",
                     ["serializer"] = "MemoryPack 1.21.4",
-                    ["clientLibrary"] = "Lakona.Rpc.Client 0.13.2",
+                    ["clientLibrary"] = $"Lakona.Game.Client {typeof(LakonaGameClientOptions).Assembly.GetName().Version}",
+                    ["frameworkRevision"] = typeof(DriverProgram).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(attribute => attribute.Key == "BenchmarkRevision")?.Value ?? "unrecorded",
+                    ["routedPath"] = "ActorAccess.Route + native Actor Directory + TCP/MemoryPack actor dispatch",
                     ["connectionPolicy"] = "one persistent connection per outstanding slot"
                 });
         }

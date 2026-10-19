@@ -6,16 +6,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <BenchmarkRevision Condition="'$(BenchmarkRevision)' == ''">unrecorded</BenchmarkRevision>
     <LakonaRpcGeneratedNamespace>FrameworkBenchmark.Lakona.Driver.Generated</LakonaRpcGeneratedNamespace>
   </PropertyGroup>
   <ItemGroup>
     <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
+    <AssemblyMetadata Include="BenchmarkRevision" Value="$(BenchmarkRevision)" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FrameworkBenchmark.Lakona.Contracts\FrameworkBenchmark.Lakona.Contracts.csproj" />
     <ProjectReference Include="..\..\..\src\FrameworkBenchmark.Contracts\FrameworkBenchmark.Contracts.csproj" />
     <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Analyzers\Lakona.Rpc.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
     <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Client\Lakona.Rpc.Client.csproj" />
+    <ProjectReference Include="..\..\..\..\..\src\Lakona.Game.Client\Lakona.Game.Client.csproj" />
     <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Serializer.MemoryPack\Lakona.Rpc.Serializer.MemoryPack.csproj" />
     <ProjectReference Include="..\..\..\..\..\src\Lakona.Rpc.Transport.WebSocket\Lakona.Rpc.Transport.WebSocket.csproj" />
   </ItemGroup>

@@ -7,8 +7,8 @@
   "concurrency": [ 1, 16, 64, 256 ],
   "seed": 20260715,
   "timing": {
-    "startupTimeoutMilliseconds": 30000,
-    "readinessTimeoutMilliseconds": 15000,
+    "startupTimeoutMilliseconds": 60000,
+    "readinessTimeoutMilliseconds": 60000,
     "warmupMilliseconds": 5000,
     "measurementMilliseconds": 15000,
     "requestTimeoutMilliseconds": 5000,

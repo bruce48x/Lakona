@@ -35,6 +35,7 @@ public sealed class FakeAdapterIntegrationTests
         Assert.Contains("No aggregate score", report, StringComparison.Ordinal);
         Assert.Contains("## Rerun", report, StringComparison.Ordinal);
         Assert.True(File.Exists(Path.Combine(runDirectory, "fake-prepare.pid")));
+        Assert.True(File.Exists(Path.Combine(runDirectory, "fake-shutdown.pid")));
         Assert.Single(Directory.GetFiles(Path.Combine(runDirectory, "histograms"), "*.json"));
     }
 
@@ -61,6 +62,7 @@ public sealed class FakeAdapterIntegrationTests
         var pidFile = Directory.GetFiles(fixture.OutputRoot, "fake-server.pid", SearchOption.AllDirectories).Single();
         var pid = int.Parse(File.ReadAllText(pidFile), System.Globalization.CultureInfo.InvariantCulture);
         Assert.True(ProcessHasExited(pid), $"Fake server process {pid} was left running.");
+        Assert.True(File.Exists(Path.Combine(runDirectory, "fake-shutdown.pid")));
     }
 
     [Fact]
@@ -110,6 +112,21 @@ public sealed class FakeAdapterIntegrationTests
         Assert.Equal(
             "incomplete",
             BenchmarkJson.Read<RunManifest>(Path.Combine(runDirectory, "run-manifest.json")).Status);
+        Assert.True(File.Exists(Path.Combine(runDirectory, "fake-shutdown.pid")));
+    }
+
+    [Fact]
+    public async Task RunAsync_ShutdownFailureStillStopsServer()
+    {
+        using var fixture = new TemporaryFixture();
+        await Assert.ThrowsAsync<AggregateException>(() => new BenchmarkCoordinator().RunAsync(
+            new CoordinatorOptions(fixture.WriteSuite(), [fixture.WriteManifest("normal", "normal", "shutdown-failure")], fixture.OutputRoot),
+            TestContext.Current.CancellationToken));
+        var runDirectory = Assert.Single(Directory.GetDirectories(fixture.OutputRoot));
+        var pid = int.Parse(File.ReadAllText(Path.Combine(runDirectory, "fake-server.pid")), System.Globalization.CultureInfo.InvariantCulture);
+        Assert.True(ProcessHasExited(pid));
+        Assert.True(File.Exists(Path.Combine(runDirectory, "fake-shutdown.pid")));
+        Assert.Equal("incomplete", BenchmarkJson.Read<RunManifest>(Path.Combine(runDirectory, "run-manifest.json")).Status);
     }
 
     private static bool ProcessHasExited(int pid)
@@ -144,7 +161,7 @@ public sealed class FakeAdapterIntegrationTests
             return path;
         }
 
-        public string WriteManifest(string serverBehavior, string driverBehavior)
+        public string WriteManifest(string serverBehavior, string driverBehavior, string shutdownBehavior = "normal")
         {
             var script = TestPaths.Fixture("fake-adapter.ps1");
             var serverCommand = new ProcessCommand(
@@ -199,7 +216,9 @@ public sealed class FakeAdapterIntegrationTests
                         "-PidFile",
                         "${runDir}/fake-prepare.pid"
                     ])],
-                [new ServerProcessSpecification("frontdoor", ["clientPort"], serverCommand)],
+                [new ServerProcessSpecification("frontdoor", ["clientPort"], serverCommand,
+                    new ProcessCommand("pwsh", ["-NoProfile", "-File", script, "-Mode", "shutdown", "-PidFile", "${runDir}/fake-shutdown.pid"],
+                        new Dictionary<string, string> { ["FAKE_BENCHMARK_BEHAVIOR"] = shutdownBehavior }))],
                 driverCommand);
             var path = Path.Combine(root, "adapter.json");
             BenchmarkJson.Write(path, manifest);
