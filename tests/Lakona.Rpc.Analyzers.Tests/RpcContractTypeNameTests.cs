@@ -45,7 +45,6 @@ public sealed class RpcContractTypeNameTests
         var compilation = AnalyzerTestHelpers.CreateCompilation(source);
         var result = AnalyzerTestHelpers.RunGenerator(compilation, new Dictionary<string, string>
         {
-            ["build_property.LakonaRpcGenerateServer"] = "true",
             ["build_property.LakonaRpcGeneratedNamespace"] = "Client.Generated",
             ["build_property.LakonaRpcServerGeneratedNamespace"] = "Server.Generated"
         }, out var output);

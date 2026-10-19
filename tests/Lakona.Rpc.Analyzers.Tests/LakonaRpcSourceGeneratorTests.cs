@@ -13,7 +13,6 @@ public sealed class LakonaRpcSourceGeneratorTests
             compilation,
             new Dictionary<string, string>
             {
-                ["build_property.LakonaRpcGenerateServer"] = "true",
                 ["build_property.LakonaRpcGeneratedNamespace"] = "Client.Generated",
                 ["build_property.LakonaRpcServerGeneratedNamespace"] = "Server.Generated"
             },
@@ -65,7 +64,6 @@ public sealed class LakonaRpcSourceGeneratorTests
             {
                 ["build_property.LakonaProjectRole"] = "ServerApp",
                 ["build_property.RootNamespace"] = "Custom.Server",
-                ["build_property.LakonaRpcGenerateServer"] = "false",
                 ["build_property.LakonaRpcServerGeneratedNamespace"] = "Conflicting.Generated"
             },
             out var outputCompilation);
@@ -84,15 +82,14 @@ public sealed class LakonaRpcSourceGeneratorTests
     }
 
     [Fact]
-    public void SourceGenerator_HotfixRole_DisablesServerGenerationEvenWhenLegacySettingConflicts()
+    public void SourceGenerator_HotfixRole_DoesNotGenerateStableBindings()
     {
         var compilation = AnalyzerTestHelpers.CreateCompilation(ContractWithCallbackSource);
         var runResult = AnalyzerTestHelpers.RunGenerator(
             compilation,
             new Dictionary<string, string>
             {
-                ["build_property.LakonaProjectRole"] = "Hotfix",
-                ["build_property.LakonaRpcGenerateServer"] = "true"
+                ["build_property.LakonaProjectRole"] = "Hotfix"
             },
             out var outputCompilation);
 
@@ -150,6 +147,10 @@ public sealed class LakonaRpcSourceGeneratorTests
     [InlineData(true, true, true, null, true, true, false)]
     [InlineData(true, true, true, "ServerApp", false, true, false)]
     [InlineData(true, true, true, "Hotfix", false, false, false)]
+    [InlineData(false, false, true, "ServerApp", false, true, false)]
+    [InlineData(false, false, true, "Hotfix", false, false, false)]
+    [InlineData(false, false, true, "serverapp", false, true, false)]
+    [InlineData(false, false, true, "hotfix", false, false, false)]
     public void SourceGenerator_RuntimeReferencesAndRole_DetermineGeneratedProducts(
         bool client, bool game, bool server, string? role,
         bool expectedClient, bool expectedServer, bool expectedGame)
@@ -226,10 +227,7 @@ public sealed class LakonaRpcSourceGeneratorTests
         var compilation = AnalyzerTestHelpers.CreateCompilation(ContractWithAsyncCallbackSource);
         var runResult = AnalyzerTestHelpers.RunGenerator(
             compilation,
-            new Dictionary<string, string>
-            {
-                ["build_property.LakonaRpcGenerateServer"] = "true"
-            },
+            null,
             out var outputCompilation);
 
         Assert.Empty(runResult.Diagnostics);
@@ -340,7 +338,6 @@ public sealed class LakonaRpcSourceGeneratorTests
             AnalyzerTestHelpers.CreateCompilation(source),
             new Dictionary<string, string>
             {
-                ["build_property.LakonaRpcGenerateServer"] = "true",
                 ["build_property.LakonaRpcServerGeneratedNamespace"] = "Server.Generated"
             },
             out var outputCompilation);
@@ -419,10 +416,7 @@ public sealed class LakonaRpcSourceGeneratorTests
 
         var runResult = AnalyzerTestHelpers.RunGenerator(
             AnalyzerTestHelpers.CreateCompilation(source),
-            new Dictionary<string, string>
-            {
-                ["build_property.LakonaRpcGenerateServer"] = "true"
-            },
+            null,
             out _);
 
         var diagnostic = Assert.Single(runResult.Diagnostics);
@@ -543,10 +537,7 @@ public sealed class LakonaRpcSourceGeneratorTests
 
         var runResult = AnalyzerTestHelpers.RunGenerator(
             AnalyzerTestHelpers.CreateCompilation(source),
-            new Dictionary<string, string>
-            {
-                ["build_property.LakonaRpcGenerateServer"] = "true"
-            },
+            null,
             out var outputCompilation);
 
         Assert.Empty(runResult.Diagnostics);
@@ -562,10 +553,7 @@ public sealed class LakonaRpcSourceGeneratorTests
     {
         var runResult = AnalyzerTestHelpers.RunGenerator(
             AnalyzerTestHelpers.CreateCompilation(SimpleClientContractSource),
-            new Dictionary<string, string>
-            {
-                ["build_property.LakonaRpcGenerateServer"] = "true"
-            },
+            null,
             out var outputCompilation);
 
         Assert.Empty(runResult.Diagnostics);
@@ -582,10 +570,7 @@ public sealed class LakonaRpcSourceGeneratorTests
     {
         var runResult = AnalyzerTestHelpers.RunGenerator(
             AnalyzerTestHelpers.CreateCompilation(ContractWithAsyncCallbackSource),
-            new Dictionary<string, string>
-            {
-                ["build_property.LakonaRpcGenerateServer"] = "true"
-            },
+            null,
             out var outputCompilation);
 
         Assert.Empty(runResult.Diagnostics);

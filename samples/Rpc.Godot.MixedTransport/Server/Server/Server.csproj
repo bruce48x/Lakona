@@ -7,12 +7,10 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Agar.MixedTransport.Server</RootNamespace>
     <AssemblyName>Agar.MixedTransport.Server</AssemblyName>
-    <LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
     <LakonaRpcServerGeneratedNamespace>Shared.Interfaces.Server.Generated</LakonaRpcServerGeneratedNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
     <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
   </ItemGroup>
 

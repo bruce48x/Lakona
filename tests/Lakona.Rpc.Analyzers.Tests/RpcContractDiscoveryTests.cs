@@ -64,7 +64,6 @@ public sealed class RpcContractDiscoveryTests
 
     private static Dictionary<string, string> Options() => new()
     {
-        ["build_property.LakonaRpcGenerateServer"] = "true",
         ["build_property.LakonaRpcGeneratedNamespace"] = "Client.Generated",
         ["build_property.LakonaRpcServerGeneratedNamespace"] = "Server.Generated"
     };

@@ -71,20 +71,19 @@ validation. `RootNamespace` is already a compiler-visible property owned by the
 .NET SDK; Lakona's transitive build asset exposes only the Lakona-owned role
 property and does not redeclare that SDK contract.
 
-RPC-only projects outside Lakona Game may continue to use
-`LakonaRpcGenerateServer` and `LakonaRpcServerGeneratedNamespace`; these are the
-generic RPC generator controls, not Game project role controls.
+RPC-only projects outside Lakona Game may configure the generated server
+namespace through `LakonaRpcServerGeneratedNamespace`.
 
-Package references and project roles determine client generation for Unity,
-Tuanjie, Godot, and ordinary .NET clients. There are no client generation
-switches or assembly markers. Projects must contain discoverable RPC service
+Runtime references and project roles determine RPC client and server generation
+for Unity, Tuanjie, Godot, and ordinary .NET projects. There are no generation
+switches or client assembly markers. Projects must contain discoverable RPC service
 contracts for any RPC glue to be emitted.
 
 | Project role and runtime references | Generated output |
 | --- | --- |
 | No Game server role; RPC client runtime | RPC client glue |
 | No Game server role; Game client and RPC client runtimes, no RPC server runtime | RPC client glue and `LakonaGameClient` |
-| No Game server role; RPC server runtime | Server RPC glue, unless explicitly disabled by `LakonaRpcGenerateServer` |
+| No Game server role; RPC server runtime | Server RPC glue |
 | No Game server role; both RPC client and server runtimes | Both RPC client and server glue; no Game wrapper |
 | `ServerApp` | Stable server RPC glue only |
 | `Hotfix` | No stable RPC glue |
@@ -93,10 +92,15 @@ Generated clients do not contain a project-local RPC generation marker file.
 Their generated client API is emitted into `Client.Generated`, configurable
 through `LakonaRpcGeneratedNamespace`.
 
-When upgrading to `Lakona.Rpc.Core 0.15.0`, remove the former
-`LakonaRpcGenerateClient` and `LakonaGameGenerateClient` properties and their
-assembly attributes, then rebuild. An attribute-provided namespace moves to
-`LakonaRpcGeneratedNamespace`. Old client generation properties have no effect.
+When upgrading to `Lakona.Rpc.Core 0.16.0`, remove the former
+`LakonaRpcGenerateClient`, `LakonaGameGenerateClient`, and
+`LakonaRpcGenerateServer` properties, their `CompilerVisibleProperty` entries,
+and client assembly attributes, then rebuild. An attribute-provided namespace
+moves to `LakonaRpcGeneratedNamespace`. Old generation properties have no effect.
+RPC-only projects that previously disabled server generation now emit server
+bindings whenever they reference the RPC server runtime. Keep contract-only
+projects free of runtime references; Game projects must declare their actual
+`ServerApp` or `Hotfix` role.
 
 The generator emits `LakonaGameClient` in the same namespace as
 the generated `RpcClient`. The wrapper supplies the typed API and static callback

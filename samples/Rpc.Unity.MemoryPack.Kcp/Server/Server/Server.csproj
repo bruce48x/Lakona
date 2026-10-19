@@ -8,12 +8,10 @@
         <Nullable>enable</Nullable>
         <RootNamespace>Samples.Server</RootNamespace>
         <AssemblyName>Samples.Server</AssemblyName>
-        <LakonaRpcGenerateServer>true</LakonaRpcGenerateServer>
         <LakonaRpcServerGeneratedNamespace>Game.Rpc.Server.Generated</LakonaRpcServerGeneratedNamespace>
     </PropertyGroup>
 
     <ItemGroup>
-        <CompilerVisibleProperty Include="LakonaRpcGenerateServer" />
         <CompilerVisibleProperty Include="LakonaRpcServerGeneratedNamespace" />
     </ItemGroup>
 

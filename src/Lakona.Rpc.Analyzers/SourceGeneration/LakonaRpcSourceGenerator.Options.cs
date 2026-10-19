@@ -8,7 +8,6 @@ public sealed partial class LakonaRpcSourceGenerator
 {
     private sealed class GeneratorOptions
     {
-        private const string ServerKey = "build_property.LakonaRpcGenerateServer";
         private const string ClientNamespaceKey = "build_property.LakonaRpcGeneratedNamespace";
         private const string ServerNamespaceKey = "build_property.LakonaRpcServerGeneratedNamespace";
         private const string ProjectRoleKey = "build_property.LakonaProjectRole";
@@ -39,7 +38,6 @@ public sealed partial class LakonaRpcSourceGenerator
         public static GeneratorOptions From(AnalyzerConfigOptionsProvider provider, Compilation compilation)
         {
             var global = provider.GlobalOptions;
-            var hasServerSetting = global.TryGetValue(ServerKey, out var serverValue) && !string.IsNullOrWhiteSpace(serverValue);
             var projectRole = GetString(global, ProjectRoleKey, string.Empty);
             var isServerAppProject = string.Equals(projectRole, ServerAppRole, StringComparison.OrdinalIgnoreCase);
             var isHotfixProject = string.Equals(projectRole, HotfixRole, StringComparison.OrdinalIgnoreCase);
@@ -48,9 +46,7 @@ public sealed partial class LakonaRpcSourceGenerator
             var hasClientRuntime = compilation.GetTypeByMetadataName("Lakona.Rpc.Client.RpcClientRuntime") is not null;
             var hasServerRuntime = compilation.GetTypeByMetadataName("Lakona.Rpc.Server.RpcServiceRegistry") is not null;
             var generateClient = !hasGameServerRole && hasClientRuntime;
-            var generateServer = hasGameServerRole
-                ? isServerAppProject
-                : hasServerSetting ? IsEnabled(serverValue) : hasServerRuntime;
+            var generateServer = isServerAppProject || (!isHotfixProject && hasServerRuntime);
             var generateGameClient = generateClient && !hasServerRuntime &&
                 compilation.GetTypeByMetadataName("Lakona.Game.Client.LakonaGameClientCore") is not null;
 
@@ -63,10 +59,6 @@ public sealed partial class LakonaRpcSourceGenerator
                     ? GetGeneratedServerNamespace(GetString(global, RootNamespaceKey, string.Empty))
                     : GetString(global, ServerNamespaceKey, "Server.Generated"));
         }
-
-        private static bool IsEnabled(string? value) =>
-            string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(value, "1", StringComparison.Ordinal);
 
         private static string GetString(AnalyzerConfigOptions options, string key, string fallback) =>
             options.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
