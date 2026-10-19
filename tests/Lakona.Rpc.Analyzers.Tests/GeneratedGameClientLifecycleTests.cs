@@ -59,10 +59,10 @@ public sealed class GeneratedGameClientLifecycleTests
             """;
         var result = AnalyzerTestHelpers.RunGenerator(
             AnalyzerTestHelpers.CreateCompilation(source, "GeneratedLifecycle_" + Guid.NewGuid().ToString("N"),
-                additionalReferences: new[] { Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(typeof(TestNumber).Assembly.Location) }),
+                additionalReferences: new[] { Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(typeof(TestNumber).Assembly.Location) },
+                includeServerRuntimeReference: false),
             new Dictionary<string, string>
             {
-                ["build_property.LakonaGameGenerateClient"] = "true",
                 ["build_property.LakonaRpcGeneratedNamespace"] = "Client.Generated"
             }, out var compilation);
         Assert.Empty(result.Diagnostics);

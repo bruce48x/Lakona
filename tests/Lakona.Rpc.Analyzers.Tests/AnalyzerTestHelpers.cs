@@ -19,10 +19,12 @@ internal static class AnalyzerTestHelpers
         string source,
         string? assemblyName = "TestAssembly",
         IEnumerable<MetadataReference>? additionalReferences = null,
-        bool includeServerRuntimeReference = true)
+        bool includeServerRuntimeReference = true,
+        bool includeGameClientReference = true,
+        bool includeClientRuntimeReference = true)
     {
         var references = TrustedPlatformReferences()
-            .Concat(ProjectReferences(includeServerRuntimeReference))
+            .Concat(ProjectReferences(includeServerRuntimeReference, includeGameClientReference, includeClientRuntimeReference))
             .Concat(additionalReferences ?? Array.Empty<MetadataReference>())
             .GroupBy(static reference => reference.Display, StringComparer.OrdinalIgnoreCase)
             .Select(static group => group.First());
@@ -89,12 +91,14 @@ internal static class AnalyzerTestHelpers
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
             .ToArray();
 
-    private static IEnumerable<MetadataReference> ProjectReferences(bool includeServerRuntimeReference)
+    private static IEnumerable<MetadataReference> ProjectReferences(bool includeServerRuntimeReference, bool includeGameClientReference, bool includeClientRuntimeReference)
     {
         yield return MetadataReference.CreateFromFile(typeof(RpcServiceAttribute).Assembly.Location);
         yield return MetadataReference.CreateFromFile(typeof(GameClientHello).Assembly.Location);
-        yield return MetadataReference.CreateFromFile(typeof(LakonaGameClientCore).Assembly.Location);
-        yield return MetadataReference.CreateFromFile(typeof(RpcClientRuntime).Assembly.Location);
+        if (includeGameClientReference)
+            yield return MetadataReference.CreateFromFile(typeof(LakonaGameClientCore).Assembly.Location);
+        if (includeClientRuntimeReference)
+            yield return MetadataReference.CreateFromFile(typeof(RpcClientRuntime).Assembly.Location);
         if (includeServerRuntimeReference)
             yield return MetadataReference.CreateFromFile(typeof(RpcServiceRegistry).Assembly.Location);
     }

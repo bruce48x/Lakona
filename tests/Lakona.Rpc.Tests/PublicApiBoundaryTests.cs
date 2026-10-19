@@ -26,14 +26,6 @@ public class PublicApiBoundaryTests
             method => method.GetParameters().Any(parameter => parameter.ParameterType == typeof(RpcSession)));
     }
 
-    [Fact]
-    public void GameClientGenerationAttribute_OnlyExposesParameterlessConstructor()
-    {
-        var constructor = Assert.Single(typeof(LakonaGameGenerateClientAttribute).GetConstructors());
-
-        Assert.Empty(constructor.GetParameters());
-    }
-
     [Theory]
     [MemberData(nameof(HiddenRuntimeSupportTypes))]
     public void RuntimeSupportTypes_AreHiddenFromNormalIntelliSense(Type type)

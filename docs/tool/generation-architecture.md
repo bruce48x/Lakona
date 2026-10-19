@@ -537,6 +537,11 @@ must not reference the hotfix project as a normal compile dependency.
 
 ### Client Renderers
 
+Client projects rely on their `Lakona.Game.Client` reference to enable RPC and
+Game client source generation. Renderers must not emit
+`LakonaRpcGenerateClient` or `LakonaGameGenerateClient` opt-in properties or
+assembly marker files. The default generated namespace is `Client.Generated`.
+
 `UnityClientRenderer` owns Unity and Tuanjie files:
 
 - `Client/Packages/manifest.json`

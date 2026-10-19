@@ -4,6 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-10-19 — Game client generation from runtime references
+
+**Key releases:** `Lakona.Rpc.Core 0.15.0`, `Lakona.Game.Client 0.5.16`,
+`Lakona.Tool 0.43.58`, and `Lakona Hub 0.17.61`.
+
+- Referencing `Lakona.Game.Client` now enables the generated Game client and
+  typed RPC API across Unity, Tuanjie, Godot, and .NET clients without opt-in
+  properties. Client generation follows runtime references and project roles.
+- Breaking configuration/API change: remove `LakonaRpcGenerateClient`,
+  `LakonaGameGenerateClient`, and their assembly attributes from existing
+  projects, then rebuild with the matching runtime packages. Configure custom
+  client namespaces through `LakonaRpcGeneratedNamespace`.
+
 ## 2026-10-16 — Explicit component dependency and State boundaries
 
 **Key releases:** `Lakona.Game.Server 0.53.6`, `Lakona.Tool 0.43.57`,

@@ -35,9 +35,7 @@ internal sealed class GodotClientRenderer : IClientRenderer
             <RootNamespace>Client</RootNamespace>
             <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
             <NuGetAudit>false</NuGetAudit>
-            <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
             <LakonaRpcGeneratedNamespace>Client.Generated</LakonaRpcGeneratedNamespace>
-            <LakonaGameGenerateClient>true</LakonaGameGenerateClient>
           </PropertyGroup>
 
           <ItemGroup>

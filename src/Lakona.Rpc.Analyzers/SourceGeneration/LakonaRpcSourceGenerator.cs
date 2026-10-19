@@ -32,9 +32,6 @@ public sealed partial class LakonaRpcSourceGenerator : ISourceGenerator
             var compilation = context.Compilation;
             var options = GeneratorOptions.From(context.AnalyzerConfigOptions, compilation);
             if (!options.GenerateClient && !options.GenerateServer && !options.GenerateGameClient)
-                options = options.WithAutoDetectedModes(compilation);
-
-            if (!options.GenerateClient && !options.GenerateServer && !options.GenerateGameClient)
                 return;
 
             var services = RpcSymbolReader.FindServices(compilation);

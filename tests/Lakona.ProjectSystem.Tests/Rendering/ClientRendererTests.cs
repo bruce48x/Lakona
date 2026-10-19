@@ -237,9 +237,9 @@ public sealed class ClientRendererTests
         Assert.DoesNotContain(plan.Files, file => file.RelativePath.Contains("Chat", StringComparison.Ordinal));
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("Chat", StringComparison.Ordinal));
         var project = AssertPath(plan, "Client/Client.csproj").Content;
-        Assert.Contains("<LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("LakonaRpcGenerateClient", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaRpcGeneratedNamespace>Client.Generated</LakonaRpcGeneratedNamespace>", project, StringComparison.Ordinal);
-        Assert.Contains("<LakonaGameGenerateClient>true</LakonaGameGenerateClient>", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("LakonaGameGenerateClient", project, StringComparison.Ordinal);
         Assert.DoesNotContain("<CompilerVisibleProperty", project, StringComparison.Ordinal);
     }
 
@@ -260,9 +260,9 @@ public sealed class ClientRendererTests
         Assert.DoesNotContain("Chat", string.Join('\n', plan.Files.Select(file => file.RelativePath)), StringComparison.Ordinal);
         Assert.DoesNotContain(plan.Files, file => file.Content.Contains("Chat", StringComparison.Ordinal));
         var project = AssertPath(plan, "Client/Client.csproj").Content;
-        Assert.Contains("<LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("LakonaRpcGenerateClient", project, StringComparison.Ordinal);
         Assert.Contains("<LakonaRpcGeneratedNamespace>Client.Generated</LakonaRpcGeneratedNamespace>", project, StringComparison.Ordinal);
-        Assert.Contains("<LakonaGameGenerateClient>true</LakonaGameGenerateClient>", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("LakonaGameGenerateClient", project, StringComparison.Ordinal);
         Assert.DoesNotContain("<CompilerVisibleProperty", project, StringComparison.Ordinal);
     }
 

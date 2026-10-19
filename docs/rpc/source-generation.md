@@ -75,19 +75,30 @@ RPC-only projects outside Lakona Game may continue to use
 `LakonaRpcGenerateServer` and `LakonaRpcServerGeneratedNamespace`; these are the
 generic RPC generator controls, not Game project role controls.
 
-Generated client projects opt into client glue with the matching client
-generation property or framework-owned Unity analyzer defaults. Generated
-Unity and Tuanjie clients do not contain a project-local RPC generation marker
-file. Their generated client API is emitted into `Client.Generated`.
+Package references and project roles determine client generation for Unity,
+Tuanjie, Godot, and ordinary .NET clients. There are no client generation
+switches or assembly markers. Projects must contain discoverable RPC service
+contracts for any RPC glue to be emitted.
 
-Game client wrappers are an additional opt-in for projects that use
-Lakona.Game:
+| Project role and runtime references | Generated output |
+| --- | --- |
+| No Game server role; RPC client runtime | RPC client glue |
+| No Game server role; Game client and RPC client runtimes, no RPC server runtime | RPC client glue and `LakonaGameClient` |
+| No Game server role; RPC server runtime | Server RPC glue, unless explicitly disabled by `LakonaRpcGenerateServer` |
+| No Game server role; both RPC client and server runtimes | Both RPC client and server glue; no Game wrapper |
+| `ServerApp` | Stable server RPC glue only |
+| `Hotfix` | No stable RPC glue |
 
-```xml
-<LakonaGameGenerateClient>true</LakonaGameGenerateClient>
-```
+Generated clients do not contain a project-local RPC generation marker file.
+Their generated client API is emitted into `Client.Generated`, configurable
+through `LakonaRpcGeneratedNamespace`.
 
-When enabled, the generator emits `LakonaGameClient` in the same namespace as
+When upgrading to `Lakona.Rpc.Core 0.15.0`, remove the former
+`LakonaRpcGenerateClient` and `LakonaGameGenerateClient` properties and their
+assembly attributes, then rebuild. An attribute-provided namespace moves to
+`LakonaRpcGeneratedNamespace`. Old client generation properties have no effect.
+
+The generator emits `LakonaGameClient` in the same namespace as
 the generated `RpcClient`. The wrapper supplies the typed API and static callback
 receiver matching. `LakonaGameClientLifecycle` in `Lakona.Game.Client` owns the
 runtime behavior described in [Game Client Lifecycle](../session.md#game-client-lifecycle).
@@ -133,9 +144,6 @@ Connection, recovery, and disposal behavior are defined in
 Lifecycle behavior is tested in the client runtime, with generated-client
 integration tests covering typed calls, callbacks, and recovery. Generator
 tests retain C# 9 compilation and contract-binding checks.
-
-An explicit MSBuild `false` disables generated game client wrapper output.
-Tool-generated Unity, Tuanjie, Godot, and console clients enable it by default.
 
 ## Ownership
 
@@ -215,7 +223,7 @@ change their visibility.
 | `.Naming.cs` | Generated identifiers and parameter signatures |
 | `.SourceWriter.cs` | Source text formatting and indentation |
 
-All suffixes belong to `LakonaRpcSourceGenerator`. The opt-in Game client wrapper
+All suffixes belong to `LakonaRpcSourceGenerator`. The generated Game client wrapper
 remains in the client emitter.
 
 Notification proxies use the declared service and notification ids and the

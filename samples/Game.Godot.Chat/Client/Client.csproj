@@ -7,15 +7,11 @@
     <RootNamespace>Client</RootNamespace>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <NuGetAudit>false</NuGetAudit>
-    <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
     <LakonaRpcGeneratedNamespace>Client.Generated</LakonaRpcGeneratedNamespace>
-    <LakonaGameGenerateClient>true</LakonaGameGenerateClient>
   </PropertyGroup>
 
   <ItemGroup>
-    <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
     <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
-    <CompilerVisibleProperty Include="LakonaGameGenerateClient" />
   </ItemGroup>
 
   <ItemGroup>

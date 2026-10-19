@@ -5,7 +5,7 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 namespace Server.Hotfix.Chat;
 
 [HotfixComponent]
-internal sealed class ChatNotifier
+public sealed class ChatNotifier
 {
     private readonly IClientNotifications _notifications;
 

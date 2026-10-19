@@ -425,8 +425,6 @@ function New-E2EClient {
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
-    <LakonaGameGenerateClient>true</LakonaGameGenerateClient>
   </PropertyGroup>
 "@
 
@@ -436,8 +434,6 @@ function New-E2EClient {
         $csprojContent += @"
 
   <ItemGroup>
-    <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
-    <CompilerVisibleProperty Include="LakonaGameGenerateClient" />
     <ProjectReference Include="$RepoRoot\src\Lakona.Game.Client\Lakona.Game.Client.csproj" />
     <ProjectReference Include="$RepoRoot\src\$transportPkg\$transportPkg.csproj" />
     <ProjectReference Include="$RepoRoot\src\$serializerPkg\$serializerPkg.csproj" />

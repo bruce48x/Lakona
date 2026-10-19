@@ -6,11 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
     <LakonaRpcGeneratedNamespace>FrameworkBenchmark.Lakona.Driver.Generated</LakonaRpcGeneratedNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
     <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
   </ItemGroup>
   <ItemGroup>

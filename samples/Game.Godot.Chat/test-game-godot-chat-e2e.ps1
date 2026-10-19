@@ -237,15 +237,11 @@ function Write-HarnessProject {
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
     <LakonaRpcGeneratedNamespace>Client.Generated</LakonaRpcGeneratedNamespace>
-    <LakonaGameGenerateClient>true</LakonaGameGenerateClient>
   </PropertyGroup>
 
   <ItemGroup>
-    <CompilerVisibleProperty Include="LakonaRpcGenerateClient" />
     <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
-    <CompilerVisibleProperty Include="LakonaGameGenerateClient" />
   </ItemGroup>
 
   <ItemGroup>
@@ -583,10 +579,11 @@ try {
     $env:Lakona__Endpoints__0__Port = [string]$Port
     $env:Lakona__Endpoints__0__Path = "/ws"
     Assert-PortAvailable -HostName "127.0.0.1" -HostPort $Port
+    $serverWindowOptions = if ($env:OS -eq "Windows_NT") { @{ WindowStyle = "Hidden" } } else { @{ NoNewWindow = $true } }
     $serverProcess = Start-Process -FilePath "dotnet" `
         -ArgumentList @("run", "--project", $serverProject, "--no-build") `
         -PassThru `
-        -NoNewWindow `
+        @serverWindowOptions `
         -RedirectStandardOutput $serverOut `
         -RedirectStandardError $serverErr
 

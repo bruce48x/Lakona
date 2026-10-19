@@ -61,32 +61,4 @@ namespace Lakona.Rpc.Core
         public int MethodId { get; }
     }
 
-    /// <summary>
-    ///     Marks the current assembly as the client assembly that should receive generated RPC client glue.
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false)]
-    public sealed class LakonaRpcGenerateClientAttribute : Attribute
-    {
-        public LakonaRpcGenerateClientAttribute()
-        {
-        }
-
-        public LakonaRpcGenerateClientAttribute(string generatedNamespace)
-        {
-            GeneratedNamespace = generatedNamespace;
-        }
-
-        public string? GeneratedNamespace { get; }
-    }
-
-    /// <summary>
-    ///     Marks the current assembly as the game client assembly that should receive the generated Lakona game client wrapper.
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false)]
-    public sealed class LakonaGameGenerateClientAttribute : Attribute
-    {
-        public LakonaGameGenerateClientAttribute()
-        {
-        }
-    }
 }

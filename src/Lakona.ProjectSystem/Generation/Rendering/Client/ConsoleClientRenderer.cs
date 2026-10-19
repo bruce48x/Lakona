@@ -35,9 +35,7 @@ internal sealed class ConsoleClientRenderer : IClientRenderer
             <Nullable>enable</Nullable>
             <RootNamespace>Client</RootNamespace>
             <NuGetAudit>false</NuGetAudit>
-            <LakonaRpcGenerateClient>true</LakonaRpcGenerateClient>
             <LakonaRpcGeneratedNamespace>Client.Generated</LakonaRpcGeneratedNamespace>
-            <LakonaGameGenerateClient>true</LakonaGameGenerateClient>
           </PropertyGroup>
 
           <ItemGroup>

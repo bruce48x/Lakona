@@ -13,6 +13,10 @@ dotnet add package Lakona.Game.Client
 Reference the chosen transport, serializer, and shared business contracts.
 Generated projects supply their matching client and compiler configuration.
 
+Client projects automatically receive the generated `LakonaGameClient` from
+their Game client reference. Package references and project roles determine
+generation; no client generation switches or assembly markers are required.
+
 ## Guides
 
 - [Game client lifecycle](https://github.com/bruce48x/Lakona/blob/main/docs/session.md#game-client-lifecycle): connection states, automatic recovery, transport factories, and disposal.
