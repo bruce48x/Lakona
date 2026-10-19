@@ -63,8 +63,10 @@ internal sealed class RpcKeepAliveCoordinator
                 {
                     TimestampTicksUtc = pingTimestamp
                 });
-                await _sender.SendAsync(pingBytes.Memory, ct).ConfigureAwait(false);
+                // A peer can reply before the asynchronous write completes. Publish the
+                // probe first so inbound activity cannot be overwritten by this sender.
                 _state.MarkPingSent(pingTimestamp);
+                await _sender.SendAsync(pingBytes.Memory, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {

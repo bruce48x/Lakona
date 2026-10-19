@@ -1202,10 +1202,12 @@ public class RpcSessionTests
     public async Task KeepAlive_WithResponsiveIdleClient_KeepsSessionAlive()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        await using var observedTransport = new PongObservingTransport(serverTransport);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var serializer = new JsonRpcSerializer();
         var registry = new RpcServiceRegistry();
         var server = new RpcSession(
-            serverTransport,
+            observedTransport,
             serializer,
             registry: registry,
             connectionId: "keepalive-responsive",
@@ -1214,7 +1216,7 @@ public class RpcSessionTests
             {
                 Enabled = true,
                 Interval = TimeSpan.FromMilliseconds(40),
-                Timeout = TimeSpan.FromMilliseconds(120),
+                Timeout = TimeSpan.FromSeconds(2),
                 MeasureRtt = false
             });
 
@@ -1223,22 +1225,44 @@ public class RpcSessionTests
                 RpcServerResponse.Encode(
                     req.RequestId, RpcStatus.Ok, SerializeBytes(serializer, "alive"))));
 
-        var disconnected = 0;
-        server.Disconnected += _ => Interlocked.Increment(ref disconnected);
-
-        await server.StartAsync();
-
+        var disconnected = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        server.Disconnected += error => disconnected.TrySetResult(error);
         var client = new RpcClientRuntime(clientTransport, serializer);
-        await client.StartAsync();
+        try
+        {
+            await client.StartAsync(deadline.Token);
+            await server.StartAsync(deadline.Token);
+            var heartbeat = await Task.WhenAny(observedTransport.ThreePongs.Task, disconnected.Task).WaitAsync(deadline.Token);
+            Assert.Same(observedTransport.ThreePongs.Task, heartbeat);
+            var call = client.CallAsync(new RpcMethod<string, string>(1, 1), string.Empty, deadline.Token).AsTask();
+            Assert.Same(call, await Task.WhenAny(call, disconnected.Task).WaitAsync(deadline.Token));
+            Assert.Equal("alive", await call);
+            Assert.False(disconnected.Task.IsCompleted);
+        }
+        finally
+        {
+            deadline.Cancel();
+            try { await client.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)); }
+            finally { await server.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5)); }
+        }
+    }
 
-        await Task.Delay(300);
-        var reply = await client.CallAsync(new RpcMethod<string, string>(1, 1), string.Empty);
-
-        Assert.Equal("alive", reply);
-        Assert.Equal(0, disconnected);
-
-        await client.DisposeAsync();
-        await server.DisposeAsync();
+    private sealed class PongObservingTransport(ITransport inner) : ITransport
+    {
+        private int pongs;
+        public TaskCompletionSource ThreePongs { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool IsConnected => inner.IsConnected;
+        public ValueTask ConnectAsync(CancellationToken ct = default) => inner.ConnectAsync(ct);
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default) => inner.SendFrameAsync(frame, ct);
+        public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
+        {
+            var frame = await inner.ReceiveFrameAsync(ct);
+            if (!frame.IsEmpty && RpcEnvelopeCodec.PeekFrameType(frame.Span) == RpcFrameType.KeepAlivePong
+                && Interlocked.Increment(ref pongs) == 3)
+                ThreePongs.TrySetResult();
+            return frame;
+        }
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
     }
 
     [Fact]

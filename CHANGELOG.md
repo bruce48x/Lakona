@@ -4,21 +4,22 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-10-19 — RPC generation from roles and runtime references
+## 2026-10-19 — Automatic RPC generation and reliable keepalive
 
-**Key releases:** `Lakona.Rpc.Core 0.16.0`, `Lakona.Game.Client 0.5.17`,
-`Lakona.Tool 0.43.59`, and `Lakona Hub 0.17.62`.
+**Key releases:** `Lakona.Rpc.Core 0.16.1`, `Lakona.Game.Client 0.5.18`,
+`Lakona.Tool 0.43.60`, and `Lakona Hub 0.17.63`.
 
 - Referencing `Lakona.Game.Client` now enables the generated Game client and
   typed RPC API across Unity, Tuanjie, Godot, and .NET clients without opt-in
-  properties. Client generation follows runtime references and project roles.
+  properties. RPC client and server generation follows runtime references and
+  project roles: App owns stable server bindings and Hotfix suppresses them.
 - Breaking configuration/API change: remove `LakonaRpcGenerateClient`,
   `LakonaGameGenerateClient`, `LakonaRpcGenerateServer`, and client assembly
   attributes from existing projects, then rebuild with matching runtime packages. Configure custom
   client namespaces through `LakonaRpcGeneratedNamespace`.
-- Server binding generation follows project roles and RPC server runtime
-  references: App owns stable bindings, Hotfix suppresses them, and RPC-only
-  servers generate bindings automatically without an enable/disable property.
+- Keepalive no longer restores a pending probe after an early Pong has already
+  cleared it, preventing false peer timeouts on responsive connections. Tests
+  explicitly control this ordering and bound requests and cleanup.
 
 ## 2026-10-16 — Explicit component dependency and State boundaries
 

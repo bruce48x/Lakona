@@ -256,6 +256,12 @@ unexpected keepalive failure cancels the receive loop and becomes the terminal
 disconnect reason. No Session-owned task handle is discarded while its task can
 still access Session resources.
 
+Keepalive publishes a pending probe before submitting its Ping write. A peer's
+Pong or other inbound frame may be processed before that asynchronous write
+completes; send completion must not restore a probe already cleared by inbound
+activity. Outbound traffic alone does not prove peer liveness. Keepalive
+timeouts therefore remain effective when later probes receive no response.
+
 Host cancellation or failure starts a cooperative Session drain under one host-wide
 shutdown deadline. `RpcServerHostBuilder.UseShutdownTimeout` configures that
 deadline; the default is 15 seconds. If active Sessions do not finish in time,

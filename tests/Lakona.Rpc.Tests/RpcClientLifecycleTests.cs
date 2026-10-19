@@ -234,6 +234,7 @@ public sealed class RpcClientLifecycleTests
 
     private sealed class FailingKeepAliveTransport : ITransport
     {
+        private readonly Channel<TransportFrame> incoming = Channel.CreateUnbounded<TransportFrame>();
         public IOException Failure { get; } = new("Injected connection failure.");
         public TaskCompletionSource RequestSent { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource PingStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -252,7 +253,17 @@ public sealed class RpcClientLifecycleTests
                 RequestSent.TrySetResult();
                 return;
             }
-            if (!FailReceive && !RequestSent.Task.IsCompleted) return;
+            if (!FailReceive && !RequestSent.Task.IsCompleted)
+            {
+                // Probes may precede the request under load. Acknowledge them instead
+                // of leaving the runtime waiting for a response until its long timeout.
+                var ping = RpcEnvelopeCodec.DecodeKeepAlivePing(frame.Span);
+                incoming.Writer.TryWrite(RpcEnvelopeCodec.EncodeKeepAlivePong(new RpcKeepAlivePongEnvelope
+                {
+                    TimestampTicksUtc = ping.TimestampTicksUtc
+                }));
+                return;
+            }
             PingStarted.TrySetResult();
             try { await FailPing.Task.WaitAsync(ct); }
             catch (OperationCanceledException) { PingCanceled.TrySetResult(); throw; }
@@ -260,12 +271,23 @@ public sealed class RpcClientLifecycleTests
         }
         public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
         {
-            try { await ReleaseReceive.Task.WaitAsync(ct); }
+            try
+            {
+                if (!FailReceive) return await incoming.Reader.ReadAsync(ct);
+                await ReleaseReceive.Task.WaitAsync(ct);
+            }
             catch (OperationCanceledException) { ReceiveCanceled.TrySetResult(); throw; }
             if (FailReceive) throw Failure;
             return TransportFrame.Empty;
         }
-        public ValueTask DisposeAsync() { DisposeCount++; IsConnected = false; return default; }
+        public ValueTask DisposeAsync()
+        {
+            DisposeCount++;
+            IsConnected = false;
+            incoming.Writer.TryComplete();
+            while (incoming.Reader.TryRead(out var frame)) frame.Dispose();
+            return default;
+        }
     }
 
     private sealed class PausedDisposeTransport : ITransport
