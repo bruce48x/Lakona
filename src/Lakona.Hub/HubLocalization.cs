@@ -251,7 +251,6 @@ public sealed class HubText
     public string EnvironmentChecking => L("正在检查", "正在檢查", "Checking");
     public string EnvironmentNeedsSetup => L("需要设置", "需要設定", "Setup required");
     public string ApplicationUpdates => L("应用更新", "應用程式更新", "App updates");
-    public string ApplicationUpdatesDescription => L("从 GitHub Releases 获取经过校验的更新；Linux 使用系统安装包。", "從 GitHub Releases 取得經過驗證的更新；Linux 使用系統安裝套件。", "Get verified updates from GitHub Releases. Linux uses native system packages.");
     public string CheckForUpdates => L("检查更新", "檢查更新", "Check for updates");
     public string DownloadAndInstall => L("下载并安装", "下載並安裝", "Download & install");
     public string Update => L("更新", "更新", "Update");
