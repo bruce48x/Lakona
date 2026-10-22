@@ -12,6 +12,85 @@ namespace Lakona.Game.Server.Tests.Cluster.Actors;
 
 public sealed class DistributedActorDirectoryTests
 {
+    [Fact]
+    public async Task Release_already_routed_to_a_partition_refreshes_when_the_ring_becomes_empty()
+    {
+        var node = Reference("node-a", 1);
+        var before = new ActorDirectoryRing(Snapshot(1, Active(node)));
+        var after = new ActorDirectoryRing(Snapshot(2));
+        var membership = new MutableMembership(after.Membership);
+        var identity = new LocalActorNodeIdentity(node.Node);
+        identity.Observe(node);
+        using var directory = new DistributedActorDirectory(membership, new RejectingClientFactory(), identity);
+        // Seed the directory before the last node disappears, just as a handler
+        // which has already selected its partition would have observed it.
+        membership.Current = before.Membership;
+        await directory.EnsureViewAsync(before.View, TestContext.Current.CancellationToken);
+        membership.Current = after.Membership;
+        var actor = ActorId.From("shutdown/routed-release");
+        var partition = new ActorDirectoryPartition(before.GetOwner(actor), directory);
+        partition.PrepareTransition(before, after).Start();
+        var result = await partition.ReleaseAsync(actor, ActorActivationId.New(), before.View, TestContext.Current.CancellationToken);
+        Assert.Equal(ActorDirectoryOperationStatus.RefreshRequired, result.Status);
+        Assert.Equal(after.View, result.View);
+    }
+
+    [Fact]
+    public async Task Last_owner_release_requires_committed_local_stopping_and_does_not_enable_lookup_or_acquire()
+    {
+        var node = Reference("node-a", 1);
+        var membership = new MutableMembership(Snapshot(1, Active(node)));
+        var identity = new LocalActorNodeIdentity(node.Node);
+        identity.Observe(node);
+        using var directory = new DistributedActorDirectory(membership, new RejectingClientFactory(), identity);
+        var actor = ActorId.From("shutdown/last");
+        var activation = ActorActivationId.New();
+        var token = TestContext.Current.CancellationToken;
+        await directory.AcquireAsync(actor, node, activation, token);
+        membership.Current = Snapshot(2);
+
+        // Missing membership alone is a fault, not evidence of graceful stop.
+        await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(() => directory.ReleaseAsync(actor, activation, token).AsTask());
+        identity.ConfirmStopping(node);
+        Assert.True(await directory.ReleaseAsync(actor, activation, token));
+        Assert.True(await directory.ReleaseAsync(actor, activation, token));
+        await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(() => directory.ResolveAsync(actor, token).AsTask());
+        await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(() => directory.AcquireAsync(actor, node, activation, token).AsTask());
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => directory.ReleaseAsync(actor, activation, canceled.Token).AsTask());
+    }
+
+    [Fact]
+    public async Task Stopping_owner_release_after_empty_view_cannot_remove_new_nodes_claim()
+    {
+        var nodeA = Reference("node-a", 1);
+        var nodeB = Reference("node-b", 2);
+        var membershipA = new MutableMembership(Snapshot(1, Active(nodeA)));
+        var identity = new LocalActorNodeIdentity(nodeA.Node);
+        identity.Observe(nodeA);
+        var network = new DirectoryNetwork();
+        using var directoryA = new DistributedActorDirectory(membershipA, network, identity);
+        network.Register(nodeA, directoryA);
+        var actor = ActorId.From("shutdown/replacement");
+        var oldActivation = ActorActivationId.New();
+        var token = TestContext.Current.CancellationToken;
+        await directoryA.AcquireAsync(actor, nodeA, oldActivation, token);
+        membershipA.Current = Snapshot(2);
+        identity.ConfirmStopping(nodeA);
+        Assert.True(await directoryA.ReleaseAsync(actor, oldActivation, token));
+
+        var joined = Snapshot(3, Active(nodeB));
+        var membershipB = new MutableMembership(joined);
+        using var directoryB = Directory(nodeB, membershipB, network, joined);
+        network.Register(nodeB, directoryB);
+        membershipA.Current = joined;
+        var replacement = ActorActivationId.New();
+        Assert.True((await directoryB.AcquireAsync(actor, nodeB, replacement, token)).Acquired);
+        Assert.False(await directoryA.ReleaseAsync(actor, oldActivation, token));
+        Assert.Equal(replacement, (await directoryB.ResolveAsync(actor, token))!.ActivationId);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

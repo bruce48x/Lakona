@@ -4,6 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-10-22 — Graceful Actor shutdown after Membership withdrawal
+
+**Key releases:** `Lakona.Game.Server 0.53.11`, `Lakona.Game.Testing 0.3.51`,
+`Lakona.Tool 0.43.61`, and `Lakona Hub 0.17.64`.
+
+- Startup and ordinary Actors retire from their exact local activation proof
+  after the node leaves routing. The last node can complete claim release after
+  a confirmed Stopping commit, without admitting new work or hiding Directory
+  outages. Delayed retirement preserves replacement activations.
+- Real Host regression tests cover single-node and two-node shutdown, timer
+  cancellation, ActorStop before component cleanup, and repeated stop.
+
 ## 2026-10-19 — Automatic RPC generation and reliable keepalive
 
 **Key releases:** `Lakona.Rpc.Core 0.16.1`, `Lakona.Game.Client 0.5.18`,

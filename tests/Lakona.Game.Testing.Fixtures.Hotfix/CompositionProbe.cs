@@ -30,6 +30,21 @@ public sealed class CompositionProbe : IAsyncDisposable
 
     public void RecordActorStop() => state.LifecycleEvents.Add("actor-stop");
 
+    public void RecordTimerTick()
+    {
+        Interlocked.Increment(ref state.TimerTicks);
+        state.FirstTimerTick.TrySetResult();
+    }
+
+    public void RecordStartupStop(Lakona.Game.Cluster.ClusterMembershipSnapshot membership,
+        Lakona.Game.Cluster.Membership.MembershipTableSnapshot table)
+    {
+        state.StopMembership = membership;
+        state.StopTable = table;
+        state.LifecycleEvents.Add("timer-stop");
+        state.LifecycleEvents.Add("startup-stop");
+    }
+
     public string Origin => state.Origin;
     public int DisposeCount => state.DisposeCount;
 

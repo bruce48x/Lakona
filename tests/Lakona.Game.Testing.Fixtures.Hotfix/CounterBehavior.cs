@@ -57,6 +57,7 @@ public static class CounterHotfixStartup
     [HotfixConfigureActors]
     public static void ConfigureActors(ActorHostBuilder actors)
     {
+        actors.RegisterStartup<ShutdownActor, CounterId>();
         actors.RegisterPlacement<CounterActor, CounterId>(static context =>
             context.Candidates.OrderBy(static candidate => candidate.NodeId, StringComparer.Ordinal).First());
     }

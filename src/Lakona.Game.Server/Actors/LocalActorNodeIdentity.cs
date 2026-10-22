@@ -5,6 +5,7 @@ namespace Lakona.Game.Server.Actors;
 public sealed class LocalActorNodeIdentity
 {
     private NodeReference? reference;
+    private NodeReference? stoppingReference;
 
     public LocalActorNodeIdentity(NodeId nodeId)
     {
@@ -14,6 +15,17 @@ public sealed class LocalActorNodeIdentity
     public NodeId NodeId { get; }
 
     public NodeReference? Reference => Volatile.Read(ref reference);
+
+    // Set only after the Membership Table has committed Stopping. The routing
+    // snapshot deliberately omits Stopping members, so absence alone is no proof.
+    internal NodeReference? StoppingReference => Volatile.Read(ref stoppingReference);
+
+    internal void ConfirmStopping(NodeReference value)
+    {
+        if (value != Reference)
+            throw new InvalidOperationException("Stopping must refer to the exact local incarnation.");
+        Volatile.Write(ref stoppingReference, value);
+    }
 
     internal void Observe(NodeReference value)
     {

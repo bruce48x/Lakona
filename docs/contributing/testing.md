@@ -93,6 +93,37 @@ An in-process `KillNodeAsync` cancels host shutdown and skips the graceful
 Membership path. It models abrupt framework lifecycle interruption, but it is
 not an operating-system process kill.
 
+### Cross-process Actor shutdown
+
+Run `pwsh -NoProfile -File scripts/game/ci/test-actor-shutdown-processes.ps1`
+for the focused Actor shutdown regression. It requires .NET 10, Docker and
+Python 3.10 or newer. The script builds the non-packable ProcessTests App/Hotfix
+fixtures from local source, starts an isolated PostgreSQL Membership container,
+and runs one gateway and two worker OS processes over the production TCP stack.
+It sends Ctrl+C on Windows or SIGINT on Unix, restarts a worker with the same
+NodeId, and finally stops the last Active node. It does not require Unity or
+change an application's deployment.
+
+The fixture holds one admitted Actor call to verify drain-before-Stopping, then
+holds ActorStop until a replacement has processed concurrent requests. A
+transparent directory decorator records the real catalog's exact release and
+its conditional result. Assertions cover concurrent placement, surviving
+owner/incarnation/activation claims before and after old-process exit, replay
+from the old incarnation after a same-NodeId restart, and last-node cleanup.
+Per-process execution journals are merged using the same machine's monotonic
+clock to reject overlapping or duplicate execution, missing replies, extra
+activations, or missing/duplicate ActorStop. A retiring Actor object may coexist
+with its replacement; that is not permission to accept business work.
+
+Logs, identities, exit codes, merged journals and `result.json` are retained
+under `artifacts/shutdown-processes/<run>/`. A timed-out or forcibly killed node
+is never counted as a passing shutdown. The database is stopped only after all
+test processes exit; if cleanup is stuck, the script reports failure and leaves
+the dependency available for diagnosis. This test proves the controlled graceful
+handoffs it exercises, not arbitrary network-partition or database-outage safety.
+
+### Scheduled and sample validation
+
 The scheduled and manually dispatchable `Daily Validation` workflow runs seeded
 multi-node Membership restart scenarios, the Actor Catalog/Directory consistency
 suites, and the complete Membership Table contract against required real

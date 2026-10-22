@@ -155,6 +155,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
         try
         {
             await ObserveTableOperationAsync("stopping", () => manager.MarkStoppingAsync(budget.Token)).ConfigureAwait(false);
+            services.GetService<LocalActorNodeIdentity>()?.ConfirmStopping(manager.Local);
             ClusterDiagnostics.RecordMembershipLifecycle("stopping");
         }
         catch (Exception exception)

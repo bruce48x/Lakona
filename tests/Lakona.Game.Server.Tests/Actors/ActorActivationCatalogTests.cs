@@ -560,6 +560,29 @@ public sealed class ActorActivationCatalogTests
     }
 
     [Fact]
+    public async Task DestroyAsync_retires_local_cell_without_releasing_a_new_claim_on_the_same_node()
+    {
+        var token = TestContext.Current.CancellationToken;
+        var directory = new TestActorDirectory();
+        var dispatcher = new RecordingActorLifecycleDispatcher();
+        await using var provider = CreateProvider(directory: directory, lifecycleDispatcher: dispatcher);
+        var catalog = provider.GetRequiredService<ActorActivationCatalog>();
+        var actor = ActorId.From("shutdown/same-node-replacement");
+        await catalog.CreateAsync<HostedTestActor>(actor, token);
+        var original = (await directory.ResolveAsync(actor, token))!;
+        await directory.ReleaseAsync(actor, original.ActivationId, token);
+        var replacement = ActorActivationId.New();
+        await directory.AcquireAsync(actor, original.OwnerReference, replacement, token);
+
+        // A delayed exact retirement still belongs to the old local cell.
+        await catalog.DestroyExactAsync<HostedTestActor>(actor, original.OwnerReference, original.ActivationId, token);
+
+        Assert.Equal(replacement, (await directory.ResolveAsync(actor, token))!.ActivationId);
+        Assert.Equal(ActorState.Dead, provider.GetRequiredService<IActorRuntime>().GetState(actor));
+        Assert.Single(dispatcher.Events, entry => entry.Kind == "stop");
+    }
+
+    [Fact]
     public async Task DestroyExactAsync_does_not_destroy_a_replacement_activation()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

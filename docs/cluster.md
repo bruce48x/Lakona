@@ -638,6 +638,15 @@ the node from new routing before cleanup starts. Directory and transport stay
 alive long enough for deactivation hooks and exact route release; only after
 that work finishes may Membership declare the incarnation `Dead`.
 
+The routing snapshot omits Stopping members. The local identity records a
+successful Stopping commit separately; absence from the snapshot is not proof
+of graceful shutdown. If the last Active owner leaves, only release by an
+incarnation with this confirmed local Stopping evidence can finish without a
+Directory owner. Its claims cannot survive into later views because transfer
+and recovery accept Active hosts only. Lookup and acquire still fail on the
+empty ring. When Active owners remain, release still uses the normal exact
+conditional operation and reports transport or Directory failures.
+
 The node lifecycle is single-use: a process may start it once and stop it once;
 recovering from a failed start requires a new process. A stage owns cleanup as
 soon as its start method is entered, so a stage which fails halfway through is

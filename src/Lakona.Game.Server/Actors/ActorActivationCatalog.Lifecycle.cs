@@ -257,7 +257,14 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
 
         ActorDirectoryRecord? registeredRecord = null;
         if (UsesDistributedLocation(actorType))
-            registeredRecord = await Directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+        {
+            // The local cell owns the proof for the activation being retired.
+            // A live lookup can fail after Membership publishes Stopping, or
+            // return a replacement whose claim this retirement must not release.
+            registeredRecord = _actors.TryGetValue(actorId, out var cell)
+                ? cell.DirectoryRecord
+                : await Directory!.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false);
+        }
 
         if (expectedActivation is { } exactActivation
             && (registeredRecord is not { OwnerReference: { } registeredOwner }
@@ -331,7 +338,7 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
             // Once the authoritative claim is gone, crash recovery must not be
             // able to publish the retired activation again while local cell
             // cleanup is still in progress.
-            if (registeredRecord?.Node == _localNode.NodeId)
+            if (registeredRecord is not null && registeredRecord.OwnerReference == _localNode.Reference)
                 await ReleaseLocalRouteAsync(registeredRecord, cancellationToken).ConfigureAwait(false);
             _directoryCache?.Remove(actorId);
         }

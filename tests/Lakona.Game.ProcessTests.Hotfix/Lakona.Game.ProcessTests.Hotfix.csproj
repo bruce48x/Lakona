@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>Server.Hotfix</AssemblyName>
+    <LakonaProjectRole>Hotfix</LakonaProjectRole>
+  </PropertyGroup>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="LakonaProjectRole" />
+    <ProjectReference Include="../Lakona.Game.ProcessTests.App/Lakona.Game.ProcessTests.App.csproj" />
+    <ProjectReference Include="../../src/Lakona.Game.Server.Hotfix.Generators/Lakona.Game.Server.Hotfix.Generators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>LakonaBuildTag</_Parameter1>
+      <_Parameter2>ShutdownProcessTest1</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

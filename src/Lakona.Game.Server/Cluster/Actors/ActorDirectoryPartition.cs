@@ -160,7 +160,9 @@ internal sealed class ActorDirectoryPartition
             {
                 if (!CanCommitOperation(actorId, requestView, ring)) continue;
                 ThrowIfFailed(ring);
-                if (ring.GetOwner(actorId) != Id)
+                // Membership can become empty after the RPC handler selected
+                // this partition but before its range lock has drained.
+                if (ring.IsEmpty || ring.GetOwner(actorId) != Id)
                     return new(ActorDirectoryOperationStatus.RefreshRequired, ring.View, null);
                 if (!records.TryGetValue(actorId, out var existing))
                     return new(ActorDirectoryOperationStatus.Applied, ring.View, null);

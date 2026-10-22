@@ -277,6 +277,11 @@ internal sealed class DistributedActorDirectory :
         var actorId = ActorId.From(request.ActorId);
         ActorDirectoryRing ring;
         lock (viewGate) ring = currentRing!;
+        // A release routed just before the last Active owner left must refresh
+        // at its caller, where the caller's exact Stopping identity is checked.
+        if (ring.IsEmpty && method.MethodId == ActorDirectoryProtocol.Release.MethodId)
+            return Reply(new ActorDirectoryOperationResult(
+                ActorDirectoryOperationStatus.RefreshRequired, ring.View, null));
         var expected = ring.GetOwner(actorId);
         if (expected.Owner != localReference || expected.Index != request.PartitionIndex)
             return Reply(new ActorDirectoryOperationResult(
@@ -490,6 +495,18 @@ internal sealed class DistributedActorDirectory :
             await EnsureViewAsync(membership.Current.View, cancellationToken).ConfigureAwait(false);
             ActorDirectoryRing ring;
             lock (viewGate) ring = currentRing!;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (ring.IsEmpty
+                && method.MethodId == ActorDirectoryProtocol.Release.MethodId
+                && localReference is not null
+                && localNode.StoppingReference == localReference)
+            {
+                // No authoritative range remains in this committed view. Claims
+                // of this exact Stopping incarnation cannot survive transfer or
+                // recovery (both accept Active hosts only). Release is therefore
+                // already satisfied; Lookup/Acquire and membership loss still fail.
+                return new(ActorDirectoryOperationStatus.Applied, ring.View, null);
+            }
             var owner = ring.GetOwner(actorId);
             var request = new ActorDirectoryRequest
             {

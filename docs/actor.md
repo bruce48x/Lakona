@@ -346,6 +346,12 @@ If drain or exact claim release cannot be confirmed, admission remains closed
 and the fenced claim remains recoverable for a later destroy retry. Lifecycle
 state never moves backward, and a retired Actor is never reopened.
 
+Local retirement uses the Catalog cell's exact owner/incarnation/activation
+proof, rather than looking up a possibly newer Directory record before running
+`[ActorStop]`. Exact destroy requests are checked against that local proof;
+conditional release cannot remove a replacement claim. Directory failures still
+surface after local retirement and keep its recovery evidence for a retry.
+
 `[ActorLocalOnly]` Actors skip Directory and route-cache work. Process-local
 composition supports `Local` and local placement; `Route` requires clustered
 composition and fails when Actor Directory is absent.

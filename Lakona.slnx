@@ -44,6 +44,8 @@
     <Project Path="src/Lakona.Tool/Lakona.Tool.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Lakona.Game.ProcessTests.App/Lakona.Game.ProcessTests.App.csproj" />
+    <Project Path="tests/Lakona.Game.ProcessTests.Hotfix/Lakona.Game.ProcessTests.Hotfix.csproj" />
     <Project Path="tests/Lakona.Hub.Tests/Lakona.Hub.Tests.csproj" />
     <Project Path="tests/Lakona.Game.Abstractions.Tests/Lakona.Game.Abstractions.Tests.csproj" />
     <Project Path="tests/Lakona.Game.Client.Tests/Lakona.Game.Client.Tests.csproj" />

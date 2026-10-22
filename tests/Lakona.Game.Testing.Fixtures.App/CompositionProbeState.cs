@@ -5,6 +5,10 @@ namespace Lakona.Game.Testing.Fixtures.App;
 [ComponentState]
 public sealed class CompositionProbeState : IDisposable
 {
+    public int TimerTicks;
+    public TaskCompletionSource FirstTimerTick { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public Lakona.Game.Cluster.ClusterMembershipSnapshot? StopMembership { get; set; }
+    public Lakona.Game.Cluster.Membership.MembershipTableSnapshot? StopTable { get; set; }
     public string Origin { get; init; } = "generated";
     public int DisposeCount { get; set; }
     public int Starts { get; set; }
