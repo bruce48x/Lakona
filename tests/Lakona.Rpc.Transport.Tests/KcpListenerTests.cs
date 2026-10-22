@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using Lakona.Rpc.Transport.Kcp;
 
 namespace Lakona.Rpc.Transport.Tests;
@@ -34,12 +35,15 @@ public class KcpListenerTests
     [Fact]
     public void Constructor_InvalidHost_ThrowsHelpfulException()
     {
-        var ex = Assert.ThrowsAny<Exception>(() =>
+        // Avoid relying on NXDOMAIN: DNS proxies may synthesize .invalid answers.
+        const string host = "invalid/host";
+        var ex = Assert.Throws<InvalidOperationException>(() =>
         {
-            _ = new KcpListener(port: 0, host: "invalid-host-xyzzy.invalid");
+            _ = new KcpListener(port: 0, host: host);
         });
 
-        Assert.Contains("invalid-host-xyzzy.invalid", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(host, ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.IsType<SocketException>(ex.InnerException);
     }
 
     [Fact]

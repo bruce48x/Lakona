@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using Lakona.Rpc.Transport.Tcp;
 
 namespace Lakona.Rpc.Tests;
@@ -24,13 +25,15 @@ public sealed class TcpConnectionAcceptorTests
     [Fact]
     public void Constructor_InvalidHost_ThrowsHelpfulException()
     {
-        // A clearly unresolvable hostname should throw, but with a meaningful
-        // message containing the hostname, not a raw FormatException.
-        var ex = Assert.ThrowsAny<Exception>(() =>
+        // A malformed name fails even when a DNS proxy synthesizes addresses
+        // for the reserved .invalid domain. Assert the resolution failure path.
+        const string host = "invalid/host";
+        var ex = Assert.Throws<InvalidOperationException>(() =>
         {
-            _ = new TcpConnectionAcceptor(port: 0, host: "invalid-host-xyzzy.invalid");
+            _ = new TcpConnectionAcceptor(port: 0, host: host);
         });
 
-        Assert.Contains("invalid-host-xyzzy.invalid", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(host, ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.IsType<SocketException>(ex.InnerException);
     }
 }
