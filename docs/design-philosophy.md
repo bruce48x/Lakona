@@ -76,6 +76,25 @@ concept, that concept should be worth carrying.
 
 ## Core Principles
 
+### No Assumed Game Type
+
+Lakona must be suitable for any type of game, including MMORPGs, MOBAs,
+minigames, shooters, racing games, and other genres. The framework must not
+assume a particular game's business structure or lifecycle.
+
+Applications decide the business meaning, granularity, lifetime, and placement
+of Actors, how gameplay progresses, and how business state is persisted and
+recovered. Rooms, matches, world regions, and player shards are application
+choices, not mandatory framework units. Samples and generated starter games
+illustrate possible uses of the infrastructure; their gameplay models do not
+define requirements for other games.
+
+Framework capabilities should provide reusable infrastructure across game
+types. Architectural simplification must preserve that freedom rather than
+require applications to adopt one genre's organization. Keep the complexity
+budget small: this principle does not justify speculative extension points or
+moving game-specific systems into the framework.
+
 ### Simple Core, Explicit Boundaries
 
 Lakona separates the runtime layers:
