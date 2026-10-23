@@ -18,6 +18,12 @@ public interface IActorPlacementService
         where TKey : notnull =>
         PlaceAsync<TActor, TKey>(key, createMode, cancellationToken);
 
+    ValueTask<ActorPlacementResult> PlaceAsync<TActor, TKey>(
+        ActorId actorId, TKey key, ActorPlacementCreateMode createMode,
+        ActorStartArguments arguments, CancellationToken cancellationToken = default)
+        where TActor : class, IActor
+        where TKey : notnull => throw new NotSupportedException("This placement provider does not support Actor start arguments.");
+
     ValueTask DestroyAsync<TActor>(
         ActorId actorId,
         CancellationToken cancellationToken = default)

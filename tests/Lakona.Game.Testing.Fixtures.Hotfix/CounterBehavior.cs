@@ -43,6 +43,16 @@ public sealed partial class CounterBehavior
         return new CounterReply { Value = self.Value };
     }
 
+    [ActorStart]
+    public async ValueTask StartAsync(CounterActor self, ActorStartCall<CounterStartArgs> call)
+    {
+        control.RecordStart();
+        if (!call.TryGetArguments(out var args)) return;
+        self.Value = args.Value;
+        if (args.Wait) await control.WaitAsync(call.CancellationToken);
+        if (args.Fail) throw new InvalidOperationException("Injected ActorStart failure.");
+    }
+
     [ActorStop]
     public ValueTask StopAsync(CounterActor self, ActorStopCall call)
     {

@@ -15,6 +15,25 @@ namespace Lakona.Game.Server.Tests.Cluster.Actors;
 public sealed class ActorLifecycleRpcHandlerTests
 {
     [Fact]
+    public void Activation_wire_preserves_detached_arguments_and_exact_target()
+    {
+        var input = new ActorLifecycleWireTarget { ActorId = "player/1", ActivationId = Guid.NewGuid() };
+        var envelope = ActorStartArguments.From(input);
+        input.ActorId = "changed";
+        var request = new ActorLifecycleCreateRequest
+        {
+            Actor = "player", Arguments = envelope, Target = input, WaitOnly = false
+        };
+        var copy = MemoryPackSerializer.Deserialize<ActorLifecycleCreateRequest>(MemoryPackSerializer.Serialize(request))!;
+        var decoded = Assert.IsType<ActorLifecycleWireTarget>(copy.Arguments!.Decode(typeof(ActorLifecycleWireTarget)));
+        Assert.Equal("player/1", decoded.ActorId);
+        Assert.Equal(input.ActivationId, decoded.ActivationId);
+        Assert.False(copy.WaitOnly);
+        Assert.NotEqual(ClusterProtocol.Methods.ActorLifecycleCreate, ClusterProtocol.Methods.ActorLifecycleActivation);
+        Assert.Throws<InvalidOperationException>(() => copy.Arguments.Decode(typeof(ActorLifecycleReply)));
+    }
+
+    [Fact]
     public void Create_and_destroy_rpc_methods_have_distinct_request_contracts()
     {
         var createRequest = ActorLifecycleProtocol.Create

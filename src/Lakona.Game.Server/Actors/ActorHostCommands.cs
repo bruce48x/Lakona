@@ -11,7 +11,8 @@ internal sealed record ActorHostCreateCommand(
     string Actor,
     ActorLifecycleTarget Target,
     ActorPlacementCreateMode Mode,
-    string HotfixVersion);
+    string HotfixVersion,
+    ActorStartArguments? Arguments = null, bool WaitOnly = false);
 
 internal sealed record ActorHostDestroyCommand(
     string Actor,

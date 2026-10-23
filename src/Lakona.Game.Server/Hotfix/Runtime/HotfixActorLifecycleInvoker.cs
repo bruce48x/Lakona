@@ -13,7 +13,13 @@ public sealed class HotfixActorLifecycleInvoker
         object actor,
         object actorId,
         IServiceProvider services,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        await StartAsync(table, descriptor, actor, actorId, services, cancellationToken, null).ConfigureAwait(false);
+
+    internal async ValueTask StartAsync(
+        HotfixDispatchTable table, HotfixActorLifecycleDescriptor descriptor, object actor,
+        object actorId, IServiceProvider services, CancellationToken cancellationToken,
+        Lakona.Game.Server.Actors.ActorStartArguments? arguments)
     {
         ArgumentNullException.ThrowIfNull(table);
         ArgumentNullException.ThrowIfNull(descriptor);
@@ -24,11 +30,23 @@ public sealed class HotfixActorLifecycleInvoker
 
         if (descriptor.StartMethod is null)
         {
+            if (arguments is not null) throw new InvalidOperationException("Actor start arguments require a typed ActorStart hook.");
             return;
         }
 
         using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
-        var call = new ActorStartCall(actorId, services, cancellationToken);
+        var callType = descriptor.StartMethod.GetParameters()[1].ParameterType;
+        object call;
+        if (callType.IsGenericType && callType.GetGenericTypeDefinition() == typeof(ActorStartCall<>))
+        {
+            var value = arguments?.Decode(callType.GenericTypeArguments[0]);
+            call = Activator.CreateInstance(callType, actorId, services, value, arguments is not null, cancellationToken)!;
+        }
+        else
+        {
+            if (arguments is not null) throw new InvalidOperationException("This ActorStart does not accept arguments.");
+            call = new ActorStartCall(actorId, services, cancellationToken);
+        }
         await InvokeAsync(table, descriptor, descriptor.StartMethod, actor, call).ConfigureAwait(false);
     }
 

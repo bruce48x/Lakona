@@ -52,6 +52,18 @@ internal sealed class ActorPlacementService : IActorPlacementService
         where TActor : class, IActor
         where TKey : notnull
     {
+        return await PlaceCoreAsync<TActor, TKey>(actorId, key, createMode, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    public ValueTask<ActorPlacementResult> PlaceAsync<TActor, TKey>(ActorId actorId, TKey key,
+        ActorPlacementCreateMode createMode, ActorStartArguments arguments, CancellationToken cancellationToken = default)
+        where TActor : class, IActor where TKey : notnull =>
+        PlaceCoreAsync<TActor, TKey>(actorId, key, createMode, arguments, cancellationToken);
+
+    private async ValueTask<ActorPlacementResult> PlaceCoreAsync<TActor, TKey>(ActorId actorId, TKey key,
+        ActorPlacementCreateMode createMode, ActorStartArguments? arguments, CancellationToken cancellationToken)
+        where TActor : class, IActor where TKey : notnull
+    {
         cancellationToken.ThrowIfCancellationRequested();
         var actorType = typeof(TActor);
 
@@ -64,7 +76,7 @@ internal sealed class ActorPlacementService : IActorPlacementService
                 throw AlreadyPlaced(actorType, actorId, existing.Node);
             }
 
-            return new ActorPlacementResult(existing);
+            return await AwaitReadyAsync(actorType, existing, cancellationToken).ConfigureAwait(false);
         }
 
         var selector = ResolvePlacementSelector<TActor, TKey>(actorType, actorId);
@@ -130,8 +142,14 @@ internal sealed class ActorPlacementService : IActorPlacementService
         {
             try
             {
-                await activationCatalog.ActivateExactAsync(actorType, target, createMode, cancellationToken)
+                await activationCatalog.ActivateExactAsync(actorType, target, createMode, cancellationToken, arguments)
                     .ConfigureAwait(false);
+            }
+            catch (ActorHostedElsewhereException) when (createMode == ActorPlacementCreateMode.Ensure)
+            {
+                var winner = await actorDirectory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false)
+                    ?? throw new ActorPlacementException(actorType, actorId, "The winning activation is no longer available.");
+                return await AwaitReadyAsync(actorType, winner, cancellationToken).ConfigureAwait(false);
             }
             catch (ActorHostingException ex)
             {
@@ -146,7 +164,7 @@ internal sealed class ActorPlacementService : IActorPlacementService
 
         ActorHostCommandReply reply;
         reply = await hostClient.CreateAsync(
-            new ActorHostCreateCommand(actorName, target, createMode, selectedHost.HotfixVersion),
+            new ActorHostCreateCommand(actorName, target, createMode, selectedHost.HotfixVersion, arguments),
             cancellationToken).ConfigureAwait(false);
         if (reply.Succeeded && reply.OwnerNode == target.Owner.Node)
         {
@@ -168,13 +186,33 @@ internal sealed class ActorPlacementService : IActorPlacementService
                 throw AlreadyPlaced(actorType, actorId, existingOwner);
             }
 
-            return new ActorPlacementResult(actorId, existingOwner);
+            var winner = await actorDirectory.ResolveAsync(actorId, cancellationToken).ConfigureAwait(false)
+                ?? throw new ActorPlacementException(actorType, actorId, "The winning activation is no longer available.");
+            return await AwaitReadyAsync(actorType, winner, cancellationToken).ConfigureAwait(false);
         }
 
         throw new ActorPlacementException(
             actorType,
             actorId,
             $"Actor host create failed on node '{selectedRecord.Node.Value}': {reply.Message}");
+    }
+
+    private async ValueTask<ActorPlacementResult> AwaitReadyAsync(Type actorType, ActorDirectoryRecord record,
+        CancellationToken cancellationToken)
+    {
+        var target = new ActorLifecycleTarget(record.ActorId, record.OwnerReference, record.ActivationId);
+        if (record.OwnerReference == localNode.Reference)
+            await activationCatalog.ActivateExactAsync(actorType, target, ActorPlacementCreateMode.Ensure,
+                cancellationToken, waitOnly: true).ConfigureAwait(false);
+        else
+        {
+            var reply = await hostClient.CreateAsync(new ActorHostCreateCommand(
+                ActorNameResolver.Resolve(actorType), target, ActorPlacementCreateMode.Ensure,
+                string.Empty, WaitOnly: true), cancellationToken).ConfigureAwait(false);
+            if (!reply.Succeeded || reply.OwnerNode != record.Node)
+                throw new ActorPlacementException(actorType, record.ActorId, $"Actor startup failed: {reply.Message}");
+        }
+        return new ActorPlacementResult(record);
     }
 
     public async ValueTask DestroyAsync<TActor>(

@@ -9,6 +9,57 @@ namespace Lakona.Game.Testing.Tests;
 
 public sealed class ActorClusterLifecycleTests
 {
+    [Theory]
+    [InlineData("data-1", false)]
+    [InlineData("battle-1", false)]
+    [InlineData("data-1", true)]
+    [InlineData("battle-1", true)]
+    public async Task Ensure_shares_start_result_and_only_applies_winning_snapshot(string caller, bool fail)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var cluster = CreateCluster(includeSecondBattle: false);
+        await cluster.StartAsync(ct);
+        var actors = cluster.Node(caller).Services.GetRequiredService<IHotfixRuntimeAccessor>()
+            .Current.Services.GetRequiredService<ActorAccess>();
+        var id = new CounterId("initial-snapshot");
+        var control = cluster.Node("battle-1").Services.GetRequiredService<CounterControl>();
+        var args = new CounterStartArgs { Value = 42, Wait = true, Fail = fail };
+        var first = actors.Place<CounterActor>(id).EnsureAsync(args, ct).AsTask();
+        await control.Entered.WaitAsync(ct);
+        args.Value = 999;
+        var second = actors.Place<CounterActor>(id).EnsureAsync(new CounterStartArgs { Value = 7 }, ct).AsTask();
+        var third = actors.Place<CounterActor>(id).EnsureAsync(ct).AsTask();
+        try
+        {
+            await Task.Delay(100, ct);
+            Assert.False(first.IsCompleted);
+            Assert.False(second.IsCompleted);
+            Assert.False(third.IsCompleted);
+            await Assert.ThrowsAnyAsync<ActorCallException>(async () => await CounterCalls.AddAsync(actors, id, 1, ct));
+        }
+        finally { control.Release(); }
+        if (fail)
+        {
+            await Assert.ThrowsAnyAsync<Exception>(async () => await first);
+            await Assert.ThrowsAnyAsync<Exception>(async () => await second);
+            await Assert.ThrowsAnyAsync<Exception>(async () => await third);
+            Assert.Equal(1, control.Starts);
+            await actors.Place<CounterActor>(id).EnsureAsync(new CounterStartArgs { Value = 11 }, ct);
+            Assert.Equal(11, (await CounterCalls.AddAsync(actors, id, 0, ct)).Value);
+            Assert.Equal(2, control.Starts);
+        }
+        else
+        {
+            await Task.WhenAll(first, second, third);
+            await actors.Place<CounterActor>(id).EnsureAsync(new CounterStartArgs { Value = 99 }, ct);
+            Assert.Equal(42, (await CounterCalls.AddAsync(actors, id, 0, ct)).Value);
+            Assert.Equal(1, control.Starts);
+        }
+        await actors.Place<CounterActor>(id).DestroyAsync(ct);
+        await actors.Place<CounterActor>(id).EnsureAsync(ct);
+        Assert.Equal(0, (await CounterCalls.AddAsync(actors, id, 0, ct)).Value);
+    }
+
     [Fact]
     public async Task GracefulStopDrainsInFlightCallThenRelocatesActor()
     {
@@ -109,6 +160,47 @@ public sealed class ActorClusterLifecycleTests
 
         await actors.Place<CounterActor>(id)
             .DestroyAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Cancelling_follower_does_not_cancel_shared_start()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var cluster = CreateCluster(false);
+        await cluster.StartAsync(ct);
+        var actors = cluster.Node("data-1").Services.GetRequiredService<IHotfixRuntimeAccessor>()
+            .Current.Services.GetRequiredService<ActorAccess>();
+        var id = new CounterId("cancel-follower");
+        var control = cluster.Node("battle-1").Services.GetRequiredService<CounterControl>();
+        var first = actors.Place<CounterActor>(id).EnsureAsync(new CounterStartArgs { Wait = true, Value = 8 }, ct).AsTask();
+        await control.Entered.WaitAsync(ct);
+        using var cancelled = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var follower = actors.Place<CounterActor>(id).EnsureAsync(cancelled.Token).AsTask();
+        try
+        {
+            cancelled.Cancel();
+            await Assert.ThrowsAnyAsync<Exception>(async () => await follower);
+            Assert.False(first.IsCompleted);
+        }
+        finally { control.Release(); }
+        await first;
+        Assert.Equal(8, (await CounterCalls.AddAsync(actors, id, 0, ct)).Value);
+        Assert.Equal(1, control.Starts);
+    }
+
+    [Fact]
+    public async Task Wrong_start_contract_fails_without_leaving_an_activation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var cluster = CreateCluster(false);
+        await cluster.StartAsync(ct);
+        var actors = cluster.Node("data-1").Services.GetRequiredService<IHotfixRuntimeAccessor>()
+            .Current.Services.GetRequiredService<ActorAccess>();
+        var id = new CounterId("wrong-contract");
+        await Assert.ThrowsAnyAsync<Exception>(async () =>
+            await actors.Place<CounterActor>(id).EnsureAsync(new AddCounterRequest { Delta = 99 }, ct));
+        await actors.Place<CounterActor>(id).EnsureAsync(ct);
+        Assert.Equal(0, (await CounterCalls.AddAsync(actors, id, 0, ct)).Value);
     }
 
     private static LakonaTestCluster CreateCluster(bool includeSecondBattle = true)

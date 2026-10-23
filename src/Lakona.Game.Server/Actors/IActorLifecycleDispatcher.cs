@@ -12,6 +12,10 @@ public interface IActorLifecycleDispatcher
         object actor,
         CancellationToken cancellationToken = default);
 
+    ValueTask StartAsync(Type actorType, ActorId actorId, object actor,
+        ActorStartArguments arguments, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This lifecycle dispatcher does not support Actor start arguments.");
+
     ValueTask StopAsync(
         Type actorType,
         ActorId actorId,

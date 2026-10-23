@@ -25,7 +25,8 @@ internal sealed class ActorHostClient(
         ArgumentNullException.ThrowIfNull(command);
         var client = await GetClientAsync(command.Target, cancellationToken).ConfigureAwait(false);
         var reply = await client.CallAsync(
-                ActorLifecycleProtocol.Create,
+                command.Arguments is not null || command.WaitOnly
+                    ? ActorLifecycleProtocol.Activation : ActorLifecycleProtocol.Create,
                 ActorLifecycleWireRequest.From(command),
                 cancellationToken)
             .ConfigureAwait(false);

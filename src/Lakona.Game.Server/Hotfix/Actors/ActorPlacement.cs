@@ -56,9 +56,16 @@ public readonly struct ActorPlacement<TActor, TKey>
     }
 
     /// <summary>
-    /// Destroys the activation that is current when this operation resolves it.
+    /// Ensures readiness, supplying a detached snapshot only if this request starts a new activation.
     /// </summary>
-    /// <param name="cancellationToken">Cancels location lookup and actor retirement.</param>
+    /// <param name="arguments">The stable initialization DTO.</param>
+    /// <param name="cancellationToken">Cancels this placement or wait.</param>
+    public ValueTask<ActorPlacementResult> EnsureAsync<TArgs>(
+        TArgs arguments, CancellationToken cancellationToken = default) =>
+        _placement.PlaceAsync<TActor, TKey>(ActorIdentity.Create<TActor, TKey>(_id),
+            _id, ActorPlacementCreateMode.Ensure, ActorStartArguments.From(arguments), cancellationToken);
+
+    /// <summary>Destroys the exact activation found by this operation.</summary>
     public ValueTask DestroyAsync(
         CancellationToken cancellationToken = default)
     {

@@ -29,6 +29,7 @@ namespace Lakona.Game.Cluster.Rpc
             public const int MembershipGossip = 17;
             public const int ActorDirectorySnapshot = 18;
             public const int ActorDirectorySnapshotAcknowledge = 19;
+            public const int ActorLifecycleActivation = 20;
         }
 
         public static readonly RpcMethod<MembershipProbeRequest, MembershipProbeReply>

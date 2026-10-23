@@ -21,7 +21,8 @@ internal sealed class ActorLifecycleRpcHandler(
     {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.Actor)
-            || string.IsNullOrWhiteSpace(request.HotfixVersion)
+            || (!request.WaitOnly && string.IsNullOrWhiteSpace(request.HotfixVersion))
+            || (request.WaitOnly && (request.Arguments is not null || request.Mode != ActorPlacementCreateMode.Ensure))
             || request.Mode is not (ActorPlacementCreateMode.Create or ActorPlacementCreateMode.Ensure))
         {
             return new ValueTask<ActorLifecycleReply>(Failure("The Actor lifecycle create request is invalid."));
@@ -37,7 +38,7 @@ internal sealed class ActorLifecycleRpcHandler(
                 ActorLifecycleWireRequest.DecodeTarget(request.Target),
                 operation,
                 request.HotfixVersion,
-                cancellationToken);
+                cancellationToken, request.Arguments, request.WaitOnly);
         }
         catch (Exception exception) when (
             exception is ArgumentException or InvalidOperationException)
@@ -77,7 +78,7 @@ internal sealed class ActorLifecycleRpcHandler(
         ActorLifecycleTarget target,
         ActorLifecycleOperation operation,
         string? hotfixVersion,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, ActorStartArguments? arguments = null, bool waitOnly = false)
     {
         var admissionGate = services.GetService<IDistributedWorkAdmissionGate>();
         DistributedWorkAdmission admission = default;
@@ -100,7 +101,7 @@ internal sealed class ActorLifecycleRpcHandler(
             }
 
             using var lease = hotfixRuntime.AcquireCurrent();
-            if (operation != ActorLifecycleOperation.Destroy)
+            if (operation != ActorLifecycleOperation.Destroy && !waitOnly)
             {
                 var currentHotfixVersion = StartupActorIdentity.NormalizeHotfixVersion(lease.Snapshot.SourceVersion);
                 if (!string.Equals(hotfixVersion, currentHotfixVersion, StringComparison.Ordinal))
@@ -113,7 +114,7 @@ internal sealed class ActorLifecycleRpcHandler(
 
             try
             {
-                await dispatch.InvokeAsync(activationCatalog, operation, target, cancellationToken).ConfigureAwait(false);
+                await dispatch.InvokeAsync(activationCatalog, operation, target, cancellationToken, arguments, waitOnly).ConfigureAwait(false);
                 return new ActorLifecycleReply
                 {
                     Succeeded = true,
@@ -148,6 +149,10 @@ internal sealed class ActorLifecycleRpcHandler(
     internal static void Bind(RpcServiceRegistry registry, ActorLifecycleRpcHandler handler)
     {
         var service = registry.RegisterSingleton(ClusterProtocol.ServiceId, handler, serviceName: "ActorLifecycle");
+        service.Register<ActorLifecycleCreateRequest, ActorLifecycleReply>(
+            ClusterProtocol.Methods.ActorLifecycleActivation,
+            static (value, request, ct) => value.HandleCreateAsync(request, ct),
+            "Activation");
         service.Register<ActorLifecycleCreateRequest, ActorLifecycleReply>(
             ActorLifecycleProtocol.CreateMethodId,
             static (value, request, ct) => value.HandleCreateAsync(request, ct),

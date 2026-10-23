@@ -318,6 +318,55 @@ flowchart LR
   exact activation found by the operation; a delayed request cannot destroy a
   replacement.
 
+### Initialization input
+
+`Place<TActor>(key).EnsureAsync(arguments, cancellationToken)` supplies a detached
+MemoryPack snapshot to a new activation's `[ActorStart]` hook. Declare that hook
+with `ActorStartCall<TArgs>` and use `TryGetArguments(out var args)` to distinguish
+an initialization snapshot from a parameterless activation:
+
+```csharp
+await actors.Place<PlayerActor>(playerId).EnsureAsync(initialSnapshot, cancellationToken);
+
+[ActorStart]
+public async ValueTask StartAsync(PlayerActor self, ActorStartCall<PlayerSnapshot> call)
+{
+    self.Data = call.TryGetArguments(out var snapshot)
+        ? snapshot
+        : await _store.LoadAsync(self.Context.Key, call.CancellationToken);
+}
+```
+
+The example's Actor, DTO, and store are application-defined. Input must be a
+concrete non-generic MemoryPack DTO in a stable assembly, using the version-tolerant
+DTO conventions above. Serialized input is limited to one MiB, additionally subject
+to transport limits. Local activation also deserializes the snapshot; it does not
+share the caller's mutable object. A new activation rejects a mismatched contract
+or an untyped/missing Start hook instead of dropping the input. Parameterless
+`EnsureAsync(ct)` and existing `ActorStartCall` hooks remain supported.
+
+An existing active Actor is reused without applying new input. Concurrent Ensures
+following one startup await its result; only the request that starts that attempt
+chooses its input. A parameterless request can win too. Ensure success means the
+activation became ready, not that this caller's input was applied. Directory
+ownership alone is insufficient: clustered Ensure confirms readiness at the exact
+owner/activation. This can add a remote round trip and make parameterless concurrent
+Ensure wait longer than earlier releases.
+
+Startup failure completes followers with failure and uses normal failed-create
+compensation. A later explicit retry can start a new attempt after cleanup; followers
+do not silently retry with their own snapshots. Cancelling a follower stops its wait,
+not shared startup. The initiating operation retains existing cancellation and drain
+semantics. Cleanup cannot roll back a committed application database transaction or
+other external side effects. Inputs are not stored in Directory or replayed on future
+activations; applications must not resubmit stale initial snapshots after an Actor
+has progressed and retired.
+
+Deploy Game.Server 0.53.12 or newer on participating nodes before using this feature.
+Argument-bearing activation and readiness confirmation use a new cluster RPC method;
+older nodes reject it rather than silently treating it as parameterless creation.
+This is not a guarantee of mixed-version operation.
+
 Create and Ensure carry the Hotfix version that minted the lifecycle
 capability. The selected owner rejects an obsolete generation before creating
 state. Destroy remains valid across a Hotfix reload when its exact activation

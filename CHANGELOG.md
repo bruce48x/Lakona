@@ -4,6 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-10-23 — Actor initialization snapshots and Ensure readiness
+
+**Key releases:** `Lakona.Game.Server 0.53.12`, `Lakona.Game.Testing 0.3.52`,
+`Lakona.Tool 0.43.62`, and `Lakona Hub 0.17.66`.
+
+- Actor placement can carry a stable serialized initialization snapshot into
+  `ActorStartCall<TArgs>`, while preserving parameterless startup. Existing
+  activations ignore new input; concurrent Ensures await startup success or
+  failure before returning, including across nodes.
+- Failed startup retains normal activation compensation. Local and multi-host
+  tests cover snapshot isolation, concurrent waiters, cancelled followers,
+  contract mismatch, rollback and subsequent activation without replaying input.
+
 ## 2026-10-22 — Graceful Actor shutdown after Membership withdrawal
 
 **Key releases:** `Lakona.Game.Server 0.53.11`, `Lakona.Game.Testing 0.3.51`,

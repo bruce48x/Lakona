@@ -10,6 +10,8 @@ internal static class ActorLifecycleProtocol
     public static int DestroyMethodId => ClusterProtocol.Methods.ActorLifecycleDestroy;
     public static readonly RpcMethod<ActorLifecycleCreateRequest, ActorLifecycleReply> Create =
         new(ClusterProtocol.ServiceId, CreateMethodId);
+    public static readonly RpcMethod<ActorLifecycleCreateRequest, ActorLifecycleReply> Activation =
+        new(ClusterProtocol.ServiceId, ClusterProtocol.Methods.ActorLifecycleActivation);
     public static readonly RpcMethod<ActorLifecycleDestroyRequest, ActorLifecycleReply> Destroy =
         new(ClusterProtocol.ServiceId, DestroyMethodId);
 }
@@ -21,6 +23,8 @@ internal sealed partial class ActorLifecycleCreateRequest
     [MemoryPackOrder(1)] public ActorPlacementCreateMode Mode { get; set; }
     [MemoryPackOrder(2)] public string HotfixVersion { get; set; } = string.Empty;
     [MemoryPackOrder(3)] public ActorLifecycleWireTarget Target { get; set; } = new();
+    [MemoryPackOrder(4)] public ActorStartArguments? Arguments { get; set; }
+    [MemoryPackOrder(5)] public bool WaitOnly { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
@@ -55,6 +59,8 @@ internal static class ActorLifecycleWireRequest
         Actor = command.Actor,
         Mode = command.Mode,
         HotfixVersion = command.HotfixVersion,
+        Arguments = command.Arguments,
+        WaitOnly = command.WaitOnly,
         Target = From(command.Target)
     };
 

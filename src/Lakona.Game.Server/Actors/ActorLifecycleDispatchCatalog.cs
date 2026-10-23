@@ -44,19 +44,19 @@ internal sealed record ActorLifecycleDispatch(
         ActorActivationCatalog activationCatalog,
         ActorLifecycleOperation operation,
         ActorLifecycleTarget target,
-        CancellationToken cancellationToken) =>
+        CancellationToken cancellationToken, ActorStartArguments? arguments = null, bool waitOnly = false) =>
         operation switch
         {
             ActorLifecycleOperation.Create => activationCatalog.ActivateExactAsync(
                 ActorType,
                 target,
                 ActorPlacementCreateMode.Create,
-                cancellationToken),
+                cancellationToken, arguments),
             ActorLifecycleOperation.Ensure => activationCatalog.ActivateExactAsync(
                 ActorType,
                 target,
                 ActorPlacementCreateMode.Ensure,
-                cancellationToken),
+                cancellationToken, arguments, waitOnly),
             ActorLifecycleOperation.Destroy => activationCatalog.DestroyExactAsync(
                 ActorType,
                 target,

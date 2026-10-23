@@ -228,7 +228,7 @@ public sealed class ActorPlacementServiceTests
     }
 
     [Fact]
-    public async Task PlaceAsyncReturnsConflictOwnerFromHostReply()
+    public async Task PlaceAsyncRejectsConflictOwnerWithoutAnExactDirectoryRecord()
     {
         var actorId = ActorId.From("room-5");
         var hostClient = new RecordingActorHostClient
@@ -244,12 +244,9 @@ public sealed class ActorPlacementServiceTests
                     static context => context.Candidates[0])
             ]);
 
-        var result = await service.PlaceAsync<RoomActor, ActorId>(
-            actorId,
-            ActorPlacementCreateMode.Ensure,
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal(new NodeId("battle-existing"), result.Owner);
+        await Assert.ThrowsAsync<ActorPlacementException>(async () =>
+            await service.PlaceAsync<RoomActor, ActorId>(
+                actorId, ActorPlacementCreateMode.Ensure, TestContext.Current.CancellationToken));
     }
 
     [Fact]

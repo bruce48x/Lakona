@@ -727,6 +727,19 @@ public static class HotfixBehaviorScanner
                 continue;
             }
 
+            if (isStart && method.GetParameters()[1].ParameterType.IsGenericType)
+            {
+                try
+                {
+                    Lakona.Game.Server.Actors.ActorStartArguments.ValidateType(method.GetParameters()[1].ParameterType.GenericTypeArguments[0]);
+                }
+                catch (InvalidOperationException exception)
+                {
+                    diagnostics.Add($"Invalid ActorStart arguments for '{behaviorType.FullName}.{method.Name}': {exception.Message}");
+                    continue;
+                }
+            }
+
             if (!actorLifecycles.TryGetValue(actorType, out var lifecycle))
             {
                 lifecycle = new ActorLifecycleMethods(behaviorType);
@@ -783,7 +796,9 @@ public static class HotfixBehaviorScanner
             method.ReturnType == typeof(ValueTask) &&
             parameters.Length == 2 &&
             parameters[0].ParameterType == actorType &&
-            parameters[1].ParameterType == callType;
+            (parameters[1].ParameterType == callType ||
+             (callType == typeof(ActorStartCall) && parameters[1].ParameterType.IsGenericType &&
+              parameters[1].ParameterType.GetGenericTypeDefinition() == typeof(ActorStartCall<>)));
     }
 
     private static void ScanActorApiMethod(

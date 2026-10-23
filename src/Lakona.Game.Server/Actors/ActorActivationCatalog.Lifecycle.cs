@@ -99,42 +99,15 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
         ActorId actorId,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(actorType);
-        await using var gate = await _operationLocks.EnterAsync(actorId, cancellationToken).ConfigureAwait(false);
-
-        if (TryGetLocalActor(actorId, out var existingActorType, out var state))
-        {
-            if (!IsExactActorType(existingActorType, actorType))
-            {
-                throw new ActorHostingTypeMismatchException(actorId, actorType, existingActorType, nameof(EnsureAsync));
-            }
-
-            if (state != ActorActivationState.Valid)
-            {
-                throw new ActorHostingStopException(
-                    actorId,
-                    actorType,
-                    nameof(EnsureAsync),
-                    $"Actor id '{actorId.Value}' is locally hosted but not active.");
-            }
-
-            if (UsesDistributedLocation(actorType))
-            {
-                await EnsureLocalRouteAsync(actorType, actorId, nameof(EnsureAsync), cancellationToken).ConfigureAwait(false);
-                await CacheLocalRouteAsync(actorId, cancellationToken).ConfigureAwait(false);
-            }
-
-            return;
-        }
-
-        await CreateCoreAsync(actorType, actorId, strict: false, target: null, cancellationToken).ConfigureAwait(false);
+        await EnsureActivationAsync(actorType, actorId, null, null, false, cancellationToken).ConfigureAwait(false);
     }
 
     internal async ValueTask ActivateExactAsync(
         Type actorType,
         ActorLifecycleTarget target,
         ActorPlacementCreateMode mode,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        ActorStartArguments? arguments = null, bool waitOnly = false)
     {
         ArgumentNullException.ThrowIfNull(actorType);
         if (target.Owner != _localNode.Reference)
@@ -145,14 +118,13 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
                 _localNode.NodeId,
                 target.Owner.Node);
 
+        if (mode == ActorPlacementCreateMode.Ensure)
+        {
+            await EnsureActivationAsync(actorType, target.ActorId, target, arguments, waitOnly, cancellationToken).ConfigureAwait(false);
+            return;
+        }
         await using var gate = await _operationLocks.EnterAsync(target.ActorId, cancellationToken).ConfigureAwait(false);
-        await CreateCoreAsync(
-                actorType,
-                target.ActorId,
-                strict: mode == ActorPlacementCreateMode.Create,
-                target,
-                cancellationToken)
-            .ConfigureAwait(false);
+        await CreateCoreAsync(actorType, target.ActorId, true, target, cancellationToken, arguments).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -412,12 +384,87 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
         return new ActorPlacementResult(actorId, _localNode.NodeId);
     }
 
+    private readonly object _ensureGate = new();
+    private readonly Dictionary<ActorId, (Type Type, TaskCompletionSource Completion)> _ensures = new();
+
+    private async ValueTask EnsureActivationAsync(Type actorType, ActorId actorId,
+        ActorLifecycleTarget? target, ActorStartArguments? arguments, bool waitOnly, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actorType);
+        cancellationToken.ThrowIfCancellationRequested();
+        TaskCompletionSource completion;
+        bool owner;
+        lock (_ensureGate)
+        {
+            if (_ensures.TryGetValue(actorId, out var current))
+            {
+                if (current.Type != actorType) throw new InvalidOperationException("Actor activation type mismatch.");
+                completion = current.Completion;
+                owner = false;
+            }
+            else
+            {
+                completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                _ensures.Add(actorId, (actorType, completion));
+                owner = true;
+            }
+        }
+        if (!owner)
+        {
+            await completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (waitOnly && (target is not { } expected || !_actors.TryGetValue(actorId, out var cell)
+                || cell.ActivationId != expected.ActivationId || cell.GetActivationState() != ActorActivationState.Valid))
+                throw new InvalidOperationException("The exact Actor activation did not become ready.");
+            return;
+        }
+        try
+        {
+            await using var gate = await _operationLocks.EnterAsync(actorId, cancellationToken).ConfigureAwait(false);
+            var alreadyHosted = _actors.ContainsKey(actorId);
+            if (waitOnly && (target is not { } expected || !_actors.TryGetValue(actorId, out var cell)
+                || cell.ActivationId != expected.ActivationId || cell.GetActivationState() != ActorActivationState.Valid))
+                throw new InvalidOperationException("The exact Actor activation did not become ready.");
+            await CreateCoreAsync(actorType, actorId, false, target, cancellationToken, arguments).ConfigureAwait(false);
+            if (alreadyHosted && target is null && UsesDistributedLocation(actorType))
+            {
+                await EnsureLocalRouteAsync(actorType, actorId, nameof(EnsureAsync), cancellationToken).ConfigureAwait(false);
+                await CacheLocalRouteAsync(actorId, cancellationToken).ConfigureAwait(false);
+            }
+            completion.TrySetResult();
+        }
+        catch (Exception exception)
+        {
+            completion.TrySetException(exception);
+            // Observe even when there are no followers.
+            _ = completion.Task.Exception;
+            throw;
+        }
+        finally
+        {
+            lock (_ensureGate) _ensures.Remove(actorId);
+        }
+    }
+
+    async ValueTask<ActorPlacementResult> IActorPlacementService.PlaceAsync<TActor, TKey>(
+        ActorId actorId, TKey key, ActorPlacementCreateMode createMode,
+        ActorStartArguments arguments, CancellationToken cancellationToken)
+    {
+        if (createMode == ActorPlacementCreateMode.Create)
+        {
+            await using var gate = await _operationLocks.EnterAsync(actorId, cancellationToken).ConfigureAwait(false);
+            await CreateCoreAsync(typeof(TActor), actorId, true, null, cancellationToken, arguments).ConfigureAwait(false);
+        }
+        else
+            await EnsureActivationAsync(typeof(TActor), actorId, null, arguments, false, cancellationToken).ConfigureAwait(false);
+        return new ActorPlacementResult(actorId, _localNode.NodeId);
+    }
+
     private async ValueTask CreateCoreAsync(
         Type actorType,
         ActorId actorId,
         bool strict,
         ActorLifecycleTarget? target,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, ActorStartArguments? arguments = null)
     {
         if (Volatile.Read(ref _drainState) != 0)
             throw new InvalidOperationException("The Actor activation catalog is draining.");
@@ -527,14 +574,17 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
                                 actorId,
                                 async (actor, ct) =>
                                 {
-                                    await _lifecycleDispatcher
-                                        .StartAsync(actorType, actorId, actor, ct)
-                                        .ConfigureAwait(false);
+                                    if (arguments is null)
+                                        await _lifecycleDispatcher.StartAsync(actorType, actorId, actor, ct).ConfigureAwait(false);
+                                    else
+                                        await _lifecycleDispatcher.StartAsync(actorType, actorId, actor, arguments, ct).ConfigureAwait(false);
                                 },
                                 cancellationToken)
                             .ConfigureAwait(false);
                     }
 
+                    if (arguments is not null && !_lifecycleDispatcher.HasStartHook(actorType))
+                        throw new InvalidOperationException("Actor start arguments require a typed ActorStart hook.");
                     await OpenLocalAdmissionAsync(actorType, actorId, cancellationToken)
                         .ConfigureAwait(false);
 

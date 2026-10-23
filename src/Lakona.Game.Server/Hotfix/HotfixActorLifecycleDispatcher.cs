@@ -22,6 +22,16 @@ internal sealed class HotfixActorLifecycleDispatcher(IServiceProvider servicePro
         object actor,
         CancellationToken cancellationToken = default)
     {
+        await StartCoreAsync(actorType, actorId, actor, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    public ValueTask StartAsync(Type actorType, ActorId actorId, object actor,
+        ActorStartArguments arguments, CancellationToken cancellationToken = default) =>
+        StartCoreAsync(actorType, actorId, actor, arguments, cancellationToken);
+
+    private async ValueTask StartCoreAsync(Type actorType, ActorId actorId, object actor,
+        ActorStartArguments? arguments, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(actorType);
         ArgumentNullException.ThrowIfNull(actor);
         cancellationToken.ThrowIfCancellationRequested();
@@ -29,6 +39,7 @@ internal sealed class HotfixActorLifecycleDispatcher(IServiceProvider servicePro
         var runtimeAccessor = serviceProvider.GetService<IHotfixRuntimeAccessor>();
         if (runtimeAccessor is null)
         {
+            if (arguments is not null) throw new InvalidOperationException("The Actor startup runtime is unavailable.");
             return;
         }
 
@@ -39,6 +50,7 @@ internal sealed class HotfixActorLifecycleDispatcher(IServiceProvider servicePro
         }
         catch (ObjectDisposedException)
         {
+            if (arguments is not null) throw;
             return;
         }
 
@@ -47,12 +59,13 @@ internal sealed class HotfixActorLifecycleDispatcher(IServiceProvider servicePro
         if (snapshot.DispatchTable is null ||
             !snapshot.DispatchTable.TryResolveActorLifecycle(actorType, out var descriptor))
         {
+            if (arguments is not null) throw new InvalidOperationException("Actor start arguments require a typed ActorStart hook.");
             return;
         }
 
         var invoker = serviceProvider.GetRequiredService<HotfixActorLifecycleInvoker>();
         await invoker
-            .StartAsync(snapshot.DispatchTable, descriptor, actor, actorId, snapshot.Services, cancellationToken)
+            .StartAsync(snapshot.DispatchTable, descriptor, actor, actorId, snapshot.Services, cancellationToken, arguments)
             .ConfigureAwait(false);
     }
 

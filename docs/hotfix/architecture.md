@@ -236,6 +236,12 @@ the state-owning Actor makes authoritative mutation decisions. See
 
 ## Actor Integration
 
+ActorStart can accept `ActorStartCall<TArgs>` for optional stable initialization DTOs.
+The lifecycle scanner validates the input declaration, and the executing generation
+decodes the request into that declared type. Existing non-generic hooks remain valid
+for parameterless activation. Initial data belongs to the activation attempt, not to
+the Hotfix generation; reload does not rerun ActorStart or replay initialization input.
+
 Stable Actor state and reloadable Behavior form one Actor programming model.
 The complete authoring, state-access, lifecycle, Startup Actor, placement, and
 timer contracts live in

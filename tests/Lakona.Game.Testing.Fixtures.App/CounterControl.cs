@@ -8,6 +8,9 @@ public sealed class CounterControl
     private readonly TaskCompletionSource completed = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public Task Entered => entered.Task;
+    private int starts;
+    public int Starts => Volatile.Read(ref starts);
+    public void RecordStart() => Interlocked.Increment(ref starts);
     public Task Completed => completed.Task;
     public void Release() => released.TrySetResult();
 

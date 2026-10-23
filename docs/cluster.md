@@ -593,6 +593,14 @@ full deployment topology.
 
 ## Performance Boundaries And Risks
 
+Actor activation with initialization arguments and exact readiness confirmation
+use lifecycle RPC method 20. The older Create and Destroy method identities remain
+unchanged. Initialization arguments travel in the request, never Directory records;
+the selected owner applies them only during new activation. An unsupported method
+fails explicitly on older nodes. Directory ownership can precede ActorStart completion,
+so Ensure confirms readiness at the exact owner before returning. See
+[Actor initialization input](actor.md#initialization-input) for input and retry rules.
+
 - Table refreshes and probes are periodic, not on every gameplay request.
 - Probe fan-out is bounded by `MonitoredNodes` and `IndirectProbes`.
 - Descriptor and state mutations use CAS and may retry under contention.

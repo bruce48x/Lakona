@@ -33,3 +33,11 @@ public sealed partial class CounterReply
     [MemoryPackOrder(0)]
     public int Value { get; set; }
 }
+
+[MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class CounterStartArgs
+{
+    [MemoryPackOrder(0)] public int Value { get; set; }
+    [MemoryPackOrder(1)] public bool Wait { get; set; }
+    [MemoryPackOrder(2)] public bool Fail { get; set; }
+}
