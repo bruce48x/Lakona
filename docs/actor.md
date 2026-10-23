@@ -348,17 +348,25 @@ share the caller's mutable object. A new activation rejects a mismatched contrac
 or an untyped/missing Start hook instead of dropping the input. Parameterless
 `EnsureAsync(ct)` and existing `ActorStartCall` hooks remain supported.
 
-An existing active Actor is reused without applying new input. Concurrent Ensures
-following one startup await its result; only the request that starts that attempt
-chooses its input. A parameterless request can win too. Ensure success means the
+An existing active Actor is reused without applying new input. Ensures that join
+the same in-flight startup task on the owner await its result; only the request
+that starts that attempt chooses its input. A parameterless request can win too.
+Concurrency at the caller does not guarantee that requests join the same attempt.
+Ensure success means the
 activation became ready, not that this caller's input was applied. Directory
 ownership alone is insufficient: clustered Ensure confirms readiness at the exact
 owner/activation. This can add a remote round trip and make parameterless concurrent
 Ensure wait longer than earlier releases.
 
-Startup failure completes followers with failure and uses normal failed-create
-compensation. A later explicit retry can start a new attempt after cleanup; followers
-do not silently retry with their own snapshots. Cancelling a follower stops its wait,
+Startup failure completes waiters on that attempt with failure and uses normal
+failed-create compensation. Those waiters do not automatically retry. Once cleanup
+finishes, a request that previously observed no Directory entry but reaches the owner
+late can start a new activation with its own input, even if it was issued concurrently
+with the failed request. An explicit retry can also start a new attempt. This can
+execute ActorStart again for the same Actor ID on a new instance after the failed
+instance is removed; it does not reinitialize a successfully running instance.
+ActorStart external side effects should therefore tolerate retries across activation
+attempts. Cancelling a follower stops its wait,
 not shared startup. The initiating operation retains existing cancellation and drain
 semantics. Cleanup cannot roll back a committed application database transaction or
 other external side effects. Inputs are not stored in Directory or replayed on future

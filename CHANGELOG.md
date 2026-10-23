@@ -11,8 +11,9 @@ date and package versions of important releases are retained.
 
 - Actor placement can carry a stable serialized initialization snapshot into
   `ActorStartCall<TArgs>`, while preserving parameterless startup. Existing
-  activations ignore new input; concurrent Ensures await startup success or
-  failure before returning, including across nodes.
+  activations ignore new input; Ensures joining the same in-flight activation
+  await its success or failure, including across nodes. A delayed request may
+  begin a new activation after an earlier attempt fails and is cleaned up.
 - Failed startup retains normal activation compensation. Local and multi-host
   tests cover snapshot isolation, concurrent waiters, cancelled followers,
   contract mismatch, rollback and subsequent activation without replaying input.

@@ -1,3 +1,4 @@
+using Lakona.Game.Cluster;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Testing.Fixtures.App;
@@ -9,6 +10,95 @@ namespace Lakona.Game.Testing.Tests;
 
 public sealed class ActorClusterLifecycleTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Delayed_absent_lookup_starts_again_only_after_previous_activation_fails(bool fail)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        var ct = timeout.Token;
+        var gate = new DelayedLookupGate();
+        await using var cluster = new LakonaTestClusterBuilder()
+            .AddNode("data-1", "data").AddNode("battle-1", "battle")
+            .ConfigureNodes(node =>
+            {
+                node.UseHotfixAssembly(typeof(CounterBehavior).Assembly);
+                node.ConfigureServices((services, _) =>
+                {
+                    if (node.Roles.Contains("battle")) services.AddSingleton<CounterControl>();
+                    else
+                    {
+                        var registration = services.Last(item => item.ServiceType == typeof(IActorDirectory));
+                        services.Remove(registration);
+                        services.AddSingleton<IActorDirectory>(provider => new DelayedLookupDirectory(
+                            (IActorDirectory)registration.ImplementationFactory!(provider), gate));
+                    }
+                });
+            }).Build();
+        await cluster.StartAsync(ct);
+        var services = cluster.Node("data-1").Services;
+        var actors = services.GetRequiredService<IHotfixRuntimeAccessor>().Current.Services.GetRequiredService<ActorAccess>();
+        var id = new CounterId("delayed-ensure");
+        var control = cluster.Node("battle-1").Services.GetRequiredService<CounterControl>();
+        gate.Enabled = true;
+        var first = actors.Place<CounterActor>(id).EnsureAsync(new CounterStartArgs { Value = 42, Wait = true, Fail = fail }, ct).AsTask();
+        var second = actors.Place<CounterActor>(id).EnsureAsync(new CounterStartArgs { Value = 77 }, ct).AsTask();
+        try
+        {
+            await gate.BothRead.Task.WaitAsync(ct);
+            await control.Entered.WaitAsync(ct);
+            Assert.False(second.IsCompleted);
+            Assert.Equal(1, control.Starts);
+            control.Release();
+            if (fail) await Assert.ThrowsAsync<ActorPlacementException>(async () => await first);
+            else await first;
+            Assert.Equal(1, control.Starts);
+            Assert.False(second.IsCompleted);
+            gate.ReleaseSecond.TrySetResult();
+            await second;
+            Assert.Equal(fail ? 2 : 1, control.Starts);
+            Assert.Equal(fail ? 77 : 42, (await CounterCalls.AddAsync(actors, id, 0, ct)).Value);
+        }
+        finally
+        {
+            control.Release();
+            gate.ReleaseSecond.TrySetResult();
+        }
+    }
+
+    private sealed class DelayedLookupGate
+    {
+        public bool Enabled;
+        public int Reads;
+        public TaskCompletionSource BothRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseSecond { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    private sealed class DelayedLookupDirectory(IActorDirectory inner, DelayedLookupGate gate) : IActorDirectory
+    {
+        public async ValueTask<ActorDirectoryRecord?> ResolveAsync(ActorId id, CancellationToken ct = default)
+        {
+            var record = await inner.ResolveAsync(id, ct);
+            if (!gate.Enabled) return record;
+            var read = Interlocked.Increment(ref gate.Reads);
+            if (read > 2) return record;
+            Assert.Null(record);
+            // Both callers observe absence before either can start activation.
+            if (read == 2) gate.BothRead.TrySetResult();
+            await gate.BothRead.Task.WaitAsync(ct);
+            // Hold the captured response until the first activation has completed.
+            if (read == 2) await gate.ReleaseSecond.Task.WaitAsync(ct);
+            return record;
+        }
+
+        public ValueTask<ActorActivationAcquireResult> AcquireAsync(ActorId id, NodeReference owner,
+            ActorActivationId activation, CancellationToken ct = default) => inner.AcquireAsync(id, owner, activation, ct);
+
+        public ValueTask<bool> ReleaseAsync(ActorId id, ActorActivationId activation,
+            CancellationToken ct = default) => inner.ReleaseAsync(id, activation, ct);
+    }
+
     [Theory]
     [InlineData("data-1", false)]
     [InlineData("battle-1", false)]
