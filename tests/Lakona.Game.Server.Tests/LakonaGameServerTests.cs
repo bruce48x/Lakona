@@ -1291,7 +1291,8 @@ public sealed class LakonaGameServerTests
                     DebugWatcher = debugWatcher,
                     HotfixRoot = Path.Combine(baseDirectory, "hotfix"),
                     BuildTag = "test"
-                }
+                },
+                null // Use the default host assembly policy.
             ]);
     }
 
