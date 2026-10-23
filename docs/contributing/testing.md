@@ -66,6 +66,60 @@ cancel their build and run operations after three minutes per case.
 | Hotfix | Dispatch, reload, unload, watching, accessors, fallback |
 | Unity samples | EditMode or PlayMode coverage for runtime behavior and shape |
 
+## Full application host tests
+
+Use the public `LakonaGameServer.BuildAsync` entry point (Game.Server 0.53.14+)
+when a test needs production App discovery, full Hotfix DLL scanning/loading,
+component startup, readiness and listeners. Do not reflect into the internal
+bootstrapper or `BuildAsyncForTesting`.
+
+```csharp
+var host = await LakonaGameServer.BuildAsync(
+    Array.Empty<string>(),
+    builder =>
+    {
+        builder.ConfigureAppConfiguration(configuration =>
+            configuration.AddInMemoryCollection(testConfiguration));
+        builder.AddServices(services => services.AddSingleton(testDatabase));
+    },
+    applicationAssemblies: new[] { typeof(AppMarker).Assembly },
+    baseDirectory: testDeploymentDirectory);
+try
+{
+    await host.StartAsync(cancellationToken);
+    var placement = new ActorPlacement<CharacterActor, long>(
+        host.Services.GetRequiredService<IActorPlacementService>(), characterId);
+    await placement.EnsureAsync(initialData, cancellationToken);
+    // Exercise the application's real Actor calls through its RPC/lifecycle entry.
+}
+finally
+{
+    try { await host.StopAsync(CancellationToken.None); }
+    finally
+    {
+        if (host is IAsyncDisposable asyncHost) await asyncHost.DisposeAsync();
+        else host.Dispose();
+    }
+}
+```
+
+`testConfiguration` supplies isolated node identity, roles, Membership and listener
+ports. `testDeploymentDirectory` contains the normal Hotfix artifact layout
+(for example `hotfix/Server.Hotfix.dll` with the development watcher configured).
+The explicit assemblies are stable App assemblies, not Hotfix or the entire test
+runner assembly. The directory is the artifact base, not a process working-directory
+override. Build does not start the host; the caller owns its lifetime. This API
+does not automatically provision databases or choose free ports.
+
+The overload without explicit assemblies uses normal production discovery.
+Both overloads share the same build pipeline as `RunAsync`. For a complete runnable
+fixture covering nested initialization, existing activation reuse, failed-start
+rollback and retry, see
+[BootstrapperLifecycleTests](../../tests/Lakona.Game.Server.Tests/Hosting/BootstrapperLifecycleTests.cs).
+It calls the public builder, loads a real Hotfix artifact, and enters the actual
+Actor mailbox. Use stable lifecycle contracts or external RPC for Hotfix business
+entry points; do not resolve types from a separately loaded copy of the Hotfix DLL.
+
 ## Multi-node integration tests
 
 Use `Lakona.Game.Testing` when one test needs several independent Lakona hosts

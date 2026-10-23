@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-10-23 — Actor initialization snapshots and Ensure readiness
 
-**Key releases:** `Lakona.Game.Server 0.53.13`, `Lakona.Game.Testing 0.3.53`,
-`Lakona.Tool 0.43.63`, and `Lakona Hub 0.17.67`.
+**Key releases:** `Lakona.Game.Server 0.53.14`, `Lakona.Game.Testing 0.3.54`,
+`Lakona.Tool 0.43.64`, and `Lakona Hub 0.17.68`.
 
 - Actor placement can carry a stable serialized initialization snapshot into
   `ActorStartCall<TArgs>`, while preserving parameterless startup. Existing
@@ -17,6 +17,9 @@ date and package versions of important releases are retained.
 - Failed startup retains normal activation compensation. Local and multi-host
   tests cover snapshot isolation, concurrent waiters, cancelled followers,
   contract mismatch, rollback and subsequent activation without replaying input.
+- Startup argument contracts now have compile-time diagnostics and specific runtime
+  repair hints. Public `LakonaGameServer.BuildAsync` supports full application host
+  tests; nested DTO and custom formatter examples cover actual activation and calls.
 
 ## 2026-10-22 — Graceful Actor shutdown after Membership withdrawal
 

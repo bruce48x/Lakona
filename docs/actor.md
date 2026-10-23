@@ -373,6 +373,71 @@ other external side effects. Inputs are not stored in Directory or replayed on f
 activations; applications must not resubmit stale initial snapshots after an Actor
 has progressed and retired.
 
+#### Contract diagnostics and nested data
+
+From Game.Server 0.53.14, `LAKONA20064` is a compile error on `[ActorStart]`
+parameters whose `ActorStartCall<TArgs>` root violates a statically known rule:
+the root must be a concrete, non-generic class (including its containing types),
+carry `[MemoryPackable]`, and belong outside Hotfix. The analyzer recognizes the
+current project's `LakonaProjectRole` and referenced assemblies' role metadata.
+It reports the type, assembly, violated constraints and repair hints. Keep the
+Game.Server compiler extension enabled in Hotfix projects. Runtime scanning and
+serialization retain validation, including collectible load contexts, which
+cannot generally be determined at compile time. An unmarked referenced assembly
+is not proof that its eventual runtime load context is stable.
+
+The root marker does not make its entire object graph serializable. For example,
+put these contracts in App or a stable shared contract project:
+
+```csharp
+[MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class CharacterStartArgs
+{
+    [MemoryPackOrder(0)] public CharacterSnapshot Snapshot { get; set; } = new();
+}
+
+[MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class CharacterSnapshot
+{
+    [MemoryPackOrder(0)] public string Name { get; set; } = "";
+    [MemoryPackOrder(1)] public List<InventoryItem> Items { get; set; } = new();
+    [MemoryPackOrder(2)] public Dictionary<string, int> Stats { get; set; } = new();
+}
+
+[MemoryPackable(GenerateType.VersionTolerant)]
+public sealed partial class InventoryItem
+{
+    [MemoryPackOrder(0)] public int ItemId { get; set; }
+    [MemoryPackOrder(1)] public int Count { get; set; }
+}
+```
+
+| Responsibility | Validation |
+| --- | --- |
+| Lakona analyzer | Root shape, marker and statically known Hotfix ownership at the startup hook |
+| Lakona runtime | Root contract and load context, input size, sender/receiver contract identity, activation readiness and rollback |
+| MemoryPack generator | Serializable members, nested DTO definitions, collection element/value types and MemoryPack layout rules |
+| Application integration tests | Runtime formatter registration, actual values/polymorphism, deployed schema compatibility and round trips |
+
+Custom member formatters are supported through MemoryPack's
+`MemoryPackCustomFormatterAttribute<T>` or formatter/provider APIs. A registered
+external member may need `[MemoryPackAllowSerialize]`; that attribute suppresses
+the generator diagnostic, but does not install a formatter. Register provider
+formatters before serialization on callers and before deserialization on owners.
+Keep contracts, formatter implementations and registrations in stable assemblies;
+do not put collectible Hotfix types in process-wide formatter caches. The root
+still requires `[MemoryPackable]`; wrapping an external value in a stable root DTO
+does not remove its member serialization obligations. See the upstream
+[MemoryPack formatter documentation](https://github.com/Cysharp/MemoryPack#customformatter).
+
+Executable examples: [nested DTOs](../tests/Lakona.Game.Testing.Fixtures.App/CounterActor.cs),
+[custom member formatter](../tests/Lakona.Game.Testing.Fixtures.App/CounterExternalId.cs),
+and [local/cross-node activation tests](../tests/Lakona.Game.Testing.Tests/ActorClusterLifecycleTests.cs).
+These tests use real Ensure and Actor calls, verify detached nested data and
+formatter output, reuse an active Actor, and cover failed startup and retry.
+For the full artifact-loading host path, see
+[public host integration testing](contributing/testing.md#full-application-host-tests).
+
 Deploy Game.Server 0.53.12 or newer on participating nodes before using this feature.
 Argument-bearing activation and readiness confirmation use a new cluster RPC method;
 older nodes reject it rather than silently treating it as parameterless creation.

@@ -39,9 +39,19 @@ public sealed partial class ActorStartArguments
     {
         var hotfix = type.Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Any(attribute =>
             attribute.Key == "LakonaProjectRole" && string.Equals(attribute.Value?.Trim(), "Hotfix", StringComparison.OrdinalIgnoreCase));
-        if (hotfix || type.Assembly.IsCollectible || type.IsGenericType || !type.IsClass || type.IsAbstract
-            || type.GetCustomAttributes(typeof(MemoryPackableAttribute), false).Length == 0)
-            throw new InvalidOperationException("Actor start arguments must be a concrete, non-generic MemoryPack DTO in a stable assembly.");
+        var reasons = new List<string>();
+        if (!type.IsClass || type.IsAbstract)
+            reasons.Add("must be a concrete class; use a non-abstract DTO class");
+        if (type.IsGenericType)
+            reasons.Add("must not be generic or nested in a generic type; wrap the data in a non-generic DTO");
+        if (type.GetCustomAttributes(typeof(MemoryPackableAttribute), false).Length == 0)
+            reasons.Add("is missing [MemoryPackable]; add the attribute and make the DTO partial");
+        if (hotfix)
+            reasons.Add("belongs to an assembly marked LakonaProjectRole=Hotfix; move the DTO to App or another stable shared assembly");
+        if (type.Assembly.IsCollectible)
+            reasons.Add("belongs to a collectible assembly; load the DTO from a stable shared assembly outside the Hotfix load context");
+        if (reasons.Count != 0)
+            throw new InvalidOperationException($"Actor startup arguments '{type.FullName ?? type.Name}' in assembly '{type.Assembly.GetName().Name}': {string.Join("; ", reasons)}.");
     }
 
     private static string Identity(Type type) => $"{type.Assembly.GetName().Name}:{type.FullName}";

@@ -21,7 +21,7 @@ public sealed partial class CounterBehavior
         AddCounterRequest request)
     {
         self.Value += request.Delta;
-        return new ValueTask<CounterReply>(new CounterReply { Value = self.Value });
+        return new ValueTask<CounterReply>(new CounterReply { Value = self.Value, Snapshot = self.Snapshot });
     }
 
     public async ValueTask<CounterReply> WaitAndAddAsync(
@@ -49,6 +49,7 @@ public sealed partial class CounterBehavior
         control.RecordStart();
         if (!call.TryGetArguments(out var args)) return;
         self.Value = args.Value;
+        self.Snapshot = args.Snapshot;
         if (args.Wait) await control.WaitAsync(call.CancellationToken);
         if (args.Fail) throw new InvalidOperationException("Injected ActorStart failure.");
     }

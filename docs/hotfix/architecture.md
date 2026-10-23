@@ -263,6 +263,11 @@ placement rules are defined under
 
 ## Component resource lifecycle
 
+The public `LakonaGameServer.BuildAsync` entry point builds this same production
+pipeline without starting or running the host. Integration tests can supply stable
+App assemblies and an artifact base directory, then own Start/Stop/disposal. See
+[full application host tests](../contributing/testing.md#full-application-host-tests).
+
 [Hotfix Components](./components.md) keep replaceable node-level business logic in
 Hotfix with optional root-owned State in App. The component's optional
 `ComponentConfigureServices` runs before root Build to register stable resources;

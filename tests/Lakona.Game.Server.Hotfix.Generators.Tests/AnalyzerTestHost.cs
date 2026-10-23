@@ -57,7 +57,7 @@ internal static class AnalyzerTestHost
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(
-            new HotfixActorBoundaryAnalyzer(), new HotfixStartupAnalyzer(), new HotfixDependencyAnalyzer(), new HotfixLifecycleAnalyzer(), new HotfixComponentAnalyzer());
+            new HotfixActorBoundaryAnalyzer(), new HotfixStartupAnalyzer(), new HotfixDependencyAnalyzer(), new HotfixLifecycleAnalyzer(), new HotfixComponentAnalyzer(), new ActorStartArgumentsAnalyzer());
         var analyzerOptions = optionsProvider is null
             ? null
             : new AnalyzerOptions(ImmutableArray<AdditionalText>.Empty, optionsProvider);
@@ -115,6 +115,7 @@ internal static class AnalyzerTestHost
             .Concat(
             [
                 MetadataReference.CreateFromFile(typeof(Task).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(MemoryPack.MemoryPackableAttribute).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(ValueTask).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(CancellationToken).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Microsoft.Extensions.Configuration.IConfiguration).Assembly.Location),

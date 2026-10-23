@@ -39,7 +39,7 @@ internal static class LakonaGameServerBootstrapper
         return await BuildAsync(args, configure, applicationAssemblies, baseDirectory).ConfigureAwait(false);
     }
 
-    private static async Task<IHost> BuildAsync(
+    internal static async Task<IHost> BuildAsync(
         string[] args,
         Action<LakonaGameServerBuilder> configure,
         IReadOnlyList<Assembly> applicationAssemblies,
@@ -89,7 +89,11 @@ internal static class LakonaGameServerBootstrapper
                 providerType));
         }
 
-        ConfigureDefaultHotfix(builder.Services, baseDirectory, hotfixAdminOptions);
+        var hostAssemblyNames = GetDefaultHotfixHostAssemblyNames(
+                DiscoverHotfixRequiredServiceContracts(applicationAssemblies))
+            .Concat(applicationAssemblies.Select(assembly => assembly.GetName().Name!))
+            .Distinct(StringComparer.Ordinal).ToArray();
+        ConfigureDefaultHotfix(builder.Services, baseDirectory, hotfixAdminOptions, hostAssemblyNames);
         builder.Services.AddLakonaGameHotfixAdmin(options => CopyHotfixAdminOptions(hotfixAdminOptions, options));
 
         // Gateway (registers RpcServersHostedService)
@@ -98,7 +102,7 @@ internal static class LakonaGameServerBootstrapper
         var componentRegistration = await HotfixComponentRegistration.PrepareAsync(
             builder.Services, builder.Configuration, runtimeOptions.Node.Roles,
             CreateDefaultHotfixAssemblySource(baseDirectory, hotfixAdminOptions),
-            GetDefaultHotfixHostAssemblyNames()).ConfigureAwait(false);
+            hostAssemblyNames).ConfigureAwait(false);
         var hotfixAssemblyPath = componentRegistration.AssemblyPath;
         builder.Services.AddSingleton(_ => componentRegistration);
         builder.Services.Replace(ServiceDescriptor.Singleton(
@@ -405,11 +409,12 @@ internal static class LakonaGameServerBootstrapper
     private static void ConfigureDefaultHotfix(
         IServiceCollection services,
         string baseDirectory,
-        HotfixAdminOptions adminOptions)
+        HotfixAdminOptions adminOptions,
+        IReadOnlyList<string>? hostAssemblyNames = null)
     {
         var hotfixDirectory = Path.Combine(baseDirectory, "hotfix");
         var source = CreateDefaultHotfixAssemblySource(baseDirectory, adminOptions);
-        services.AddLakonaGameHotfix(source, hostAssemblyNames: GetDefaultHotfixHostAssemblyNames());
+        services.AddLakonaGameHotfix(source, hostAssemblyNames: hostAssemblyNames ?? GetDefaultHotfixHostAssemblyNames());
         if (IsDebugWatcherEnabled(adminOptions))
         {
             services.AddLakonaGameHotfixFileWatcher(options =>

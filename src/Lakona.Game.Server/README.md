@@ -15,6 +15,9 @@ endpoints. New applications can start with `lakona-tool new`.
 
 ## Guides
 
+For tests that load complete Hotfix artifacts, use public `LakonaGameServer.BuildAsync`
+and manage the host lifetime. See [full application host tests](https://github.com/bruce48x/Lakona/blob/main/docs/contributing/testing.md#full-application-host-tests).
+
 | Task | Documentation | Agent workflow |
 | --- | --- | --- |
 | Create and run a project | [Project setup](https://github.com/bruce48x/Lakona/blob/main/docs/tool/default-experience.md) | [Skill Pack](https://github.com/bruce48x/Lakona/blob/main/docs/tool/agent-skills.md) |

@@ -293,6 +293,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor ActorStartArgumentsContract = new DiagnosticDescriptor(
+            "LAKONA20064",
+            "Invalid Actor startup arguments contract",
+            "Actor startup arguments '{0}' in assembly '{1}': {2}",
+            "Lakona.Game.Hotfix",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
         public static readonly DiagnosticDescriptor InvalidProjectRole = new DiagnosticDescriptor(
             "LAKONA20048",
             "Invalid Lakona project role",

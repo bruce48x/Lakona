@@ -113,10 +113,13 @@ public sealed class ActorClusterLifecycleTests
             .Current.Services.GetRequiredService<ActorAccess>();
         var id = new CounterId("initial-snapshot");
         var control = cluster.Node("battle-1").Services.GetRequiredService<CounterControl>();
-        var args = new CounterStartArgs { Value = 42, Wait = true, Fail = fail };
+        var args = new CounterStartArgs { Value = 42, Wait = true, Fail = fail,
+            Snapshot = new CounterSnapshot { Name = "hero", Items = [new CounterItem { Id = 3, Label = "sword" }], Scores = new() { ["level"] = 9 }, ExternalId = new("external-42") } };
         var first = actors.Place<CounterActor>(id).EnsureAsync(args, ct).AsTask();
         await control.Entered.WaitAsync(ct);
         args.Value = 999;
+        args.Snapshot.Items[0].Label = "changed";
+        args.Snapshot.Scores["level"] = 99;
         var second = actors.Place<CounterActor>(id).EnsureAsync(new CounterStartArgs { Value = 7 }, ct).AsTask();
         var third = actors.Place<CounterActor>(id).EnsureAsync(ct).AsTask();
         try
@@ -142,7 +145,14 @@ public sealed class ActorClusterLifecycleTests
         {
             await Task.WhenAll(first, second, third);
             await actors.Place<CounterActor>(id).EnsureAsync(new CounterStartArgs { Value = 99 }, ct);
-            Assert.Equal(42, (await CounterCalls.AddAsync(actors, id, 0, ct)).Value);
+            var reply = await CounterCalls.AddAsync(actors, id, 0, ct);
+            Assert.Equal(42, reply.Value);
+            Assert.NotNull(reply.Snapshot);
+            Assert.Equal("hero", reply.Snapshot.Name);
+            Assert.Equal("sword", Assert.Single(reply.Snapshot.Items).Label);
+            Assert.Equal(3, reply.Snapshot.Items[0].Id);
+            Assert.Equal(9, reply.Snapshot.Scores["level"]);
+            Assert.Equal("external-42", reply.Snapshot.ExternalId!.Value);
             Assert.Equal(1, control.Starts);
         }
         await actors.Place<CounterActor>(id).DestroyAsync(ct);

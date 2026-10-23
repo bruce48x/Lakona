@@ -13,12 +13,65 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Xunit;
+using Lakona.Game.Server.Actors;
+using Lakona.Game.Testing.Fixtures.App;
 
 namespace Lakona.Game.Server.Tests.Hosting;
 
 public sealed class BootstrapperLifecycleTests
 {
     [Fact]
+    public async Task Full_Hotfix_load_retains_actionable_runtime_validation_without_analyzer()
+    {
+        await using var fixture = new Fixture(invalidStartArgs: true);
+        var host = await fixture.BuildAsync(FreePort());
+        try
+        {
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => host.StartAsync(TestContext.Current.CancellationToken));
+            Assert.Contains(typeof(InvalidBootstrapStartArgs).FullName!, error.Message);
+            Assert.Contains(typeof(InvalidBootstrapStartArgs).Assembly.GetName().Name!, error.Message);
+            Assert.Contains("missing [MemoryPackable]", error.Message);
+        }
+        finally { await StopAndDisposeAsync(host); }
+    }
+
+    [Fact]
+    public async Task Public_host_loads_typed_start_and_preserves_nested_data_through_real_activation()
+    {
+        await using var fixture = new Fixture();
+        var host = await fixture.BuildAsync(FreePort());
+        var ct = TestContext.Current.CancellationToken;
+        try
+        {
+            await host.StartAsync(ct);
+            Assert.NotNull(host.Services.GetRequiredService<IHotfixManager>().Current.LoadedAtUtc);
+            var placement = new ActorPlacement<BootstrapSnapshotActor, string>(host.Services.GetRequiredService<IActorPlacementService>(), "snapshot");
+            var input = new BootstrapStartArgs { Snapshot = new BootstrapSnapshot { Name = "hero", Items = [3, 5], Scores = new() { ["level"] = 9 } } };
+            await placement.EnsureAsync(input, ct);
+            input.Snapshot.Items[0] = 99;
+            await placement.EnsureAsync(new BootstrapStartArgs { Snapshot = new() { Name = "ignored" } }, ct);
+            var runtime = host.Services.GetRequiredService<IActorRuntime>();
+            var actorId = Assert.Single(runtime.GetActiveActorIds(typeof(BootstrapSnapshotActor)));
+            var snapshot = await runtime.AskAsync<BootstrapSnapshotActor, BootstrapSnapshot>(actorId,
+                (actor, _) => new ValueTask<BootstrapSnapshot>(actor.Snapshot!), ct);
+            Assert.Equal("hero", snapshot.Name);
+            Assert.Equal(new[] { 3, 5 }, snapshot.Items);
+            Assert.Equal(9, snapshot.Scores["level"]);
+            Assert.Equal(1, fixture.Probe.ActorStarts);
+            await placement.DestroyAsync(ct);
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await placement.EnsureAsync(new BootstrapStartArgs { Fail = true }, ct));
+            Assert.Empty(runtime.GetActiveActorIds(typeof(BootstrapSnapshotActor)));
+            await placement.EnsureAsync(new BootstrapStartArgs { Snapshot = new() { Name = "retry" } }, ct);
+            Assert.Equal(3, fixture.Probe.ActorStarts);
+            actorId = Assert.Single(runtime.GetActiveActorIds(typeof(BootstrapSnapshotActor)));
+            Assert.Equal("retry", await runtime.AskAsync<BootstrapSnapshotActor, string>(actorId,
+                (actor, _) => new ValueTask<string>(actor.Snapshot!.Name), ct));
+        }
+        finally { await StopAndDisposeAsync(host); }
+    }
+
+[Fact]
     public async Task Stable_component_services_are_configured_before_host_build_and_owned_by_root()
     {
         await using var fixture = new Fixture();
@@ -176,7 +229,7 @@ public sealed class BootstrapperLifecycleTests
 
     public sealed class LifecycleProbe
     {
-        public int Starts, Stops;
+        public int Starts, Stops, ActorStarts;
         public bool FailStop, ObservedStart, ObservedStop;
         public bool FailFactory, FailResourceDispose, BlockStart, BlockStop;
         public int Unloads, GenerationDisposals;
@@ -233,15 +286,12 @@ public sealed class BootstrapperLifecycleTests
     private sealed class Fixture : IAsyncDisposable
     {
         private readonly string directory = Path.Combine(Path.GetTempPath(), "LakonaHostLifecycle", Guid.NewGuid().ToString("N"));
-        private readonly Assembly application;
         public LifecycleProbe Probe { get; } = new();
 
-        public Fixture()
+        public Fixture(bool invalidStartArgs = false)
         {
             _ = typeof(HotfixComponentAttribute).Assembly;
             Directory.CreateDirectory(Path.Combine(directory, "hotfix"));
-            application = AssemblyLoadContext.Default.LoadFromStream(new MemoryStream(Compile(
-                "LifecycleApplication" + Guid.NewGuid().ToString("N"), "public sealed class ApplicationMarker {}")));
             File.WriteAllBytes(Path.Combine(directory, "hotfix", "Server.Hotfix.dll"), Compile(
                 "LifecycleHotfix" + Guid.NewGuid().ToString("N"),
                 """
@@ -256,6 +306,23 @@ public sealed class BootstrapperLifecycleTests
                 using Microsoft.Extensions.Configuration;
                 using Probe = Lakona.Game.Server.Tests.Hosting.BootstrapperLifecycleTests.LifecycleProbe;
                 using Resource = Lakona.Game.Server.Tests.Hosting.BootstrapperLifecycleTests.RegisteredResource;
+                using SnapshotActor = Lakona.Game.Testing.Fixtures.App.BootstrapSnapshotActor;
+                using StartArgs = Lakona.Game.Testing.Fixtures.App.BootstrapStartArgs;
+                [HotfixBehaviorOf(typeof(SnapshotActor))]
+                public sealed class SnapshotBehavior(Probe probe)
+                {
+                    [ActorStart]
+                    public ValueTask Start(SnapshotActor actor, ActorStartCall<StartArgs> call)
+                    {
+                        probe.ActorStarts++;
+                        if (call.TryGetArguments(out var args))
+                        {
+                            actor.Snapshot = args.Snapshot;
+                            if (args.Fail) throw new InvalidOperationException("snapshot startup failed");
+                        }
+                        return default;
+                    }
+                }
                 [HotfixComponent, NodeRole("probe")]
                 public sealed class ProbeComponent(Probe probe) : IAsyncDisposable
                 {
@@ -295,11 +362,13 @@ public sealed class BootstrapperLifecycleTests
                 {
                     public void Register(IServiceCollection services) => services.AddSingleton<ProbeComponent>();
                 }
-                """));
+                """.Replace("using StartArgs = Lakona.Game.Testing.Fixtures.App.BootstrapStartArgs;",
+                    invalidStartArgs ? "using StartArgs = Lakona.Game.Testing.Fixtures.App.InvalidBootstrapStartArgs;" :
+                    "using StartArgs = Lakona.Game.Testing.Fixtures.App.BootstrapStartArgs;")));
         }
 
         public Task<IHost> BuildAsync(int httpPort, Action<IServiceCollection>? configure = null) =>
-            LakonaGameServerBootstrapper.BuildAsyncForTesting([], builder =>
+            LakonaGameServer.BuildAsync([], builder =>
             {
                 builder.ConfigureAppConfiguration(configuration => configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
@@ -317,7 +386,7 @@ public sealed class BootstrapperLifecycleTests
                     services.AddSingleton(new ClusterBuildTag("lifecycleTest"));
                     configure?.Invoke(services);
                 });
-            }, [application], directory);
+            }, [typeof(BootstrapSnapshotActor).Assembly], directory);
 
         public ValueTask DisposeAsync()
         {
@@ -330,6 +399,7 @@ public sealed class BootstrapperLifecycleTests
             var paths = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
                 .Append(typeof(BootstrapperLifecycleTests).Assembly.Location)
                 .Append(typeof(HotfixComponentAttribute).Assembly.Location)
+                .Append(typeof(BootstrapSnapshotActor).Assembly.Location)
                 .Distinct(StringComparer.OrdinalIgnoreCase);
             var compilation = CSharpCompilation.Create(name, [CSharpSyntaxTree.ParseText(source)],
                 paths.Select(path => MetadataReference.CreateFromFile(path)),
