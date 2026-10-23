@@ -567,7 +567,9 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
 
                     await ActivateLocalAsync(actorType, actorId, cancellationToken)
                         .ConfigureAwait(false);
-                    if (_lifecycleDispatcher.HasStartHook(actorType))
+                    // Argument-bearing startup validates and executes against the dispatcher's
+                    // single runtime snapshot. A separate hook probe can race with Hotfix publication.
+                    if (arguments is not null || _lifecycleDispatcher.HasStartHook(actorType))
                     {
                         await InvokeLocalAsync(
                                 actorType,
@@ -583,8 +585,6 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
                             .ConfigureAwait(false);
                     }
 
-                    if (arguments is not null && !_lifecycleDispatcher.HasStartHook(actorType))
-                        throw new InvalidOperationException("Actor start arguments require a typed ActorStart hook.");
                     await OpenLocalAdmissionAsync(actorType, actorId, cancellationToken)
                         .ConfigureAwait(false);
 

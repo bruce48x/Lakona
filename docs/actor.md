@@ -321,7 +321,10 @@ flowchart LR
 ### Initialization input
 
 `Place<TActor>(key).EnsureAsync(arguments, cancellationToken)` supplies a detached
-MemoryPack snapshot to a new activation's `[ActorStart]` hook. Declare that hook
+MemoryPack snapshot to a new activation's `[ActorStart]` hook. Argument validation
+and startup execution use the same Hotfix dispatch snapshot. A missing or incompatible
+hook fails the activation; publishing a newer generation after startup succeeds
+does not invalidate that completed initialization. Declare that hook
 with `ActorStartCall<TArgs>` and use `TryGetArguments(out var args)` to distinguish
 an initialization snapshot from a parameterless activation:
 

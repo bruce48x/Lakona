@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-10-23 — Actor initialization snapshots and Ensure readiness
 
-**Key releases:** `Lakona.Game.Server 0.53.12`, `Lakona.Game.Testing 0.3.52`,
-`Lakona.Tool 0.43.62`, and `Lakona Hub 0.17.66`.
+**Key releases:** `Lakona.Game.Server 0.53.13`, `Lakona.Game.Testing 0.3.53`,
+`Lakona.Tool 0.43.63`, and `Lakona Hub 0.17.67`.
 
 - Actor placement can carry a stable serialized initialization snapshot into
   `ActorStartCall<TArgs>`, while preserving parameterless startup. Existing
