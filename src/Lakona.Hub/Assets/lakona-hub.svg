@@ -8,11 +8,11 @@
   <rect x="34" y="34" width="956" height="956" rx="218" fill="none" stroke="#fff" stroke-opacity=".055" stroke-width="4"/>
 
   <!-- Broad forehead, rounded ears, full cheeks and a heavy, blunt jaw. -->
-  <path d="M328 296 272 244q-40-30-54 6-16 52 32 132l-12 86q-8 102 40 182l64 92q34 44 96 62 74 22 148 0 62-18 96-62l64-92q48-80 40-182l-12-86q48-80 32-132-14-36-54-6l-56 52q-80-64-184-68-104 4-184 68Z"
+  <path d="M340 306c-26-12-38-36-60-52-30-22-66-8-74 24-8 32 10 72 44 104l-12 86q-8 102 40 182l64 92q34 44 96 62 74 22 148 0 62-18 96-62l64-92q48-80 40-182l-12-86c34-32 52-72 44-104-8-32-44-46-74-24-22 16-34 40-60 52q-72-68-172-72-100 4-172 72Z"
         fill="url(#fur)" stroke="url(#gold)" stroke-width="24" stroke-linejoin="round"/>
 
-  <!-- Ear cavities and wide facial planes remain charcoal, never gold fur. -->
-  <path d="m270 292 58 48-52 38q-22-54-6-86Zm484 0-58 48 52 38q22-54 6-86Z" fill="#090b0e"/>
+  <!-- Rounded ear cavities and wide facial planes remain charcoal, never gold fur. -->
+  <path d="M250 282c22-12 46 12 60 44-18 4-32 18-40 34-24-18-34-56-20-78Zm524 0c-22-12-46 12-60 44 18 4 32 18 40 34 24-18 34-56 20-78Z" fill="#090b0e"/>
   <path d="M292 430q94-52 184 18l-22 72q-80-58-162-42Zm440 0q-94-52-184 18l22 72q80-58 162-42Z" fill="#2b3138" opacity=".72"/>
   <path d="m448 486 64-24 64 24-18 142-46 30-46-30Z" fill="#0e1216" opacity=".72"/>
   <path d="m264 552 94 24-28 96-52-54Zm496 0-94 24 28 96 52-54Z" fill="#2b3138" opacity=".58"/>
