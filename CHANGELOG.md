@@ -4,6 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-10-26 — Refined Lakona Hub visual identity
+
+**Key release:** `Lakona Hub 0.17.72`.
+
+- Hub introduces a distinctive geometric black-panther mark across Windows, macOS,
+  and Linux, with black fur, gold edging, a broad jaw, and a coordinated sidebar
+  brand treatment that remains legible at small icon sizes.
+- Neutral surfaces, restrained accent use, consistent icon sizing, and refined
+  spacing improve the desktop experience without changing project workflows.
+- Project pages and creation forms now keep environment status and explanatory
+  copy out of the default view, using contextual guidance while preserving errors
+  and actionable validation.
+
 ## 2026-10-23 — Actor initialization snapshots and Ensure readiness
 
 **Key releases:** `Lakona.Game.Server 0.53.14`, `Lakona.Game.Testing 0.3.54`,

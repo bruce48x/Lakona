@@ -1,17 +1,29 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <rect x="32" y="32" width="960" height="960" rx="220" fill="#0b0c0d"/>
-  <path d="M300 414c-12-36-20-86-20-136 0-33 20-53 50-36l100 78c23-11 50-17 82-17s59 6 82 17l100-78c30-17 50 3 50 36 0 50-8 100-20 136 60 50 116 120 116 190 0 162-140 244-328 244s-328-82-328-244c0-70 56-140 116-190Z" fill="#121315" stroke="#f3c74f" stroke-width="22" stroke-linejoin="round"/>
-  <path d="M300 302c-5-20-7-40-6-58 1-14 10-19 22-11l70 60Z" fill="#0b0c0d" stroke="#f3c74f" stroke-width="10" stroke-linejoin="round"/>
-  <path d="M724 302c5-20 7-40 6-58-1-14-10-19-22-11l-70 60Z" fill="#0b0c0d" stroke="#f3c74f" stroke-width="10" stroke-linejoin="round"/>
-  <ellipse cx="390" cy="510" rx="46" ry="58" fill="#f3c74f"/>
-  <ellipse cx="634" cy="510" rx="46" ry="58" fill="#f3c74f"/>
-  <ellipse cx="390" cy="514" rx="15" ry="36" fill="#121315"/>
-  <ellipse cx="634" cy="514" rx="15" ry="36" fill="#121315"/>
-  <circle cx="380" cy="490" r="10" fill="#fff7df"/>
-  <circle cx="624" cy="490" r="10" fill="#fff7df"/>
-  <circle cx="402" cy="528" r="4" fill="#fff7df"/>
-  <circle cx="646" cy="528" r="4" fill="#fff7df"/>
-  <path d="m512 604 17 14-17 13-17-13Z" fill="#f3c74f"/>
-  <path d="M512 631c-2 22-22 34-40 23m40-23c2 22 22 34 40 23" fill="none" stroke="#f3c74f" stroke-width="18" stroke-linecap="round"/>
-  <path d="M350 622 250 614m104 40-90 14m410-46 100-8m-104 40 90 14" fill="none" stroke="#f3c74f" stroke-width="10" stroke-linecap="round" opacity=".65"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="surface" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#1b1e23"/><stop offset="1" stop-color="#090a0c"/></linearGradient>
+    <linearGradient id="fur" x1="0.2" y1="0" x2="0.8" y2="1"><stop stop-color="#24292f"/><stop offset="0.52" stop-color="#15191e"/><stop offset="1" stop-color="#0c0f12"/></linearGradient>
+    <linearGradient id="gold" x1="0.2" y1="0.05" x2="0.75" y2="0.95"><stop stop-color="#f8dc88"/><stop offset="0.5" stop-color="#efbe3e"/><stop offset="1" stop-color="#dca52c"/></linearGradient>
+  </defs>
+  <rect x="32" y="32" width="960" height="960" rx="220" fill="url(#surface)"/>
+  <rect x="34" y="34" width="956" height="956" rx="218" fill="none" stroke="#fff" stroke-opacity=".055" stroke-width="4"/>
+
+  <!-- Broad forehead, rounded ears, full cheeks and a heavy, blunt jaw. -->
+  <path d="M328 296 272 244q-40-30-54 6-16 52 32 132l-12 86q-8 102 40 182l64 92q34 44 96 62 74 22 148 0 62-18 96-62l64-92q48-80 40-182l-12-86q48-80 32-132-14-36-54-6l-56 52q-80-64-184-68-104 4-184 68Z"
+        fill="url(#fur)" stroke="url(#gold)" stroke-width="24" stroke-linejoin="round"/>
+
+  <!-- Ear cavities and wide facial planes remain charcoal, never gold fur. -->
+  <path d="m270 292 58 48-52 38q-22-54-6-86Zm484 0-58 48 52 38q22-54 6-86Z" fill="#090b0e"/>
+  <path d="M292 430q94-52 184 18l-22 72q-80-58-162-42Zm440 0q-94-52-184 18l22 72q80-58 162-42Z" fill="#2b3138" opacity=".72"/>
+  <path d="m448 486 64-24 64 24-18 142-46 30-46-30Z" fill="#0e1216" opacity=".72"/>
+  <path d="m264 552 94 24-28 96-52-54Zm496 0-94 24 28 96 52-54Z" fill="#2b3138" opacity=".58"/>
+
+  <!-- Low, wide brow and compact eyes give a calm, powerful expression. -->
+  <path d="M292 462q86-14 162 34-30 50-94 40-48-8-68-74Zm440 0q-86-14-162 34 30 50 94 40 48-8 68-74Z" fill="#050709"/>
+  <path d="M334 486q40-2 76 18-20 24-50 17-18-5-26-35Zm356 0q-40-2-76 18 20 24 50 17 18-5 26-35Z" fill="url(#gold)"/>
+  <path d="m374 492 12 4-5 28-12-4Zm276 0-12 4 5 28 12-4Z" fill="#050709"/>
+
+  <!-- Short, broad muzzle and squared chin replace the previous pointed face. -->
+  <path d="M388 610q124-60 248 0l-16 88q-38 52-108 56-70-4-108-56Z" fill="#22282e"/>
+  <path d="M428 626q84-36 168 0-8 52-84 68-76-16-84-68Z" fill="#050709"/>
+  <path d="M512 690v30m0 0q-36 0-62 22m62-22q36 0 62 22" fill="none" stroke="url(#gold)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" opacity=".82"/>
 </svg>

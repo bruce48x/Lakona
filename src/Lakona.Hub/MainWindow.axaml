@@ -151,9 +151,9 @@
       <Setter Property="Background" Value="{DynamicResource HubBrush.AccentHover}" />
     </Style>
     <Style Selector="Button.secondary">
-      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Background" Value="{DynamicResource HubBrush.Surface}" />
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextSecondary}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderAccent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderDefault}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Control}" />
       <Setter Property="Height" Value="{DynamicResource HubControl.Height.Button}" />
@@ -176,19 +176,19 @@
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Control}" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
       <Setter Property="Padding" Value="{DynamicResource HubInset.Nav}" />
       <Setter Property="FontSize" Value="{DynamicResource HubFont.Navigation}" />
     </Style>
     <Style Selector="Button.nav:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceHover}" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextPrimary}" />
     </Style>
     <Style Selector="Button.nav.selected">
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceSelected}" />
       <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextAccent}" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="BorderBrush" Value="{DynamicResource HubBrush.BorderInteraction}" />
-      <Setter Property="BorderThickness" Value="4,0,0,0" />
+      <Setter Property="BorderThickness" Value="0" />
     </Style>
     <Style Selector=":is(Window).light Button.nav.selected">
       <Setter Property="Background" Value="{DynamicResource HubBrush.NavSelected}" />
@@ -504,6 +504,10 @@
       <Setter Property="Padding" Value="{DynamicResource HubInset.Card}" />
       <Setter Property="BoxShadow" Value="{DynamicResource HubShadow.Card}" />
     </Style>
+    <Style Selector="Border.project-icon">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceAccentMuted}" />
+      <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Icon}" />
+    </Style>
     <Style Selector="Border.settings-card-icon">
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceAccentMuted}" />
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Icon}" />
@@ -537,28 +541,28 @@
   <Border x:Name="WindowFrame" Classes="window-frame">
   <Grid>
   <Border x:Name="WindowSurface" Classes="window-surface" ClipToBounds="True">
-  <Grid ColumnDefinitions="220,*">
+  <Grid ColumnDefinitions="228,*">
     <Border Grid.Column="0" Background="{DynamicResource HubBrush.SidebarGradient}" BorderBrush="{DynamicResource HubBrush.BorderSidebar}" BorderThickness="0,0,1,0">
-      <Grid RowDefinitions="160,Auto,*,Auto" Margin="10,18,10,20">
-        <StackPanel Grid.Row="0" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+      <Grid RowDefinitions="112,Auto,*,Auto" Margin="12,16,12,18">
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="6,0">
+          <Image Source="/Assets/lakona-hub-256.png" Width="40" Height="40" VerticalAlignment="Center" />
           <TextBlock Text="Lakona Hub"
-                     Foreground="{DynamicResource HubBrush.TextAccent}"
-                     FontSize="{DynamicResource HubFont.CardTitle}"
+                     Foreground="{DynamicResource HubBrush.TextPrimary}"
+                     FontSize="20"
                      FontWeight="SemiBold"
-                     HorizontalAlignment="Center"
-                     TextAlignment="Center" />
+                     VerticalAlignment="Center" />
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Spacing="12">
+        <StackPanel Grid.Row="1" Spacing="6">
           <Button x:Name="ProjectsNavButton" Classes="nav selected" Click="Projects_Click">
-            <StackPanel Orientation="Horizontal" Spacing="14">
-              <icons:FluentIcon Icon="Folder" IconVariant="Regular" IconSize="Size24" />
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <icons:FluentIcon Icon="Folder" IconVariant="Regular" IconSize="Size20" />
               <TextBlock Text="{Binding Localization.Text.Projects}" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
           <Button x:Name="SettingsNavButton" Classes="nav" Click="Settings_Click">
-            <StackPanel Orientation="Horizontal" Spacing="14">
-              <icons:FluentIcon Icon="Settings" IconVariant="Regular" IconSize="Size24" />
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <icons:FluentIcon Icon="Settings" IconVariant="Regular" IconSize="Size20" />
               <TextBlock Text="{Binding Localization.Text.Settings}" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
@@ -584,7 +588,7 @@
             </Grid>
             <Button Classes="nav" Click="Help_Click">
               <StackPanel Orientation="Horizontal" Spacing="14">
-                <icons:FluentIcon Icon="QuestionCircle" IconVariant="Regular" IconSize="Size24" />
+                <icons:FluentIcon Icon="QuestionCircle" IconVariant="Regular" IconSize="Size20" />
                 <TextBlock Text="{Binding Localization.Text.HelpAndFeedback}" Foreground="{Binding $parent[Button].Foreground}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
@@ -614,58 +618,49 @@
       <Grid Grid.Row="1">
         <Grid x:Name="EmptyExperience">
           <Grid.Transitions><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.16" /></Transitions></Grid.Transitions>
-          <StackPanel x:Name="EmptyProjectContent" Spacing="28" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <StackPanel x:Name="EmptyProjectContent" Spacing="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Image Source="/Assets/lakona-hub-256.png" Width="76" Height="76" HorizontalAlignment="Center" />
+            <TextBlock Text="{Binding Localization.Text.MyProjects}" Classes="page-title" HorizontalAlignment="Center" />
             <WrapPanel x:Name="EmptyProjectActions" HorizontalAlignment="Center">
               <Button Classes="primary hero" Margin="6" Click="CreateProject_Click">
-                <StackPanel Orientation="Horizontal" Spacing="13">
-                  <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size28" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size24" />
                   <TextBlock Text="{Binding Localization.Text.CreateProject}" Foreground="{Binding $parent[Button].Foreground}" Classes="hero-action-label" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
               <Button Classes="secondary hero" Margin="6" Click="ImportProject_Click">
-                <StackPanel Orientation="Horizontal" Spacing="13">
-                  <icons:FluentIcon Icon="FolderArrowRight" IconVariant="Regular" IconSize="Size28" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <icons:FluentIcon Icon="FolderArrowRight" IconVariant="Regular" IconSize="Size24" />
                   <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="{Binding $parent[Button].Foreground}" Classes="hero-action-label" VerticalAlignment="Center" />
                 </StackPanel>
               </Button>
             </WrapPanel>
 
-            <WrapPanel HorizontalAlignment="Center">
-              <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" />
-              <TextBlock Text="{Binding EnvironmentWorkflow.SdkStatusText}" Classes="status" VerticalAlignment="Center" Margin="15,0,0,0" />
-              <Border Width="1" Height="22" Background="{DynamicResource HubBrush.BorderDefault}" Margin="8,0" />
-              <TextBlock Text="{Binding EnvironmentWorkflow.EnvironmentSummaryText}" Classes="muted" VerticalAlignment="Center" />
-            </WrapPanel>
           </StackPanel>
         </Grid>
 
         <ScrollViewer x:Name="ProjectExperience" IsVisible="False" HorizontalScrollBarVisibility="Disabled" SizeChanged="ProjectExperience_SizeChanged">
           <ScrollViewer.Transitions><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.16" /></Transitions></ScrollViewer.Transitions>
-          <StackPanel x:Name="ProjectContent" Margin="48,34,32,32" HorizontalAlignment="Stretch">
-            <WrapPanel HorizontalAlignment="Left" VerticalAlignment="Center">
-              <TextBlock Text="{Binding Localization.Text.MyProjects}" Classes="page-title" VerticalAlignment="Center" Margin="0,0,18,8" />
-              <Button Classes="primary" Margin="0,0,12,8" Click="CreateProject_Click">
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                  <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size24" />
-                  <TextBlock Text="{Binding Localization.Text.CreateProject}" Foreground="{Binding $parent[Button].Foreground}" Classes="action-label" VerticalAlignment="Center" />
-                </StackPanel>
-              </Button>
-              <Button Classes="secondary" Margin="0,0,12,8" Click="ImportProject_Click">
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                  <icons:FluentIcon Icon="FolderArrowRight" IconVariant="Regular" IconSize="Size24" />
-                  <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="{Binding $parent[Button].Foreground}" Classes="action-label" VerticalAlignment="Center" />
-                </StackPanel>
-              </Button>
-            </WrapPanel>
+          <StackPanel x:Name="ProjectContent" Margin="40,28,32,32" HorizontalAlignment="Stretch">
+            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+              <TextBlock Text="{Binding Localization.Text.MyProjects}" Classes="page-title" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <Button Classes="primary" Click="CreateProject_Click">
+                  <StackPanel Orientation="Horizontal" Spacing="10">
+                    <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size20" />
+                    <TextBlock Text="{Binding Localization.Text.CreateProject}" Foreground="{Binding $parent[Button].Foreground}" Classes="action-label" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+                <Button Classes="secondary" Click="ImportProject_Click">
+                  <StackPanel Orientation="Horizontal" Spacing="10">
+                    <icons:FluentIcon Icon="FolderArrowRight" IconVariant="Regular" IconSize="Size20" />
+                    <TextBlock Text="{Binding Localization.Text.ImportExistingProject}" Foreground="{Binding $parent[Button].Foreground}" Classes="action-label" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+              </StackPanel>
+            </Grid>
 
-            <WrapPanel Margin="0,16,0,0">
-              <icons:FluentIcon Icon="CheckmarkCircle" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" />
-              <TextBlock Text="{Binding EnvironmentWorkflow.SdkStatusText}" Classes="muted" VerticalAlignment="Center" Margin="15,0,0,0" />
-              <Border Width="1" Height="22" Background="{DynamicResource HubBrush.BorderDefault}" Margin="8,0" />
-              <TextBlock Text="{Binding EnvironmentWorkflow.EnvironmentSummaryText}" Classes="muted" VerticalAlignment="Center" />
-            </WrapPanel>
-
-            <StackPanel Margin="0,30,0,0" Spacing="0">
+            <StackPanel Margin="0,24,0,0" Spacing="0">
               <Grid x:Name="WideProjectToolbar" IsVisible="False" ColumnDefinitions="*,320" Margin="0,0,0,12">
                 <TextBox x:Name="WideProjectSearchBox" Grid.Column="1" Classes="form-field" Height="{DynamicResource HubControl.Height.Search}"
                          PlaceholderText="{Binding Localization.Text.SearchProjects}" TextChanged="ProjectSearch_TextChanged" />
@@ -709,7 +704,7 @@
                 <ListBox x:Name="WideProjectList" Classes="project-list" ItemsSource="{Binding VisibleProjects}" SelectionChanged="ProjectList_SelectionChanged">
                   <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="local:ProjectListItem">
-                      <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,0,0,1" MinHeight="56" Padding="10,6">
+                      <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,0,0,1" MinHeight="64" Padding="10,7">
                         <Grid>
                           <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectName" />
@@ -724,8 +719,10 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" SharedSizeGroup="ProjectMore" />
                           </Grid.ColumnDefinitions>
-                          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" Margin="0,0,10,0" HorizontalAlignment="Left" VerticalAlignment="Center">
-                            <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" />
+                          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" Margin="0,0,12,0" HorizontalAlignment="Left" VerticalAlignment="Center">
+                            <Border Classes="project-icon" Width="34" Height="34">
+                              <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size16" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                           </StackPanel>
                           <TextBlock Grid.Column="2" Text="{Binding LakonaVersion}" Classes="muted status" Margin="10,0" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" VerticalAlignment="Center" />
@@ -747,12 +744,14 @@
                   <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="local:ProjectListItem">
                       <Border x:Name="ProjectCard" Background="{DynamicResource HubBrush.Surface}" BorderBrush="{DynamicResource HubBrush.BorderCard}"
-                              BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Control}" Padding="18,15" Margin="0,0,0,10"
+                              BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Card}" Padding="18,16" Margin="0,0,0,12"
                               BoxShadow="{DynamicResource HubShadow.Card}">
                         <Grid RowDefinitions="Auto,Auto">
                           <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                           <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                            <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" />
+                            <Border Classes="project-icon" Width="38" Height="38">
+                              <icons:FluentIcon Icon="Cube" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
                             <TextBlock Text="{Binding Name}" FontSize="{DynamicResource HubFont.Navigation}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                           </StackPanel>
                           <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
@@ -760,7 +759,7 @@
                             <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ProjectMoreActionsTemplate}" VerticalAlignment="Center" />
                           </StackPanel>
                           </Grid>
-                          <Grid x:Name="ProjectCardDetails" Grid.Row="1" ColumnDefinitions="*,Auto" Margin="36,10,0,0">
+                          <Grid x:Name="ProjectCardDetails" Grid.Row="1" ColumnDefinitions="*,Auto" Margin="50,12,0,0">
                           <WrapPanel Grid.Column="0" VerticalAlignment="Center">
                             <TextBlock Text="{Binding Client}" Classes="muted status" Margin="0,0,18,0" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding LakonaVersion}" Classes="muted status" VerticalAlignment="Center" />
@@ -784,43 +783,41 @@
           <StackPanel x:DataType="local:ProjectCreationForm" Margin="48,30,36,36" MaxWidth="1120" HorizontalAlignment="Stretch">
             <StackPanel Orientation="Horizontal" Spacing="18">
               <Button Classes="back" Click="CancelCreateProject_Click" ToolTip.Tip="{Binding Text.BackToProjects}">
-                <icons:FluentIcon Icon="ArrowLeft" IconVariant="Regular" IconSize="Size24" />
+                <icons:FluentIcon Icon="ArrowLeft" IconVariant="Regular" IconSize="Size20" />
               </Button>
-              <StackPanel Spacing="5" VerticalAlignment="Center">
-                <TextBlock Text="{Binding Text.CreateProject}" Classes="page-title" />
-                <TextBlock Text="{Binding Text.CreateDescription}" Classes="muted status" />
-              </StackPanel>
+              <TextBlock Text="{Binding Text.CreateProject}" Classes="page-title" VerticalAlignment="Center" />
             </StackPanel>
 
             <Grid ColumnDefinitions="1*,32,1*" Margin="0,28,0,0">
               <StackPanel Grid.Column="0" Spacing="0">
                 <TextBlock Text="{Binding Text.BasicInformation}" Classes="section-title" Margin="0,0,0,12" />
 
-                <StackPanel Spacing="8">
+                <StackPanel Spacing="6">
                   <TextBlock Text="{Binding Text.ProjectName}" Classes="form-label" />
-                  <TextBox Classes="form-field" Text="{Binding ProjectName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="MyGame" />
-                  <TextBlock Text="{Binding Text.ProjectFolderHint}" Classes="muted form-hint" />
+                  <TextBox Classes="form-field" Text="{Binding ProjectName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="MyGame"
+                           ToolTip.Tip="{Binding Text.ProjectFolderHint}" />
                 </StackPanel>
 
                 <StackPanel Spacing="6" Margin="0,16,0,0">
                   <TextBlock Text="{Binding Text.OutputLocation}" Classes="form-label" />
                   <Grid ColumnDefinitions="*,12,92">
-                    <TextBox Grid.Column="0" Classes="form-field" Text="{Binding OutputDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Column="0" Classes="form-field" Text="{Binding OutputDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip.Tip="{Binding Text.OutputLocationHint}" />
                     <Button Grid.Column="2" Classes="form-browse" Content="{Binding Text.Browse}" Click="BrowseProjectOutput_Click" />
                   </Grid>
-                  <TextBlock Text="{Binding Text.OutputLocationHint}" Classes="muted form-hint" />
                 </StackPanel>
 
                 <StackPanel Spacing="6" Margin="0,16,0,0">
                   <TextBlock Text="{Binding Text.ClientType}" Classes="form-label" />
-                  <ComboBox Classes="form-field" ItemsSource="{Binding ClientOptions}" SelectedItem="{Binding SelectedClient, Mode=TwoWay}" />
-                  <TextBlock Text="{Binding Text.ClientTypeHint}" Classes="muted form-hint" />
+                  <ComboBox Classes="form-field" ItemsSource="{Binding ClientOptions}" SelectedItem="{Binding SelectedClient, Mode=TwoWay}"
+                            ToolTip.Tip="{Binding Text.ClientTypeHint}" />
                 </StackPanel>
 
                 <StackPanel Spacing="6" Margin="0,16,0,0">
                   <TextBlock Text="{Binding Text.ClientVersion}" Classes="form-label" />
-                  <ComboBox Classes="form-field" ItemsSource="{Binding ClientVersionOptions}" SelectedItem="{Binding SelectedClientVersion, Mode=TwoWay}" IsEnabled="{Binding HasClientVersion}" />
-                  <TextBlock Text="{Binding ClientVersionHint}" Classes="muted form-hint" />
+                  <ComboBox Classes="form-field" ItemsSource="{Binding ClientVersionOptions}" SelectedItem="{Binding SelectedClientVersion, Mode=TwoWay}"
+                            IsEnabled="{Binding HasClientVersion}" ToolTip.Tip="{Binding ClientVersionHint}" />
+                  <TextBlock Text="{Binding ClientVersionHint}" Classes="muted form-hint" IsVisible="{Binding !HasClientVersion}" />
                 </StackPanel>
               </StackPanel>
 
@@ -832,26 +829,27 @@
                 <Grid ColumnDefinitions="1*,14,1*">
                   <StackPanel Grid.Column="0" Spacing="6">
                     <TextBlock Text="{Binding Text.Transport}" Classes="form-label" />
-                    <ComboBox Classes="form-field" ItemsSource="{Binding TransportOptions}" SelectedItem="{Binding SelectedTransport, Mode=TwoWay}" />
-                    <TextBlock Text="{Binding TransportHint}" Classes="muted form-hint" />
+                    <ComboBox Classes="form-field" ItemsSource="{Binding TransportOptions}" SelectedItem="{Binding SelectedTransport, Mode=TwoWay}"
+                              ToolTip.Tip="{Binding TransportHint}" />
                   </StackPanel>
                   <StackPanel Grid.Column="2" Spacing="6">
                     <TextBlock Text="{Binding Text.Serializer}" Classes="form-label" />
-                    <ComboBox Classes="form-field" ItemsSource="{Binding SerializerOptions}" SelectedItem="{Binding SelectedSerializer, Mode=TwoWay}" />
-                    <TextBlock Text="{Binding SerializerHint}" Classes="muted form-hint" />
+                    <ComboBox Classes="form-field" ItemsSource="{Binding SerializerOptions}" SelectedItem="{Binding SelectedSerializer, Mode=TwoWay}"
+                              ToolTip.Tip="{Binding SerializerHint}" />
                   </StackPanel>
                 </Grid>
 
                 <StackPanel Spacing="6" Margin="0,16,0,0">
                   <TextBlock Text="{Binding Text.NuGetForUnitySource}" Classes="form-label" />
-                  <ComboBox Classes="form-field" ItemsSource="{Binding NuGetForUnitySourceOptions}" SelectedItem="{Binding SelectedNuGetForUnitySource, Mode=TwoWay}" IsEnabled="{Binding UsesNuGetForUnity}" />
-                  <TextBlock Text="{Binding NuGetForUnityHint}" Classes="muted form-hint" />
+                  <ComboBox Classes="form-field" ItemsSource="{Binding NuGetForUnitySourceOptions}" SelectedItem="{Binding SelectedNuGetForUnitySource, Mode=TwoWay}"
+                            IsEnabled="{Binding UsesNuGetForUnity}" ToolTip.Tip="{Binding NuGetForUnityHint}" />
+                  <TextBlock Text="{Binding NuGetForUnityHint}" Classes="muted form-hint" IsVisible="{Binding !UsesNuGetForUnity}" />
                 </StackPanel>
 
                 <StackPanel Spacing="6" Margin="0,16,0,0">
                   <TextBlock Text="{Binding Text.MembershipProvider}" Classes="form-label" />
-                  <ComboBox Classes="form-field" ItemsSource="{Binding MembershipProviderOptions}" SelectedItem="{Binding SelectedMembershipProvider, Mode=TwoWay}" />
-                  <TextBlock Text="{Binding MembershipProviderHint}" Classes="muted form-hint" />
+                  <ComboBox Classes="form-field" ItemsSource="{Binding MembershipProviderOptions}" SelectedItem="{Binding SelectedMembershipProvider, Mode=TwoWay}"
+                            ToolTip.Tip="{Binding MembershipProviderHint}" />
                 </StackPanel>
 
               </StackPanel>
@@ -867,7 +865,7 @@
                 <Button Grid.Column="2" Classes="secondary" Height="{DynamicResource HubControl.Height.FormAction}" Content="{Binding Text.Cancel}" Click="CancelCreateProject_Click" />
                 <Button Grid.Column="4" Classes="primary" Height="{DynamicResource HubControl.Height.FormAction}" Click="ContinueCreateProject_Click" IsEnabled="{Binding CanCreate}">
                   <StackPanel Orientation="Horizontal" Spacing="10">
-                    <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size24" />
+                    <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size20" />
                     <TextBlock Text="{Binding Text.ContinueCreating}" Foreground="{Binding $parent[Button].Foreground}" Classes="navigation-label" FontWeight="SemiBold" />
                   </StackPanel>
                 </Button>
@@ -883,12 +881,9 @@
               <Border x:Name="LanguageSettingsCard" Classes="settings-card">
                 <Grid ColumnDefinitions="48,16,*,Auto">
                   <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
-                    <icons:FluentIcon Icon="LocalLanguage" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <icons:FluentIcon Icon="LocalLanguage" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
-                  <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Localization.Text.LanguageAndRegion}" Classes="card-title" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding Localization.Text.DisplayLanguage}" Classes="muted card-description" TextWrapping="Wrap" />
-                  </StackPanel>
+                  <TextBlock Grid.Column="2" Text="{Binding Localization.Text.LanguageAndRegion}" Classes="card-title" TextWrapping="Wrap" VerticalAlignment="Center" />
                   <ComboBox Grid.Column="3" Classes="form-field" MinWidth="200"
                             ItemsSource="{Binding Localization.LanguageOptions}"
                             SelectedItem="{Binding Localization.SelectedLanguage, Mode=TwoWay}"
@@ -899,12 +894,9 @@
               <Border x:Name="ThemeSettingsCard" Classes="settings-card">
                 <Grid ColumnDefinitions="48,16,*,Auto">
                   <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
-                    <icons:FluentIcon Icon="Desktop" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <icons:FluentIcon Icon="Desktop" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
-                  <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Localization.Text.Appearance}" Classes="card-title" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding Localization.Text.ThemePreference}" Classes="muted card-description" TextWrapping="Wrap" />
-                  </StackPanel>
+                  <TextBlock Grid.Column="2" Text="{Binding Localization.Text.Appearance}" Classes="card-title" TextWrapping="Wrap" VerticalAlignment="Center" />
                   <ComboBox Grid.Column="3" Classes="form-field" MinWidth="200"
                             ItemsSource="{Binding ThemeSettings.Options}"
                             SelectedItem="{Binding ThemeSettings.SelectedOption, Mode=TwoWay}"
@@ -916,7 +908,7 @@
                 <StackPanel Spacing="0">
                   <Grid ColumnDefinitions="48,16,*,Auto">
                     <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
-                      <icons:FluentIcon Icon="Desktop" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <icons:FluentIcon Icon="Desktop" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
                       <TextBlock Text="{Binding Localization.Text.RuntimeStatus}" Classes="card-title" />
@@ -942,12 +934,9 @@
               <Border x:Name="ServerEditorCard" Classes="settings-card">
                 <Grid ColumnDefinitions="48,16,*,Auto">
                   <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
-                    <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
-                  <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Localization.Text.ServerEditor}" Classes="card-title" />
-                    <TextBlock Text="{Binding Localization.Text.ServerEditorDescription}" Classes="muted card-description" TextWrapping="Wrap" />
-                  </StackPanel>
+                  <TextBlock Grid.Column="2" Text="{Binding Localization.Text.ServerEditor}" Classes="card-title" VerticalAlignment="Center" />
                   <ComboBox Grid.Column="3" Classes="server-editor" VerticalAlignment="Center"
                             ItemsSource="{Binding ServerEditorSelection.Editors}"
                             SelectedItem="{Binding ServerEditorSelection.SelectedEditor, Mode=TwoWay}"
@@ -968,12 +957,9 @@
                 <StackPanel Spacing="0">
                   <Grid ColumnDefinitions="48,16,*,12,Auto,16,Auto">
                     <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
-                      <icons:FluentIcon Icon="DeveloperBoard" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <icons:FluentIcon Icon="DeveloperBoard" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                    <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding Localization.Text.DetectedTools}" Classes="card-title" />
-                      <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironmentDescription}" Classes="muted card-description" TextWrapping="Wrap" />
-                    </StackPanel>
+                    <TextBlock Grid.Column="2" Text="{Binding Localization.Text.DetectedTools}" Classes="card-title" VerticalAlignment="Center" />
                     <Border Grid.Column="4" Background="{DynamicResource HubBrush.SurfaceAccentMuted}" BorderBrush="{DynamicResource HubBrush.BorderAccentMuted}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Dialog}" Padding="12,6" VerticalAlignment="Center">
                       <TextBlock Text="{Binding EnvironmentWorkflow.EnvironmentStatusText}" Classes="gold caption" FontWeight="SemiBold" />
                     </Border>
@@ -1037,7 +1023,7 @@
       <Border Classes="dialog-surface" MaxWidth="460" MinWidth="400" HorizontalAlignment="Center" VerticalAlignment="Center" DataContext="{Binding CreationForm}">
         <StackPanel x:DataType="local:ProjectCreationForm" Spacing="0">
           <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
-            <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <TextBlock Text="{Binding Text.ProjectCreationProgressTitle}" Classes="dialog-title" Margin="0,16,0,0" />
           <TextBlock Text="{Binding Text.ProjectCreationProgressDescription}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,8,0,0" />
@@ -1051,7 +1037,7 @@
       <Border Classes="dialog-surface" MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="0">
           <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
-            <icons:FluentIcon Icon="QuestionCircle" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <icons:FluentIcon Icon="QuestionCircle" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <TextBlock Text="{Binding Localization.Text.HelpAndFeedback}" Classes="dialog-title" Margin="0,16,0,0" />
           <TextBlock Text="{Binding Localization.Text.HelpDialogDescription}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,8,0,0" />
@@ -1070,7 +1056,7 @@
       <Border Classes="dialog-surface" MaxWidth="520" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="0">
           <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
-            <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <TextBlock Text="{Binding Localization.Text.ApplicationUpdates}" Classes="dialog-title" Margin="0,16,0,0" />
           <TextBlock Text="{Binding UpdateWorkflow.CurrentVersionText}" Classes="gold caption" FontWeight="SemiBold" Margin="0,14,0,0" />
@@ -1100,7 +1086,7 @@
       <Border Classes="dialog-surface" MaxWidth="560" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="0">
           <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
-            <icons:FluentIcon Icon="Warning" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <icons:FluentIcon Icon="Warning" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <TextBlock Text="{Binding Localization.Text.PreviousCrashTitle}" Classes="dialog-title" Margin="0,16,0,0" />
           <TextBlock Text="{Binding Localization.Text.PreviousCrashDescription}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,8,0,0" />
@@ -1120,7 +1106,7 @@
       <Border Classes="dialog-surface" MaxWidth="540" HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel Spacing="0">
           <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
-            <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size28" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <TextBlock Text="{Binding Localization.Text.DotNetSdkRequiredTitle}" Classes="dialog-title" Margin="0,16,0,0" />
           <TextBlock Text="{Binding Localization.Text.DotNetSdkRequiredDescription}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,8,0,0" />
@@ -1157,7 +1143,7 @@
           <ScrollViewer x:Name="PackageDialogScrollViewer" Grid.Row="0" VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="0">
           <Border Classes="dialog-icon" Width="52" Height="52" HorizontalAlignment="Left">
-            <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="28" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <icons:FluentIcon Icon="ArrowDownload" IconVariant="Regular" IconSize="Size24" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <TextBlock Text="{Binding Text.Package}" Classes="dialog-title" Margin="0,16,0,0" />
           <TextBlock Text="{Binding ProjectName}" Classes="muted dialog-body" TextWrapping="Wrap" Margin="0,8,0,0" />

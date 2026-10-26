@@ -8,18 +8,18 @@
       <!-- Every visual surface consumes the same semantic keys on every platform. -->
       <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Dark">
-          <SolidColorBrush x:Key="HubBrush.Window" Color="#0B0C0D" />
-          <SolidColorBrush x:Key="HubBrush.Sidebar" Color="#0E0F10" />
-          <SolidColorBrush x:Key="HubBrush.Surface" Color="#111213" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceRaised" Color="#171713" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceHover" Color="#181816" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceListHover" Color="#121313" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceSelected" Color="#1B1B18" />
-          <SolidColorBrush x:Key="HubBrush.NavSelected" Color="#1B1B18" />
-          <SolidColorBrush x:Key="HubBrush.NavSelectedHover" Color="#1B1B18" />
-          <SolidColorBrush x:Key="HubBrush.NavSelectedPressed" Color="#1B1B18" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceFeedback" Color="#20201B" />
-          <SolidColorBrush x:Key="HubBrush.SurfaceAccentMuted" Color="#211F17" />
+          <SolidColorBrush x:Key="HubBrush.Window" Color="#0D0F12" />
+          <SolidColorBrush x:Key="HubBrush.Sidebar" Color="#101215" />
+          <SolidColorBrush x:Key="HubBrush.Surface" Color="#14171B" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceRaised" Color="#191C21" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceHover" Color="#1D2025" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceListHover" Color="#15181C" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceSelected" Color="#252219" />
+          <SolidColorBrush x:Key="HubBrush.NavSelected" Color="#252219" />
+          <SolidColorBrush x:Key="HubBrush.NavSelectedHover" Color="#2B271C" />
+          <SolidColorBrush x:Key="HubBrush.NavSelectedPressed" Color="#211E16" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceFeedback" Color="#1D2025" />
+          <SolidColorBrush x:Key="HubBrush.SurfaceAccentMuted" Color="#272319" />
           <SolidColorBrush x:Key="HubBrush.Overlay" Color="#B8000000" />
           <SolidColorBrush x:Key="HubBrush.Accent" Color="#EFBE3E" />
           <SolidColorBrush x:Key="HubBrush.AccentHover" Color="#F7CE62" />
@@ -32,22 +32,22 @@
           <SolidColorBrush x:Key="HubBrush.TextOnAccent" Color="#15120A" />
           <SolidColorBrush x:Key="HubBrush.TextError" Color="#E87777" />
           <SolidColorBrush x:Key="HubBrush.Danger" Color="#B3261E" />
-          <SolidColorBrush x:Key="HubBrush.BorderSidebar" Color="#2A2A27" />
-          <SolidColorBrush x:Key="HubBrush.BorderCard" Color="#34342F" />
-          <SolidColorBrush x:Key="HubBrush.BorderSubtle" Color="#33332F" />
-          <SolidColorBrush x:Key="HubBrush.BorderDefault" Color="#4A4944" />
-          <SolidColorBrush x:Key="HubBrush.BorderAccentMuted" Color="#6F5923" />
+          <SolidColorBrush x:Key="HubBrush.BorderSidebar" Color="#272B31" />
+          <SolidColorBrush x:Key="HubBrush.BorderCard" Color="#30353D" />
+          <SolidColorBrush x:Key="HubBrush.BorderSubtle" Color="#292D34" />
+          <SolidColorBrush x:Key="HubBrush.BorderDefault" Color="#484D55" />
+          <SolidColorBrush x:Key="HubBrush.BorderAccentMuted" Color="#65552F" />
           <SolidColorBrush x:Key="HubBrush.BorderAccent" Color="#B68E2F" />
           <SolidColorBrush x:Key="HubBrush.BorderInteraction" Color="#EFBE3E" />
           <SolidColorBrush x:Key="HubBrush.WindowBorderActive" Color="#C7EFBE3E" />
           <SolidColorBrush x:Key="HubBrush.WindowBorderInactive" Color="#52EFBE3E" />
           <LinearGradientBrush x:Key="HubBrush.SidebarGradient" StartPoint="0%,0%" EndPoint="0%,100%">
-            <GradientStop Color="#121314" Offset="0" />
-            <GradientStop Color="#090A0B" Offset="1" />
+            <GradientStop Color="#14171B" Offset="0" />
+            <GradientStop Color="#0E1013" Offset="1" />
           </LinearGradientBrush>
           <RadialGradientBrush x:Key="HubBrush.DialogGradient">
-            <GradientStop Color="#151617" Offset="0" />
-            <GradientStop Color="#0D0E0F" Offset="1" />
+            <GradientStop Color="#191C21" Offset="0" />
+            <GradientStop Color="#111316" Offset="1" />
           </RadialGradientBrush>
           <Color x:Key="SystemAccentColor">#EFBE3E</Color>
           <Color x:Key="SystemAccentColorLight1">#F7CE62</Color>
@@ -104,9 +104,9 @@
       </ResourceDictionary.ThemeDictionaries>
 
     <!-- Surface depth hierarchy. -->
-    <BoxShadows x:Key="HubShadow.Card">0 2 8 0 #33000000</BoxShadows>
-    <BoxShadows x:Key="HubShadow.Dialog">0 10 24 0 #45000000</BoxShadows>
-    <BoxShadows x:Key="HubShadow.Toast">0 6 16 0 #40000000</BoxShadows>
+    <BoxShadows x:Key="HubShadow.Card">0 3 12 0 #24000000</BoxShadows>
+    <BoxShadows x:Key="HubShadow.Dialog">0 16 40 0 #52000000</BoxShadows>
+    <BoxShadows x:Key="HubShadow.Toast">0 8 24 0 #40000000</BoxShadows>
     <BoxShadows x:Key="HubShadow.WindowActive">0 8 24 2 #59000000</BoxShadows>
     <BoxShadows x:Key="HubShadow.WindowInactive">0 6 20 1 #40000000</BoxShadows>
 
@@ -115,36 +115,36 @@
     <x:Double x:Key="HubFont.Control">14</x:Double>
     <x:Double x:Key="HubFont.Body">14</x:Double>
     <x:Double x:Key="HubFont.Status">14</x:Double>
-    <x:Double x:Key="HubFont.Navigation">15</x:Double>
-    <x:Double x:Key="HubFont.Action">16</x:Double>
-    <x:Double x:Key="HubFont.HeroAction">17</x:Double>
+    <x:Double x:Key="HubFont.Navigation">14</x:Double>
+    <x:Double x:Key="HubFont.Action">15</x:Double>
+    <x:Double x:Key="HubFont.HeroAction">16</x:Double>
     <x:Double x:Key="HubFont.SectionTitle">18</x:Double>
-    <x:Double x:Key="HubFont.CardTitle">20</x:Double>
+    <x:Double x:Key="HubFont.CardTitle">19</x:Double>
     <x:Double x:Key="HubFont.DialogTitle">22</x:Double>
-    <x:Double x:Key="HubFont.PageTitle">30</x:Double>
+    <x:Double x:Key="HubFont.PageTitle">28</x:Double>
 
     <CornerRadius x:Key="HubRadius.Small">6</CornerRadius>
-    <CornerRadius x:Key="HubRadius.Control">7</CornerRadius>
-    <CornerRadius x:Key="HubRadius.Icon">8</CornerRadius>
-    <CornerRadius x:Key="HubRadius.Card">10</CornerRadius>
-    <CornerRadius x:Key="HubRadius.Dialog">12</CornerRadius>
+    <CornerRadius x:Key="HubRadius.Control">8</CornerRadius>
+    <CornerRadius x:Key="HubRadius.Icon">10</CornerRadius>
+    <CornerRadius x:Key="HubRadius.Card">12</CornerRadius>
+    <CornerRadius x:Key="HubRadius.Dialog">14</CornerRadius>
     <CornerRadius x:Key="HubRadius.Window">14</CornerRadius>
 
-    <Thickness x:Key="HubInset.Action">24,11</Thickness>
-    <Thickness x:Key="HubInset.SecondaryAction">23,10</Thickness>
+    <Thickness x:Key="HubInset.Action">20,10</Thickness>
+    <Thickness x:Key="HubInset.SecondaryAction">19,9</Thickness>
     <Thickness x:Key="HubInset.Field">12,8</Thickness>
-    <Thickness x:Key="HubInset.Card">24</Thickness>
-    <Thickness x:Key="HubInset.Dialog">24</Thickness>
+    <Thickness x:Key="HubInset.Card">22</Thickness>
+    <Thickness x:Key="HubInset.Dialog">26</Thickness>
     <Thickness x:Key="HubInset.DialogDetail">12,9</Thickness>
-    <Thickness x:Key="HubInset.DialogActions">0,18,0,0</Thickness>
-    <Thickness x:Key="HubInset.Nav">16,11</Thickness>
-    <Thickness x:Key="HubInset.ActionButton">16,8</Thickness>
+    <Thickness x:Key="HubInset.DialogActions">0,20,0,0</Thickness>
+    <Thickness x:Key="HubInset.Nav">14,10</Thickness>
+    <Thickness x:Key="HubInset.ActionButton">14,8</Thickness>
     <Thickness x:Key="HubInset.Chip">14,7</Thickness>
     <Thickness x:Key="HubInset.DialogAction">18,9</Thickness>
 
     <!-- Control sizing and touch targets. -->
-    <x:Double x:Key="HubControl.Height.Button">50</x:Double>
-    <x:Double x:Key="HubControl.Height.Hero">58</x:Double>
+    <x:Double x:Key="HubControl.Height.Button">44</x:Double>
+    <x:Double x:Key="HubControl.Height.Hero">52</x:Double>
     <x:Double x:Key="HubControl.Height.Action">42</x:Double>
     <x:Double x:Key="HubControl.Height.Field">44</x:Double>
     <x:Double x:Key="HubControl.Height.Search">38</x:Double>
