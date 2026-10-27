@@ -616,7 +616,6 @@
           <Grid.Transitions><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.16" /></Transitions></Grid.Transitions>
           <StackPanel x:Name="EmptyProjectContent" Spacing="24" HorizontalAlignment="Center" VerticalAlignment="Center">
             <Image Source="/Assets/lakona-hub-256.png" Width="76" Height="76" HorizontalAlignment="Center" />
-            <TextBlock Text="{Binding Localization.Text.MyProjects}" Classes="page-title" HorizontalAlignment="Center" />
             <WrapPanel x:Name="EmptyProjectActions" HorizontalAlignment="Center">
               <Button Classes="primary hero" Margin="6" Click="CreateProject_Click">
                 <StackPanel Orientation="Horizontal" Spacing="12">
@@ -639,8 +638,13 @@
           <ScrollViewer.Transitions><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.16" /></Transitions></ScrollViewer.Transitions>
           <StackPanel x:Name="ProjectContent" Margin="40,28,32,32" HorizontalAlignment="Stretch">
             <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-              <TextBlock Text="{Binding Localization.Text.MyProjects}" Classes="page-title" VerticalAlignment="Center" />
-              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBox x:Name="WideProjectSearchBox" Classes="form-field" Width="320" Height="{DynamicResource HubControl.Height.Search}" IsVisible="False"
+                         PlaceholderText="{Binding Localization.Text.SearchProjects}" TextChanged="ProjectSearch_TextChanged" />
+                <TextBox x:Name="ProjectSearchBox" Classes="form-field" Width="280" Height="{DynamicResource HubControl.Height.Search}"
+                         PlaceholderText="{Binding Localization.Text.SearchProjects}" TextChanged="ProjectSearch_TextChanged" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" Margin="20,0,0,0" VerticalAlignment="Center">
                 <Button Classes="primary" Click="CreateProject_Click">
                   <StackPanel Orientation="Horizontal" Spacing="10">
                     <icons:FluentIcon Icon="FolderAdd" IconVariant="Regular" IconSize="Size20" />
@@ -656,14 +660,8 @@
               </StackPanel>
             </Grid>
 
-            <StackPanel Margin="0,24,0,0" Spacing="0">
-              <Grid x:Name="WideProjectToolbar" IsVisible="False" ColumnDefinitions="*,320" Margin="0,0,0,12">
-                <TextBox x:Name="WideProjectSearchBox" Grid.Column="1" Classes="form-field" Height="{DynamicResource HubControl.Height.Search}"
-                         PlaceholderText="{Binding Localization.Text.SearchProjects}" TextChanged="ProjectSearch_TextChanged" />
-              </Grid>
+            <StackPanel Margin="0,18,0,0" Spacing="0">
               <WrapPanel x:Name="CompactProjectToolbar" Margin="0,0,0,6">
-                <TextBox x:Name="ProjectSearchBox" Classes="form-field" Width="280" Height="{DynamicResource HubControl.Height.Search}" Margin="0,0,10,8"
-                         PlaceholderText="{Binding Localization.Text.SearchProjects}" TextChanged="ProjectSearch_TextChanged" />
                 <Button x:Name="SortNameButton" Classes="sort-chip" Tag="Name" Margin="0,0,8,8" Click="SortProjects_Click" />
                 <Button x:Name="SortEngineButton" Classes="sort-chip" Tag="Engine" Margin="0,0,8,8" Click="SortProjects_Click" />
                 <Button x:Name="SortLakonaButton" Classes="sort-chip" Tag="Lakona" Margin="0,0,8,8" Click="SortProjects_Click" />

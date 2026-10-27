@@ -296,8 +296,9 @@ public sealed partial class MainWindow : Window
     private void ProjectExperience_SizeChanged(object? sender, SizeChangedEventArgs e)
     {
         var useWideLayout = HubProjectLayout.UseWideLayout(e.NewSize.Width);
-        WideProjectToolbar.IsVisible = useWideLayout;
+        WideProjectSearchBox.IsVisible = useWideLayout;
         WideProjectTable.IsVisible = useWideLayout;
+        ProjectSearchBox.IsVisible = !useWideLayout;
         CompactProjectToolbar.IsVisible = !useWideLayout;
         CompactProjectList.IsVisible = !useWideLayout;
     }

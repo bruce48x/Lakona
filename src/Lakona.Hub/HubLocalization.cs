@@ -127,7 +127,6 @@ public sealed class HubText
     public string DotNetReady => L(".NET 10 环境已就绪", ".NET 10 環境已就緒", ".NET 10 is ready");
     public string DetectingTools => L("正在识别本机开发工具…", "正在識別本機開發工具…", "Detecting development tools…");
     public string ToolDetectionFailed => L("本机开发工具识别失败", "本機開發工具識別失敗", "Development tool detection failed");
-    public string MyProjects => L("我的项目", "我的專案", "My projects");
     public string SearchProjects => L("搜索项目…", "搜尋專案…", "Search projects…");
     public string SortByName => L("按名称", "依名稱", "Name");
     public string SortByEngine => L("按引擎", "依引擎", "Engine");
