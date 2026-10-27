@@ -264,7 +264,11 @@ visible in the project row.
 Environment status is part of Settings rather than a separate navigation area.
 The settings page owns the Hub display language, appearance, .NET SDK status,
 global server IDE selection, detected editor summary, and an explicit editor
-re-detection action. Appearance offers dark, light, and follow-system choices.
+re-detection action. General preferences and development settings use two
+compact groups of aligned rows rather than a separate card for every setting.
+SDK details and development-tool actions stay in their respective rows, while
+each detected installation retains its own path and action. Appearance offers
+dark, light, and follow-system choices.
 The preference is persisted, changes apply immediately, and follow-system uses
 Avalonia's default theme variant so operating-system appearance changes do not
 require platform-specific code.

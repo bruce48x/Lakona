@@ -508,10 +508,6 @@
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceAccentMuted}" />
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Icon}" />
     </Style>
-    <Style Selector="Border.settings-card-icon">
-      <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceAccentMuted}" />
-      <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Icon}" />
-    </Style>
     <Style Selector="Border.dialog-icon">
       <Setter Property="Background" Value="{DynamicResource HubBrush.SurfaceAccentMuted}" />
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Icon}" />
@@ -877,132 +873,123 @@
         <ScrollViewer x:Name="SettingsExperience" IsVisible="False" HorizontalScrollBarVisibility="Disabled">
           <ScrollViewer.Transitions><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.16" /></Transitions></ScrollViewer.Transitions>
           <StackPanel Margin="48,30,40,32" MaxWidth="1080" HorizontalAlignment="Stretch">
-            <StackPanel x:Name="SettingsSections" Spacing="12">
-              <Border x:Name="LanguageSettingsCard" Classes="settings-card">
-                <Grid ColumnDefinitions="48,16,*,Auto">
-                  <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
-                    <icons:FluentIcon Icon="LocalLanguage" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                  </Border>
-                  <TextBlock Grid.Column="2" Text="{Binding Localization.Text.LanguageAndRegion}" Classes="card-title" TextWrapping="Wrap" VerticalAlignment="Center" />
-                  <ComboBox Grid.Column="3" Classes="form-field" MinWidth="200"
-                            ItemsSource="{Binding Localization.LanguageOptions}"
-                            SelectedItem="{Binding Localization.SelectedLanguage, Mode=TwoWay}"
-                            VerticalAlignment="Center" />
-                </Grid>
-              </Border>
-
-              <Border x:Name="ThemeSettingsCard" Classes="settings-card">
-                <Grid ColumnDefinitions="48,16,*,Auto">
-                  <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
-                    <icons:FluentIcon Icon="Desktop" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                  </Border>
-                  <TextBlock Grid.Column="2" Text="{Binding Localization.Text.Appearance}" Classes="card-title" TextWrapping="Wrap" VerticalAlignment="Center" />
-                  <ComboBox Grid.Column="3" Classes="form-field" MinWidth="200"
-                            ItemsSource="{Binding ThemeSettings.Options}"
-                            SelectedItem="{Binding ThemeSettings.SelectedOption, Mode=TwoWay}"
-                            VerticalAlignment="Center" />
-                </Grid>
-              </Border>
-
-              <Border x:Name="RuntimeCard" Classes="settings-card">
-                <StackPanel Spacing="0">
-                  <Grid ColumnDefinitions="48,16,*,Auto">
-                    <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
-                      <icons:FluentIcon Icon="Desktop" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <StackPanel x:Name="SettingsSections" Spacing="24">
+              <StackPanel Spacing="10">
+                <TextBlock Text="{Binding Localization.Text.GeneralSettings}" Classes="muted form-label" Margin="4,0,0,0" />
+                <Border Classes="settings-card" Padding="20,0">
+                  <StackPanel Spacing="0">
+                    <Border x:Name="LanguageSettingsCard" MinHeight="56">
+                      <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Localization.Text.LanguageAndRegion}" Classes="form-label" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" Classes="form-field" MinWidth="200"
+                                  ItemsSource="{Binding Localization.LanguageOptions}"
+                                  SelectedItem="{Binding Localization.SelectedLanguage, Mode=TwoWay}"
+                                  VerticalAlignment="Center" />
+                      </Grid>
                     </Border>
-                    <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding Localization.Text.RuntimeStatus}" Classes="card-title" />
-                      <TextBlock Text="{Binding EnvironmentWorkflow.RuntimeTitle}" Classes="status" FontWeight="SemiBold" />
-                    </StackPanel>
-                    <Button Grid.Column="3" Classes="secondary" Height="{DynamicResource HubControl.Height.Search}" Padding="14,7"
-                            IsVisible="{Binding EnvironmentWorkflow.ShouldOfferSdkInstall}"
-                            Click="ShowSdkInstallPrompt_Click" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding Localization.Text.InstallDotNetSdk}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" />
-                    </Button>
-                  </Grid>
-                  <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" Margin="0,18,0,0" Padding="0,18,0,0">
-                    <StackPanel Spacing="6">
-                      <TextBlock Text="{Binding EnvironmentWorkflow.RuntimeVersion}" Classes="gold caption" FontWeight="SemiBold" />
-                      <TextBlock Text="{Binding EnvironmentWorkflow.RuntimeDescription}" Classes="muted card-description" TextWrapping="Wrap" />
-                      <ProgressBar Classes="hub-progress compact" IsIndeterminate="True"
-                                   IsVisible="{Binding EnvironmentWorkflow.IsInspectingSdk}" HorizontalAlignment="Left" />
-                    </StackPanel>
-                  </Border>
-                </StackPanel>
-              </Border>
+                    <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" />
+                    <Border x:Name="ThemeSettingsCard" MinHeight="56">
+                      <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Localization.Text.Appearance}" Classes="form-label" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" Classes="form-field" MinWidth="200"
+                                  ItemsSource="{Binding ThemeSettings.Options}"
+                                  SelectedItem="{Binding ThemeSettings.SelectedOption, Mode=TwoWay}"
+                                  VerticalAlignment="Center" />
+                      </Grid>
+                    </Border>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
 
-              <Border x:Name="ServerEditorCard" Classes="settings-card">
-                <Grid ColumnDefinitions="48,16,*,Auto">
-                  <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
-                    <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                  </Border>
-                  <TextBlock Grid.Column="2" Text="{Binding Localization.Text.ServerEditor}" Classes="card-title" VerticalAlignment="Center" />
-                  <ComboBox Grid.Column="3" Classes="server-editor" VerticalAlignment="Center"
-                            ItemsSource="{Binding ServerEditorSelection.Editors}"
-                            SelectedItem="{Binding ServerEditorSelection.SelectedEditor, Mode=TwoWay}"
-                            ToolTip.Tip="{Binding Localization.Text.ServerEditorDescription}">
-                    <ComboBox.ItemTemplate>
-                      <DataTemplate x:DataType="applications:LocalApplicationInstallation">
-                        <StackPanel Orientation="Horizontal" Spacing="9">
-                          <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" />
-                          <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
+              <StackPanel Spacing="10">
+                <TextBlock Text="{Binding Localization.Text.DevelopmentEnvironment}" Classes="muted form-label" Margin="4,0,0,0" />
+                <Border Classes="settings-card" Padding="20,0">
+                  <StackPanel Spacing="0">
+                    <Border x:Name="RuntimeCard" MinHeight="72">
+                      <Grid ColumnDefinitions="*,Auto,16,Auto" VerticalAlignment="Center">
+                        <StackPanel Spacing="4" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Localization.Text.RuntimeStatus}" Classes="form-label" />
+                          <TextBlock Text="{Binding EnvironmentWorkflow.RuntimeTitle}" Classes="muted caption" TextWrapping="Wrap" />
+                          <ProgressBar Classes="hub-progress compact" IsIndeterminate="True"
+                                       IsVisible="{Binding EnvironmentWorkflow.IsInspectingSdk}" HorizontalAlignment="Left" Margin="0,3,0,0" />
                         </StackPanel>
-                      </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                  </ComboBox>
-                </Grid>
-              </Border>
-
-              <Border x:Name="DetectedToolsCard" Classes="settings-card">
-                <StackPanel Spacing="0">
-                  <Grid ColumnDefinitions="48,16,*,12,Auto,16,Auto">
-                    <Border Grid.Column="0" Classes="settings-card-icon" Width="48" Height="48">
-                      <icons:FluentIcon Icon="DeveloperBoard" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding EnvironmentWorkflow.RuntimeVersion}" Classes="muted caption" VerticalAlignment="Center" />
+                        <Button Grid.Column="3" Classes="secondary" Height="{DynamicResource HubControl.Height.Search}" Padding="14,7"
+                                IsVisible="{Binding EnvironmentWorkflow.ShouldOfferSdkInstall}"
+                                Click="ShowSdkInstallPrompt_Click" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Localization.Text.InstallDotNetSdk}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" />
+                        </Button>
+                      </Grid>
                     </Border>
-                    <TextBlock Grid.Column="2" Text="{Binding Localization.Text.DetectedTools}" Classes="card-title" VerticalAlignment="Center" />
-                    <Border Grid.Column="4" Background="{DynamicResource HubBrush.SurfaceAccentMuted}" BorderBrush="{DynamicResource HubBrush.BorderAccentMuted}" BorderThickness="1" CornerRadius="{DynamicResource HubRadius.Dialog}" Padding="12,6" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding EnvironmentWorkflow.EnvironmentStatusText}" Classes="gold caption" FontWeight="SemiBold" />
+                    <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" />
+                    <Border x:Name="ServerEditorCard" MinHeight="72">
+                      <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Localization.Text.ServerEditor}" Classes="form-label" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" Classes="server-editor" VerticalAlignment="Center"
+                                  ItemsSource="{Binding ServerEditorSelection.Editors}"
+                                  SelectedItem="{Binding ServerEditorSelection.SelectedEditor, Mode=TwoWay}"
+                                  ToolTip.Tip="{Binding Localization.Text.ServerEditorDescription}">
+                          <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="applications:LocalApplicationInstallation">
+                              <StackPanel Orientation="Horizontal" Spacing="9">
+                                <icons:FluentIcon Icon="Code" IconVariant="Regular" IconSize="Size20" Foreground="{DynamicResource HubBrush.TextAccent}" />
+                                <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                              </StackPanel>
+                            </DataTemplate>
+                          </ComboBox.ItemTemplate>
+                        </ComboBox>
+                      </Grid>
                     </Border>
-                    <Button Grid.Column="6" Classes="secondary" Height="{DynamicResource HubControl.Height.Search}" Padding="14,7"
-                            IsEnabled="{Binding EnvironmentWorkflow.CanRefreshApplications}"
-                            Click="RefreshEnvironment_Click" VerticalAlignment="Center">
-                      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size20" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding Localization.Text.RefreshDetection}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" VerticalAlignment="Center" />
+                    <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" />
+                    <Border x:Name="DetectedToolsCard" MinHeight="72">
+                      <Grid ColumnDefinitions="*,16,Auto" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Localization.Text.DetectedTools}" Classes="form-label" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding EnvironmentWorkflow.EnvironmentStatusText}" Classes="muted caption" VerticalAlignment="Center" Margin="0,0,4,0" />
+                          <Button Classes="secondary compact-action" Height="{DynamicResource HubControl.Height.Chip}" Padding="12,6"
+                                  Click="AddApplicationTool_Click" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                              <icons:FluentIcon Icon="Add" IconVariant="Regular" IconSize="Size16" />
+                              <TextBlock Text="{Binding Localization.Text.AddApplication}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" VerticalAlignment="Center" />
+                            </StackPanel>
+                          </Button>
+                          <Button Classes="secondary compact-action" Height="{DynamicResource HubControl.Height.Chip}" Padding="12,6"
+                                  IsEnabled="{Binding EnvironmentWorkflow.CanRefreshApplications}"
+                                  Click="RefreshEnvironment_Click" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                              <icons:FluentIcon Icon="ArrowSync" IconVariant="Regular" IconSize="Size16" VerticalAlignment="Center" />
+                              <TextBlock Text="{Binding Localization.Text.RefreshDetection}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" VerticalAlignment="Center" />
+                            </StackPanel>
+                          </Button>
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                    <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" Padding="0,4,0,0">
+                      <StackPanel Spacing="0">
+                        <ProgressBar Classes="hub-progress compact" IsIndeterminate="True"
+                                     IsVisible="{Binding EnvironmentWorkflow.IsDetectingApplications}"
+                                     HorizontalAlignment="Left" Margin="0,8,0,0" />
+                        <ItemsControl ItemsSource="{Binding ApplicationTools}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="applications:ApplicationToolItem">
+                              <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,0,0,1" Padding="0,10" MinHeight="64">
+                                <Grid ColumnDefinitions="156,16,*,12,84" VerticalAlignment="Center">
+                                  <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding DisplayName}" Classes="control-label" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding StatusText}" Classes="muted metadata" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding StatusText}" />
+                                  </StackPanel>
+                                  <TextBlock Grid.Column="2" Text="{Binding PathText}" Classes="muted metadata" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding PathText}" />
+                                  <Button Grid.Column="4" Classes="secondary compact-action" Height="{DynamicResource HubControl.Height.Chip}" Padding="8,6" HorizontalAlignment="Stretch" Content="{Binding ActionText}" Click="ApplicationToolAction_Click" VerticalAlignment="Center" />
+                                </Grid>
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                       </StackPanel>
-                    </Button>
-                  </Grid>
-                  <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" Margin="0,18,0,0" Padding="0,18,0,0">
-                    <StackPanel Spacing="0">
-                      <ProgressBar Classes="hub-progress compact" IsIndeterminate="True"
-                                   IsVisible="{Binding EnvironmentWorkflow.IsDetectingApplications}"
-                                   HorizontalAlignment="Left" Margin="0,0,0,12" />
-                      <ItemsControl ItemsSource="{Binding ApplicationTools}">
-                        <ItemsControl.ItemTemplate>
-                          <DataTemplate x:DataType="applications:ApplicationToolItem">
-                            <Border BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="0,1,0,0" Padding="0,10">
-                              <Grid ColumnDefinitions="Auto,16,*,12,Auto">
-                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                  <TextBlock Text="{Binding DisplayName}" Classes="control-label" FontWeight="SemiBold" />
-                                  <TextBlock Text="{Binding StatusText}" Classes="muted metadata" />
-                                </StackPanel>
-                                <TextBlock Grid.Column="2" Text="{Binding PathText}" Classes="muted metadata" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding PathText}" />
-                                <Button Grid.Column="4" Classes="secondary compact-action" Height="{DynamicResource HubControl.Height.Chip}" Padding="12,6" Content="{Binding ActionText}" Click="ApplicationToolAction_Click" VerticalAlignment="Center" />
-                              </Grid>
-                            </Border>
-                          </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                      </ItemsControl>
-                      <Button Classes="secondary" Height="{DynamicResource HubControl.Height.Search}" Margin="0,10,0,0" Click="AddApplicationTool_Click" HorizontalAlignment="Stretch">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                          <icons:FluentIcon Icon="AddCircle" IconVariant="Regular" IconSize="Size20" />
-                          <TextBlock Text="{Binding Localization.Text.AddApplication}" Foreground="{Binding $parent[Button].Foreground}" Classes="control-label" VerticalAlignment="Center" />
-                        </StackPanel>
-                      </Button>
-                    </StackPanel>
-                  </Border>
-                </StackPanel>
-              </Border>
+                    </Border>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
             </StackPanel>
           </StackPanel>
         </ScrollViewer>

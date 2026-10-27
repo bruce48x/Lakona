@@ -208,6 +208,7 @@ public sealed class HubText
     public string Cancel => L("取消", "取消", "Cancel");
     public string ContinueCreating => L("继续创建", "繼續建立", "Create project");
 
+    public string GeneralSettings => L("通用", "一般", "General");
     public string LanguageAndRegion => L("语言与区域", "語言與地區", "Language & region");
     public string DisplayLanguage => L("显示语言", "顯示語言", "Display language");
     public string Appearance => L("外观", "外觀", "Appearance");
