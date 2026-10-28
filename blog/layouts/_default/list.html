@@ -1,19 +1,25 @@
 {{ define "main" }}
-  <div class="wrap">
-    <article class="article">
+  <div class="wrap article-shell">
+    <article class="article article-list">
       <header class="article-header">
-        <h1>{{ .Title }}</h1>
+        <p class="article-overline">Lakona / Documentation</p>
+        <h1>{{ if eq .Section "posts" }}Guides{{ else }}{{ .Title }}{{ end }}</h1>
       </header>
       <div class="content">
         {{ with .Content }}{{ . }}{{ end }}
         {{ if .Pages }}
-          <div class="guides-grid" style="margin-top: 20px;">
+          <div class="guides-grid">
             {{ range .Pages.ByDate.Reverse }}
               <a class="guide-card visible" href="{{ .RelPermalink }}">
-                <span class="guide-icon">DOC</span>
+                <div class="guide-top">
+                  <span class="icon-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h6"/></svg>
+                  </span>
+                  <svg class="guide-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg>
+                </div>
                 <h3>{{ .Title }}</h3>
                 {{ with .Description }}<p>{{ . }}</p>{{ end }}
-                <span class="arrow">Read the guide →</span>
+                <span class="guide-link"><span>Read the guide</span><span aria-hidden="true">→</span></span>
               </a>
             {{ end }}
           </div>

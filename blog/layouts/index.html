@@ -1,66 +1,91 @@
 {{ define "main" }}
 
-<!-- Hero -->
 <section class="hero">
-  <svg class="hero-graph" viewBox="0 0 1600 420" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <circle class="node" cx="220" cy="180" r="70" stroke-width="0.6"/>
-    <circle class="node" cx="800" cy="110" r="90" stroke-width="0.6"/>
-    <circle class="node" cx="1380" cy="200" r="60" stroke-width="0.6"/>
-    <circle class="node" cx="480" cy="310" r="50" stroke-width="0.5"/>
-    <circle class="node" cx="1120" cy="320" r="75" stroke-width="0.5"/>
-    <line class="edge" x1="220" y1="180" x2="800" y2="110" stroke-width="0.5"/>
-    <line class="edge" x1="800" y1="110" x2="1380" y2="200" stroke-width="0.5"/>
-    <line class="edge" x1="220" y1="180" x2="480" y2="310" stroke-width="0.5"/>
-    <line class="edge" x1="800" y1="110" x2="1120" y2="320" stroke-width="0.5"/>
-    <line class="edge" x1="1380" y1="200" x2="1120" y2="320" stroke-width="0.5"/>
-    <line class="edge" x1="480" y1="310" x2="1120" y2="320" stroke-width="0.5"/>
-    <circle class="dot" cx="220" cy="180" r="4"/>
-    <circle class="dot" cx="800" cy="110" r="5"/>
-    <circle class="dot" cx="1380" cy="200" r="3.5"/>
-    <circle class="dot" cx="480" cy="310" r="3"/>
-    <circle class="dot" cx="1120" cy="320" r="4"/>
+  <svg class="hero-graph" viewBox="0 0 1600 520" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle class="node" cx="220" cy="210" r="70" stroke-width="0.7"/>
+    <circle class="node" cx="800" cy="110" r="90" stroke-width="0.7"/>
+    <circle class="node" cx="1380" cy="230" r="60" stroke-width="0.7"/>
+    <circle class="node" cx="480" cy="380" r="50" stroke-width="0.6"/>
+    <circle class="node" cx="1120" cy="390" r="75" stroke-width="0.6"/>
+    <line class="edge" x1="220" y1="210" x2="800" y2="110" stroke-width="0.6"/>
+    <line class="edge" x1="800" y1="110" x2="1380" y2="230" stroke-width="0.6"/>
+    <line class="edge" x1="220" y1="210" x2="480" y2="380" stroke-width="0.6"/>
+    <line class="edge" x1="800" y1="110" x2="1120" y2="390" stroke-width="0.6"/>
+    <line class="edge" x1="1380" y1="230" x2="1120" y2="390" stroke-width="0.6"/>
+    <line class="edge" x1="480" y1="380" x2="1120" y2="390" stroke-width="0.6"/>
+    <circle class="dot" cx="220" cy="210" r="3"/>
+    <circle class="dot" cx="800" cy="110" r="3.5"/>
+    <circle class="dot" cx="1380" cy="230" r="3"/>
+    <circle class="dot" cx="480" cy="380" r="2.5"/>
+    <circle class="dot" cx="1120" cy="390" r="3"/>
   </svg>
 
-  <div style="position:relative;z-index:1">
+  <div class="wrap hero-inner">
     <p class="eyebrow">Lakona</p>
-    <h1>Build realtime C# game servers</h1>
+    <h1>Build realtime <span class="hero-accent">C#</span><br>game servers</h1>
     <p class="lead">{{ .Site.Params.description }}</p>
     <div class="hero-actions">
-      <a class="button primary" href="https://github.com/bruce48x/Lakona/releases">Download Lakona Hub</a>
+      <a class="button primary" href="https://github.com/bruce48x/Lakona/releases">Download Lakona Hub <span class="button-arrow" aria-hidden="true">↗</span></a>
       <a class="button" href="{{ "posts/getting-started/" | relURL }}">Get started with Lakona Hub</a>
       <a class="button" href="{{ "posts/agar/" | relURL }}">Launch a Multi-Node Game Cluster</a>
     </div>
   </div>
 </section>
 
-<!-- Features -->
 <section class="features">
   <div class="wrap">
-    <p class="section-label">Why Lakona</p>
-    <h2 class="section-title">The freedom to build your game</h2>
+    <div class="section-heading">
+      <p class="section-label">Why Lakona</p>
+      <h2 class="section-title">The freedom to build your game</h2>
+    </div>
     <div class="features-grid">
       <div class="feature-card">
-        <span class="feature-icon">🖥️</span>
+        <div class="feature-top">
+          <span class="icon-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 22h8M12 18v4M7 9h4M7 13h7M16 8v3"/></svg>
+          </span>
+          <span class="feature-index">01</span>
+        </div>
         <h3>Start with a complete workspace</h3>
         <p>Hub or Tool creates the shared contracts, server host, hotfix project, and Unity or Godot client together.</p>
       </div>
       <div class="feature-card">
-        <span class="feature-icon">🧩</span>
+        <div class="feature-top">
+          <span class="icon-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4H5a2 2 0 0 0-2 2v3m0 6v3a2 2 0 0 0 2 2h3M16 4h3a2 2 0 0 1 2 2v3m0 6v3a2 2 0 0 1-2 2h-3M8 12h8M12 8v8"/></svg>
+          </span>
+          <span class="feature-index">02</span>
+        </div>
         <h3>Share C# contracts</h3>
         <p>Client and server compile the same RPC interfaces, DTOs, callbacks, and protocol types.</p>
       </div>
       <div class="feature-card">
-        <span class="feature-icon">🔥</span>
+        <div class="feature-top">
+          <span class="icon-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7h-6a4 4 0 0 0-4 4v1M20 7l-3-3m3 3-3 3M4 17h6a4 4 0 0 0 4-4v-1M4 17l3-3m-3 3 3 3"/></svg>
+          </span>
+          <span class="feature-index">03</span>
+        </div>
         <h3>Reload behavior, keep state</h3>
         <p>Rebuild replaceable C# game behavior while long-lived player, room, and match state stays alive.</p>
       </div>
       <div class="feature-card">
-        <span class="feature-icon">🗄️</span>
+        <div class="feature-top">
+          <span class="icon-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+          </span>
+          <span class="feature-index">04</span>
+        </div>
         <h3>Your game, your database</h3>
         <p>Integrate PostgreSQL, MySQL, MongoDB, or another database with your own .NET clients and data access layer. Keep your schema, queries, and familiar tools. Lakona imposes no database or ORM.</p>
       </div>
       <div class="feature-card">
-        <span class="feature-icon">🚀</span>
+        <div class="feature-top">
+          <span class="icon-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20v-5h5v5M10 20V9h5v11M16 20V4h4v16M3 20h18"/></svg>
+          </span>
+          <span class="feature-index">05</span>
+        </div>
         <h3>Start small and grow deliberately</h3>
         <p>Run a complete game server locally, then add sessions, reliable push, routing, and cluster deployment as your game grows.</p>
       </div>
@@ -68,33 +93,32 @@
   </div>
 </section>
 
-<!-- Code Showcase -->
 <section class="code-showcase">
   <div class="wrap">
-    <p class="section-label">Show, Don't Tell</p>
-    <h2 class="section-title">Reload rules. Keep state alive.</h2>
+    <div class="section-heading">
+      <p class="section-label">Show, don't tell</p>
+      <h2 class="section-title">Reload rules. Keep state alive.</h2>
+    </div>
     <div class="code-showcase-grid">
       <div class="code-window">
         <div class="code-chrome">
-          <span class="dot dot-red"></span>
-          <span class="dot dot-yel"></span>
-          <span class="dot dot-grn"></span>
+          <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
           <span class="filename">RoomActor.cs</span>
+          <span class="code-context">State</span>
         </div>
         <div class="code-body">
           <span class="c">// Server.App: durable state stays here</span><br>
           <span class="k">public sealed class</span> <span class="nc">RoomActor</span> : <span class="nc">Actor&lt;RoomId&gt;</span><br>
           {<br>
           &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">internal</span> <span class="nc">RoomState</span> State = <span class="k">new</span>();<br>
-          }<span class="code-cursor"></span>
+          }
         </div>
       </div>
       <div class="code-window">
         <div class="code-chrome">
-          <span class="dot dot-red"></span>
-          <span class="dot dot-yel"></span>
-          <span class="dot dot-grn"></span>
+          <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
           <span class="filename">RoomBehavior.cs</span>
+          <span class="code-context">Behavior</span>
         </div>
         <div class="code-body">
           <span class="c">// Server.Hotfix: replace behavior while state stays alive</span><br>
@@ -109,36 +133,52 @@
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.State = <span class="k">new</span> <span class="nc">RoomState</span> { RoomId = request.RoomId };<br>
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;...<br>
           &nbsp;&nbsp;&nbsp;&nbsp;}<br>
-          }<span class="code-cursor"></span>
+          }
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Guides -->
 <section class="guides">
   <div class="wrap">
-    <p class="section-label">Documentation</p>
-    <h2 class="section-title">Start building in minutes</h2>
+    <div class="section-heading">
+      <p class="section-label">Documentation</p>
+      <h2 class="section-title">Start building in minutes</h2>
+    </div>
     <div class="guides-grid">
       <a class="guide-card" href="https://github.com/bruce48x/Lakona/releases">
-        <span class="guide-icon">🖥️</span>
+        <div class="guide-top">
+          <span class="icon-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 22h8M12 18v4M12 8v6M9 11l3 3 3-3"/></svg>
+          </span>
+          <svg class="guide-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg>
+        </div>
         <h3>Create a project with Hub</h3>
         <p>Use the guided desktop workflow to create, inspect, open, and package Lakona projects.</p>
-        <span class="arrow">Download Hub →</span>
+        <span class="guide-link"><span>Download Hub</span><span aria-hidden="true">→</span></span>
       </a>
       <a class="guide-card" href="{{ "posts/getting-started/" | relURL }}">
-        <span class="guide-icon">📖</span>
+        <div class="guide-top">
+          <span class="icon-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5Z"/><path d="M4 5.5v14A2.5 2.5 0 0 0 6.5 22H20M8 7h8M8 11h6"/></svg>
+          </span>
+          <svg class="guide-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg>
+        </div>
         <h3>Get started with Lakona Hub</h3>
         <p>Create a Unity project, open the client and server, and run your first local game.</p>
-        <span class="arrow">Read the guide →</span>
+        <span class="guide-link"><span>Read the guide</span><span aria-hidden="true">→</span></span>
       </a>
       <a class="guide-card" href="{{ "posts/agar/" | relURL }}">
-        <span class="guide-icon">🎮</span>
+        <div class="guide-top">
+          <span class="icon-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><rect x="15" y="15" width="6" height="6" rx="1"/><path d="M12 9v3M6 15v-3h12v3"/></svg>
+          </span>
+          <svg class="guide-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg>
+        </div>
         <h3>Build a Multi-Node Game Cluster</h3>
         <p>Start Agar locally, then create a complete nine-node development cluster.</p>
-        <span class="arrow">Read the Agar guide →</span>
+        <span class="guide-link"><span>Read the Agar guide</span><span aria-hidden="true">→</span></span>
       </a>
     </div>
   </div>

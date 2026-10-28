@@ -16,15 +16,22 @@ of duplicating long explanations:
 
 ```bash
 cd blog
-hugo server
+npm install
+npm run dev
 ```
+
+The development script uses the pinned `hugo-bin` package and accepts the
+standard preview host and port arguments, for example
+`npm run dev -- --host 127.0.0.1 --port 7100`.
 
 ## Build
 
 ```bash
 cd blog
-hugo
+npm run build
 ```
+
+You can also run `hugo server` or `hugo` directly when Hugo is installed.
 
 ## GitHub Pages
 
