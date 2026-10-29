@@ -11,9 +11,25 @@ internal interface IHotfixTimerMethodInvoker
 internal static class HotfixTimerMethodInvoker
 {
     public static IHotfixTimerMethodInvoker Create(Type callbackType, Type argsType, MethodInfo method, Type actorType) =>
-        (IHotfixTimerMethodInvoker)typeof(HotfixTimerMethodInvoker)
+        argsType == typeof(void)
+        ? (IHotfixTimerMethodInvoker)typeof(HotfixTimerMethodInvoker)
+            .GetMethod(nameof(CreateActorWithoutArgs), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(callbackType, actorType).Invoke(null, [method])!
+        : (IHotfixTimerMethodInvoker)typeof(HotfixTimerMethodInvoker)
             .GetMethod(nameof(CreateActorCore), BindingFlags.NonPublic | BindingFlags.Static)!
             .MakeGenericMethod(callbackType, actorType, argsType).Invoke(null, [method])!;
+
+    private static IHotfixTimerMethodInvoker CreateActorWithoutArgs<TCallback, TActor>(MethodInfo method) =>
+        new ActorInvokerWithoutArgs<TCallback, TActor>(
+            (Func<TCallback, TActor, TimerTick, ValueTask>)method.CreateDelegate(
+                typeof(Func<TCallback, TActor, TimerTick, ValueTask>)));
+
+    private sealed class ActorInvokerWithoutArgs<TCallback, TActor>(
+        Func<TCallback, TActor, TimerTick, ValueTask> invoker) : IHotfixTimerMethodInvoker
+    {
+        public ValueTask InvokeAsync(object callback, object tick, object? actor) =>
+            invoker((TCallback)callback, (TActor)actor!, (TimerTick)tick);
+    }
 
     private static IHotfixTimerMethodInvoker CreateActorCore<TCallback, TActor, TArgs>(MethodInfo method) =>
         new ActorInvoker<TCallback, TActor, TArgs>(

@@ -659,7 +659,7 @@ public sealed class AgarHotfixBoundaryTests
         Assert.Contains("DestroyFrameRelayTimer", roomBehavior, StringComparison.Ordinal);
         Assert.Contains("CreatePeriodicTimer(", roomBehavior, StringComparison.Ordinal);
         Assert.Contains("static (RoomBehavior behavior) => behavior.OnTimerAsync", roomBehavior, StringComparison.Ordinal);
-        Assert.Contains("new FrameRelayTimerArgs()", roomBehavior, StringComparison.Ordinal);
+        Assert.DoesNotContain("new FrameRelayTimerArgs()", roomBehavior, StringComparison.Ordinal);
         Assert.DoesNotContain("new FrameRelayTimerArgs { RoomId", roomBehavior, StringComparison.Ordinal);
         Assert.Contains("DestroyFrameRelayTimer(self);", roomBehavior, StringComparison.Ordinal);
         Assert.DoesNotContain("IsMissingLakonaTimerScope", roomBehavior, StringComparison.Ordinal);
@@ -686,9 +686,9 @@ public sealed class AgarHotfixBoundaryTests
         var matchmaking = ReadPartialType("samples/Game.Unity.Agar/Server/Hotfix/Matchmaking/MatchmakingBehavior.cs", "MatchmakingBehavior*.cs");
         var room = ReadPartialType("samples/Game.Unity.Agar/Server/Hotfix/Rooms/RoomBehavior.cs", "RoomBehavior*.cs");
         Assert.Contains("ActorTimer]", matchmaking, StringComparison.Ordinal);
-        Assert.Contains("OnTimerAsync(MatchmakingActor self, TimerTick<MatchmakingTimerArgs> tick)", matchmaking, StringComparison.Ordinal);
+        Assert.Contains("OnTimerAsync(MatchmakingActor self, TimerTick tick)", matchmaking, StringComparison.Ordinal);
         Assert.Contains("ActorTimer]", room, StringComparison.Ordinal);
-        Assert.Contains("OnTimerAsync(RoomActor self, TimerTick<FrameRelayTimerArgs> tick)", room, StringComparison.Ordinal);
+        Assert.Contains("OnTimerAsync(RoomActor self, TimerTick tick)", room, StringComparison.Ordinal);
     }
 
     [Fact]

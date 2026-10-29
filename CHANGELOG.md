@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-10-29 — Actor timers without business arguments
+
+**Key releases:** `Lakona.Game.Server 0.53.15`, `Lakona.Game.Testing 0.3.55`,
+`Lakona.Tool 0.43.65`, and `Lakona Hub 0.17.76`.
+
+- Actor timers support argument-free creation and `TimerTick` callbacks alongside
+  existing generic APIs, preserving activation ownership and Hotfix dispatch.
+- Unity samples and generated game projects no longer require unused timer DTOs.
+
 ## 2026-10-26 — Refined Lakona Hub visual identity
 
 **Key release:** `Lakona Hub 0.17.73`.

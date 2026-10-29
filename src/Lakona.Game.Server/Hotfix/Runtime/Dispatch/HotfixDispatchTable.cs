@@ -352,6 +352,18 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         return new HotfixTimerEntry<TArgs>(descriptor.CallbackType.FullName!, descriptor.MethodName, descriptor.MethodId);
     }
 
+    internal HotfixTimerMethodDescriptor ResolveActorTimerEntry<TActor, TCallback>(
+        Func<TCallback, Lakona.Game.Server.Hotfix.Timers.ActorTimerCallback<TActor>> selector)
+        where TActor : Lakona.Game.Server.Actors.Actor where TCallback : class
+    {
+        var callback = selector((TCallback)GetActivatedModule(typeof(TCallback)));
+        if (callback is null || !timerMethodDelegateBindings.TryGetValue(callback.Method, out var descriptor)
+            || descriptor.CallbackType != typeof(TCallback) || descriptor.ActorType != typeof(TActor)
+            || descriptor.ArgsType != typeof(void))
+            throw new ArgumentException("The selector must directly select an [ActorTimer] method for this Actor.", nameof(selector));
+        return descriptor;
+    }
+
     public ValueTask InvokeTimerAsync(ulong methodId, object tick, object actor)
     {
         ArgumentNullException.ThrowIfNull(tick);
@@ -360,7 +372,8 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
             throw new HotfixMethodNotLoadedException($"Hotfix timer method id '{methodId}' is not loaded.");
         }
 
-        var expectedTickType = typeof(Lakona.Game.Server.Hotfix.Timers.TimerTick<>).MakeGenericType(binding.ArgsType);
+        var expectedTickType = binding.ArgsType == typeof(void) ? typeof(Lakona.Game.Server.Hotfix.Timers.TimerTick)
+            : typeof(Lakona.Game.Server.Hotfix.Timers.TimerTick<>).MakeGenericType(binding.ArgsType);
         if (!expectedTickType.IsInstanceOfType(tick))
         {
             throw new ArgumentException(

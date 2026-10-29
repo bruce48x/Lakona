@@ -625,6 +625,12 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     {
         var callback = callbackResolver.Resolve(snapshot, descriptor);
         var argsType = callback.ArgsType;
+        if (argsType == typeof(void))
+        {
+            await snapshot.DispatchTable!.InvokeTimerAsync(descriptor.MethodId, new TimerTick(descriptor.TimerId), actor)
+                .ConfigureAwait(false);
+            return;
+        }
         var args = argsSerializer.Deserialize(descriptor.SerializerId, descriptor.JsonPayload, argsType);
         var constructedTick = Activator.CreateInstance(
             typeof(TimerTick<>).MakeGenericType(argsType),

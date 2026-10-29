@@ -48,7 +48,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         public static readonly DiagnosticDescriptor ActorTimerMethodShape = new DiagnosticDescriptor(
             "LAKONA20049", "Invalid Actor timer callback",
-            "Actor timer '{0}' must belong to a Hotfix Actor Behavior and be an instance non-generic ValueTask method with (Actor, TimerTick<TArgs>) and only [ActorTimer]",
+            "Actor timer '{0}' must belong to a Hotfix Actor Behavior and be an instance non-generic ValueTask method with (Actor, TimerTick<TArgs> or TimerTick) and only [ActorTimer]",
             "Lakona.Game.Hotfix", DiagnosticSeverity.Error, isEnabledByDefault: true);
         public static readonly DiagnosticDescriptor UnsupportedServiceContract = new DiagnosticDescriptor(
             "LAKONA20006",

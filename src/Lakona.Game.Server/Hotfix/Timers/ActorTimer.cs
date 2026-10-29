@@ -7,9 +7,38 @@ namespace Lakona.Game.Server.Hotfix.Timers;
 public delegate ValueTask ActorTimerCallback<TActor, TArgs>(TActor actor, TimerTick<TArgs> tick)
     where TActor : Actor;
 
+/// <summary>A callback without business arguments, executed in its owning Actor mailbox.</summary>
+public delegate ValueTask ActorTimerCallback<TActor>(TActor actor, TimerTick tick) where TActor : Actor;
+
 /// <summary>Creates and cancels timers owned by the current exact Actor activation.</summary>
 public static class ActorTimer
 {
+    /// <summary>Schedules one callback without business arguments.</summary>
+    public static TimerId CreateOnceTimer<TActor, TBehavior>(this TActor actor,
+        [HotfixMethodSelector] Func<TBehavior, ActorTimerCallback<TActor>> selector, TimeSpan dueTime)
+        where TActor : Actor where TBehavior : class => Create(actor, selector, dueTime, null);
+
+    /// <summary>Schedules a periodic callback without business arguments.</summary>
+    public static TimerId CreatePeriodicTimer<TActor, TBehavior>(this TActor actor,
+        [HotfixMethodSelector] Func<TBehavior, ActorTimerCallback<TActor>> selector, TimeSpan dueTime, TimeSpan period)
+        where TActor : Actor where TBehavior : class
+    {
+        if (period <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(period));
+        return Create(actor, selector, dueTime, period);
+    }
+
+    private static TimerId Create<TActor, TBehavior>(TActor actor,
+        Func<TBehavior, ActorTimerCallback<TActor>> selector, TimeSpan dueTime, TimeSpan? period)
+        where TActor : Actor where TBehavior : class
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(selector);
+        var owner = actor.Context?.TimerOwner
+            ?? throw new InvalidOperationException("Actor timers require a hosted Actor activation.");
+        owner.ValidateCreation();
+        return LakonaTimerExecutionScope.GetActiveContext().Backend.CreateTimer(actor, selector, dueTime, period);
+    }
+
     /// <summary>Schedules one callback. Capacity pressure delays delivery instead of discarding it.</summary>
     public static TimerId CreateOnceTimer<TActor, TBehavior, TArgs>(
         this TActor actor,

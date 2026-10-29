@@ -13,6 +13,20 @@ namespace Lakona.Game.Server.Tests;
 
 public sealed partial class ActorTimerTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Argument_free_timer_registers_without_a_payload(bool periodic)
+    {
+        await using var fixture = new Fixture();
+        var actor = await fixture.CreateActorAsync("no-payload");
+        var timer = await fixture.CreateTimerAsync(actor, TimeSpan.FromDays(1),
+            periodic ? TimeSpan.FromSeconds(1) : null);
+        Assert.True(fixture.Backend.TryGetDescriptor(timer, out var descriptor));
+        Assert.True(descriptor.JsonPayload.IsEmpty);
+        Assert.Equal("none", descriptor.SerializerId);
+    }
+
     [Fact]
     public async Task Timer_uses_published_generation_while_actor_creation_scope_is_still_active()
     {
@@ -169,7 +183,7 @@ public sealed partial class ActorTimerTests
         var scan = HotfixBehaviorScanner.Scan(typeof(TimerBehavior).Assembly, [typeof(TimerBehavior)]);
         Assert.Empty(scan.Diagnostics);
         Assert.Empty(scan.ActorMethods);
-        Assert.Single(scan.TimerMethods);
+        Assert.Equal(2, scan.TimerMethods.Count);
     }
 
     public sealed class TimerActor : Actor<string>;
@@ -177,6 +191,10 @@ public sealed partial class ActorTimerTests
     [HotfixBehaviorOf(typeof(TimerActor))]
     public sealed partial class TimerBehavior(Probe probe, Generation generation)
     {
+        [ActorTimer]
+        public ValueTask TickWithoutArgsAsync(TimerActor actor, TimerTick tick) =>
+            TickAsync(actor, new TimerTick<int>(tick.TimerId, 1));
+
         [ActorTimer]
         public async ValueTask TickAsync(TimerActor actor, TimerTick<int> tick)
         {
@@ -259,8 +277,8 @@ public sealed partial class ActorTimerTests
                 using var lease = AcquireCurrent();
                 using var scope = LakonaTimerRuntime.Enter(Backend, lease);
                 return new ValueTask<TimerId>(period is { } interval
-                    ? self.CreatePeriodicTimer(static (TimerBehavior behavior) => behavior.TickAsync, due, interval, 1)
-                    : self.CreateOnceTimer(static (TimerBehavior behavior) => behavior.TickAsync, due, 1));
+                    ? self.CreatePeriodicTimer(static (TimerBehavior behavior) => behavior.TickWithoutArgsAsync, due, interval)
+                    : self.CreateOnceTimer(static (TimerBehavior behavior) => behavior.TickWithoutArgsAsync, due));
             });
 
         public async ValueTask DisposeAsync()

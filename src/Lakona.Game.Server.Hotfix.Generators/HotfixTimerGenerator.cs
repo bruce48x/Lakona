@@ -31,13 +31,14 @@ namespace Lakona.Game.Server.Hotfix.Generators
                         && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, actorType)
                         && method.Parameters.All(parameter => parameter.RefKind == RefKind.None)
                         && method.Parameters[1].Type is INamedTypeSymbol tick
-                        && tick.OriginalDefinition.ToDisplayString() == "Lakona.Game.Server.Hotfix.Timers.TimerTick<TArgs>"
+                        && (tick.OriginalDefinition.ToDisplayString() == "Lakona.Game.Server.Hotfix.Timers.TimerTick<TArgs>"
+                            || tick.ToDisplayString() == "Lakona.Game.Server.Hotfix.Timers.TimerTick")
                         && !method.GetAttributes().Any(attribute => attribute.AttributeClass?.Name is
                             "ActorMethodAttribute" or "ActorIgnoreAttribute" or "ActorStartAttribute" or "ActorStopAttribute");
                     if (!valid)
                         context.ReportDiagnostic(Diagnostic.Create(HotfixGeneratorDiagnostics.ActorTimerMethodShape,
                             method.Locations.FirstOrDefault(), method.ToDisplayString()));
-                    else
+                    else if (((INamedTypeSymbol)method.Parameters[1].Type).IsGenericType)
                         HotfixTimerArgsValidation.Validate(context, compilation, method,
                             ((INamedTypeSymbol)method.Parameters[1].Type).TypeArguments[0]);
                 }

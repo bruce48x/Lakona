@@ -14,7 +14,6 @@ internal sealed class HotfixRenderer : IPlanContributor
         builder.AddFile("Server/Hotfix/Game/GameSessionLifecycle.cs", RenderGameSessionLifecycle(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/Game/GameWorldBehavior.cs", RenderGameWorldBehavior(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/Game/GameWorldTimer.cs", RenderGameWorldTimer(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/App/Game/GameWorldTimerArgs.cs", RenderGameWorldTimerArgs(), FileWriteMode.Replace, GeneratedFileKind.Text);
         builder.AddFile("Server/Hotfix/HotfixStartup.cs", RenderHotfixStartup(), FileWriteMode.Replace, GeneratedFileKind.Text);
     }
 
@@ -230,7 +229,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                 }
 
                 [ActorTimer]
-                private async ValueTask OnTimerAsync(GameWorldActor self, TimerTick<GameWorldTimerArgs> tick)
+                private async ValueTask OnTimerAsync(GameWorldActor self, TimerTick tick)
                 {
                     var update = await TickAsync(self, new GameTickRequest(), CancellationToken.None);
 
@@ -249,17 +248,6 @@ internal sealed class HotfixRenderer : IPlanContributor
         """;
     }
 
-    private static string RenderGameWorldTimerArgs()
-    {
-        return """
-        namespace Server.App.Game
-        {
-            public sealed class GameWorldTimerArgs
-            {
-            }
-        }
-        """;
-    }
 
     private static string RenderHotfixStartup()
     {
@@ -685,8 +673,7 @@ internal sealed class HotfixRenderer : IPlanContributor
                         .CreatePeriodicTimer(
                             static (GameWorldBehavior behavior) => behavior.OnTimerAsync,
                             TimeSpan.Zero,
-                            TimeSpan.FromSeconds(GameRules.SimulationStepSeconds),
-                            new GameWorldTimerArgs());
+                            TimeSpan.FromSeconds(GameRules.SimulationStepSeconds));
                 }
 
                 private static (float X, float Y) SpawnPosition(long seed)

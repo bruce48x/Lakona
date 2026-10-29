@@ -26,8 +26,7 @@ public sealed partial class MatchmakingBehavior
             .CreatePeriodicTimer(
                 static (MatchmakingBehavior behavior) => behavior.OnTimerAsync,
                 TimeSpan.Zero,
-                TimeSpan.FromSeconds(1),
-                new MatchmakingTimerArgs());
+                TimeSpan.FromSeconds(1));
     }
 
     internal static void DestroyMatchmakingTimer(MatchmakingActor self)

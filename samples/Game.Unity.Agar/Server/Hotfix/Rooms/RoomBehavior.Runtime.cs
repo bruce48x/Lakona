@@ -16,7 +16,7 @@ namespace Server.Hotfix.Rooms;
 public sealed partial class RoomBehavior
 {
     [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
-    private ValueTask OnTimerAsync(RoomActor self, TimerTick<FrameRelayTimerArgs> tick) =>
+    private ValueTask OnTimerAsync(RoomActor self, TimerTick tick) =>
         RunFrameAsync(self, new RoomFrameRequest { ObservedAtUtc = DateTime.UtcNow });
 
     private static FrameSyncStart CreateFrameSyncStart(RoomActor self)
@@ -155,8 +155,7 @@ public sealed partial class RoomBehavior
             .CreatePeriodicTimer(
                 static (RoomBehavior behavior) => behavior.OnTimerAsync,
                 TimeSpan.Zero,
-                TimeSpan.FromSeconds(FrameSyncProtocol.FixedDeltaSeconds),
-                new FrameRelayTimerArgs());
+                TimeSpan.FromSeconds(FrameSyncProtocol.FixedDeltaSeconds));
     }
 
     private static void DestroyFrameRelayTimer(RoomActor self)

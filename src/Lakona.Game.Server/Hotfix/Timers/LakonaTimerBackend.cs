@@ -15,6 +15,29 @@ internal sealed class LakonaTimerBackend : ILakonaTimerBackend
         scheduler.AttachBackend(this);
     }
 
+    public TimerId CreateTimer<TActor, TBehavior>(TActor actor,
+        Func<TBehavior, ActorTimerCallback<TActor>> selector, TimeSpan dueTime, TimeSpan? period)
+        where TActor : Actors.Actor where TBehavior : class
+    {
+        var owner = actor.Context.TimerOwner
+            ?? throw new InvalidOperationException("Actor timers require a hosted activation.");
+        owner.ValidateCreation();
+        if (dueTime < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(dueTime));
+        if (period is { } interval && interval <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(period));
+        var lease = LakonaTimerExecutionScope.GetActiveContext().RuntimeContext
+            ?? throw new InvalidOperationException("Actor timers require an active Hotfix snapshot lease.");
+        var callback = lease.Snapshot.DispatchTable!.ResolveActorTimerEntry(selector);
+        if (!ReferenceEquals(callback.CallbackType.Assembly, lease.Snapshot.MainAssembly))
+            throw new InvalidOperationException("Timer callback type must be from the active hotfix assembly.");
+        var descriptor = new LakonaTimerDescriptor(LakonaTimerRuntime.CreateTimerId(),
+            callback.CallbackType.Assembly.GetName().Name!, callback.CallbackType.FullName!,
+            callback.MethodName, callback.MethodId, typeof(void).Assembly.GetName().Name!,
+            typeof(void).FullName!, "none", ReadOnlyMemory<byte>.Empty,
+            scheduler.GetUtcNow().Add(dueTime), period, lease.Snapshot.DispatchTable.Version) { Owner = owner };
+        scheduler.Add(descriptor);
+        return descriptor.TimerId;
+    }
+
     public IReadOnlyCollection<LakonaTimerDescriptor> Descriptors => scheduler.Descriptors;
 
     public TimerId CreateTimer<TActor, TBehavior, TArgs>(

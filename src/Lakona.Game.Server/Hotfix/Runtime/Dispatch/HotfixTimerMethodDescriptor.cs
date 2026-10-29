@@ -31,6 +31,7 @@ public sealed class HotfixTimerMethodDescriptor
 
     public Type CallbackType { get; }
 
+    /// <summary>Gets the business argument type, or <see cref="System.Void"/> for argument-free callbacks.</summary>
     public Type ArgsType { get; }
 
     public Type ActorType { get; }

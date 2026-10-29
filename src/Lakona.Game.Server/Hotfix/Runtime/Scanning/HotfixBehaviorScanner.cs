@@ -911,16 +911,18 @@ public static class HotfixBehaviorScanner
             if (!typeof(Lakona.Game.Server.Actors.Actor).IsAssignableFrom(actorType)
                 || method.IsStatic || method.IsGenericMethod || method.ReturnType != typeof(ValueTask)
                 || parameters.Length != 2 || parameters[0].ParameterType != actorType
-                || !parameters[1].ParameterType.IsGenericType
-                || parameters[1].ParameterType.GetGenericTypeDefinition() != typeof(TimerTick<>)
+                || (parameters[1].ParameterType != typeof(TimerTick)
+                    && (!parameters[1].ParameterType.IsGenericType
+                        || parameters[1].ParameterType.GetGenericTypeDefinition() != typeof(TimerTick<>)))
                 || method.IsDefined(typeof(Lakona.Game.Server.Actors.ActorMethodAttribute), false)
                 || method.IsDefined(typeof(Lakona.Game.Server.Actors.ActorIgnoreAttribute), false)
                 || method.IsDefined(typeof(ActorStartAttribute), false) || method.IsDefined(typeof(ActorStopAttribute), false))
             {
-                diagnostics.Add($"Actor timer '{behaviorType.FullName}.{method.Name}' must be an instance non-generic ValueTask method with ({actorType.Name}, TimerTick<TArgs>) and only [ActorTimer].");
+                diagnostics.Add($"Actor timer '{behaviorType.FullName}.{method.Name}' must be an instance non-generic ValueTask method with ({actorType.Name}, TimerTick<TArgs> or TimerTick) and only [ActorTimer].");
                 continue;
             }
-            var argsType = parameters[1].ParameterType.GetGenericArguments()[0];
+            var argsType = parameters[1].ParameterType == typeof(TimerTick)
+                ? typeof(void) : parameters[1].ParameterType.GetGenericArguments()[0];
             var key = CreateTimerMethodKey(behaviorType, method.Name, argsType);
             if (!keys.Add(key))
             {

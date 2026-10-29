@@ -27,8 +27,10 @@ public sealed class HotfixGeneratorTests
         Assert.DoesNotContain("TryAddSingleton", result.GeneratedSource);
     }
 
-    [Fact]
-    public void Actor_timer_selector_compiles_and_callback_is_not_exported_as_rpc()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Actor_timer_selector_compiles_and_callback_is_not_exported_as_rpc(bool withoutArgs)
     {
         var result = GeneratorTestHost.RunWithGeneratedAppReference("""
             using Lakona.Game.Server.Actors;
@@ -53,7 +55,9 @@ public sealed class HotfixGeneratorTests
                 [ActorTimer]
                 public ValueTask OnTimerAsync(RoomActor self, TimerTick<int> tick) => default;
             }
-            """, appAssemblyName: "Game.Server", hotfixAssemblyName: "Game.Hotfix");
+            """.Replace("TimerTick<int>", withoutArgs ? "TimerTick" : "TimerTick<int>")
+                .Replace("TimeSpan.FromSeconds(1), 0", withoutArgs ? "TimeSpan.FromSeconds(1)" : "TimeSpan.FromSeconds(1), 0"),
+            appAssemblyName: "Game.Server", hotfixAssemblyName: "Game.Hotfix");
         Assert.Empty(result.App.ErrorDiagnostics);
         Assert.Empty(result.Hotfix.ErrorDiagnostics);
         Assert.DoesNotContain("OnTimerAsync", result.Hotfix.GeneratedSource, StringComparison.Ordinal);

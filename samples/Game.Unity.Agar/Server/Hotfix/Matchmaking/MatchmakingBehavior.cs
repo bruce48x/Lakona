@@ -140,7 +140,7 @@ public sealed partial class MatchmakingBehavior
     }
 
     [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
-    private ValueTask OnTimerAsync(MatchmakingActor self, TimerTick<MatchmakingTimerArgs> tick) =>
+    private ValueTask OnTimerAsync(MatchmakingActor self, TimerTick tick) =>
         RunTickAsync(self, new MatchmakingTickRequest { ObservedAtUtc = DateTime.UtcNow });
 
     internal async ValueTask RunTickAsync(

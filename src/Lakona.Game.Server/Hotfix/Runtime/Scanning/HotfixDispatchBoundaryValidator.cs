@@ -49,6 +49,7 @@ internal static class HotfixDispatchBoundaryValidator
 
         foreach (var timer in timers)
         {
+            if (timer.ArgsType == typeof(void)) continue;
             try
             {
                 ValidateStableTimerType(hotfixContext, timer.ArgsType, new HashSet<Type>());

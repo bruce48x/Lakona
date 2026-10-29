@@ -39,8 +39,3 @@ public sealed partial class ZoneLeaveRequest
 public sealed partial class ZoneTickRequest
 {
 }
-
-public sealed class ZoneTimerArgs
-{
-    public string ZoneId { get; set; } = "";
-}

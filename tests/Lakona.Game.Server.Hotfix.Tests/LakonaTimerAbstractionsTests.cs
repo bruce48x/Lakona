@@ -12,8 +12,9 @@ public sealed class LakonaTimerAbstractionsTests
     {
         Assert.Null(typeof(ActorTimer).Assembly.GetType("Lakona.Game.Server.Hotfix.Timers.LakonaTimer"));
         Assert.Equal(["CreateOnceTimer", "CreatePeriodicTimer", "DestroyTimer"], typeof(ActorTimer)
-            .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly).Select(method => method.Name).Order());
-        Assert.Equal(typeof(TimerId), typeof(ILakonaTimerBackend).GetMethod("CreateTimer")!.ReturnType);
+            .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly).Select(method => method.Name).Distinct().Order());
+        Assert.All(typeof(ILakonaTimerBackend).GetMethods().Where(method => method.Name == "CreateTimer"),
+            method => Assert.Equal(typeof(TimerId), method.ReturnType));
         Assert.Equal(typeof(void), typeof(ILakonaTimerBackend).GetMethod("DestroyTimer")!.ReturnType);
         Assert.All(typeof(ActorTimer).GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly),
             method => Assert.Equal(method.Name == "DestroyTimer" ? typeof(void) : typeof(TimerId), method.ReturnType));

@@ -540,13 +540,12 @@ its Behavior directly:
 self.TimerId = self.CreatePeriodicTimer(
     static (RoomBehavior behavior) => behavior.OnTimerAsync,
     TimeSpan.Zero,
-    TimeSpan.FromSeconds(1),
-    new RoomTimerArgs());
+    TimeSpan.FromSeconds(1));
 
 [ActorTimer]
 private ValueTask OnTimerAsync(
     RoomActor self,
-    TimerTick<RoomTimerArgs> tick)
+    TimerTick tick)
 {
     return default;
 }
@@ -558,11 +557,26 @@ when early cancellation is needed. `DestroyTimer` is synchronous and prevents
 future delivery without waiting for a callback already running.
 
 An `[ActorTimer]` method returns `ValueTask`, accepts
-`(ActorType, TimerTick<TArgs>)`, and is excluded from Actor RPC even when
+`(ActorType, TimerTick<TArgs>)` or `(ActorType, TimerTick)`, and is excluded from Actor RPC even when
 public. It cannot also declare `[ActorMethod]`, `[ActorIgnore]`, `[ActorStart]`,
 or `[ActorStop]`. Registrations retain serialized arguments and method
 identity, never a Hotfix delegate. The callback acquires the current generation
 when its mailbox turn begins.
+
+Use the overload without arguments when the callback only needs Actor state.
+`TimerTick` exposes `TimerId` for cancellation. These registrations carry no
+business payload and skip argument serialization and reconstruction. Existing
+`TArgs` overloads remain supported: pass the argument after the timing values
+and declare `TimerTick<TArgs>` to receive a creation-time snapshot. Each periodic
+tick reconstructs that snapshot; changes to `tick.Args` do not carry forward.
+Keep evolving state on the Actor. Both forms retain the same activation ownership,
+mailbox ordering, cancellation and current-generation dispatch semantics.
+
+When migrating an existing callback from `TimerTick<TArgs>` to `TimerTick`,
+cancel and recreate its timers, or restart the owning activation during rollout.
+The argument type participates in the method identity, so a Hotfix reload alone
+does not redirect registrations made against the old signature. Keeping existing
+generic callbacks requires no migration.
 
 Timer argument declarations are checked during compilation (`LAKONA20055`
 and `LAKONA20056`) and again against the candidate's actual load context before

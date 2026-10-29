@@ -1,5 +1,12 @@
 namespace Lakona.Game.Server.Hotfix.Timers;
 
+/// <summary>Provides the timer identity for a callback without business arguments.</summary>
+public sealed class TimerTick(TimerId timerId)
+{
+    /// <summary>Gets the timer that produced this callback.</summary>
+    public TimerId TimerId { get; } = timerId;
+}
+
 /// <summary>Provides the timer identity and arguments for one callback.</summary>
 /// <typeparam name="TArgs">The argument type supplied when the timer was created.</typeparam>
 public sealed class TimerTick<TArgs>

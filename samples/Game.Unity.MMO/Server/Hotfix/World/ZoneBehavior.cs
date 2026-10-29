@@ -9,7 +9,7 @@ namespace Game.Unity.MMO.Server.Hotfix.World;
 public sealed partial class ZoneBehavior
 {
     [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
-    private ValueTask OnTimerAsync(ZoneActor self, TimerTick<ZoneTimerArgs> tick) =>
+    private ValueTask OnTimerAsync(ZoneActor self, TimerTick tick) =>
         TickAsync(self, new ZoneTickRequest());
 
     private const int RespawnTickCount = 30;
@@ -26,8 +26,7 @@ public sealed partial class ZoneBehavior
             self.SimulationTimerId = self.CreatePeriodicTimer(
                 static (ZoneBehavior behavior) => behavior.OnTimerAsync,
                 TimeSpan.Zero,
-                TimeSpan.FromSeconds(WorldProtocol.TickIntervalSeconds),
-                new ZoneTimerArgs { ZoneId = WorldProtocol.DefaultZoneId });
+                TimeSpan.FromSeconds(WorldProtocol.TickIntervalSeconds));
         }
         return default;
     }
