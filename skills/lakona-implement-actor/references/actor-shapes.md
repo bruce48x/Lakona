@@ -26,6 +26,9 @@ to reference the actor type, while mutable fields should normally remain
 `internal`. Do not expose fields publicly unless they are an intentional public
 contract.
 
+For scheduled work that only needs Actor state, use the argument-free timer
+overload with `TimerTick`; no timer DTO is needed.
+
 Put request, reply, lifecycle, and timer DTOs that cross the stable/Hotfix or
 node boundary in the stable App assembly. Follow the project's selected cluster
 serializer. A routed actor request and reply must be serializable by the

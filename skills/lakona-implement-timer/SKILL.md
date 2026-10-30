@@ -22,11 +22,13 @@ active Hotfix generation and long-lived ownership remains in stable state.
    complete lifecycle instead of creating a competing schedule.
 5. Read [timer-shapes.md](references/timer-shapes.md) before defining arguments,
    choosing callback placement, creating the timer, or writing cleanup.
-6. Put timer argument types and any stored `TimerId` in the stable App
-   assembly. Keep callback implementations and scheduling decisions in
-   `Server.Hotfix`.
+6. Choose whether the callback needs a creation-time business snapshot. If it
+   only needs `self`, use the argument-free overload; do not create an empty DTO
+   or repeat the owning Actor ID. Put any needed argument DTO and stored
+   `TimerId` in stable App state/types. Keep callbacks and scheduling in Hotfix.
 7. Define an instance Behavior method marked `[ActorTimer]`, returning
-   `ValueTask` and accepting `(ActorType self, TimerTick<TArgs> tick)`. Private
+   `ValueTask` and accepting `(ActorType self, TimerTick tick)` without business
+   arguments, or `(ActorType self, TimerTick<TArgs> tick)` with arguments. Private
    callbacks are supported and excluded from RPC generation.
 8. Create the timer in its owning Actor turn and active Hotfix scope with a direct static
    typed callback selector. Store the returned ID when later destruction or
@@ -71,7 +73,9 @@ active Hotfix generation and long-lived ownership remains in stable state.
   generation objects across ticks.
 - Explicit destruction stops queued and future callbacks. A running callback
   completes normally; destruction does not await it, so self-cancellation cannot deadlock.
-- `TimerTick<TArgs>` contains only `TimerId` and `Args`. Resolve dependencies by
+- `TimerTick` exposes only `TimerId`; `TimerTick<TArgs>` exposes `TimerId` and
+  `Args`. Parameters are creation-time snapshots, not mutable state shared across
+  ticks. Resolve dependencies by
   injection and obtain business time in the callback.
 - Lakona does not persist timers or rebuild them after process loss. Integrate
   a persistent scheduler as an application resource when the product requires
@@ -95,6 +99,6 @@ dotnet build Server/Hotfix/Server.Hotfix.csproj
 For the contracts affected by the change, reuse focused tests that prove the
 timer fires the intended callback, periodic
 creation is not duplicated, one-shot versus periodic behavior is correct, the
-argument round trip succeeds, and cleanup removes the timer. A successful build
+argument round trip succeeds when arguments are used, and cleanup removes the timer. A successful build
 alone does not prove scheduling semantics. Add tests only where meaningful
 coverage is missing.
