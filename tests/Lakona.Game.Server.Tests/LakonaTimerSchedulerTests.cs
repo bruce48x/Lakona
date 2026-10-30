@@ -529,6 +529,9 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
 
         time.Advance(TimeSpan.FromSeconds(1));
         await TimerCallbackLog.WaitForValueAsync("create-child", cancellationToken);
+        // Recording the parent precedes child registration. Wait until the scheduler
+        // has armed the child's deadline before advancing the manual clock again.
+        await time.WaitForDeadlineAsync(time.GetUtcNow().AddSeconds(1), cancellationToken);
         time.Advance(TimeSpan.FromSeconds(1));
         await TimerCallbackLog.WaitForValueAsync("child", cancellationToken);
 
