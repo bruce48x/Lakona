@@ -22,12 +22,12 @@
   <Window.Resources>
     <DataTemplate x:Key="ProjectServerActionsTemplate" x:DataType="local:ProjectListItem">
       <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-        <Button Classes="project-action row-action server-open" Content="{Binding OpenText}" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}" />
+        <Button Classes="project-action secondary row-action" Content="{Binding OpenText}" Click="OpenServer_Click" IsEnabled="{Binding CanOpenServer}" ToolTip.Tip="{Binding ServerOpenToolTip}" />
         <Button Classes="project-action secondary row-action" Content="{Binding PackageText}" Click="PackageProject_Click" IsEnabled="{Binding CanPackage}" />
       </StackPanel>
     </DataTemplate>
     <DataTemplate x:Key="ProjectClientActionTemplate" x:DataType="local:ProjectListItem">
-      <Button Classes="project-action secondary row-action client-open" Content="{Binding OpenText}" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}" />
+      <Button Classes="project-action secondary row-action" Content="{Binding OpenText}" Click="OpenClient_Click" IsEnabled="{Binding CanOpenClient}" ToolTip.Tip="{Binding ClientOpenToolTip}" />
     </DataTemplate>
     <DataTemplate x:Key="ProjectMoreActionsTemplate" x:DataType="local:ProjectListItem">
       <Button Classes="project-action project-more" ToolTip.Tip="{Binding MoreActionsText}" Click="ProjectMore_Click">
@@ -229,15 +229,7 @@
       <Setter Property="CornerRadius" Value="{DynamicResource HubRadius.Small}" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
-    <Style Selector="Button.server-open">
-      <Setter Property="Background" Value="{DynamicResource HubBrush.Accent}" />
-      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextOnAccent}" />
-      <Setter Property="BorderThickness" Value="0" />
-    </Style>
-    <Style Selector="Button.server-open:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource HubBrush.AccentHover}" />
-    </Style>
-    <Style Selector=":is(Window).light Button.primary:pressed /template/ ContentPresenter, :is(Window).light Button.server-open:pressed /template/ ContentPresenter, :is(Window).light Button.update-badge:pressed /template/ ContentPresenter">
+    <Style Selector=":is(Window).light Button.primary:pressed /template/ ContentPresenter, :is(Window).light Button.update-badge:pressed /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource HubBrush.AccentPressed}" />
     </Style>
     <Style Selector="Button:disabled">
