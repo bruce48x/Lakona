@@ -21,6 +21,17 @@ namespace Lakona.Game.Server.Tests.Hosting;
 public sealed class BootstrapperLifecycleTests
 {
     [Fact]
+    public async Task Game_host_rejects_rpc_exception_handler_in_App_services()
+    {
+        await using var fixture = new Fixture();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.BuildAsync(FreePort(), services =>
+                services.AddSingleton<Lakona.Rpc.Server.RpcServiceExceptionHandler>(_ => 1000)));
+        Assert.Contains("Server.Hotfix", error.Message);
+        Assert.Contains("[HotfixConfigureServices]", error.Message);
+    }
+
+    [Fact]
     public async Task Full_Hotfix_load_retains_actionable_runtime_validation_without_analyzer()
     {
         await using var fixture = new Fixture(invalidStartArgs: true);

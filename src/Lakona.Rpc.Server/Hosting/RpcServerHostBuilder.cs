@@ -23,6 +23,8 @@ public sealed class RpcServerHostBuilder
     private readonly RpcServerLimits _limits = new();
     private ILogger _logger = NullLogger<RpcServerHost>.Instance;
     private ILoggerFactory? _loggerFactory;
+    private RpcServiceExceptionHandler? _serviceExceptionHandler;
+    private Func<IRpcServiceInvocationScope>? _openServiceScope;
     private readonly List<IRpcSessionRequestGate> _requestGates = [];
     private readonly List<IRpcSessionAdmissionGate> _sessionAdmissionGates = [];
     private readonly List<IRpcSessionLifecycleObserver> _sessionLifecycleObservers = [];
@@ -142,6 +144,21 @@ public sealed class RpcServerHostBuilder
     {
         _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
         _logger = loggerFactory.CreateLogger<RpcServerHost>();
+        return this;
+    }
+
+    /// <summary>Sets the host-wide exception handler for service methods with a declared response.</summary>
+    public RpcServerHostBuilder UseServiceExceptionHandler(RpcServiceExceptionHandler handler)
+    {
+        _serviceExceptionHandler = handler ?? throw new ArgumentNullException(nameof(handler));
+        return this;
+    }
+
+    /// <summary>Lets a hosting framework pin a generation for each typed call with a response.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public RpcServerHostBuilder UseServiceInvocationScope(Func<IRpcServiceInvocationScope> openScope)
+    {
+        _openServiceScope = openScope ?? throw new ArgumentNullException(nameof(openScope));
         return this;
     }
 
@@ -335,7 +352,9 @@ public sealed class RpcServerHostBuilder
             _requestGates.ToArray(),
             _sessionLifecycleObservers.ToArray(),
             _serverLifecycleObservers.ToArray(),
-            _loggerFactory);
+            _loggerFactory,
+            _serviceExceptionHandler,
+            _openServiceScope);
     }
 
     /// <summary>

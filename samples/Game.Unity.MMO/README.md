@@ -13,6 +13,8 @@ The client owns exactly **one WebSocket connection** to the `world` RPC service 
 
 There is no KCP side channel, matchmaking connection, client battle settlement, or client-authored state.
 
+If the enter-world handler throws, the client receives an `EnterWorldReply` with `Code` set to `WorldResultCodes.ServerInternalError` (`1000`). The exception handler is registered in [HotfixStartup.cs](Server/Hotfix/HotfixStartup.cs).
+
 ## Run
 
 1. Build Hotfix once so the stable host can load it:

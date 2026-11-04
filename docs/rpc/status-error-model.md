@@ -48,6 +48,28 @@ faulting the Session. A generated-support handler may throw
 `RpcBadRequestException` when it independently detects invalid request content.
 Other outcomes follow the status semantics above.
 
+### Mapping service exceptions to a declared reply
+
+Configure `RpcServerHostBuilder.UseServiceExceptionHandler` once for a
+standalone RPC host. In a Lakona.Game project, register the delegate in
+`Server.Hotfix` through `[HotfixConfigureServices]`. The Game host rejects
+a `Server.App` registration at build time.
+See the [Hotfix registration example](../hotfix/service-binding.md).
+
+The handler receives the original exception, service and method names, request
+ID, and declared response type. A non-null response assignable to that type
+goes through normal typed serialization and reaches the client with RPC status
+`Ok`. Without a handler, or if it returns null, returns an incompatible value,
+or throws, the client receives the usual sanitized `InternalError`.
+
+Mapping covers synchronous and awaited failures from typed methods that
+declare a reply. Cancellation of the server request and explicit
+`RpcBadRequestException` keep their existing paths. Gates, payload decoding,
+service factory activation, response serialization, raw handlers, and void
+methods are outside this hook. Game endpoints resolve the handler exclusively
+from the request's leased Hotfix generation. If that generation has no handler,
+an unhandled service exception produces `InternalError`.
+
 ## Client Failure Taxonomy
 
 Client code should treat these channels separately:
@@ -62,7 +84,8 @@ Generated clients continue returning successful business DTOs and throwing `RpcE
 ## Observability
 
 The server logs request-gate and handler exceptions with request id, service
-id, method id, and connection id. Both return the stable sanitized message
+id, method id, and connection id, including when a mapped business reply
+succeeds. For an `InternalError`, the client receives the stable sanitized message
 `RPC server failed to process the request.`.
 
 For `Overloaded`, the response status should be machine-readable. The error message may stay short and safe, for example:

@@ -116,6 +116,11 @@ namespace Shared.Interfaces
         public int VictoryPoints { get; set; }
     }
 
+    public static class AgarResultCodes
+    {
+        public const int ServerInternalError = 1000;
+    }
+
     public static class LoginResultCodes
     {
         public const int Ok = 0;

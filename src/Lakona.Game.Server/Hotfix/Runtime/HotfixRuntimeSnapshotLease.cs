@@ -2,10 +2,11 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Timers;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Microsoft.Extensions.DependencyInjection;
+using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Server.Hotfix;
 
-public sealed class HotfixRuntimeSnapshotLease : IDisposable
+public sealed class HotfixRuntimeSnapshotLease : IRpcServiceInvocationScope
 {
     private HotfixRuntimeSnapshot? _snapshot;
     private readonly IDisposable? _dispatchRuntimeScope;
@@ -29,6 +30,8 @@ public sealed class HotfixRuntimeSnapshotLease : IDisposable
     public IHotfixServiceInvoker Invoker => Snapshot.Invoker;
 
     public IServiceProvider Services => Snapshot.Services;
+
+    RpcServiceExceptionHandler? IRpcServiceInvocationScope.ExceptionHandler => Services.GetService<RpcServiceExceptionHandler>();
 
     /// <summary>Gets the generation's lifecycle instance for direct interface calls.</summary>
     /// <remarks>Keep this lease alive until the callback completes. Do not retain the instance after disposal.</remarks>

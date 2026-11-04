@@ -1064,9 +1064,11 @@ public class RpcSessionTests
         var requestStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var handlerCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var registry = new RpcServiceRegistry();
-        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false, registry: registry);
+        var mapperCalls = 0;
+        var server = new RpcSession(serverTransport, serializer, registry, "cancel-test", ownsTransport: false,
+            serviceExceptionHandler: _ => Interlocked.Increment(ref mapperCalls));
 
-        registry.Register(1, 1, async (_, req, ct) =>
+        registry.RegisterSingleton(1, new object()).Register<int, int>(1, async (_, _, ct) =>
         {
             requestStarted.TrySetResult();
 
@@ -1080,7 +1082,7 @@ public class RpcSessionTests
                 throw;
             }
 
-            return RpcServerResponse.Encode(req.RequestId, RpcStatus.Ok, Array.Empty<byte>());
+            return 0;
         });
 
         await server.StartAsync();
@@ -1091,7 +1093,7 @@ public class RpcSessionTests
             RequestId = 1,
             ServiceId = 1,
             MethodId = 1,
-            Payload = Array.Empty<byte>()
+            Payload = SerializeBytes(serializer, 0)
         }));
 
         await requestStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
@@ -1101,6 +1103,7 @@ public class RpcSessionTests
         await server.WaitForCompletionAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
 
         await server.DisposeAsync();
+        Assert.Equal(0, mapperCalls);
     }
 
     [Fact]

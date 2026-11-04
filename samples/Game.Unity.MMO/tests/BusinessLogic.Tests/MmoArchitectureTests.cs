@@ -1,6 +1,9 @@
 using System.Runtime.Loader;
 using System.Text.Json;
 using Shared.Interfaces;
+using Game.Unity.MMO.Server.Hotfix;
+using Lakona.Rpc.Server;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace BusinessLogic.Tests;
@@ -24,6 +27,22 @@ public sealed class MmoArchitectureTests
         Assert.DoesNotContain("Kcp", clientPackages, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Kcp", clientManifest, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Kcp", serverProject, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Hotfix_maps_enter_world_failures_to_a_business_reply()
+    {
+        var services = new ServiceCollection();
+        HotfixStartup.ConfigureServices(services);
+        using var provider = services.BuildServiceProvider();
+        var map = provider.GetRequiredService<RpcServiceExceptionHandler>();
+        var failure = new RpcServiceExceptionContext(new InvalidOperationException("private details"),
+            "World", "EnterWorldAsync", 1, typeof(EnterWorldReply));
+
+        var reply = Assert.IsType<EnterWorldReply>(map(failure));
+        Assert.Equal(1000, reply.Code);
+        Assert.Equal("Internal server error.", reply.Message);
+        Assert.Null(map(failure with { ResponseType = typeof(string) }));
     }
 
     [Fact]

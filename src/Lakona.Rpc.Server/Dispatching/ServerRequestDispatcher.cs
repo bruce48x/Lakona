@@ -6,8 +6,6 @@ namespace Lakona.Rpc.Server;
 
 internal sealed class ServerRequestDispatcher
 {
-    private const string InternalErrorMessage = "RPC server failed to process the request.";
-
     private readonly ILogger _logger;
     private readonly RpcServiceRegistry _registry;
     private readonly IReadOnlyList<IRpcSessionRequestGate> _requestGates;
@@ -80,8 +78,7 @@ internal sealed class ServerRequestDispatcher
                     req.ServiceId,
                     req.MethodId,
                     session.ConnectionId);
-                return RpcServerResponse.Encode(
-                    req.RequestId, RpcStatus.InternalError, ReadOnlyMemory<byte>.Empty, InternalErrorMessage);
+                return RpcServerResponse.InternalError(req.RequestId);
             }
 
             if (!result.Allowed)
@@ -136,8 +133,7 @@ internal sealed class ServerRequestDispatcher
         catch (Exception ex)
         {
             LogHandlerFailure(session, req, ex);
-            response = RpcServerResponse.Encode(
-                req.RequestId, RpcStatus.InternalError, ReadOnlyMemory<byte>.Empty, InternalErrorMessage);
+            response = RpcServerResponse.InternalError(req.RequestId);
         }
 
         // A send failure must propagate, never become a second response.
@@ -227,7 +223,7 @@ internal sealed class ServerRequestDispatcher
             errorMessage);
     }
 
-    private void LogHandlerFailure(RpcSession session, RpcRequestFrame req, Exception ex)
+    internal void LogHandlerFailure(RpcSession session, RpcRequestFrame req, Exception ex)
     {
         _logger.LogError(
             ex,

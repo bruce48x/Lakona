@@ -529,8 +529,10 @@ public sealed class GameHandshakeGateTests
         }
     }
 
-    [Fact]
-    public async Task Business_rpc_is_rejected_before_handshake_and_allowed_after_handshake()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Business_rpc_is_rejected_before_handshake_and_allowed_after_handshake(bool handlerFails)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var serializer = new FrameworkDtoRejectingSerializer(new JsonRpcSerializer());
@@ -544,6 +546,7 @@ public sealed class GameHandshakeGateTests
             })
             .Build();
         await using var provider = new ServiceCollection()
+            .AddSingleton<RpcServiceExceptionHandler>(failure => failure.MethodName == "Echo" ? "mapped" : null)
             .AddTestEndpointRuntimes()
             .AddLogging()
             .AddSingleton(LakonaRpcServiceCatalog.FromTypes([]))
@@ -563,18 +566,10 @@ public sealed class GameHandshakeGateTests
         };
         var configurator = new LakonaEndpointRpcServerConfigurator(
             endpoint,
-            static (registry, _) => registry.Register(
-                serviceId: 10,
-                methodId: 1,
-                static (session, request, _) =>
-                {
-                    var value = session.Serializer.Deserialize<string>(request.Payload.Memory);
-                    using var payload = session.Serializer.SerializeFrame(value + ":ok");
-                    return ValueTask.FromResult(RpcServerResponse.Encode(
-                        request.RequestId,
-                        RpcStatus.Ok,
-                        payload.Memory));
-                }));
+            (registry, _) => registry.RegisterSingleton(10, new object(), "Business")
+                .Register<string, string>(1, (_, value, _) => handlerFails
+                    ? throw new InvalidOperationException("Echo failed.")
+                    : new ValueTask<string>(value + ":ok"), "Echo"));
         configurator.Configure(new LakonaGameServerRpcContext(
             "test",
             endpoint,
@@ -641,11 +636,18 @@ public sealed class GameHandshakeGateTests
 
             Assert.Equal(GameHeartbeatStatus.Ok, heartbeat.Status);
 
-            var after = await client.CallAsync(new RpcMethod<string, string>(10, 1), "after", cancellationToken)
+            var after = client.CallAsync(new RpcMethod<string, string>(10, 1), "after", cancellationToken)
                 .AsTask()
                 .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
-
-            Assert.Equal("after:ok", after);
+            if (handlerFails)
+            {
+                var error = await Assert.ThrowsAsync<RpcException>(() => after);
+                Assert.Equal(RpcStatus.InternalError, error.Status);
+            }
+            else
+            {
+                Assert.Equal("after:ok", await after);
+            }
         }
         finally
         {

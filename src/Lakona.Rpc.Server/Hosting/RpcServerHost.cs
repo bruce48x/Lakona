@@ -10,6 +10,8 @@ public sealed class RpcServerHost
     private readonly Func<CancellationToken, ValueTask<IRpcConnectionAcceptor>> _acceptorFactory;
     private readonly ILogger _logger;
     private readonly ILoggerFactory? _loggerFactory;
+    private readonly RpcServiceExceptionHandler? _serviceExceptionHandler;
+    private readonly Func<IRpcServiceInvocationScope>? _openServiceScope;
     private readonly RpcKeepAliveOptions _keepAlive;
     private readonly RpcServerLimits _limits;
     private readonly TimeSpan _shutdownTimeout;
@@ -35,7 +37,9 @@ public sealed class RpcServerHost
         IReadOnlyList<IRpcSessionRequestGate>? requestGates = null,
         IReadOnlyList<IRpcSessionLifecycleObserver>? sessionLifecycleObservers = null,
         IReadOnlyList<IRpcServerLifecycleObserver>? serverLifecycleObservers = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        RpcServiceExceptionHandler? serviceExceptionHandler = null,
+        Func<IRpcServiceInvocationScope>? openServiceScope = null)
     {
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
@@ -44,6 +48,8 @@ public sealed class RpcServerHost
         _acceptorFactory = acceptorFactory ?? throw new ArgumentNullException(nameof(acceptorFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _loggerFactory = loggerFactory;
+        _serviceExceptionHandler = serviceExceptionHandler;
+        _openServiceScope = openServiceScope;
         _limits = limits ?? throw new ArgumentNullException(nameof(limits));
         _shutdownTimeout = shutdownTimeout;
         _sessionAdmissionGates = sessionAdmissionGates ?? Array.Empty<IRpcSessionAdmissionGate>();
@@ -314,7 +320,9 @@ public sealed class RpcServerHost
                 requestLogger: _loggerFactory?.CreateLogger(RpcServerRequestLogging.Category),
                 limits: _limits,
                 requestGates: _requestGates,
-                remoteEndPoint: connection.RemoteEndPoint);
+                remoteEndPoint: connection.RemoteEndPoint,
+                serviceExceptionHandler: _serviceExceptionHandler,
+                openServiceScope: _openServiceScope);
             hostOwnedTransport = null; // The Session now owns transport cleanup.
             var sessionRegistered = false;
             try

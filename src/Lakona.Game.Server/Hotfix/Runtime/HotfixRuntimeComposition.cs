@@ -4,6 +4,7 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Microsoft.Extensions.DependencyInjection;
+using Lakona.Rpc.Server;
 
 namespace Lakona.Game.Server.Hotfix;
 
@@ -267,6 +268,10 @@ internal static class HotfixRuntimeComposition
     {
         public object? GetService(Type serviceType)
         {
+            // Only the leased generation owns the RPC exception policy.
+            if (serviceType == typeof(RpcServiceExceptionHandler))
+                return hotfixServices.GetService(serviceType);
+
             return TryGetCombinedEnumerable(serviceType, hotfixServices, rootServices, out var services)
                 ? services
                 : hotfixServices.GetService(serviceType) ?? rootServices.GetService(serviceType);

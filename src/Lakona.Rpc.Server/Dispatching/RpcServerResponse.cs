@@ -35,6 +35,9 @@ internal readonly struct RpcServerResponse : IDisposable
         return new(RpcEnvelopeCodec.CompletePayload(writer), RpcStatus.Ok, null);
     }
 
+    public static RpcServerResponse InternalError(uint requestId) =>
+        Encode(requestId, RpcStatus.InternalError, ReadOnlyMemory<byte>.Empty, "RPC server failed to process the request.");
+
     public static async ValueTask<RpcServerResponse> WriteAsync(
         uint requestId, Func<IBufferWriter<byte>, ValueTask> write)
     {

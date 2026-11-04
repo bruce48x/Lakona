@@ -7,6 +7,7 @@ using Server.App.Sessions;
 using Server.App.Users;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Cluster;
+using Lakona.Rpc.Server;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Configuration;
 using Shared.Gameplay;
@@ -95,6 +96,14 @@ public sealed class AgarHotfixTests
         var reload = await manager.ReloadAsync(TestContext.Current.CancellationToken);
 
         Assert.True(reload.Succeeded, BuildReloadDiagnostics(reload));
+
+        using var lease = ((IHotfixRuntimeAccessor)manager).AcquireCurrent();
+        var map = lease.Services.GetRequiredService<RpcServiceExceptionHandler>();
+        var failure = new RpcServiceExceptionContext(new InvalidOperationException(), "Login", "LoginAsync", 1, typeof(LoginReply));
+        Assert.Equal(1000, Assert.IsType<LoginReply>(map(failure)).Code);
+        Assert.Equal(1000, Assert.IsType<RealtimeAttachReply>(map(failure with { ResponseType = typeof(RealtimeAttachReply) })).Code);
+        Assert.Equal(1000, Assert.IsType<LeaderboardReply>(map(failure with { ResponseType = typeof(LeaderboardReply) })).Code);
+        Assert.Null(map(failure with { ResponseType = typeof(string) }));
     }
 
     [Fact]

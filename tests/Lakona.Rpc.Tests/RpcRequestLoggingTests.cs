@@ -4,6 +4,7 @@ using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Transport.Loopback;
+using Lakona.Rpc.Transport.Tcp;
 using System.Text.Json;
 
 namespace Lakona.Rpc.Tests;
@@ -12,6 +13,92 @@ public sealed class RpcRequestLoggingTests
 {
     private static readonly RpcMethod<string, string> EchoMethod = new(1, 1);
     private static readonly RpcNotificationMethod<string> NotifyMethod = new(2, 2);
+
+    private sealed record RespStatus(int StatusCode);
+    private sealed record StageStartReply(RespStatus RespStatus);
+
+    [Theory]
+    [InlineData("reply", true)]
+    [InlineData("reply", false)]
+    [InlineData("unregistered", true)]
+    [InlineData("decline", true)]
+    [InlineData("wrong type", true)]
+    [InlineData("mapper failure", true)]
+    public async Task StageStart_exception_policy_controls_typed_tcp_reply(string policy, bool failAfterAwait)
+    {
+        var original = new InvalidOperationException("Entry cost check failed.");
+        var logs = new CategoryRecordingLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(logging => logging.AddProvider(logs));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var listener = new TcpConnectionAcceptor(0);
+        var address = new Uri(listener.ListenAddress);
+        var serializer = new JsonRpcSerializer();
+        var builder = RpcServerHostBuilder.Create()
+            .UseSerializer(serializer)
+            .UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(listener))
+            .UseLoggerFactory(loggerFactory);
+        builder.ServiceRegistry.RegisterSingleton(7, new object(), "StageService")
+            .Register<int, StageStartReply>(2, (_, _, _) => failAfterAwait ? FailAsync() : throw original, "StageStart");
+        RpcServiceExceptionContext? failure = null;
+        if (policy != "unregistered")
+        {
+            builder.UseServiceExceptionHandler(context =>
+            {
+                failure = context;
+                return policy switch
+                {
+                    "reply" => new StageStartReply(new RespStatus(1000)),
+                    "decline" => null,
+                    "wrong type" => new RespStatus(1000),
+                    _ => throw new InvalidOperationException("Mapper failed.")
+                };
+            });
+        }
+
+        var run = builder.RunAsync(deadline.Token).AsTask();
+        try
+        {
+            await using var client = new RpcClientRuntime(new TcpTransport(address.Host, address.Port), serializer);
+            await client.StartAsync(deadline.Token);
+            var call = client.CallAsync(new RpcMethod<int, StageStartReply>(7, 2), 1, deadline.Token);
+            uint requestId;
+            if (policy == "reply")
+            {
+                StageStartReply reply = await call;
+                Assert.Equal(1000, reply.RespStatus.StatusCode);
+                requestId = Assert.IsType<RpcServiceExceptionContext>(failure).RequestId;
+            }
+            else
+            {
+                var error = await Assert.ThrowsAsync<RpcException>(() => call.AsTask());
+                Assert.Equal(RpcStatus.InternalError, error.Status);
+                requestId = error.RequestId;
+            }
+            if (policy != "unregistered")
+            {
+                Assert.NotNull(failure);
+                Assert.Same(original, failure.Exception);
+                Assert.Equal("StageService", failure.ServiceName);
+                Assert.Equal("StageStart", failure.MethodName);
+                Assert.Equal(typeof(StageStartReply), failure.ResponseType);
+                Assert.Equal(requestId, failure.RequestId);
+            }
+            Assert.True(logs.Contains(entry => entry.Level == LogLevel.Error &&
+                ReferenceEquals(entry.Exception, original) &&
+                entry.Message.Contains($"request {requestId} StageService.StageStart", StringComparison.Ordinal)));
+        }
+        finally
+        {
+            deadline.Cancel();
+            await run;
+        }
+
+        async ValueTask<StageStartReply> FailAsync()
+        {
+            await Task.Yield();
+            throw original;
+        }
+    }
 
     [Fact]
     public async Task Server_successful_request_writes_trace_request_logs()

@@ -162,6 +162,10 @@ public sealed class LakonaGameServerBuilder
         {
             register(HostBuilder.Services, HostBuilder.Configuration);
         }
+
+        if (HostBuilder.Services.Any(descriptor => descriptor.ServiceType == typeof(RpcServiceExceptionHandler)))
+            throw new InvalidOperationException(
+                "Register RpcServiceExceptionHandler in Server.Hotfix using [HotfixConfigureServices]. Server.App registrations are not supported.");
     }
 
     internal void ApplyLoggingToHostBuilder()

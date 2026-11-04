@@ -60,6 +60,8 @@ namespace Lakona.Rpc.Server
         /// <param name="limits">Optional request concurrency and queue limits.</param>
         /// <param name="requestGates">Optional per-session request admission gates.</param>
         /// <param name="remoteEndPoint">Optional endpoint supplied by the connection acceptor.</param>
+        /// <param name="serviceExceptionHandler">Optional mapping for typed service exceptions.</param>
+        /// <param name="openServiceScope">Optional framework invocation lease factory.</param>
         public RpcSession(
             ITransport transport,
             IRpcSerializer serializer,
@@ -71,7 +73,9 @@ namespace Lakona.Rpc.Server
             ILogger? requestLogger = null,
             RpcServerLimits? limits = null,
             IReadOnlyList<IRpcSessionRequestGate>? requestGates = null,
-            EndPoint? remoteEndPoint = null)
+            EndPoint? remoteEndPoint = null,
+            RpcServiceExceptionHandler? serviceExceptionHandler = null,
+            Func<IRpcServiceInvocationScope>? openServiceScope = null)
         {
             _transport = transport ?? throw new ArgumentNullException(nameof(transport));
             _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
@@ -93,6 +97,8 @@ namespace Lakona.Rpc.Server
             }
             _connection = new RpcConnectionChannel(_transport, _keepAlive);
             _requestDispatcher = new ServerRequestDispatcher(registry, requestGates, _connection, _requestLogger);
+            ServiceExceptionHandler = serviceExceptionHandler;
+            OpenServiceScope = openServiceScope;
             ConnectionId = connectionId ?? throw new ArgumentNullException(nameof(connectionId));
             RemoteEndPoint = remoteEndPoint ?? ResolveRemoteEndPoint(_transport);
         }
@@ -103,6 +109,37 @@ namespace Lakona.Rpc.Server
         public string ConnectionId { get; }
 
         internal RpcConnectionInfo ConnectionInfo => new(ConnectionId, RemoteEndPoint);
+
+        internal RpcServiceExceptionHandler? ServiceExceptionHandler { get; }
+        internal Func<IRpcServiceInvocationScope>? OpenServiceScope { get; }
+
+        internal bool TryMapServiceException<TResponse>(
+            RpcRequestFrame request, RpcServiceExceptionContext context, IRpcServiceInvocationScope? scope, out TResponse result)
+        {
+            _requestDispatcher.LogHandlerFailure(this, request, context.Exception);
+            object? reply;
+            try
+            {
+                var handler = scope is null ? ServiceExceptionHandler : scope.ExceptionHandler;
+                reply = handler?.Invoke(context);
+            }
+            catch (Exception mappingError)
+            {
+                _requestLogger.LogError(mappingError,
+                    "RPC service exception handler failed for request {RequestId} in connection {ConnectionId}.",
+                    request.RequestId, ConnectionId);
+                reply = null;
+            }
+
+            if (reply is TResponse typed)
+            {
+                result = typed;
+                return true;
+            }
+
+            result = default!;
+            return false;
+        }
 
         internal void LogInvalidRequestPayload(RpcRequestFrame request, Exception exception)
         {

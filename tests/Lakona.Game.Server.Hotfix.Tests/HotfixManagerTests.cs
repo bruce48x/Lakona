@@ -11,6 +11,10 @@ using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Lakona.Rpc.Core;
+using Lakona.Rpc.Client;
+using Lakona.Rpc.Server;
+using Lakona.Rpc.Serializer.MemoryPack;
+using Lakona.Rpc.Transport.Tcp;
 using Xunit;
 using ActorNameAttribute = Lakona.Game.Server.Actors.ActorNameAttribute;
 
@@ -659,6 +663,73 @@ public sealed class HotfixManagerTests
 
         Assert.False(failed.Succeeded);
         Assert.Equal("two", accessor.Current.GetRequiredService<IGenerationMarker>().Generation);
+    }
+
+    [Fact]
+    public async Task Inflight_rpc_maps_exception_with_its_original_hotfix_generation()
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        using var compiled = await CompiledHotfixFixture.CreateAsync(deadline.Token);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
+        using var root = new ServiceCollection().AddSingleton<RpcServiceExceptionHandler>(_ => -2).BuildServiceProvider();
+        await using var manager = new HotfixManager(source, [
+            stableAssembly.GetName().Name!, typeof(IGenerationMarker).Assembly.GetName().Name!
+        ], rootServices: root);
+        var runtime = (IHotfixRuntimeAccessor)manager;
+        var first = await manager.ReloadAsync(deadline.Token);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var listener = new TcpConnectionAcceptor(0);
+        var address = new Uri(listener.ListenAddress);
+        var serializer = new MemoryPackRpcSerializer();
+        var builder = RpcServerHostBuilder.Create().UseSerializer(serializer)
+            .UseAcceptor(listener)
+            .UseServiceInvocationScope(runtime.AcquireCurrent)
+            .UseServiceExceptionHandler(_ => -1);
+        builder.ServiceRegistry.RegisterSingleton(1, new object(), "StageService")
+            .Register<bool, int>(1, async (_, waitForReload, ct) =>
+            {
+                using var lease = runtime.AcquireCurrent();
+                var generation = lease.Services.GetService<IGenerationMarker>()?.Generation ?? "unmapped";
+                if (waitForReload)
+                {
+                    entered.TrySetResult();
+                    await release.Task.WaitAsync(ct);
+                }
+                throw new InvalidOperationException(generation);
+            }, "StageStart");
+
+        deadline.CancelAfter(TimeSpan.FromSeconds(30));
+        var run = builder.RunAsync(deadline.Token).AsTask();
+        try
+        {
+            await using var client = new RpcClientRuntime(new TcpTransport(address.Host, address.Port), serializer);
+            await client.StartAsync(deadline.Token);
+            var method = new RpcMethod<bool, int>(1, 1);
+            var inFlight = client.CallAsync(method, true, deadline.Token).AsTask();
+            await entered.Task.WaitAsync(deadline.Token);
+            source.Path = compiled.SecondHotfixAssemblyPath;
+            var second = await manager.ReloadAsync(deadline.Token);
+            Assert.True(second.Succeeded, string.Join(Environment.NewLine, second.Diagnostics));
+            Assert.Equal(1001, await client.CallAsync(method, false, deadline.Token));
+            release.SetResult();
+            Assert.Equal(1000, await inFlight);
+
+            source.Path = compiled.HotfixAssemblyPath;
+            var withoutHandler = await manager.ReloadAsync(deadline.Token);
+            Assert.True(withoutHandler.Succeeded, string.Join(Environment.NewLine, withoutHandler.Diagnostics));
+            var error = await Assert.ThrowsAsync<RpcException>(() => client.CallAsync(method, false, deadline.Token).AsTask());
+            Assert.Equal(RpcStatus.InternalError, error.Status);
+        }
+        finally
+        {
+            release.TrySetResult();
+            deadline.Cancel();
+            await run;
+        }
     }
 
     [Fact]
@@ -1808,12 +1879,15 @@ public sealed class HotfixManagerTests
                     public static void ConfigureServices(IServiceCollection services)
                     {
                         services.AddSingleton<IGenerationMarker, GenerationTwoMarker>();
+                        services.AddSingleton<Lakona.Rpc.Server.RpcServiceExceptionHandler>(context =>
+                            context.MethodName == "StageStart" && context.Exception.Message == "two" ? 1001 : null);
                     }
                 }
                 """,
                 [
                     stableReference,
                     abstractionsReference,
+                    MetadataReference.CreateFromFile(typeof(RpcServiceExceptionHandler).Assembly.Location),
                     MetadataReference.CreateFromFile(typeof(IGenerationMarker).Assembly.Location),
                     MetadataReference.CreateFromFile(typeof(ServiceCollectionServiceExtensions).Assembly.Location)
                 ],
@@ -1947,12 +2021,15 @@ public sealed class HotfixManagerTests
                     public static void ConfigureServices(IServiceCollection services)
                     {
                         services.AddSingleton<IGenerationMarker, GenerationOneMarker>();
+                        services.AddSingleton<Lakona.Rpc.Server.RpcServiceExceptionHandler>(context =>
+                            context.MethodName == "StageStart" && context.Exception.Message == "one" ? 1000 : null);
                     }
                 }
                 """,
                 [
                     stableReference,
                     abstractionsReference,
+                    MetadataReference.CreateFromFile(typeof(RpcServiceExceptionHandler).Assembly.Location),
                     MetadataReference.CreateFromFile(typeof(IGenerationMarker).Assembly.Location),
                     MetadataReference.CreateFromFile(typeof(ServiceCollectionServiceExtensions).Assembly.Location)
                 ],

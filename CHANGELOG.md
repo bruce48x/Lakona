@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-11-04 — Endpoint-encoded notifications and Hotfix calls across reloads
 
-**Key releases:** `Lakona.Game.Server 0.53.17`, `Lakona.Rpc.Core 0.16.2`,
-`Lakona.Rpc.Server 0.17.20`, `Lakona.Tool 0.43.68`, and `Lakona Hub 0.17.80`.
+**Key releases:** `Lakona.Game.Server 0.53.18`, `Lakona.Rpc.Core 0.16.2`,
+`Lakona.Rpc.Server 0.17.21`, `Lakona.Tool 0.43.69`, and `Lakona Hub 0.17.81`.
 
 - Business notifications use the session's registered endpoint serializer,
   including application converters. Local delivery, gateway relay and reliable
@@ -17,7 +17,9 @@ date and package versions of important releases are retained.
   old cluster and deploy the complete node group with a new BuildTag and
   Membership store. Register matching profiles on all notification publishers.
 - A Hotfix call that spans a reload can complete nested framework operations
-  using its original generation. Independent calls use the new generation.
+  using its original generation, including mapping an RPC exception to its
+  declared business reply with a handler registered exclusively in Hotfix. The original
+  exception and request ID remain available in server logs.
 
 ## 2026-10-29 — Actor timers without business arguments
 

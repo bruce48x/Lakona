@@ -28,6 +28,9 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
     public void Configure(LakonaGameServerRpcContext context)
     {
         var builder = context.Builder;
+        if (context.Services.GetService<Hotfix.IHotfixRuntimeAccessor>() is { } runtimeAccessor)
+            builder.UseServiceInvocationScope(runtimeAccessor.AcquireCurrent);
+
         var loggerFactory = context.Services.GetService<ILoggerFactory>();
         if (loggerFactory is not null)
         {

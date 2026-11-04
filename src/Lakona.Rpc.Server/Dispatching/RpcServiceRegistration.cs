@@ -71,7 +71,22 @@ public sealed class RpcServiceRegistration<TService>
                 }
 
                 var service = _activate(session);
-                var result = await invoke(service, argument, cancellationToken).ConfigureAwait(false);
+                using var scope = session.OpenServiceScope?.Invoke();
+                TResponse result;
+                try
+                {
+                    result = await invoke(service, argument, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception error) when ((scope is not null || session.ServiceExceptionHandler is not null) &&
+                                              !cancellationToken.IsCancellationRequested &&
+                                              error is not RpcBadRequestException)
+                {
+                    var context = new RpcServiceExceptionContext(
+                        error, _serviceName, methodName, request.RequestId, typeof(TResponse));
+                    if (!session.TryMapServiceException(request, context, scope, out result))
+                        return RpcServerResponse.InternalError(request.RequestId);
+                }
+
                 return RpcServerResponse.Serialize(request.RequestId, session.Serializer, result);
             },
             _serviceName,

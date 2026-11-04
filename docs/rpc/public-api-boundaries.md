@@ -85,6 +85,8 @@ Regular application projects should build against this layer.
   its derived `IsConnected` property for the [Game connection lifecycle](../session.md#game-client-lifecycle),
   independently of business login and session phase.
 - `RpcServerHostBuilder` high-level host configuration.
+- Standalone RPC hosts use `RpcServerHostBuilder.UseServiceExceptionHandler`. Game hosts register the delegate in Hotfix. Both use `RpcServiceExceptionHandler`
+  and `RpcServiceExceptionContext` for [typed business replies on handler failure](status-error-model.md#mapping-service-exceptions-to-a-declared-reply).
 - `RpcClientOptions.LoggerFactory`, `RpcServerHostBuilder.UseLoggerFactory`,
   and `LakonaGameServerBuilder.ConfigureLogging` as provider-neutral logging
   seams. Runtime packages do not select a logging provider; application
@@ -145,6 +147,7 @@ through the host without accessing `RpcSession`.
 - `IRpcSessionAdmissionGate`, `RpcSessionAdmissionContext`, and
   `RpcSessionAdmissionResult` for bounded framework admission and
   connection-lifetime cancellation before Session lifecycle starts.
+- `RpcServerHostBuilder.UseServiceInvocationScope` and `IRpcServiceInvocationScope` to keep typed service invocation and exception mapping on one framework lease.
 - `IRpcSessionRequestGate`, `RpcSessionRequestGateContext`, and
   `RpcSessionRequestGateResult`.
 

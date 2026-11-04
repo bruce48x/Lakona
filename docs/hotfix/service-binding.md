@@ -216,6 +216,28 @@ generated call type instead. Before a Game Session exists, business RPC uses its
 response DTO or establishes a session; Hotfix code does not gain a second
 connection-targeted notification path for that phase.
 
+Register a generation-local RPC exception handler in the Hotfix startup class:
+
+```csharp
+[HotfixConfigureServices]
+public static void ConfigureServices(IServiceCollection services)
+{
+    services.AddSingleton<RpcServiceExceptionHandler>(context =>
+        context.ResponseType == typeof(StageStartReply)
+            ? new StageStartReply { RespStatus = new RespStatus { StatusCode = 1000 } }
+            : null);
+}
+```
+
+`RpcServiceExceptionHandler` is in `Lakona.Rpc.Server`. The client-facing
+endpoint pins the generation before invoking a typed method with a reply.
+Its generated service proxy and exception handler use that generation until
+the reply is serialized. After publication new calls use the replacement.
+Registering `RpcServiceExceptionHandler` in `Server.App` causes Game host build
+to fail, even when Hotfix also registers one. Removing the Hotfix registration
+in a later generation restores `InternalError` for new calls with unhandled exceptions.
+See [mapping service exceptions](../rpc/status-error-model.md#mapping-service-exceptions-to-a-declared-reply).
+
 The hotfix startup method marked `[HotfixConfigureServices]` registers
 dependencies used by hotfix logic. It does not register `[HotfixService]`
 classes themselves. The dispatch layer owns service implementation lifetime and

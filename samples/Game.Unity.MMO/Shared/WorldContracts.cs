@@ -87,6 +87,11 @@ namespace Shared.Interfaces
         Monster = 1
     }
 
+    public static class WorldResultCodes
+    {
+        public const int ServerInternalError = 1000;
+    }
+
     public static class WorldProtocol
     {
         public const string DefaultZoneId = "greenfield";

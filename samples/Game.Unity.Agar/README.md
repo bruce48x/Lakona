@@ -79,6 +79,7 @@ samples/Game.Unity.Agar
 - `Shared/Gameplay/ArenaSimulation.cs`：玩法规则内核，单机和联机共用。
 - `Shared/Gameplay/FrameSyncSimulation.cs`：联机客户端的启动、乱序缓冲、连续帧推进和确定性随机数协议。
 - `Shared/Interfaces/IPlayerService.cs`：客户端和服务端共用的 RPC 协议。
+- `Server/Hotfix/HotfixStartup.cs` 注册全局 RPC 异常处理器。登录、实时连接或排行榜查询发生未处理异常时，客户端从对应回执的 `Code` 读取 `AgarResultCodes.ServerInternalError`（`1000`）。
 - `Server/Hotfix/Operations/AgarOperationsHttpService.cs`：内网用户查询的 HTTP 路由、响应和可热更逻辑。
 - `Server/Hotfix/Players/PlayerService.cs`：可热更的控制面 RPC 业务服务，直接编排 actor 行为。
 - `Server/Hotfix/Matchmaking/MatchmakingBehavior.Runtime.cs`：通过 Actor 定时器驱动默认匹配队列。
