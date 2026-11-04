@@ -12,11 +12,17 @@ explanation. Introduce an unfamiliar term when the reader needs it and explain
 its job. Distinguish the behavior a test actually observed from a possible
 consequence inferred from the code.
 
-For example, a Chinese report could introduce RELIABILITY-001 this way:
+A report could introduce RELIABILITY-001 like this.
 
-> **热更可能让一个已经开始的请求做到一半失败**
+> **A hot reload can interrupt a request halfway through**
 >
-> 新版上线后，新请求走新版，已经开始的请求应该能用旧版做完。但旧请求接下来再找框架办事时，框架把这一步也当成了新请求，拒绝它继续使用旧版。Agar 的胜场结算先保存积分，再更新排行榜。如果两步之间发生热更，玩家的积分可能已经保存，这次排行榜更新却没有发出去。
+> After a hot reload, new requests use the new version. A request that is
+> already running should be able to finish on the old version. But if it asks
+> the framework to do more work, the framework treats that step as a new
+> request and refuses to let it use the old version. When a player wins in
+> Agar, the server saves the player's points and then updates the
+> leaderboard. If a reload happens between those steps, the points may be
+> saved even though the server never sends the leaderboard update.
 
 The two-version test reproduced the rejection. The leaderboard consequence
 follows from the sample's call order. State that distinction in the evidence.
