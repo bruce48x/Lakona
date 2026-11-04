@@ -662,6 +662,61 @@ public sealed class HotfixManagerTests
     }
 
     [Fact]
+    public async Task Reload_admits_nested_calls_on_the_leased_generation_and_new_calls_on_the_published_generation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var compiled = await CompiledHotfixFixture.CreateAsync(ct);
+        var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
+        var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
+        await using var manager = new HotfixManager(source, [
+            stableAssembly.GetName().Name!,
+            typeof(IGenerationMarker).Assembly.GetName().Name!
+        ]);
+        var runtime = (IHotfixRuntimeAccessor)manager;
+        var first = await manager.ReloadAsync(ct);
+        Assert.True(first.Succeeded, string.Join(Environment.NewLine, first.Diagnostics));
+
+        var published = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var independentCall = AcquireAfterAsync(published.Task);
+        using var outer = runtime.AcquireCurrent();
+        var previous = outer.Snapshot;
+        source.Path = compiled.SecondHotfixAssemblyPath;
+        var second = await manager.ReloadAsync(ct);
+        Assert.True(second.Succeeded, string.Join(Environment.NewLine, second.Diagnostics));
+        published.SetResult();
+        Assert.Equal("two", await independentCall);
+
+        using (var nested = runtime.AcquireCurrent())
+        {
+            Assert.Same(previous, nested.Snapshot);
+        }
+
+        var outerCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var escapedCall = AcquireAfterAsync(outerCompleted.Task);
+        using (var survivingChild = runtime.AcquireCurrent())
+        {
+            outer.Dispose();
+            outerCompleted.SetResult();
+            Assert.Equal("two", await escapedCall);
+            Assert.False(previous.RetirementCompletion.IsCompleted);
+            Assert.Equal("one", survivingChild.Services.GetRequiredService<IGenerationMarker>().Generation);
+
+            using var grandchild = runtime.AcquireCurrent();
+            Assert.Same(previous, grandchild.Snapshot);
+        }
+        await previous.RetirementCompletion.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        using var fresh = runtime.AcquireCurrent();
+        Assert.Equal("two", fresh.Services.GetRequiredService<IGenerationMarker>().Generation);
+
+        async Task<string> AcquireAfterAsync(Task gate)
+        {
+            await gate.WaitAsync(ct);
+            using var lease = runtime.AcquireCurrent();
+            return lease.Services.GetRequiredService<IGenerationMarker>().Generation;
+        }
+    }
+
+    [Fact]
     public async Task ServiceProviderAccessor_uses_leased_snapshot_services_inside_dispatch_scope()
     {
         using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);

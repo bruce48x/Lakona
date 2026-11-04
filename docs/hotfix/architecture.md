@@ -120,11 +120,17 @@ already loaded assembly and retire that provider when the node stops. They do
 not exercise collectible assembly loading or the reload publication transaction;
 those remain HotfixManager test responsibilities.
 
-The generation runtime scope is a separate concern. It pins service resolution
-and dispatch-table identity to the acquired generation so an in-flight call
-does not switch generations during reload. Its ambient implementation does not
-make stable root resolution accidental and is not removed by changing how
-stable services are exposed.
+An admitted Hotfix call uses its generation's service provider and dispatch
+table for the duration of its lease. If a reload publishes a new generation
+while the call awaits, a nested framework operation inside the still-active
+call can acquire its own lease on the same generation. For example, a handler
+that resumes after an `await` can still resolve an Actor placement through the
+generation that admitted it. Independent calls acquire the newly published
+generation. The retired generation releases its resources after the last
+lease ends. A task that needs to continue independently should acquire its
+own lease while the parent call is active and dispose it in that task.
+A copied execution context cannot acquire another lease on the retired
+generation once its owning scope has ended.
 
 Lifecycle modules declare `[HotfixLifecycle]` and implement stable lifecycle
 interfaces directly. Contract methods themselves accept

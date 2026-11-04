@@ -6,14 +6,13 @@ namespace Lakona.Game.Server.Hotfix.Dispatch;
 internal sealed class HotfixDispatchRuntimeScope : IDisposable
 {
     private static readonly AsyncLocal<HotfixDispatchRuntimeContext?> CurrentContext = new();
-    private readonly HotfixDispatchRuntimeContext? _previousContext;
     private readonly HotfixDispatchRuntimeContext _context;
-    private bool _disposed;
 
     private HotfixDispatchRuntimeScope(HotfixRuntimeSnapshotLease lease, ILakonaTimerBackend? timerBackend)
     {
-        _previousContext = CurrentContext.Value;
-        _context = new HotfixDispatchRuntimeContext(lease, timerBackend);
+        var previous = CurrentContext.Value;
+        _context = new HotfixDispatchRuntimeContext(lease, timerBackend,
+            previous is { IsActive: true } ? previous : null);
         CurrentContext.Value = _context;
     }
 
@@ -77,20 +76,17 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
+        if (!_context.Deactivate() || !ReferenceEquals(CurrentContext.Value, _context))
         {
             return;
         }
 
-        _disposed = true;
-        try
+        var previous = _context.Previous;
+        while (previous is { IsActive: false })
         {
-            _context.Deactivate();
+            previous = previous.Previous;
         }
-        finally
-        {
-            CurrentContext.Value = _previousContext;
-        }
+        CurrentContext.Value = previous;
     }
 }
 
@@ -98,14 +94,18 @@ internal sealed class HotfixDispatchRuntimeContext
 {
     private int _isActive;
 
-    public HotfixDispatchRuntimeContext(HotfixRuntimeSnapshotLease lease, ILakonaTimerBackend? timerBackend)
+    public HotfixDispatchRuntimeContext(HotfixRuntimeSnapshotLease lease, ILakonaTimerBackend? timerBackend,
+        HotfixDispatchRuntimeContext? previous)
     {
         Lease = lease ?? throw new ArgumentNullException(nameof(lease));
         TimerBackend = timerBackend;
+        Previous = previous;
         _isActive = 1;
     }
 
     public HotfixRuntimeSnapshotLease Lease { get; }
+
+    internal HotfixDispatchRuntimeContext? Previous { get; }
 
     public HotfixRuntimeSnapshot Snapshot => Lease.Snapshot;
 
@@ -151,8 +151,5 @@ internal sealed class HotfixDispatchRuntimeContext
         return false;
     }
 
-    public void Deactivate()
-    {
-        Interlocked.Exchange(ref _isActive, 0);
-    }
+    public bool Deactivate() => Interlocked.Exchange(ref _isActive, 0) != 0;
 }

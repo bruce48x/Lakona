@@ -186,36 +186,43 @@ public sealed class HotfixRuntimeSnapshot
 
     internal ActorLifecycleDispatchCatalog ActorLifecycleDispatch { get; }
 
-    public HotfixRuntimeSnapshotLease AcquireLease()
+    public HotfixRuntimeSnapshotLease AcquireLease() =>
+        TryAcquireLease(parent: null) ?? throw new ObjectDisposedException(nameof(HotfixRuntimeSnapshot));
+
+    internal HotfixRuntimeSnapshotLease? TryAcquireLease(HotfixDispatchRuntimeContext? parent)
     {
         while (true)
         {
-            if (Volatile.Read(ref _retired) != 0)
-            {
-                throw new ObjectDisposedException(nameof(HotfixRuntimeSnapshot));
-            }
-
             var observed = Volatile.Read(ref _referenceCount);
-            if (Interlocked.CompareExchange(ref _referenceCount, observed + 1, observed) != observed)
+            if (parent is null ? Volatile.Read(ref _retired) != 0 : observed == 0)
             {
-                continue;
+                return null;
             }
-
-            if (Volatile.Read(ref _retired) == 0)
+            if (Interlocked.CompareExchange(ref _referenceCount, observed + 1, observed) == observed)
             {
-                try
-                {
-                    return new HotfixRuntimeSnapshotLease(this);
-                }
-                catch
-                {
-                    ReleaseLease();
-                    throw;
-                }
+                break;
             }
+        }
 
+        // Reserve a reference before checking admission. A child may follow its
+        // live parent through retirement, even if the parent exits immediately after this check.
+        var admitted = parent is null
+            ? Volatile.Read(ref _retired) == 0
+            : parent.TryGetSnapshot(out var pinned) && ReferenceEquals(pinned, this);
+        if (!admitted)
+        {
             ReleaseLease();
-            throw new ObjectDisposedException(nameof(HotfixRuntimeSnapshot));
+            return null;
+        }
+
+        try
+        {
+            return new HotfixRuntimeSnapshotLease(this);
+        }
+        catch
+        {
+            ReleaseLease();
+            throw;
         }
     }
 

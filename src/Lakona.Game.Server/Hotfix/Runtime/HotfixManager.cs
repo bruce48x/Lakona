@@ -71,14 +71,21 @@ public sealed class HotfixManager
 
     HotfixRuntimeSnapshotLease IHotfixRuntimeAccessor.AcquireCurrent()
     {
+        var parent = HotfixDispatchRuntimeScope.Current;
+        if (parent is not null && parent.TryGetSnapshot(out var pinned) &&
+            pinned.TryAcquireLease(parent) is { } nested)
+        {
+            return nested;
+        }
+
         while (true)
         {
-            var snapshot = ResolveCurrentRuntime();
+            var snapshot = Volatile.Read(ref _publication).Runtime;
             try
             {
                 return snapshot.AcquireLease();
             }
-            catch (ObjectDisposedException) when (!ReferenceEquals(snapshot, ResolveCurrentRuntime()))
+            catch (ObjectDisposedException) when (!ReferenceEquals(snapshot, Volatile.Read(ref _publication).Runtime))
             {
             }
         }

@@ -4,10 +4,10 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-11-04 — Business notifications preserve endpoint serialization
+## 2026-11-04 — Endpoint-encoded notifications and Hotfix calls across reloads
 
-**Key releases:** `Lakona.Game.Server 0.53.16`, `Lakona.Rpc.Core 0.16.2`,
-`Lakona.Rpc.Server 0.17.20`, `Lakona.Tool 0.43.67`, and `Lakona Hub 0.17.79`.
+**Key releases:** `Lakona.Game.Server 0.53.17`, `Lakona.Rpc.Core 0.16.2`,
+`Lakona.Rpc.Server 0.17.20`, `Lakona.Tool 0.43.68`, and `Lakona Hub 0.17.80`.
 
 - Business notifications use the session's registered endpoint serializer,
   including application converters. Local delivery, gateway relay and reliable
@@ -16,6 +16,8 @@ date and package versions of important releases are retained.
 - `lakona.cluster.v7` carries the serializer profile across nodes. Stop the
   old cluster and deploy the complete node group with a new BuildTag and
   Membership store. Register matching profiles on all notification publishers.
+- A Hotfix call that spans a reload can complete nested framework operations
+  using its original generation. Independent calls use the new generation.
 
 ## 2026-10-29 — Actor timers without business arguments
 
