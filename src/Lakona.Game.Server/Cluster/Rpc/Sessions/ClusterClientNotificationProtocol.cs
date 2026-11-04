@@ -71,6 +71,9 @@ internal sealed partial class ClientNotificationCommand
 
     [MemoryPackOrder(7)]
     public ClientNotificationMetadata? Metadata { get; set; }
+
+    [MemoryPackOrder(8)]
+    public string SerializerProfile { get; set; } = "";
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

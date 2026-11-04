@@ -20,7 +20,7 @@ public sealed class LakonaGameEndpointOptions
     public string Transport { get; init; } = "";
 
     /// <summary>
-    /// Gets the serializer used for business RPC payloads on this endpoint.
+    /// Gets the registered serializer profile used for business RPC payloads and notifications on this endpoint.
     /// </summary>
     public string Serializer { get; init; } = "";
 

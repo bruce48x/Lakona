@@ -232,8 +232,10 @@ remains in the client emitter.
 
 Notification proxies use the declared service and notification ids and the
 configured RPC serializer, regardless of interface names or whether a trailing
-cancellation token has a default value. The JSON command-dispatch entry point
-still deserializes the command payload before using the same typed send path.
+cancellation token has a default value.
+For an already encoded payload, `DispatchEncodedNotificationAsync` checks the
+callback service and method IDs, then forwards the bytes and push metadata
+through `SendRawAsync`.
 Game framework control notifications are owned by Game: the server sends their
 fixed ids and `LakonaInternalCodec` payloads through `SendRawAsync`, and the Game
 client registers the matching raw handlers. The RPC generator does not infer

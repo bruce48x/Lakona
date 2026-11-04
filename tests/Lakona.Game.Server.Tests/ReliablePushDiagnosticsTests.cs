@@ -66,7 +66,8 @@ public sealed class ReliablePushDiagnosticsTests
         var replacement = await StartAsync(sessions, "second");
         await using var replacementConnection = new TestCallbackConnection(sessions, "second", callback);
         var replacementRuntime = new ReliablePushRuntime(outbox, new ReliablePushAckService(outbox),
-            new LocalClientNotificationCommandDispatcher(replacementConnection.Resolver, evidence), sessions, evidence);
+            new LocalClientNotificationCommandDispatcher(replacementConnection.Resolver, sessions, evidence), sessions,
+            TestNotificationProfiles.JsonCommands(), evidence);
         Assert.Equal(ClientNotificationStatus.Accepted,
             await replacementRuntime.PublishAsync(replacement, Command(replacement), Token));
         Assert.Equal(1, outbox.GetLastSequence(replacement));
@@ -83,8 +84,9 @@ public sealed class ReliablePushDiagnosticsTests
         await using var connection = new TestCallbackConnection(sessions, "first", callback);
         var outbox = new InMemoryReliablePushOutbox(new ReliablePushOptions { MaxPendingPerSession = 64 });
         var clock = new ManualClock();
-        var dispatcher = new LocalClientNotificationCommandDispatcher(connection.Resolver, evidence, clock);
-        var runtime = new ReliablePushRuntime(outbox, new ReliablePushAckService(outbox), dispatcher, sessions, evidence);
+        var dispatcher = new LocalClientNotificationCommandDispatcher(connection.Resolver, sessions, evidence, clock);
+        var runtime = new ReliablePushRuntime(outbox, new ReliablePushAckService(outbox), dispatcher, sessions,
+            TestNotificationProfiles.JsonCommands(), evidence);
         Assert.Equal(ClientNotificationStatus.Failed, await runtime.PublishAsync(session, Command(session), Token));
         // Exercise concurrent dispatcher failures independently of the outbox's serial barrier.
         await Task.WhenAll(Enumerable.Range(0, 31).Select(_ => Task.Run(async () =>
@@ -127,7 +129,7 @@ public sealed class ReliablePushDiagnosticsTests
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(Token);
         var callback = new Callback { BeforeSend = cancellation.Cancel, Failure = new OperationCanceledException(cancellation.Token) };
         await using var connection = new TestCallbackConnection(sessions, "first", callback);
-        var dispatcher = new LocalClientNotificationCommandDispatcher(connection.Resolver, evidence);
+        var dispatcher = new LocalClientNotificationCommandDispatcher(connection.Resolver, sessions, evidence);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Send(cancellation.Token));
         Assert.Empty(evidence.Logs);
         Assert.Empty(evidence.Measurements);
@@ -146,13 +148,31 @@ public sealed class ReliablePushDiagnosticsTests
             : dispatcher.DispatchAsync(Command(session), token).AsTask();
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("other-profile")]
+    public async Task Invalid_profile_fails_before_taking_a_reliable_sequence(string profile)
+    {
+        await using var services = new ServiceCollection()
+            .AddLakonaGameServerSessions().AddLakonaGameServerReliablePush().BuildServiceProvider();
+        var sessions = (InMemoryGameSessionRegistry)services.GetRequiredService<IGameSessionRegistry>();
+        var session = await StartAsync(sessions, "bound");
+        var command = Command(session);
+        command.SerializerProfile = profile;
+
+        var runtime = services.GetRequiredService<IReliablePushRuntime>();
+        Assert.Equal(ClientNotificationStatus.Failed, await runtime.PublishAsync(session, command, Token));
+        Assert.Equal(0, services.GetRequiredService<IReliablePushOutbox>().GetLastSequence(session));
+    }
+
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
     private static async Task<GameSessionKey> StartAsync(InMemoryGameSessionRegistry sessions, string connection)
     {
         var session = await sessions.StartNewSessionAsync("private-owner", Token);
         await sessions.SetReliablePushPolicyAsync(session, true, Token);
-        await sessions.BindSessionAsync(session, connection, Token);
+        await sessions.PrepareProfiledSessionBindingAsync(session, connection, "json", Token);
+        await sessions.CommitSessionBindingAsync(session, connection, Token);
         return session;
     }
 
@@ -160,7 +180,7 @@ public sealed class ReliablePushDiagnosticsTests
     {
         OwnerKey = session.OwnerKey, SessionId = session.SessionId,
         CallbackContractType = typeof(Callback).AssemblyQualifiedName!,
-        ServiceId = 1, MethodId = 2, MethodName = "Notify", Payload = [1, 2, 3]
+        ServiceId = 1, MethodId = 2, MethodName = "Notify", SerializerProfile = "json", Payload = [1, 2, 3]
     };
 
     private sealed class Callback : IRpcNotificationDispatchTarget
@@ -170,7 +190,7 @@ public sealed class ReliablePushDiagnosticsTests
         public int Deliveries;
         public ValueTask DispatchNotificationAsync<T>(int serviceId, int methodId, T payload,
             RpcPushMetadata? metadata, CancellationToken cancellationToken = default) => Send();
-        public ValueTask DispatchNotificationAsync(int serviceId, int methodId, ReadOnlyMemory<byte> payload,
+        public ValueTask DispatchEncodedNotificationAsync(int serviceId, int methodId, ReadOnlyMemory<byte> payload,
             RpcPushMetadata? metadata, CancellationToken cancellationToken = default) => Send();
         private ValueTask Send()
         {

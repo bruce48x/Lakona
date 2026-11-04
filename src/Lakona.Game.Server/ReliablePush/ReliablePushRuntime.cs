@@ -14,12 +14,14 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
     private readonly IReliablePushAckService _acks;
     private readonly LocalClientNotificationCommandDispatcher _localDispatcher;
     private readonly IGameSessionRegistry _sessions;
+    private readonly ClientNotificationCommandFactory _commands;
 
     public ReliablePushRuntime(
         IReliablePushOutbox outbox,
         IReliablePushAckService acks,
         LocalClientNotificationCommandDispatcher localDispatcher,
         IGameSessionRegistry sessions,
+        ClientNotificationCommandFactory commands,
         ILoggerFactory? loggerFactory = null)
     {
         _logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<ReliablePushRuntime>();
@@ -27,6 +29,7 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
         _acks = acks ?? throw new ArgumentNullException(nameof(acks));
         _localDispatcher = localDispatcher ?? throw new ArgumentNullException(nameof(localDispatcher));
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
+        _commands = commands ?? throw new ArgumentNullException(nameof(commands));
     }
 
     public async ValueTask<ClientNotificationStatus> PublishAsync(
@@ -35,13 +38,23 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-
         if (!await _sessions.GetReliablePushPolicyAsync(session, cancellationToken).ConfigureAwait(false))
         {
             command.Metadata = null;
             return await _localDispatcher.DispatchAsync(command, cancellationToken).ConfigureAwait(false);
         }
 
+        if (!await _localDispatcher.MatchesSessionProfileAsync(session, command, cancellationToken).ConfigureAwait(false))
+            return ClientNotificationStatus.Failed;
+
+        return await PublishReliableAsync(session, command, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<ClientNotificationStatus> PublishReliableAsync(
+        GameSessionKey session,
+        ClientNotificationCommand command,
+        CancellationToken cancellationToken)
+    {
         var immediateStatus = ClientNotificationStatus.RouteNotFound;
         var replayPending = await _sessions
             .IsReliableReplayPendingAsync(session, cancellationToken)
@@ -103,15 +116,10 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
                 cancellationToken).ConfigureAwait(false);
         }
 
-        return await PublishAsync(
-            session,
-            ClientNotificationCommandFactory.CreateGenerated<TCallback, TPayload>(
-                session,
-                serviceId,
-                methodId,
-                methodName,
-                payload),
-            cancellationToken).ConfigureAwait(false);
+        var command = await _commands.CreateAsync<TCallback, TPayload>(
+            session, serviceId, methodId, methodName, payload, remoteGateway: null, cancellationToken)
+            .ConfigureAwait(false);
+        return await PublishReliableAsync(session, command, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask ReplayPendingAsync(

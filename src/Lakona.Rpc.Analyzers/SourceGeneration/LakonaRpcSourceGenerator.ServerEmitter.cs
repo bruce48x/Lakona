@@ -81,7 +81,6 @@ public sealed partial class LakonaRpcSourceGenerator
             writer.Line("using System;");
             writer.Line("using System.Threading;");
             writer.Line("using System.Threading.Tasks;");
-            writer.Line("using System.Text.Json;");
             writer.Line("using Lakona.Rpc.Core;");
             writer.Line($"using {ServerRuntimeUsing};");
             writer.Line();
@@ -130,19 +129,14 @@ public sealed partial class LakonaRpcSourceGenerator
             writer.CloseBlock();
             writer.Line();
 
-            writer.OpenBlock("ValueTask IRpcNotificationDispatchTarget.DispatchNotificationAsync(int serviceId, int methodId, ReadOnlyMemory<byte> payload, RpcPushMetadata? metadata, CancellationToken cancellationToken)");
+            writer.OpenBlock("ValueTask IRpcNotificationDispatchTarget.DispatchEncodedNotificationAsync(int serviceId, int methodId, ReadOnlyMemory<byte> payload, RpcPushMetadata? metadata, CancellationToken cancellationToken)");
             writer.Line("if (serviceId != ServiceId) throw new InvalidOperationException(\"Notification service id does not match this callback contract.\");");
             writer.OpenBlock("switch (methodId)");
             foreach (var method in service.NotificationMethods.OrderBy(static method => method.MethodId))
-            {
-                var payloadVariable = "notificationPayload" + method.MethodId;
                 writer.Line($"case {method.MethodId}:");
-                writer.Indent();
-                writer.Line($"var {payloadVariable} = JsonSerializer.Deserialize<{method.PayloadType}>(payload.Span)!;");
-                writer.Line($"return _notifications.SendAsync<{method.PayloadType}>(serviceId, methodId, {payloadVariable}, metadata, cancellationToken);");
-                writer.Unindent();
-            }
-
+            writer.Indent();
+            writer.Line("return _notifications.SendRawAsync(serviceId, methodId, payload, metadata, cancellationToken);");
+            writer.Unindent();
             writer.Line("default:");
             writer.Indent();
             writer.Line("throw new InvalidOperationException(\"Unknown notification method id: \" + methodId);");

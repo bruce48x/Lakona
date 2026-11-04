@@ -10,6 +10,7 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Core;
+using Lakona.Rpc.Serializer.MemoryPack;
 using Lakona.Rpc.Server;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,7 +37,7 @@ namespace Agar.Unity.Tests;
 
 public sealed class DistributedTopologyConfigurationTests
 {
-    private sealed class CapturingBattleCallback : IBattleCallback, IRpcNotificationDispatchTarget
+    private sealed class CapturingBattleCallback(IRpcSerializer serializer) : IBattleCallback, IRpcNotificationDispatchTarget
     {
         public TaskCompletionSource<FrameSyncFrame> Frame { get; } = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -84,7 +85,7 @@ public sealed class DistributedTopologyConfigurationTests
             return default;
         }
 
-        public ValueTask DispatchNotificationAsync(
+        public ValueTask DispatchEncodedNotificationAsync(
             int serviceId,
             int methodId,
             ReadOnlyMemory<byte> payload,
@@ -94,13 +95,13 @@ public sealed class DistributedTopologyConfigurationTests
             switch (methodId)
             {
                 case 1:
-                    OnFrameSyncStarted(JsonSerializer.Deserialize<FrameSyncStart>(payload.Span)!);
+                    OnFrameSyncStarted(serializer.Deserialize<FrameSyncStart>(payload));
                     break;
                 case 2:
-                    OnFrame(JsonSerializer.Deserialize<FrameSyncFrame>(payload.Span)!);
+                    OnFrame(serializer.Deserialize<FrameSyncFrame>(payload));
                     break;
                 case 3:
-                    OnFrames(JsonSerializer.Deserialize<FrameSyncPush>(payload.Span)!);
+                    OnFrames(serializer.Deserialize<FrameSyncPush>(payload));
                     break;
                 default:
                     throw new NotSupportedException(
@@ -622,7 +623,10 @@ public sealed class DistributedTopologyConfigurationTests
             const string playerId = "battle-timer-player";
             const string roomId = "battle-timer-room";
             const string matchId = "battle-timer-match";
-            var callback = new CapturingBattleCallback();
+            var callback = new CapturingBattleCallback(
+                provider.GetRequiredService<LakonaEndpointRuntimeRegistry>().GetEndpointSerializer("memorypack"));
+            provider.GetRequiredService<GameConnectionDeliveryPolicyRegistry>()
+                .Set("battle-timer-connection", false, "kcp", "memorypack");
             var gameServer = provider.GetRequiredService<ILakonaGameServer>();
             var session = await gameServer.StartSessionAsync(
                 playerId,
@@ -1102,6 +1106,7 @@ public sealed class DistributedTopologyConfigurationTests
 
         services.AddLogging();
         services.AddLakonaGameServer(configuration);
+        services.AddLakonaEndpointSerializer("memorypack", static () => new MemoryPackRpcSerializer());
         services.AddLakonaRedisClustering(configuration);
         services.AddSingleton<IConfiguration>(configuration);
         services.AddGeneratedActorSelectorTestDependencies();

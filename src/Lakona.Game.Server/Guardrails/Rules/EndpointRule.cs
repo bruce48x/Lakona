@@ -1,4 +1,5 @@
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Hosting;
 
 namespace Lakona.Game.Server.Guardrails.Rules;
 
@@ -17,7 +18,8 @@ internal static class EndpointRule
         "memorypack"
     };
 
-    internal static IEnumerable<LakonaGameDiagnostic> Validate(LakonaGameRuntimeOptions runtime)
+    internal static IEnumerable<LakonaGameDiagnostic> Validate(
+        LakonaGameRuntimeOptions runtime, LakonaEndpointRuntimeRegistry? endpointRegistry)
     {
         var transports = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var bindAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -62,13 +64,13 @@ internal static class EndpointRule
             {
                 yield return Error("LAKONA10028", "Endpoint serializer is required.", $"{path}:Serializer");
             }
-            else if (!KnownSerializers.Contains(serializer))
+            else if (!(endpointRegistry?.HasEndpointSerializer(serializer) ?? KnownSerializers.Contains(serializer)))
             {
                 yield return Error(
                     "LAKONA10028",
                     $"Endpoint serializer '{serializer}' is unknown.",
                     $"{path}:Serializer",
-                    "Use json or memorypack.");
+                    endpointRegistry is null ? "Use json or memorypack." : "Register this serializer profile in Server.App.");
             }
 
             if (string.IsNullOrWhiteSpace(endpoint.Host))

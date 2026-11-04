@@ -1,3 +1,4 @@
+using Lakona.Game.Server.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -9,7 +10,8 @@ public static class LakonaGameGuardrailServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddSingleton<LakonaGameRuntimeValidator>();
+        services.TryAddSingleton(provider => new LakonaGameRuntimeValidator(
+            provider.GetService<LakonaEndpointRuntimeRegistry>()));
 
         return services;
     }

@@ -52,8 +52,8 @@ public static class LakonaEndpointRuntimeServiceCollectionExtensions
     /// Registers a client-facing endpoint serializer factory under its configuration name.
     /// </summary>
     /// <param name="services">The service collection to update.</param>
-    /// <param name="name">The serializer name used by <c>Lakona:Endpoints[]:Serializer</c>.</param>
-    /// <param name="factory">The factory that creates an endpoint serializer.</param>
+    /// <param name="name">The wire profile used by <c>Lakona:Endpoints[]:Serializer</c>. Register the same wire options under this name on every node that sends notifications to these clients.</param>
+    /// <param name="factory">Creates the serializer shared by this host's endpoints and notifications for the profile. The serializer must support concurrent calls.</param>
     /// <returns>The same service collection for chaining.</returns>
     public static IServiceCollection AddLakonaEndpointSerializer(
         this IServiceCollection services,

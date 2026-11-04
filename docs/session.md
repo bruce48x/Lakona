@@ -1069,13 +1069,25 @@ Batching changes only transport framing. It never deduplicates, overwrites, or
 coalesces an accepted notification. Whether a newer state update supersedes an
 older one is business policy and is not inferred from callback or payload type.
 
-Materialized notification commands use JSON as a serializer-neutral retained
-representation. The generated callback proxy decodes that representation back
-to the declared notification DTO, then sends the typed value through the live
-RPC session so the endpoint-selected serializer, such as MemoryPack, owns the
-wire payload. Serialized command bytes must enter the proxy's
-`ReadOnlyMemory<byte>` dispatch overload; they are not typed notification DTOs
-and must never flow through the generic typed-payload overload.
+Reliable and remote notifications are encoded once with the target session's
+endpoint serializer. A successful binding pins the serializer's normalized
+registration name as the session's wire profile. It stays available during
+the disconnect retention window. The publisher copies the encoded business
+payload into command-owned bytes. The gateway validates the profile before
+retaining the command and when delivering it. The generated callback proxy
+checks the service and method and forwards those bytes through the RPC channel.
+Replay reuses the original payload. The gateway supplies the reliable sequence
+and ACK metadata separately. Local best-effort publication uses typed dispatch
+directly on the live endpoint.
+
+On a remote cache miss the publishing node looks up the committed profile on
+the exact gateway named by the session locator. A bounded cache keeps successful
+lookups for immutable session profiles. Every publishing node must register
+the same serializer implementation and wire options for that name, including
+application converters or formatters. Use a distinct name when changing wire
+semantics. Unknown profiles and mismatches fail delivery. A custom
+`IGameSessionRegistry` must support profiled prepare/commit/rollback and
+return the committed profile for live and resumable sessions.
 
 User-targeted notification policy remains business-layer responsibility in this
 iteration. The framework does not own session kind or expose user-and-kind

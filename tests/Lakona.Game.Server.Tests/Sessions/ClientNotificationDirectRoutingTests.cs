@@ -284,6 +284,7 @@ public sealed class ClientNotificationDirectRoutingTests
         int capacityPerSession,
         int totalCapacity) => new(
             new RecordingRuntime(),
+            TestNotificationProfiles.JsonCommands(),
             new TestClusterMembership(Snapshot(gateway)),
             remote,
             new NodeId("producer"),
@@ -304,6 +305,9 @@ public sealed class ClientNotificationDirectRoutingTests
 
     private sealed class RecordingRuntime : IReliablePushRuntime
     {
+        public ValueTask<ClientNotificationStatus> PublishGeneratedAsync<TCallback, TPayload>(GameSessionKey session,
+            int serviceId, int methodId, string methodName, TPayload payload, CancellationToken cancellationToken = default)
+            where TCallback : class => throw new NotSupportedException();
         public List<GameSessionKey> Published { get; } = [];
         public List<GameSessionKey> Resumed { get; } = [];
         public ValueTask<ClientNotificationStatus> PublishAsync(GameSessionKey session, ClientNotificationCommand command, CancellationToken cancellationToken = default)

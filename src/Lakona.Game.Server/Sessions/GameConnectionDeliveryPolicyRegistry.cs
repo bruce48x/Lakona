@@ -3,40 +3,30 @@ namespace Lakona.Game.Server.Sessions;
 internal sealed class GameConnectionDeliveryPolicyRegistry
 {
     private readonly Lock gate = new();
-    private readonly Dictionary<string, bool> policies = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, string> endpointScopes = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DeliveryPolicy> policies = new(StringComparer.Ordinal);
 
     public void Set(string connectionId, bool reliablePush)
     {
         Set(connectionId, reliablePush, "legacy");
     }
 
-    public void Set(string connectionId, bool reliablePush, string endpointScope)
+    public void Set(string connectionId, bool reliablePush, string endpointScope, string? serializerProfile = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
         ArgumentException.ThrowIfNullOrWhiteSpace(endpointScope);
         lock (gate)
         {
-            policies[connectionId] = reliablePush;
-            endpointScopes[connectionId] = endpointScope;
+            policies[connectionId] = new DeliveryPolicy(reliablePush, endpointScope, serializerProfile);
         }
     }
 
-    public string GetEndpointScope(string connectionId)
+    public DeliveryPolicy GetBindingPolicy(string connectionId)
     {
         lock (gate)
         {
-            return endpointScopes.TryGetValue(connectionId, out var endpointScope)
-                ? endpointScope
-                : "legacy";
-        }
-    }
-
-    public bool Get(string connectionId)
-    {
-        lock (gate)
-        {
-            return policies.TryGetValue(connectionId, out var reliablePush) && reliablePush;
+            return policies.TryGetValue(connectionId, out var policy)
+                ? policy
+                : DeliveryPolicy.Legacy;
         }
     }
 
@@ -45,7 +35,11 @@ internal sealed class GameConnectionDeliveryPolicyRegistry
         lock (gate)
         {
             policies.Remove(connectionId);
-            endpointScopes.Remove(connectionId);
         }
+    }
+
+    internal sealed record DeliveryPolicy(bool ReliablePush, string EndpointScope, string? SerializerProfile)
+    {
+        internal static readonly DeliveryPolicy Legacy = new(false, "legacy", null);
     }
 }

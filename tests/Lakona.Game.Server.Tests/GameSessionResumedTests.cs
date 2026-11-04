@@ -117,6 +117,9 @@ public sealed class GameSessionResumedTests
 
     private sealed class ReplayRuntime(IGameSessionRegistry sessions) : IReliablePushRuntime
     {
+        public ValueTask<ClientNotificationStatus> PublishGeneratedAsync<TCallback, TPayload>(GameSessionKey session,
+            int serviceId, int methodId, string methodName, TPayload payload, CancellationToken cancellationToken = default)
+            where TCallback : class => throw new NotSupportedException();
         public bool Block;
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -18,6 +18,13 @@ Hotfix assembly path selects the actual startup artifact. Startup and readiness
 use the same built-in checks. Indexed error paths are constructed at the check
 site; no second configuration model is maintained.
 
+In a host, startup and readiness validate each endpoint's serializer profile
+against the application's `RegisterEndpointSerializer` registrations. An
+unregistered profile produces `LAKONA10028` at `Lakona:Endpoints:<index>:Serializer`.
+The standalone parameterless validator recognizes the standard `json` and
+`memorypack` names. Resolve the validator from the configured host's service
+provider when checking application-specific profiles.
+
 ### Upgrade To Game.Server 0.50.0
 
 This release removes `ILakonaGameValidationRule`, `LakonaGameResolved*`, and

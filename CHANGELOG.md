@@ -4,6 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-11-04 — Business notifications preserve endpoint serialization
+
+**Key releases:** `Lakona.Game.Server 0.53.16`, `Lakona.Rpc.Core 0.16.2`,
+`Lakona.Rpc.Server 0.17.20`, `Lakona.Tool 0.43.67`, and `Lakona Hub 0.17.79`.
+
+- Business notifications use the session's registered endpoint serializer,
+  including application converters. Local delivery, gateway relay and reliable
+  replay carry the same encoded payload. Rebuild generated server callback
+  proxies with the matching RPC packages.
+- `lakona.cluster.v7` carries the serializer profile across nodes. Stop the
+  old cluster and deploy the complete node group with a new BuildTag and
+  Membership store. Register matching profiles on all notification publishers.
+
 ## 2026-10-29 — Actor timers without business arguments
 
 **Key releases:** `Lakona.Game.Server 0.53.15`, `Lakona.Game.Testing 0.3.55`,

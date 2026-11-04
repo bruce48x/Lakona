@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Lakona.Game.Server.Guardrails;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Hosting;
+using Lakona.Rpc.Serializer.Json;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests.Guardrails;
@@ -135,6 +137,23 @@ public sealed class LakonaGameRuntimeValidatorTests
         var result = Validate(runtime);
 
         Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10028");
+    }
+
+    [Fact]
+    public void Hosted_validator_checks_profile_registration_even_for_a_builtin_format()
+    {
+        using var provider = new ServiceCollection().AddLakonaGameRuntimeValidation()
+            .AddLakonaEndpointSerializer("messages-v2", static () => new JsonRpcSerializer())
+            .BuildServiceProvider();
+        var runtime = new LakonaGameRuntimeOptions
+        {
+            Endpoints = [TestEndpoint("tcp", "127.0.0.1", 20000, serializer: "json")]
+        };
+
+        var result = provider.GetRequiredService<LakonaGameRuntimeValidator>().Validate(runtime,
+            hotfixAssemblyPath: typeof(LakonaGameRuntimeValidatorTests).Assembly.Location);
+
+        Assert.Contains(result.Diagnostics, d => d.Code == "LAKONA10028" && d.Message.Contains("json"));
     }
 
     [Theory]

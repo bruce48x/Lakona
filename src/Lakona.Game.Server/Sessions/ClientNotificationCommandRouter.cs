@@ -13,6 +13,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
     internal const int DefaultTotalCapacity = 65_536;
 
     private readonly IReliablePushRuntime? _localOwner;
+    private readonly ClientNotificationCommandFactory _commands;
     private readonly IGameSessionRegistry? _sessions;
     private readonly LocalClientNotificationCommandDispatcher? _localDispatcher;
     private readonly IClusterMembership? _membership;
@@ -30,6 +31,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
 
     public ClientNotificationCommandRouter(
         IReliablePushRuntime localOwner,
+        ClientNotificationCommandFactory commands,
         IClusterMembership? membership = null,
         IClientNotificationRemoteDispatcher? remoteDispatcher = null,
         NodeId? localNode = null,
@@ -39,6 +41,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         IGameSessionRegistry? sessions = null)
     {
         _localOwner = localOwner ?? throw new ArgumentNullException(nameof(localOwner));
+        _commands = commands;
         _sessions = sessions;
         _membership = membership;
         _remoteDispatcher = remoteDispatcher;
@@ -50,6 +53,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
 
     public ClientNotificationCommandRouter(
         LocalClientNotificationCommandDispatcher localDispatcher,
+        ClientNotificationCommandFactory commands,
         IClusterMembership? membership = null,
         IClientNotificationRemoteDispatcher? remoteDispatcher = null,
         NodeId? localNode = null,
@@ -59,6 +63,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         IGameSessionRegistry? sessions = null)
     {
         _localDispatcher = localDispatcher ?? throw new ArgumentNullException(nameof(localDispatcher));
+        _commands = commands;
         _sessions = sessions;
         _membership = membership;
         _remoteDispatcher = remoteDispatcher;
@@ -397,12 +402,12 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
                 cancellationToken).ConfigureAwait(false);
         }
 
-        var command = ClientNotificationCommandFactory.CreateGenerated<TCallback, TPayload>(
+        var command = await _commands.CreateAsync<TCallback, TPayload>(
             session,
             serviceId,
             methodId,
             methodName,
-            payload);
+            payload, route, cancellationToken).ConfigureAwait(false);
         return await _remoteDispatcher.DispatchAsync(route, command, cancellationToken).ConfigureAwait(false);
     }
 

@@ -61,6 +61,9 @@ internal sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurato
                 new NodeId(_runtimeOptions.Node.Id),
                 context.Services.GetService<IDistributedWorkAdmissionGate>());
             ClientNotificationCommandBinder.BindOwned(context.Builder.ServiceRegistry, ownerDispatcher);
+            if (context.Services.GetService<IGameSessionNotificationProfileLookup>() is { } profiles)
+                SessionNotificationProfileProtocol.Bind(context.Builder.ServiceRegistry, profiles,
+                    notificationMembership, new NodeId(_runtimeOptions.Node.Id));
         }
 
         if (context.Services.GetService<HotfixActorClusterHandler>() is

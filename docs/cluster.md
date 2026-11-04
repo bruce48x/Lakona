@@ -395,10 +395,11 @@ guarantee during scheduler starvation or process suspension.
 Node-to-node RPC is framework-owned TCP plus MemoryPack. It is separate from
 client-facing endpoints and serializers.
 
-The protocol identifier is `lakona.cluster.v6`. Peers negotiate this
-identifier before decoding cluster payloads. Membership replies carry a
-three-state result instead of a boolean, and requests carry the target-probe
-budget. Earlier protocol generations are rejected; mixed-version operation is
+The protocol identifier is `lakona.cluster.v7`. Peers negotiate this
+identifier before decoding cluster payloads. Notification publishers can query
+the session owner for its committed serializer profile. Relayed notification
+commands carry that profile and the final endpoint-encoded business payload.
+Earlier protocol generations are rejected; mixed-version operation is
 not supported. Stop the old cluster before deploying all nodes with the new
 runtime. Use a new BuildTag and a new Membership store for this compatibility
 boundary, since a store retains its established BuildTag. An old Membership

@@ -1,18 +1,31 @@
-using System.Text.Json;
+using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
+using Lakona.Game.Server.Hosting;
+using Lakona.Rpc.Core;
 
 namespace Lakona.Game.Server.Sessions;
 
-internal static class ClientNotificationCommandFactory
+internal sealed class ClientNotificationCommandFactory(
+    IGameSessionNotificationProfileLookup profiles,
+    LakonaEndpointRuntimeRegistry serializers)
 {
-    internal static ClientNotificationCommand CreateGenerated<TCallback, TPayload>(
+    public async ValueTask<ClientNotificationCommand> CreateAsync<TCallback, TPayload>(
         GameSessionKey session,
         int serviceId,
         int methodId,
         string methodName,
-        TPayload payload)
+        TPayload payload,
+        RouteLocation? remoteGateway,
+        CancellationToken cancellationToken)
         where TCallback : class
     {
+        var profile = remoteGateway is null
+            ? await profiles.GetLocalAsync(session, cancellationToken).ConfigureAwait(false)
+            : await profiles.GetRemoteAsync(remoteGateway, session, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrEmpty(profile))
+            throw new InvalidOperationException("The target session has no committed notification serializer profile.");
+
+        using var frame = serializers.GetEndpointSerializer(profile).SerializeFrame(payload);
         var callbackType = typeof(TCallback);
         return new ClientNotificationCommand
         {
@@ -22,7 +35,8 @@ internal static class ClientNotificationCommandFactory
             MethodName = methodName,
             ServiceId = serviceId,
             MethodId = methodId,
-            Payload = JsonSerializer.SerializeToUtf8Bytes(payload)
+            SerializerProfile = profile,
+            Payload = frame.ToArray()
         };
     }
 }

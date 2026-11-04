@@ -199,6 +199,8 @@ internal sealed class ClusterClientNotificationDispatcher :
         bytes = checked(bytes + Encoding.UTF8.GetByteCount(command.SessionId));
         bytes = checked(bytes + Encoding.UTF8.GetByteCount(command.CallbackContractType));
         bytes = checked(bytes + Encoding.UTF8.GetByteCount(command.MethodName));
+        if (command.SerializerProfile is { } profile)
+            bytes = checked(bytes + Encoding.UTF8.GetByteCount(profile));
         bytes = checked(bytes + command.Payload.Length);
 
         if (command.Metadata is not null)

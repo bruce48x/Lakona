@@ -13,18 +13,7 @@ internal interface IReliablePushRuntime
         string methodName,
         TPayload payload,
         CancellationToken cancellationToken = default)
-        where TCallback : class
-    {
-        return PublishAsync(
-            session,
-            ClientNotificationCommandFactory.CreateGenerated<TCallback, TPayload>(
-                session,
-                serviceId,
-                methodId,
-                methodName,
-                payload),
-            cancellationToken);
-    }
+        where TCallback : class;
 
     ValueTask<ClientNotificationStatus> PublishAsync(
         GameSessionKey session,

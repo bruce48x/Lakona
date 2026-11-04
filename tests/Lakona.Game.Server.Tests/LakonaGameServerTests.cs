@@ -379,12 +379,13 @@ public sealed class LakonaGameServerTests
                     configuration.AddInMemoryCollection(new Dictionary<string, string?>
                     {
                         ["Lakona:Endpoints:0:Transport"] = "websocket",
-                        ["Lakona:Endpoints:0:Serializer"] = "json",
+                        ["Lakona:Endpoints:0:Serializer"] = "messages-v2",
                         ["Lakona:Endpoints:0:Host"] = "127.0.0.1",
                         ["Lakona:Endpoints:0:Port"] = "20000",
                         ["Lakona:Endpoints:0:Path"] = "/ws",
                         ["Lakona:Hotfix:DebugWatcher"] = "On"
                     }));
+                server.RegisterEndpointSerializer("messages-v2", static () => new JsonRpcSerializer());
             },
             []);
 
@@ -860,7 +861,7 @@ public sealed class LakonaGameServerTests
         var reliablePush = provider.GetRequiredService<IReliablePushRuntime>();
         var callback = new TestCallback();
         provider.GetRequiredService<GameConnectionDeliveryPolicyRegistry>()
-            .Set("connection-a", true);
+            .Set("connection-a", true, "test-endpoint", "json");
         var session = await server.StartSessionAsync(
             "player-a",
             "connection-a",
@@ -909,7 +910,7 @@ public sealed class LakonaGameServerTests
         var reliablePush = provider.GetRequiredService<IReliablePushRuntime>();
         var callback = new TestCallback();
         provider.GetRequiredService<GameConnectionDeliveryPolicyRegistry>()
-            .Set("connection-a", true);
+            .Set("connection-a", true, "test-endpoint", "json");
         var session = await server.StartSessionAsync(
             "player-a",
             "connection-a",
@@ -1209,6 +1210,13 @@ public sealed class LakonaGameServerTests
     {
         public List<string> Delivered { get; } = new();
 
+        public ValueTask DispatchEncodedNotificationAsync(int serviceId, int methodId, ReadOnlyMemory<byte> payload,
+            RpcPushMetadata? metadata, CancellationToken cancellationToken = default)
+        {
+            Delivered.Add(JsonSerializer.Deserialize<string>(payload.Span)!);
+            return default;
+        }
+
         public ValueTask NotifyAsync(string payload)
         {
             Delivered.Add(payload);
@@ -1223,17 +1231,6 @@ public sealed class LakonaGameServerTests
             CancellationToken cancellationToken = default)
         {
             Delivered.Add(Assert.IsType<string>(payload));
-            return default;
-        }
-
-        public ValueTask DispatchNotificationAsync(
-            int serviceId,
-            int methodId,
-            ReadOnlyMemory<byte> payload,
-            RpcPushMetadata? metadata,
-            CancellationToken cancellationToken = default)
-        {
-            Delivered.Add(JsonSerializer.Deserialize<string>(payload.Span)!);
             return default;
         }
 

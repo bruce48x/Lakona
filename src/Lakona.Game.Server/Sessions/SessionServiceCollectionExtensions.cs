@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Lakona.Game.Cluster;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Rpc.Server;
 
@@ -17,6 +18,7 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<GameSessionLifecycleBindings>();
         services.TryAddSingleton<IGameSessionIdFactory, RandomGameSessionIdFactory>();
         services.TryAddSingleton<IGameSessionRegistry, InMemoryGameSessionRegistry>();
+        services.TryAddSingleton<IGameSessionNotificationProfileLookup, GameSessionNotificationProfileLookup>();
         services.TryAddSingleton<IGameSessionResumeTicketStore, InMemoryGameSessionResumeTicketStore>();
         services.TryAddSingleton<TimeProvider>(TimeProvider.System);
         services.TryAddSingleton<GameConnectionDeliveryPolicyRegistry>();
@@ -32,9 +34,12 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<IGameSessionHandshakeRecoveryService, GameSessionHandshakeRecoveryService>();
         services.TryAddSingleton<IGameHeartbeatService, GameHeartbeatService>();
         services.TryAddSingleton<IClientNotifications, ClientNotifications>();
+        services.TryAddSingleton<LakonaEndpointRuntimeRegistry>();
+        services.TryAddSingleton<ClientNotificationCommandFactory>();
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, RejectingClientNotificationRemoteDispatcher>();
         services.TryAddSingleton(static provider => new LocalClientNotificationCommandDispatcher(
             provider.GetRequiredService<GameSessionCallbackResolver>(),
+            provider.GetRequiredService<IGameSessionRegistry>(),
             provider.GetService<ILoggerFactory>(),
             provider.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton<IClientNotificationCommandRouter>(CreateClientNotificationCommandRouter);
@@ -92,6 +97,7 @@ public static class SessionServiceCollectionExtensions
     {
         var localOwner = services.GetService<IReliablePushRuntime>();
         var localDispatcher = services.GetRequiredService<LocalClientNotificationCommandDispatcher>();
+        var commands = services.GetRequiredService<ClientNotificationCommandFactory>();
         var membership = services.GetService<IClusterMembership>();
         var remoteDispatcher = services.GetService<IClientNotificationRemoteDispatcher>();
         var cluster = services.GetService<ClusterOptions>();
@@ -102,6 +108,7 @@ public static class SessionServiceCollectionExtensions
         return localOwner is not null
             ? new ClientNotificationCommandRouter(
                 localOwner,
+                commands,
                 membership,
                 remoteDispatcher,
                 localNode,
@@ -111,6 +118,7 @@ public static class SessionServiceCollectionExtensions
                 services.GetRequiredService<IGameSessionRegistry>())
             : new ClientNotificationCommandRouter(
                 localDispatcher,
+                commands,
                 membership,
                 remoteDispatcher,
                 localNode,

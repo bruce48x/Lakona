@@ -10,16 +10,19 @@ internal sealed class LocalClientNotificationCommandDispatcher
     private readonly GameSessionCallbackResolver _callbacks;
     private readonly ILogger _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly IGameSessionRegistry _sessions;
     private long _nextFailureLogAt;
 
     internal LocalClientNotificationCommandDispatcher(
         GameSessionCallbackResolver callbacks,
+        IGameSessionRegistry sessions,
         ILoggerFactory? loggerFactory = null,
         TimeProvider? timeProvider = null)
     {
         _timeProvider = timeProvider ?? TimeProvider.System;
         _logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<LocalClientNotificationCommandDispatcher>();
         _callbacks = callbacks ?? throw new ArgumentNullException(nameof(callbacks));
+        _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
     }
 
     internal async ValueTask<ClientNotificationStatus> DispatchGeneratedAsync<TCallback, TPayload>(
@@ -70,6 +73,10 @@ internal sealed class LocalClientNotificationCommandDispatcher
         ArgumentNullException.ThrowIfNull(command);
         cancellationToken.ThrowIfCancellationRequested();
 
+        var session = ToSessionKey(command);
+        if (!await MatchesSessionProfileAsync(session, command, cancellationToken).ConfigureAwait(false))
+            return ClientNotificationStatus.Failed;
+
         var callbackType = Type.GetType(command.CallbackContractType, throwOnError: false);
         if (callbackType is null)
         {
@@ -77,7 +84,7 @@ internal sealed class LocalClientNotificationCommandDispatcher
         }
 
         var callback = await _callbacks
-            .ResolveAsync(callbackType, ToSessionKey(command), cancellationToken)
+            .ResolveAsync(callbackType, session, cancellationToken)
             .ConfigureAwait(false);
         if (callback is null)
         {
@@ -93,13 +100,9 @@ internal sealed class LocalClientNotificationCommandDispatcher
 
         try
         {
-            await generatedTarget
-                .DispatchNotificationAsync(
-                    command.ServiceId,
-                    command.MethodId,
-                    new ReadOnlyMemory<byte>(command.Payload),
-                    command.Metadata?.ToRpcPushMetadata(),
-                    cancellationToken)
+            var metadata = command.Metadata?.ToRpcPushMetadata();
+            await generatedTarget.DispatchEncodedNotificationAsync(
+                command.ServiceId, command.MethodId, command.Payload, metadata, cancellationToken)
                 .ConfigureAwait(false);
             return ClientNotificationStatus.Accepted;
         }
@@ -109,9 +112,18 @@ internal sealed class LocalClientNotificationCommandDispatcher
         }
         catch (Exception ex)
         {
-            RecordSendFailure(ToSessionKey(command), command.ServiceId, command.MethodId, ex);
+            RecordSendFailure(session, command.ServiceId, command.MethodId, ex);
             return ClientNotificationStatus.Failed;
         }
+    }
+
+    internal async ValueTask<bool> MatchesSessionProfileAsync(GameSessionKey session,
+        ClientNotificationCommand command, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(command.SerializerProfile) || command.Payload is null)
+            return false;
+        var current = await _sessions.GetNotificationSerializerProfileAsync(session, cancellationToken).ConfigureAwait(false);
+        return string.Equals(current, command.SerializerProfile, StringComparison.Ordinal);
     }
 
     private void RecordSendFailure(GameSessionKey session, int serviceId, int methodId, Exception exception)

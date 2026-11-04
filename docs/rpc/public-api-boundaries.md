@@ -256,9 +256,12 @@ Generated notification proxies use the hidden `RpcNotificationChannel` support
 type. Business code continues to publish through generated notification
 contracts rather than sending numeric method ids directly.
 
-`IRpcNotificationDispatchTarget` has exactly two required generated-support
-paths: typed numeric dispatch and serialized numeric dispatch. Generated
-proxies implement both. String method names, object arrays, default interface
+Generated proxies implement the two numeric dispatch paths on
+`IRpcNotificationDispatchTarget`. Typed dispatch uses the bound endpoint
+serializer. `DispatchEncodedNotificationAsync` validates the service and
+method IDs and forwards the payload bytes and metadata on the bound connection.
+The caller verifies serializer-profile compatibility.
+String method names, object arrays, default interface
 fallbacks, and exception-based capability detection are not compatibility
 paths; analyzer and runtime changes to this contract ship together.
 

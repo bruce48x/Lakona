@@ -25,6 +25,8 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
+    <ProjectReference Include="../../src/Lakona.Game.Testing/Lakona.Game.Testing.csproj" />
+    <ProjectReference Include="../../src/Lakona.Rpc.Analyzers/Lakona.Rpc.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../Lakona.Game.Testing.Fixtures.App/Lakona.Game.Testing.Fixtures.App.csproj" />
     <ProjectReference Include="../../src/Lakona.Rpc.Serializer.Json/Lakona.Rpc.Serializer.Json.csproj" />
     <ProjectReference Include="../../src/Lakona.Rpc.Serializer.MemoryPack/Lakona.Rpc.Serializer.MemoryPack.csproj" />

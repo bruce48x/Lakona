@@ -1,3 +1,7 @@
+using System.Buffers;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hosting;
 using Lakona.Rpc.Core;
@@ -28,10 +32,40 @@ public sealed class LakonaEndpointRuntimeRegistryTests
             Port = 20000
         };
 
-        Assert.Same(endpointSerializer, runtime.CreateEndpointSerializer(endpoint));
+        Assert.Same(endpointSerializer, runtime.GetEndpointSerializer(endpoint.Serializer));
         Assert.Same(acceptor, await runtime.CreateAcceptorAsync(
             endpoint,
             TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void Worker_without_listeners_uses_the_gateways_registered_wire_options()
+    {
+        static IRpcSerializer CreateNotificationSerializer()
+        {
+            var options = new JsonSerializerOptions();
+            options.Converters.Add(new JsonStringEnumConverter<DayOfWeek>(JsonNamingPolicy.CamelCase));
+            return new JsonRpcSerializer(options);
+        }
+
+        var services = new ServiceCollection()
+            .AddLakonaEndpointSerializer("json", static () => new JsonRpcSerializer())
+            .AddLakonaEndpointSerializer("calendar-v2", CreateNotificationSerializer);
+        using var gateway = services.BuildServiceProvider();
+        using var worker = services.BuildServiceProvider();
+        var gatewayRegistry = gateway.GetRequiredService<LakonaEndpointRuntimeRegistry>();
+        var endpoint = new LakonaGameEndpointOptions { Serializer = " Calendar-V2 " };
+        var serializer = gatewayRegistry.GetEndpointSerializer(endpoint.Serializer);
+        var profile = LakonaEndpointRuntimeRegistry.NormalizeSerializerProfile(endpoint.Serializer);
+        Assert.Equal("calendar-v2", profile);
+        Assert.Same(serializer, gatewayRegistry.GetEndpointSerializer(profile));
+
+        var buffer = new ArrayBufferWriter<byte>();
+        var workerRegistry = worker.GetRequiredService<LakonaEndpointRuntimeRegistry>();
+        workerRegistry.GetEndpointSerializer(profile).Serialize(buffer, DayOfWeek.Monday);
+        Assert.Equal("\"monday\"", Encoding.UTF8.GetString(buffer.WrittenSpan));
+        Assert.Equal(DayOfWeek.Monday, serializer.Deserialize<DayOfWeek>(buffer.WrittenMemory));
+        Assert.Throws<JsonException>(() => gatewayRegistry.GetEndpointSerializer("json").Deserialize<DayOfWeek>(buffer.WrittenMemory));
     }
 
     [Fact]
@@ -58,7 +92,7 @@ public sealed class LakonaEndpointRuntimeRegistryTests
         };
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
-            runtime.CreateEndpointSerializer(endpoint));
+            runtime.GetEndpointSerializer(endpoint.Serializer));
 
         Assert.Contains("protobuf", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("not registered", ex.Message, StringComparison.OrdinalIgnoreCase);

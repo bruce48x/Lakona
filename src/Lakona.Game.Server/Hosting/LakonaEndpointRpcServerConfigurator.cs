@@ -35,7 +35,8 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
         }
 
         var runtime = context.Services.GetRequiredService<LakonaEndpointRuntimeRegistry>();
-        builder.UseSerializer(runtime.CreateEndpointSerializer(_endpoint));
+        var serializerProfile = LakonaEndpointRuntimeRegistry.NormalizeSerializerProfile(_endpoint.Serializer);
+        builder.UseSerializer(runtime.GetEndpointSerializer(serializerProfile));
         builder.UseAcceptor(ct => runtime.CreateAcceptorAsync(_endpoint, ct));
         builder.UseLimits(limits =>
             limits.MaxActiveConnections = _endpoint.ConnectionLimits.MaxActiveConnections);
@@ -47,7 +48,7 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
             loggerFactory?.CreateLogger<GameHandshakeConnectionAdmissionGate>()
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<GameHandshakeConnectionAdmissionGate>.Instance));
         builder.UseSessionRequestGate(new GameHandshakeRpcGate(handshakeStates, context.Services.GetService<IGameSessionRegistry>()));
-        BindGameFrameworkRpcs(builder.ServiceRegistry, context.Services, handshakeStates);
+        BindGameFrameworkRpcs(builder.ServiceRegistry, context.Services, handshakeStates, serializerProfile);
 
         foreach (var observer in context.Services.GetServices<IRpcSessionLifecycleObserver>())
         {
@@ -81,8 +82,10 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
     private void BindGameFrameworkRpcs(
         RpcServiceRegistry registry,
         IServiceProvider services,
-        GameHandshakeConnectionStateRegistry handshakeStates)
+        GameHandshakeConnectionStateRegistry handshakeStates,
+        string serializerProfile)
     {
+        var recoveryScope = GetRecoveryScope(serializerProfile);
         registry.RegisterRaw(
             GameHandshakeRpcIds.ServiceId,
             GameHandshakeRpcIds.HandshakeMethodId,
@@ -104,7 +107,7 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                     services.GetRequiredService<GameFrameworkConnectionRegistry>()
                         .Set(connection.ConnectionId, notifications);
                     services.GetRequiredService<GameConnectionDeliveryPolicyRegistry>()
-                        .Set(connection.ConnectionId, _endpoint.ReliablePush, GetRecoveryScope());
+                        .Set(connection.ConnectionId, _endpoint.ReliablePush, recoveryScope, serializerProfile);
                     var service = services.GetRequiredService<IGameHandshakeService>();
                     reply = await service.HandshakeAsync(
                         hello,
@@ -117,7 +120,7 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
                         .RecoverAsync(
                             hello.ResumeTicket,
                             connection.ConnectionId,
-                            GetRecoveryScope(),
+                            recoveryScope,
                             cancellationToken)
                         .ConfigureAwait(false);
                 }
@@ -222,11 +225,11 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
             });
     }
 
-    private string GetRecoveryScope()
+    private string GetRecoveryScope(string serializerProfile)
     {
         return string.Join("|",
             _endpoint.Transport.Trim().ToLowerInvariant(),
-            _endpoint.Serializer.Trim().ToLowerInvariant(),
+            serializerProfile,
             _endpoint.Host.Trim().ToLowerInvariant(),
             _endpoint.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
             _endpoint.Path.Trim(),

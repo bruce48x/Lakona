@@ -13,7 +13,8 @@ namespace Lakona.Rpc.Server
             RpcPushMetadata? metadata,
             CancellationToken cancellationToken = default);
 
-        ValueTask DispatchNotificationAsync(
+        /// <summary>Sends a payload already encoded with the bound endpoint serializer.</summary>
+        ValueTask DispatchEncodedNotificationAsync(
             int serviceId,
             int methodId,
             ReadOnlyMemory<byte> payload,

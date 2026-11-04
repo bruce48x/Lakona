@@ -256,7 +256,24 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
     public ValueTask<GameSessionBindResult> PrepareSessionBindingAsync(
         GameSessionKey session,
         string connectionId,
+        CancellationToken cancellationToken = default) =>
+        PrepareSessionBindingAsync(session, connectionId, null, cancellationToken);
+
+    public ValueTask<GameSessionBindResult> PrepareProfiledSessionBindingAsync(
+        GameSessionKey session,
+        string connectionId,
+        string serializerProfile,
         CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serializerProfile);
+        return PrepareSessionBindingAsync(session, connectionId, serializerProfile, cancellationToken);
+    }
+
+    private ValueTask<GameSessionBindResult> PrepareSessionBindingAsync(
+        GameSessionKey session,
+        string connectionId,
+        string? serializerProfile,
+        CancellationToken cancellationToken)
     {
         ValidateSession(session);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
@@ -264,7 +281,23 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         lock (_gate)
         {
             return new ValueTask<GameSessionBindResult>(
-                PrepareSessionBindingCore(session, connectionId));
+                PrepareSessionBindingCore(session, connectionId, serializerProfile));
+        }
+    }
+
+    public ValueTask<string?> GetNotificationSerializerProfileAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_sessions.TryGetValue(session, out var state)) return default;
+        lock (state.Gate)
+        {
+            if (state.Termination is not null || GetExpirationKind(state, _timeProvider.GetUtcNow()) is not null ||
+                !_sessions.TryGetValue(session, out var current) || !ReferenceEquals(current, state))
+                return default;
+            return new ValueTask<string?>(state.SerializerProfile);
         }
     }
 
@@ -862,7 +895,8 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
     private GameSessionBindResult PrepareSessionBindingCore(
         GameSessionKey session,
-        string connectionId)
+        string connectionId,
+        string? serializerProfile = null)
     {
         if (!_sessions.TryGetValue(session, out var state))
         {
@@ -888,10 +922,17 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                     $"Game session '{session}' already has a pending binding to RPC connection '{pending.ConnectionId}'.");
             }
 
+            if (state.SerializerProfile is not null &&
+                !StringComparer.Ordinal.Equals(state.SerializerProfile, serializerProfile))
+            {
+                throw new InvalidOperationException("Game session notification serializer profile does not match the endpoint.");
+            }
+
             var previousConnectionId = state.ConnectionId;
             var sessionBecameActive = previousConnectionId is null;
             state.PendingBinding = new PendingBinding(
                 connectionId,
+                serializerProfile,
                 previousConnectionId,
                 state.LastDisconnectedConnectionId,
                 state.LastTerminatedConnectionId,
@@ -952,6 +993,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
             state.ResumeNotificationPending |= pending.DisconnectedAt is not null ||
                 (pending.PreviousConnectionId is not null && pending.PreviousConnectionId != connectionId);
+            state.SerializerProfile = pending.SerializerProfile;
             if (pending.PreviousConnectionId != connectionId)
                 RemoveConnectionMapping(_connectionToSession, pending.PreviousConnectionId, session);
             state.PendingBinding = null;
@@ -1013,6 +1055,8 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
         public bool? ReliablePushPolicy { get; set; }
 
+        public string? SerializerProfile { get; set; }
+
         public bool ReliableContinuityLost { get; set; }
 
         public bool ReliableReplayPending { get; set; }
@@ -1032,6 +1076,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
 
     private sealed record PendingBinding(
         string ConnectionId,
+        string? SerializerProfile,
         string? PreviousConnectionId,
         string? LastDisconnectedConnectionId,
         string? LastTerminatedConnectionId,

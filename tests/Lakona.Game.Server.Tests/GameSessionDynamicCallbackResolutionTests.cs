@@ -84,7 +84,7 @@ public sealed class GameSessionDynamicCallbackResolutionTests
             return default;
         }
 
-        public ValueTask DispatchNotificationAsync(
+        public ValueTask DispatchEncodedNotificationAsync(
             int serviceId,
             int methodId,
             ReadOnlyMemory<byte> payload,
@@ -113,7 +113,7 @@ public sealed class GameSessionDynamicCallbackResolutionTests
             return default;
         }
 
-        public ValueTask DispatchNotificationAsync(
+        public ValueTask DispatchEncodedNotificationAsync(
             int serviceId,
             int methodId,
             ReadOnlyMemory<byte> payload,

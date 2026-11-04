@@ -252,7 +252,7 @@ public sealed class LakonaRpcSourceGeneratorTests
 
         Assert.Contains("IRpcNotificationDispatchTarget", proxy);
         Assert.Contains("ValueTask IRpcNotificationDispatchTarget.DispatchNotificationAsync<TPayload>(int serviceId, int methodId", proxy);
-        Assert.Contains("ValueTask IRpcNotificationDispatchTarget.DispatchNotificationAsync(int serviceId, int methodId, ReadOnlyMemory<byte> payload", proxy);
+        Assert.Contains("ValueTask IRpcNotificationDispatchTarget.DispatchEncodedNotificationAsync(int serviceId, int methodId, ReadOnlyMemory<byte> payload", proxy);
         Assert.DoesNotContain("DispatchNotificationAsync(string methodName", proxy);
         Assert.DoesNotContain("object?[] arguments", proxy);
         Assert.DoesNotContain("_ = _session.SendNotificationAsync", proxy);
@@ -351,9 +351,8 @@ public sealed class LakonaRpcSourceGeneratorTests
             ? "return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(ServiceId, 9, notice, cancellationToken: cancellationToken);"
             : "return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(ServiceId, 9, notice);", proxy);
         Assert.Contains("return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(serviceId, methodId, (global::Lakona.Game.Abstractions.SessionTerminationNotice)(object)payload!, metadata, cancellationToken);", proxy);
-        Assert.Contains("JsonSerializer.Deserialize<global::Lakona.Game.Abstractions.SessionTerminationNotice>(payload.Span)", proxy);
-        Assert.Contains("return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(serviceId, methodId, notificationPayload9, metadata, cancellationToken);", proxy);
-        Assert.DoesNotContain("SendRawAsync", proxy);
+        Assert.Contains("ValueTask IRpcNotificationDispatchTarget.DispatchEncodedNotificationAsync(", proxy);
+        Assert.Contains("return _notifications.SendRawAsync(serviceId, methodId, payload, metadata, cancellationToken);", proxy);
         Assert.DoesNotContain("LakonaInternalCodec", proxy);
         Assert.DoesNotContain("GameSessionNotificationRpcIds", proxy);
     }

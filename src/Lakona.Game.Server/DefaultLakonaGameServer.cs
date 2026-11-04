@@ -81,6 +81,7 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
     private async ValueTask<GameSessionKey> StartBoundSessionAsync(
         string ownerKey, string connectionId, string? lifecycleIdentity, CancellationToken cancellationToken)
     {
+        var policy = _deliveryPolicies.GetBindingPolicy(connectionId);
         GameSessionKey? session = null;
         GameSessionBindResult? binding = null;
         try
@@ -89,14 +90,15 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
             if (lifecycleIdentity is not null) _sessionLifecycles.Bind(session.Value, lifecycleIdentity);
             await _sessions.SetReliablePushPolicyAsync(
                 session.Value,
-                _deliveryPolicies.Get(connectionId),
+                policy.ReliablePush,
                 cancellationToken).ConfigureAwait(false);
             binding = await PrepareSessionBindingAsync(
                 session.Value,
                 connectionId,
+                policy.SerializerProfile,
                 cancellationToken).ConfigureAwait(false);
             var resumeTicket = await _resumeTickets
-                .IssueAsync(session.Value, _deliveryPolicies.GetEndpointScope(connectionId), cancellationToken)
+                .IssueAsync(session.Value, policy.EndpointScope, cancellationToken)
                 .ConfigureAwait(false);
             await _sessionEstablished.NotifyAsync(
                 connectionId,
@@ -142,14 +144,15 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         string connectionId,
         CancellationToken cancellationToken = default)
     {
+        var policy = _deliveryPolicies.GetBindingPolicy(connectionId);
         await _sessions.SetReliablePushPolicyAsync(
             session,
-            _deliveryPolicies.Get(connectionId),
+            policy.ReliablePush,
             cancellationToken).ConfigureAwait(false);
         GameSessionBindResult? binding = null;
         try
         {
-            binding = await PrepareSessionBindingAsync(session, connectionId, cancellationToken)
+            binding = await PrepareSessionBindingAsync(session, connectionId, policy.SerializerProfile, cancellationToken)
                 .ConfigureAwait(false);
             await CommitSessionBindingAsync(
                 session,
@@ -264,14 +267,15 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         _connectionStates.TryClose(connectionId);
     }
 
-    private async ValueTask<GameSessionBindResult> PrepareSessionBindingAsync(
+    private ValueTask<GameSessionBindResult> PrepareSessionBindingAsync(
         GameSessionKey session,
         string connectionId,
+        string? profile,
         CancellationToken cancellationToken)
     {
-        return await _sessions
-            .PrepareSessionBindingAsync(session, connectionId, cancellationToken)
-            .ConfigureAwait(false);
+        return profile is null
+            ? _sessions.PrepareSessionBindingAsync(session, connectionId, cancellationToken)
+            : _sessions.PrepareProfiledSessionBindingAsync(session, connectionId, profile, cancellationToken);
     }
 
     private async ValueTask CommitSessionBindingAsync(

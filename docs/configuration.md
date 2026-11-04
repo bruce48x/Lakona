@@ -86,6 +86,20 @@ composition root. Generated projects register only the implementations selected
 at project creation, so changing a name also requires adding the corresponding
 package reference and startup registration.
 
+`Serializer` names a wire profile. Use `RegisterEndpointSerializer(name, factory)`
+in the application host on every node that may send notifications to sessions
+using that profile, including business nodes with an empty `Endpoints` array.
+The host creates one serializer per registration and shares it across concurrent
+calls. Profile lookup ignores case and surrounding whitespace. For example, a
+gateway and a worker can both register `inventory-json-v2` with a factory that
+supplies the same `JsonSerializerOptions` and application converters. The
+gateway selects `"Serializer": "inventory-json-v2"` on its client endpoint.
+
+Deploy all nodes from the same application build. A profile name must identify
+the same payload encoding, converter behavior and options across those nodes
+and the corresponding clients. Give a wire-incompatible configuration a new
+profile name. A node can resolve only its registered profiles.
+
 The endpoint's effect on Game Session recovery is defined in
 [Session Lifecycle](./session.md#reliable-push-and-resume).
 

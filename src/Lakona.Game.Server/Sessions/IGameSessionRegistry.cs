@@ -54,6 +54,21 @@ public interface IGameSessionRegistry
         string connectionId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Stages the server's wire-format identity with the binding. A committed identity is immutable for this session.</summary>
+    ValueTask<GameSessionBindResult> PrepareProfiledSessionBindingAsync(
+        GameSessionKey session,
+        string connectionId,
+        string serializerProfile,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "The configured Game Session registry must implement profiled session bindings for application endpoints.");
+
+    /// <summary>Returns the committed notification serializer profile while the session is live or resumable.</summary>
+    /// <remarks>Registries without profile support return null. Encoded notifications require a known profile.</remarks>
+    ValueTask<string?> GetNotificationSerializerProfileAsync(
+        GameSessionKey session,
+        CancellationToken cancellationToken = default) => default;
+
     ValueTask CommitSessionBindingAsync(
         GameSessionKey session,
         string connectionId,

@@ -14,7 +14,7 @@ internal sealed record LakonaEndpointSerializerRegistration(
 internal sealed class LakonaEndpointRuntimeRegistry
 {
     private readonly IReadOnlyDictionary<string, LakonaEndpointTransportRegistration> _transports;
-    private readonly IReadOnlyDictionary<string, LakonaEndpointSerializerRegistration> _endpointSerializers;
+    private readonly IReadOnlyDictionary<string, IRpcSerializer> _endpointSerializers;
 
     public LakonaEndpointRuntimeRegistry(
         IEnumerable<LakonaEndpointTransportRegistration> transports,
@@ -24,21 +24,21 @@ internal sealed class LakonaEndpointRuntimeRegistry
         _endpointSerializers = BuildRegistry(
             endpointSerializers,
             static registration => registration.Name,
-            "endpoint serializer");
+            "endpoint serializer").ToDictionary(
+                static pair => pair.Key,
+                static pair => pair.Value.Factory()
+                    ?? throw new InvalidOperationException($"Endpoint serializer factory '{pair.Key}' returned null."),
+                StringComparer.OrdinalIgnoreCase);
     }
 
-    public IRpcSerializer CreateEndpointSerializer(LakonaGameEndpointOptions endpoint)
-    {
-        ArgumentNullException.ThrowIfNull(endpoint);
-        var name = Normalize(endpoint.Serializer);
-        if (!_endpointSerializers.TryGetValue(name, out var registration))
-        {
-            throw MissingRegistration("endpoint serializer", name);
-        }
+    public IRpcSerializer GetEndpointSerializer(string profileId) =>
+        !string.IsNullOrWhiteSpace(profileId) && _endpointSerializers.TryGetValue(profileId.Trim(), out var serializer)
+            ? serializer
+            : throw MissingRegistration("endpoint serializer", profileId);
 
-        return registration.Factory()
-            ?? throw new InvalidOperationException($"Endpoint serializer factory '{name}' returned null.");
-    }
+    public bool HasEndpointSerializer(string profileId) => _endpointSerializers.ContainsKey(profileId.Trim());
+
+    public static string NormalizeSerializerProfile(string name) => Normalize(name);
 
     public async ValueTask<IRpcConnectionAcceptor> CreateAcceptorAsync(
         LakonaGameEndpointOptions endpoint,

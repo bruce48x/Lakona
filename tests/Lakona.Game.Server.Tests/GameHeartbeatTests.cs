@@ -109,6 +109,9 @@ public sealed class GameHeartbeatTests
 
     private sealed class RecordingReliablePushRuntime : IReliablePushRuntime
     {
+        public ValueTask<ClientNotificationStatus> PublishGeneratedAsync<TCallback, TPayload>(GameSessionKey session,
+            int serviceId, int methodId, string methodName, TPayload payload, CancellationToken cancellationToken = default)
+            where TCallback : class => throw new NotSupportedException();
         public List<GameSessionKey> Replayed { get; } = [];
 
         public ValueTask<ClientNotificationStatus> PublishAsync(
