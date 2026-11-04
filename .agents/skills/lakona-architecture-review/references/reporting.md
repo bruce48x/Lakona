@@ -1,3 +1,31 @@
+## Write Findings For The Maintainer
+
+Give each finding a title that names the observable problem or the work it
+makes harder. Write the opening paragraph in the report's language for a
+Lakona maintainer who did not investigate the issue. Describe one concrete
+operation in time order. Say what triggers the problem, what should happen,
+and what happens or could happen instead. For a maintenance finding, show
+which change takes extra work and why.
+
+Put symbols, file links, evidence labels, and reproduction details after that
+explanation. Introduce an unfamiliar term when the reader needs it and explain
+its job. Distinguish the behavior a test actually observed from a possible
+consequence inferred from the code.
+
+For example, a Chinese report could introduce RELIABILITY-001 this way:
+
+> **热更可能让一个已经开始的请求做到一半失败**
+>
+> 新版上线后，新请求走新版，已经开始的请求应该能用旧版做完。但旧请求接下来再找框架办事时，框架把这一步也当成了新请求，拒绝它继续使用旧版。Agar 的胜场结算先保存积分，再更新排行榜。如果两步之间发生热更，玩家的积分可能已经保存，这次排行榜更新却没有发出去。
+
+The two-version test reproduced the rejection. The leaderboard consequence
+follows from the sample's call order. State that distinction in the evidence.
+
+Before returning the report, read each title and opening paragraph with the
+evidence hidden. Could a maintainer explain when the issue appears, what they
+expected, and what goes wrong or costs extra? Rewrite any opening that requires
+a source link or knowledge of an internal symbol to answer those questions.
+
 ## Evidence And Triage
 
 Report every supported finding; do not impose a numerical quota. Deduplicate
