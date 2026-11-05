@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading;
 
 namespace Lakona.Rpc.Core;
@@ -16,7 +17,11 @@ internal sealed class RpcKeepAliveState
     private long _lastReceiveTicksUtc;
     private long _lastRttTicks;
     private long _lastSendTicksUtc;
-    private long _pendingPingSentAtTicksUtc;
+    private readonly object _probeGate = new();
+    private volatile bool _probing;
+    private long _lastReceiveTimestamp;
+    private long? _probeStarted;
+    private bool _pingSubmitted;
 
     public RpcKeepAliveState(bool measureRtt)
     {
@@ -48,31 +53,58 @@ internal sealed class RpcKeepAliveState
     public void MarkReceived()
     {
         Volatile.Write(ref _lastReceiveTicksUtc, DateTimeOffset.UtcNow.UtcTicks);
-        ClearPendingPing();
+        if (!_probing) return;
+        lock (_probeGate)
+        {
+            _lastReceiveTimestamp = Stopwatch.GetTimestamp();
+            _probeStarted = null;
+        }
     }
 
-    public void MarkPingSent(long pingTimestampTicksUtc)
+    public void BeginProbing()
     {
-        Volatile.Write(ref _pendingPingSentAtTicksUtc, pingTimestampTicksUtc);
+        lock (_probeGate)
+        {
+            if (_probing) throw new InvalidOperationException("RPC keepalive is already running.");
+            _lastReceiveTimestamp = Stopwatch.GetTimestamp();
+            _probeStarted = null;
+            _probing = true;
+        }
     }
 
-    public void MarkTimedOut()
-    {
-        Volatile.Write(ref _timedOut, 1);
-    }
+    public void EndProbing() => _probing = false;
 
-    public RpcKeepAliveAction GetNextAction(long nowTicksUtc, TimeSpan interval, TimeSpan timeout)
+    public RpcKeepAliveAction GetNextAction(TimeSpan interval, TimeSpan timeout, bool canSend,
+        CancellationToken ct, out TimeSpan delay)
     {
-        var pendingPingSentAt = Volatile.Read(ref _pendingPingSentAtTicksUtc);
-        if (pendingPingSentAt > 0)
-            return new TimeSpan(nowTicksUtc - pendingPingSentAt) >= timeout
-                ? RpcKeepAliveAction.TimedOut
-                : RpcKeepAliveAction.None;
+        lock (_probeGate)
+        {
+            ct.ThrowIfCancellationRequested();
+            var now = Stopwatch.GetTimestamp();
+            if (_probeStarted is null)
+            {
+                delay = interval - Elapsed(_lastReceiveTimestamp, now);
+                if (delay > TimeSpan.Zero) return RpcKeepAliveAction.None;
 
-        var lastReceive = Volatile.Read(ref _lastReceiveTicksUtc);
-        return new TimeSpan(nowTicksUtc - lastReceive) >= interval
-            ? RpcKeepAliveAction.SendPing
-            : RpcKeepAliveAction.None;
+                // The deadline starts even if a write from the previous probe still owns the sender.
+                _probeStarted = now;
+                _pingSubmitted = false;
+            }
+
+            delay = timeout - Elapsed(_probeStarted.Value, now);
+            if (delay <= TimeSpan.Zero)
+            {
+                // Receiving a frame and committing a timeout compete under the same lock.
+                Volatile.Write(ref _timedOut, 1);
+                return RpcKeepAliveAction.TimedOut;
+            }
+
+            // An inbound frame may clear the probe and start a new idle interval while we wait.
+            if (delay > interval) delay = interval;
+            if (_pingSubmitted || !canSend) return RpcKeepAliveAction.None;
+            _pingSubmitted = true;
+            return RpcKeepAliveAction.SendPing;
+        }
     }
 
     public void RecordPong(long pongTimestampTicksUtc)
@@ -90,10 +122,8 @@ internal sealed class RpcKeepAliveState
         Volatile.Write(ref _lastRttTicks, nowTicks - pongTimestampTicksUtc);
     }
 
-    private void ClearPendingPing()
-    {
-        Volatile.Write(ref _pendingPingSentAtTicksUtc, 0);
-    }
+    private static TimeSpan Elapsed(long start, long now) =>
+        TimeSpan.FromTicks((long)((now - start) * ((double)TimeSpan.TicksPerSecond / Stopwatch.Frequency)));
 
     private static long GetTimestampOrNow(long utcTicks) =>
         utcTicks > 0 ? utcTicks : DateTimeOffset.UtcNow.UtcTicks;

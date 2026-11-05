@@ -164,8 +164,9 @@ The existing `Disconnected` event retains its drain-completion timing; it has
 no ordering guarantee relative to asynchronous state event delivery.
 
 Game clients use the RPC state event to observe a stopped generation without
-waiting for message dispatch to drain. Starting recovery still waits for the
-existing terminal event. See [Game Client Lifecycle](../session.md#game-client-lifecycle).
+waiting for message dispatch to drain. Recovery triggered by a transport
+disconnect starts when the terminal event arrives. See
+[Game Client Lifecycle](../session.md#game-client-lifecycle).
 
 Client startup links the caller's initial-connect cancellation with runtime
 shutdown. Disposal cancels and joins an outstanding connection attempt before
@@ -256,11 +257,17 @@ unexpected keepalive failure cancels the receive loop and becomes the terminal
 disconnect reason. No Session-owned task handle is discarded while its task can
 still access Session resources.
 
-Keepalive publishes a pending probe before submitting its Ping write. A peer's
-Pong or other inbound frame may be processed before that asynchronous write
-completes; send completion must not restore a probe already cleared by inbound
-activity. Outbound traffic alone does not prove peer liveness. Keepalive
-timeouts therefore remain effective when later probes receive no response.
+With RPC keepalive enabled, a client or server Session starts a probe after
+an `Interval` without inbound traffic. Its `Timeout` starts before the Ping
+enters the shared writer and continues while the Ping is queued or the
+transport is writing it. Any inbound frame ends the probe, including a Pong
+received before the Ping write completes.
+
+Each connection allows at most one queued or active Ping write. If traffic
+resumes and then falls silent again, a new probe gets its own deadline even
+while the earlier write is still pending. When a probe times out, the
+connection owner records the timeout and cancels I/O. The keepalive loop
+waits for the outstanding Ping send to finish before releasing its frame.
 
 Host cancellation or failure starts a cooperative Session drain under one host-wide
 shutdown deadline. `RpcServerHostBuilder.UseShutdownTimeout` configures that

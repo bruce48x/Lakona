@@ -32,54 +32,99 @@ internal sealed class RpcKeepAliveCoordinator
         if (interval <= TimeSpan.Zero || timeout <= TimeSpan.Zero)
             return;
 
-        while (!ct.IsCancellationRequested)
+        _state.BeginProbing();
+        try
         {
-            try
-            {
-                await Task.Delay(interval, ct).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
+            await ProbeAsync(interval, timeout, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (ObjectDisposedException) { }
+        catch (InvalidOperationException) when (!_transport.IsConnected) { }
+        finally { _state.EndProbing(); }
+    }
 
-            var nowTicks = DateTimeOffset.UtcNow.UtcTicks;
-            switch (_state.GetNextAction(nowTicks, interval, timeout))
+    private async Task ProbeAsync(TimeSpan interval, TimeSpan timeout, CancellationToken ct)
+    {
+        using var writeCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        Task? write = null;
+        bool timedOut = false;
+        try
+        {
+            while (!ct.IsCancellationRequested)
             {
-                case RpcKeepAliveAction.None:
-                    continue;
-                case RpcKeepAliveAction.TimedOut:
-                    _state.MarkTimedOut();
+                if (write is { IsCompleted: true })
+                {
+                    var completed = write;
+                    write = null;
+                    await completed.ConfigureAwait(false);
+                }
+
+                var action = _state.GetNextAction(interval, timeout, write is null, ct, out var delay);
+                if (action == RpcKeepAliveAction.TimedOut)
+                {
+                    timedOut = true;
                     _onTimedOut(new TimeoutException(_timeoutMessage));
                     return;
-                case RpcKeepAliveAction.SendPing:
-                    break;
-            }
-
-            try
-            {
-                var pingTimestamp = DateTimeOffset.UtcNow.UtcTicks;
-                using var pingBytes = RpcEnvelopeCodec.EncodeKeepAlivePing(new RpcKeepAlivePingEnvelope
+                }
+                if (action == RpcKeepAliveAction.SendPing)
                 {
-                    TimestampTicksUtc = pingTimestamp
-                });
-                // A peer can reply before the asynchronous write completes. Publish the
-                // probe first so inbound activity cannot be overwritten by this sender.
-                _state.MarkPingSent(pingTimestamp);
-                await _sender.SendAsync(pingBytes.Memory, ct).ConfigureAwait(false);
+                    // Even the synchronous part of a transport write can stall.
+                    write = Task.Run(() => SendPingAsync(writeCancellation.Token));
+                }
+                await WaitForCheckAsync(delay, write, ct).ConfigureAwait(false);
             }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        }
+        catch (AggregateException) when (timedOut && ct.IsCancellationRequested)
+        {
+            // The owner recorded the timeout before running its I/O cancellation callbacks.
+        }
+        finally
+        {
+            if (write is not null)
             {
-                return;
+                try { writeCancellation.Cancel(); }
+                catch (AggregateException) when (timedOut)
+                {
+                    // Cancellation callbacks run after the connection has committed its timeout.
+                }
+                finally
+                {
+                    try { await write.ConfigureAwait(false); }
+                    catch (Exception) when (timedOut)
+                    {
+                        // The timed-out write still owns its frame until it completes.
+                    }
+                }
             }
-            catch (ObjectDisposedException)
-            {
-                return;
-            }
-            catch (InvalidOperationException) when (!_transport.IsConnected)
-            {
-                return;
-            }
+        }
+    }
+
+    private async Task SendPingAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        using var frame = RpcEnvelopeCodec.EncodeKeepAlivePing(new RpcKeepAlivePingEnvelope
+        {
+            TimestampTicksUtc = DateTimeOffset.UtcNow.UtcTicks
+        });
+        await _sender.SendAsync(frame.Memory, ct).ConfigureAwait(false);
+    }
+
+    private static async Task WaitForCheckAsync(TimeSpan delay, Task? write, CancellationToken ct)
+    {
+        // Task.Delay truncates sub-millisecond waits and has a platform-dependent maximum.
+        if (delay < TimeSpan.FromMilliseconds(1)) delay = TimeSpan.FromMilliseconds(1);
+        if (delay > TimeSpan.FromMilliseconds(int.MaxValue)) delay = TimeSpan.FromMilliseconds(int.MaxValue);
+        if (write is null)
+        {
+            await Task.Delay(delay, ct).ConfigureAwait(false);
+            return;
+        }
+        if (write.IsCompleted) return;
+        using var timerCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var timer = Task.Delay(delay, timerCancellation.Token);
+        if (await Task.WhenAny(write, timer).ConfigureAwait(false) == write)
+        {
+            timerCancellation.Cancel();
         }
     }
 }
