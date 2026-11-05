@@ -69,6 +69,10 @@ Transport-specific behavior remains relevant:
 
 ### KCP
 
+The KCP server listener accepts UDP datagrams up to 2,048 bytes. It discards
+larger datagrams in full and continues receiving traffic for all connections.
+This limit applies to each datagram before handshake or KCP packet processing.
+
 The KCP server listener shares one UDP receive loop across connections, but it
 must not eagerly drain decoded KCP messages into a separate application frame
 queue. Datagram input remains in KCP's bounded per-connection receive window

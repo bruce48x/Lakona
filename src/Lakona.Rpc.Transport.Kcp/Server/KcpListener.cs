@@ -9,6 +9,8 @@ namespace Lakona.Rpc.Transport.Kcp
 {
     public sealed class KcpListener : IAsyncDisposable
     {
+        private const int MaxDatagramSize = 2048;
+
         private readonly Channel<KcpAcceptResult> _accepted;
         private readonly CancellationTokenSource _cts = new();
         private readonly ConcurrentDictionary<KcpSessionKey, KcpServerTransport> _sessions = new();
@@ -152,7 +154,8 @@ namespace Lakona.Rpc.Transport.Kcp
             Exception? failure = null;
             try
             {
-                var buffer = new byte[2048];
+                // A truncated receive fills the extra byte, leaving an exact-limit datagram distinguishable.
+                var buffer = new byte[MaxDatagramSize + 1];
                 EndPoint any = new IPEndPoint(
                     _socket.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0);
                 var localPort = ((IPEndPoint)_socket.LocalEndPoint!).Port;
@@ -160,23 +163,13 @@ namespace Lakona.Rpc.Transport.Kcp
                 while (!_cts.IsCancellationRequested)
                 {
                     SocketReceiveFromResult received;
+                    try
+                    {
 #if NET8_0_OR_GREATER
-                    try
-                    {
                         received = await _socket.ReceiveFromAsync(buffer, SocketFlags.None, any, _cts.Token).ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        break;
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                        break;
-                    }
 #else
-                    try
-                    {
                         received = await _socket.ReceiveFromAsync(new ArraySegment<byte>(buffer), SocketFlags.None, any).ConfigureAwait(false);
+#endif
                     }
                     catch (OperationCanceledException)
                     {
@@ -190,7 +183,12 @@ namespace Lakona.Rpc.Transport.Kcp
                     {
                         break;
                     }
-#endif
+                    catch (SocketException exception) when (exception.SocketErrorCode == SocketError.MessageSize)
+                    {
+                        continue;
+                    }
+                    if (received.ReceivedBytes > MaxDatagramSize)
+                        continue;
                     if (received.RemoteEndPoint is not IPEndPoint remoteEndPoint)
                         continue;
 

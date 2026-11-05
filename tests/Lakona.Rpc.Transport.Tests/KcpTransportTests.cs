@@ -392,6 +392,69 @@ public class KcpTransportTests
         Assert.True(firstServerTransport.IsConnected);
     }
 
+    [Theory]
+    [InlineData(2049)]
+    [InlineData(4096)]
+    public async Task KcpListener_DropsOversizedDatagramWithoutDeliveringItsValidPrefix(int datagramSize)
+    {
+        const int limit = 2048;
+        const uint conversation = 73;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        var ct = timeout.Token;
+        await using var listener = new KcpListener(new IPEndPoint(IPAddress.Loopback, 0));
+        var endpoint = (IPEndPoint)listener.LocalEndPoint!;
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        socket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        await HandshakeAsync();
+        var accepted = await listener.AcceptAsync(ct);
+        await using var existing = accepted.Transport;
+
+        var packets = new List<byte[]>();
+        var peer = new SocketKcpPeer(packet => packets.Add(packet.ToArray()));
+        using var sender = new SimpleSegManager.Kcp(conversation, peer, peer);
+        sender.SetMtu(limit);
+        var marker = new byte[limit - 24 - sizeof(uint)]; // KCP header plus the RPC length prefix.
+        marker[^1] = 0xA7;
+        SendKcpFrame(sender, marker);
+        var valid = Assert.Single(packets);
+        Assert.Equal(limit, valid.Length);
+        var oversized = new byte[datagramSize];
+        valid.CopyTo(oversized, 0);
+        oversized[limit - 1] = 0xEE;
+        if (datagramSize == 2 * limit) valid.CopyTo(oversized, limit);
+        socket.SendTo(oversized, endpoint);
+
+        // Wait for the listener to process the next datagram from the same socket before sending the marker.
+        await HandshakeAsync();
+        socket.SendTo(valid, endpoint);
+        using var received = await existing.ReceiveFrameAsync(ct);
+        // The two PUSHes share a sequence number. Delivering the bad prefix would suppress this valid frame.
+        Assert.Equal(marker, received.ToArray());
+
+        await using var fresh = new KcpTransport(IPAddress.Loopback.ToString(), endpoint.Port);
+        await fresh.ConnectAsync(ct);
+        var next = await listener.AcceptAsync(ct);
+        await using var freshServer = next.Transport;
+        byte[] request = [1, 2, 3];
+        byte[] reply = [4, 5];
+        await fresh.SendFrameAsync(request, ct);
+        using var inbound = await freshServer.ReceiveFrameAsync(ct);
+        Assert.Equal(request, inbound.ToArray());
+        await freshServer.SendFrameAsync(reply, ct);
+        using var outbound = await fresh.ReceiveFrameAsync(ct);
+        Assert.Equal(reply, outbound.ToArray());
+
+        async Task HandshakeAsync()
+        {
+            socket.SendTo(CreateHandshakeRequest(conversation), endpoint);
+            var buffer = new byte[limit];
+            EndPoint any = new IPEndPoint(IPAddress.Any, 0);
+            SocketReceiveFromResult response;
+            do { response = await socket.ReceiveFromAsync(buffer, SocketFlags.None, any, ct); }
+            while (!KcpHandshake.TryParseAck(buffer.AsSpan(0, response.ReceivedBytes), conversation, out _));
+        }
+    }
+
     [Fact]
     public async Task KcpListener_HandshakeCapacityPressure_DoesNotBlockExistingConnection()
     {
@@ -739,29 +802,22 @@ public class KcpTransportTests
         return minimum;
     }
 
-    private sealed class SocketKcpPeer : IKcpCallback, IRentable
+    private sealed class SocketKcpPeer(Action<ReadOnlyMemory<byte>> output) : IKcpCallback, IRentable
     {
-        private readonly Socket _socket;
-        private readonly EndPoint _remote;
-        private readonly Action<ReadOnlyMemory<byte>>? _onOutput;
-
         public SocketKcpPeer(
             Socket socket,
             EndPoint remote,
-            Action<ReadOnlyMemory<byte>>? onOutput = null)
-        {
-            _socket = socket;
-            _remote = remote;
-            _onOutput = onOutput;
-        }
+            Action<ReadOnlyMemory<byte>>? onOutput = null) : this(packet =>
+            {
+                onOutput?.Invoke(packet);
+                socket.SendTo(packet.Span, SocketFlags.None, remote);
+            }) { }
 
         void IKcpCallback.Output(IMemoryOwner<byte> buffer, int avalidLength)
         {
             try
             {
-                var packet = buffer.Memory.Slice(0, avalidLength);
-                _onOutput?.Invoke(packet);
-                _socket.SendTo(packet.Span, SocketFlags.None, _remote);
+                output(buffer.Memory.Slice(0, avalidLength));
             }
             finally
             {
