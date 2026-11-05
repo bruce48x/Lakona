@@ -1,4 +1,5 @@
 using System.Reflection;
+using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.BuildTag;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,8 +19,10 @@ internal static class LakonaGameServerRunner
     {
         ArgumentNullException.ThrowIfNull(host);
         Exception? primaryFailure = null;
+        LakonaServerReadinessState? readiness = null;
         try
         {
+            readiness = host.Services.GetService<LakonaServerReadinessState>();
             try
             {
                 await host.StartAsync().ConfigureAwait(false);
@@ -45,9 +48,20 @@ internal static class LakonaGameServerRunner
             }
 
             await host.WaitForShutdownAsync().ConfigureAwait(false);
+            readiness?.ListenerFailure?.Throw();
         }
         catch (Exception exception)
         {
+            // A listener may have requested shutdown while StartAsync or StopAsync
+            // was in progress. Report that first failure even if cleanup also failed.
+            var listenerFailure = readiness?.ListenerFailure;
+            if (listenerFailure is not null && !ReferenceEquals(listenerFailure.SourceException, exception))
+            {
+                primaryFailure = listenerFailure.SourceException;
+                primaryFailure.Data["Lakona.HostLifecycleFailure"] = exception;
+                listenerFailure.Throw();
+            }
+
             primaryFailure = exception;
             throw;
         }

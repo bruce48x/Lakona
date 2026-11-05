@@ -642,6 +642,17 @@ Graceful shutdown reverses the safety boundary:
 4. stop Actor Directory, publish `Dead`, and stop the node-to-node listener;
 5. retire Hotfix and stop application modules in reverse order.
 
+Once all configured RPC listeners are listening, a terminal failure in any one
+of them closes distributed-work admission and requests host shutdown.
+Standard Game client endpoints reject new business RPCs on existing connections
+with `NodeUnavailable`. Framework handshake and recovery control requests
+continue through their normal checks. Cluster RPC and custom RPC endpoints
+use their own request admission rules.
+The node withdraws from Membership through the same shutdown sequence.
+`LakonaGameServer.RunAsync` propagates the original listener failure after
+cleanup. Callers that own a host built with `LakonaGameServer.BuildAsync` can
+observe `ApplicationStopping` and must stop and dispose their host.
+
 The separation between `Stopping` and `Dead` is intentional. `Stopping` removes
 the node from new routing before cleanup starts. Directory and transport stay
 alive long enough for deactivation hooks and exact route release; only after

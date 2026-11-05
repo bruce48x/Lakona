@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using Lakona.Game.Server.Guardrails;
 
 namespace Lakona.Game.Server.Health;
@@ -7,8 +8,11 @@ internal sealed class LakonaServerReadinessState
     internal const string PendingCode = "LAKONA10150";
     internal const string FailedCode = "LAKONA10151";
     internal const string StoppingCode = "LAKONA10152";
+    internal const string ListenerFailedCode = "LAKONA10154";
 
     private Snapshot snapshot = Snapshot.Starting;
+
+    internal ExceptionDispatchInfo? ListenerFailure => Volatile.Read(ref snapshot).ListenerFailure;
 
     public IReadOnlyList<LakonaGameDiagnostic> Diagnostics
     {
@@ -18,14 +22,7 @@ internal sealed class LakonaServerReadinessState
             return current.Status switch
             {
                 Status.Ready => [],
-                Status.Failed =>
-                [
-                    new LakonaGameDiagnostic(
-                        FailedCode,
-                        LakonaGameDiagnosticSeverity.Error,
-                        $"Application component '{current.ComponentName}' failed during startup: {current.Message}",
-                        "Restore the failed application dependency and restart the server.")
-                ],
+                Status.Failed => [current.Diagnostic!],
                 Status.Stopping =>
                 [
                     new LakonaGameDiagnostic(
@@ -46,63 +43,68 @@ internal sealed class LakonaServerReadinessState
         }
     }
 
-    public void MarkReady()
-    {
-        _ = Interlocked.CompareExchange(
-            ref snapshot,
-            Snapshot.Ready,
-            Snapshot.Starting);
-    }
+    public bool MarkReady() =>
+        ReferenceEquals(Interlocked.CompareExchange(ref snapshot, Snapshot.Ready, Snapshot.Starting), Snapshot.Starting);
 
     public void MarkFailed(Type componentType, Exception exception)
     {
         ArgumentNullException.ThrowIfNull(componentType);
         ArgumentNullException.ThrowIfNull(exception);
-        Volatile.Write(
-            ref snapshot,
-            new Snapshot(
-                Status.Failed,
-                componentType.FullName ?? componentType.Name,
-                string.IsNullOrWhiteSpace(exception.Message)
-                    ? exception.GetType().Name
-                    : exception.Message));
+        TrySetTerminal(new Snapshot(Status.Failed, new LakonaGameDiagnostic(
+            FailedCode,
+            LakonaGameDiagnosticSeverity.Error,
+            $"Application component '{componentType.FullName ?? componentType.Name}' failed during startup: {Describe(exception)}",
+            "Restore the failed application dependency and restart the server.")));
     }
 
-    public void MarkStopping()
+    internal bool TryMarkListenerFailed(string transport, string address, Exception exception) =>
+        TrySetTerminal(new Snapshot(Status.Failed, new LakonaGameDiagnostic(
+            ListenerFailedCode,
+            LakonaGameDiagnosticSeverity.Error,
+            $"RPC listener '{transport}' on '{address}' stopped accepting connections: {Describe(exception)}",
+            "Route traffic to another ready node and check the listener error before restarting this node."),
+            ExceptionDispatchInfo.Capture(exception)));
+
+    private static string Describe(Exception exception) =>
+        string.IsNullOrWhiteSpace(exception.Message) ? exception.GetType().Name : exception.Message;
+
+    public void MarkStopping() => TrySetTerminal(Snapshot.Stopping);
+
+    private bool TrySetTerminal(Snapshot next)
     {
         while (true)
         {
             var current = Volatile.Read(ref snapshot);
             if (current.Status is Status.Failed or Status.Stopping)
             {
-                return;
+                return false;
             }
 
             if (ReferenceEquals(
                 Interlocked.CompareExchange(
                     ref snapshot,
-                    Snapshot.Stopping,
+                    next,
                     current),
                 current))
             {
-                return;
+                return true;
             }
         }
     }
 
     private sealed record Snapshot(
         Status Status,
-        string? ComponentName,
-        string? Message)
+        LakonaGameDiagnostic? Diagnostic = null,
+        ExceptionDispatchInfo? ListenerFailure = null)
     {
         public static Snapshot Starting { get; } =
-            new(Status.Starting, null, null);
+            new(Status.Starting);
 
         public static Snapshot Ready { get; } =
-            new(Status.Ready, null, null);
+            new(Status.Ready);
 
         public static Snapshot Stopping { get; } =
-            new(Status.Stopping, null, null);
+            new(Status.Stopping);
     }
 
     private enum Status

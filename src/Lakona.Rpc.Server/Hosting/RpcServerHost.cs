@@ -66,24 +66,24 @@ public sealed class RpcServerHost
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var connectionTasks = new TrackedTaskCollection();
-        var shutdownTimedOut = false;
+        IRpcConnectionAcceptor? acceptor = null;
         Exception? runError = null;
 
         try
         {
-            var baseAcceptor = await _acceptorFactory(cts.Token).ConfigureAwait(false);
-            // Ownership of baseAcceptor is transferred to BoundedConnectionAcceptor here.
-            // BoundedConnectionAcceptor.DisposeAsync() calls _inner.DisposeAsync() internally,
-            // so baseAcceptor must NOT be held in an "await using" — doing so causes a double-Dispose.
-            await using var acceptor = new BoundedConnectionAcceptor(
-                baseAcceptor,
+            acceptor = await _acceptorFactory(cts.Token).ConfigureAwait(false);
+            var listener = new RpcServerListeningContext(acceptor.ListenAddress);
+            // The wrapper takes ownership only after construction succeeds.
+            acceptor = new BoundedConnectionAcceptor(
+                acceptor,
                 _limits.MaxPendingAcceptedConnections,
                 _logger,
-                cts.Token);
+                cts.Token,
+                exception => NotifyListenerFailed(listener, exception));
             _logger.LogInformation(
                 "RPC server listening on {ListenAddress}.",
-                baseAcceptor.ListenAddress);
-            await NotifyListeningAsync(baseAcceptor.ListenAddress, cts.Token).ConfigureAwait(false);
+                listener.ListenAddress);
+            await NotifyListeningAsync(listener, cts.Token).ConfigureAwait(false);
 
             while (!cts.IsCancellationRequested)
             {
@@ -126,36 +126,59 @@ public sealed class RpcServerHost
         {
             try
             {
-                cts.Cancel();
-                using var shutdownDeadline = new CancellationTokenSource(_shutdownTimeout);
-                try
-                {
-                    await connectionTasks.WaitAsync(shutdownDeadline.Token).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (shutdownDeadline.IsCancellationRequested)
-                {
-                    shutdownTimedOut = true;
-                    var activeSessions = _activeSessions.Values.ToArray();
-                    _logger.LogError(
-                        "RPC server shutdown exceeded {ShutdownTimeout}; aborting {ActiveSessionCount} active Session transport(s).",
-                        _shutdownTimeout,
-                        activeSessions.Length);
-                    await AbortSessionsAsync(activeSessions, _shutdownTimeout).ConfigureAwait(false);
-                    throw new RpcServerShutdownTimeoutException(_shutdownTimeout, activeSessions.Length);
-                }
+                if (acceptor is not null)
+                    await acceptor.DisposeAsync().ConfigureAwait(false);
             }
-            catch (Exception cleanupError) when (runError is not null)
+            catch (Exception disposalError)
             {
-                // Cleanup must not replace the failure that stopped the accept loop.
-                _logger.LogError(cleanupError, "RPC server cleanup failed after the host run failed.");
+                if (runError is null)
+                {
+                    runError = disposalError;
+                    throw;
+                }
+
+                _logger.LogError(disposalError, "RPC listener disposal failed after the host run failed.");
             }
             finally
             {
-                if (shutdownTimedOut)
-                    _logger.LogWarning("Server run ended with incomplete Session cleanup after shutdown timeout.");
-                else
-                    _logger.LogInformation("Server stopped.");
+                await StopSessionsAsync(cts, connectionTasks, runError).ConfigureAwait(false);
             }
+        }
+    }
+
+    private async Task StopSessionsAsync(CancellationTokenSource cts, TrackedTaskCollection connectionTasks, Exception? runError)
+    {
+        var shutdownTimedOut = false;
+        try
+        {
+            cts.Cancel();
+            using var shutdownDeadline = new CancellationTokenSource(_shutdownTimeout);
+            try
+            {
+                await connectionTasks.WaitAsync(shutdownDeadline.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (shutdownDeadline.IsCancellationRequested)
+            {
+                shutdownTimedOut = true;
+                var activeSessions = _activeSessions.Values.ToArray();
+                _logger.LogError(
+                    "RPC server shutdown exceeded {ShutdownTimeout}; aborting {ActiveSessionCount} active Session transport(s).",
+                    _shutdownTimeout,
+                    activeSessions.Length);
+                await AbortSessionsAsync(activeSessions, _shutdownTimeout).ConfigureAwait(false);
+                throw new RpcServerShutdownTimeoutException(_shutdownTimeout, activeSessions.Length);
+            }
+        }
+        catch (Exception cleanupError) when (runError is not null)
+        {
+            _logger.LogError(cleanupError, "RPC server cleanup failed after the host run failed.");
+        }
+        finally
+        {
+            if (shutdownTimedOut)
+                _logger.LogWarning("Server run ended with incomplete Session cleanup after shutdown timeout.");
+            else
+                _logger.LogInformation("Server stopped.");
         }
     }
 
@@ -241,16 +264,27 @@ public sealed class RpcServerHost
     }
 
     private async ValueTask NotifyListeningAsync(
-        string listenAddress,
+        RpcServerListeningContext context,
         CancellationToken cancellationToken)
     {
-        if (_serverLifecycleObservers.Count == 0)
-            return;
-
-        var context = new RpcServerListeningContext(listenAddress);
         foreach (var observer in _serverLifecycleObservers)
         {
             await observer.OnListeningAsync(context, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private void NotifyListenerFailed(RpcServerListeningContext context, Exception exception)
+    {
+        foreach (var observer in _serverLifecycleObservers)
+        {
+            try
+            {
+                observer.OnListenerFailed(context, exception);
+            }
+            catch (Exception observerError)
+            {
+                _logger.LogError(observerError, "Failed to notify an observer of the listener failure on {ListenAddress}.", context.ListenAddress);
+            }
         }
     }
 

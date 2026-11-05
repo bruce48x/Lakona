@@ -60,8 +60,8 @@ public sealed class LakonaGameReadinessEvaluator
                     new LakonaGameDiagnostic(
                         DistributedAdmissionClosedCode,
                         LakonaGameDiagnosticSeverity.Error,
-                        "Distributed-work admission is closed because this node is not Active in the membership table.",
-                        "Wait for this node to join the cluster, or route traffic to an Active node.")
+                        "This node is not accepting new distributed work.",
+                        "Route traffic to a ready node.")
                 ]
                 : [])
             .ToArray();

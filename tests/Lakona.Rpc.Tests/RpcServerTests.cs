@@ -971,18 +971,20 @@ public class RpcSessionTests
         Assert.Equal(1, acceptor.DisposeCount);
     }
 
-    [Fact]
-    public async Task RunAsync_WhenConnectionAcceptorFaults_PropagatesOriginalException()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RunAsync_WhenConnectionAcceptorFaults_PropagatesOriginalException(bool cleanupFails)
     {
-        var expected = new InvalidOperationException("accept failed");
-        var acceptor = new FaultingConnectionAcceptor(expected);
+        var expected = new IOException("accept failed");
+        var acceptor = new FaultingConnectionAcceptor(expected, cleanupFails ? new IOException("dispose failed") : null);
         var host = RpcServerHostBuilder.Create()
             .UseSerializer(new JsonRpcSerializer())
             .UseAcceptor(acceptor)
             .ConfigureServices(_ => { })
             .Build();
 
-        var actual = await Assert.ThrowsAsync<InvalidOperationException>(
+        var actual = await Assert.ThrowsAsync<IOException>(
             () => host.RunAsync().AsTask());
 
         Assert.Same(expected, actual);

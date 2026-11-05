@@ -151,9 +151,13 @@ through the host without accessing `RpcSession`.
 - `IRpcSessionRequestGate`, `RpcSessionRequestGateContext`, and
   `RpcSessionRequestGateResult`.
 
-The server lifecycle observer receives listener readiness only. Session
-admission gates receive connection identity. Session
-lifecycle and request hooks receive connection identity and request metadata.
+The server lifecycle observer receives the listen address in `OnListeningAsync`.
+A hosting integration can implement `OnListenerFailed` to receive the address
+and original exception when the accept loop fails. Its default implementation
+is empty. Observers should signal their supervisor and return promptly so the
+accept loop can finish. Session admission gates receive connection
+identity. Session lifecycle and request hooks receive connection identity and
+request metadata.
 Admission leases, cancellation, and terminal observer timing follow
 [Host And Session Lifetime](architecture.md#host-and-session-lifetime).
 Business services should continue to use generated contracts and binders.

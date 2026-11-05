@@ -2,6 +2,7 @@ using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hosting;
+using Lakona.Game.Server.Health;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
@@ -530,9 +531,10 @@ public sealed class GameHandshakeGateTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Business_rpc_is_rejected_before_handshake_and_allowed_after_handshake(bool handlerFails)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Business_rpc_requires_a_handshake_and_healthy_listeners(bool handlerFails, bool failListener)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var serializer = new FrameworkDtoRejectingSerializer(new JsonRpcSerializer());
@@ -647,6 +649,21 @@ public sealed class GameHandshakeGateTests
             else
             {
                 Assert.Equal("after:ok", await after);
+            }
+
+            if (failListener)
+            {
+                Assert.True(provider.GetRequiredService<LakonaServerReadinessState>()
+                    .TryMarkListenerFailed("other-listener", "test://failed", new IOException("accept failed")));
+                var denied = await Assert.ThrowsAsync<RpcException>(() => client.CallAsync(
+                    new RpcMethod<string, string>(10, 1), "after failure", cancellationToken).AsTask()
+                    .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken));
+                Assert.Equal(RpcStatus.InternalError, denied.Status);
+                Assert.Equal("NodeUnavailable", denied.ErrorMessage);
+                using var lastHeartbeat = await client.CallRawAsync(GameHeartbeatRpcIds.ServiceId,
+                    GameHeartbeatRpcIds.HeartbeatMethodId, heartbeatPayload, cancellationToken).AsTask()
+                    .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+                Assert.Equal(GameHeartbeatStatus.Ok, LakonaInternalCodec.DecodeGameHeartbeatReply(lastHeartbeat.Memory).Status);
             }
         }
         finally

@@ -46,7 +46,11 @@ internal sealed class LakonaServerStartupHostedService(
             throw;
         }
 
-        readiness.MarkReady();
+        if (!readiness.MarkReady())
+        {
+            readiness.ListenerFailure?.Throw();
+            return;
+        }
         var buildTag = HotfixBuildTag.Get(Assembly.GetEntryAssembly() ?? typeof(LakonaServerStartupHostedService).Assembly);
         logger.LogInformation(
             "Lakona server started successfully. NodeId={NodeId}. LakonaBuildTag={LakonaBuildTag}.",

@@ -225,10 +225,12 @@ bounded transport connection; application and framework policy belongs to the
 host's Session admission gates.
 
 The host's bounded acceptor wrapper owns every accepted connection until it is
-handed to the host loop. An unexpected inner accept failure completes that
-accept interface with the original cause; `AcceptAsync` is the single runtime
-failure path, while `DisposeAsync` separately reports cleanup failures only
-after the inner acceptor and every buffered connection have been released.
+handed to the host loop. If the accept loop fails unexpectedly, it calls
+`IRpcServerLifecycleObserver.OnListenerFailed` with the listen address and
+original exception before listener disposal or Session drain. The first accept
+can fail synchronously, so a supervisor may receive this callback before
+`OnListeningAsync`. The accept interface completes with the original cause.
+The host still owns cleanup of the acceptor, buffered connections and Sessions.
 
 Each Session also owns a finite request budget: active handlers plus the queued
 requests waiting for a concurrency slot. When that budget is full, the receive

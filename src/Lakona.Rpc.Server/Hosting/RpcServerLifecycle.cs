@@ -12,7 +12,7 @@ public sealed record RpcServerListeningContext(string ListenAddress);
 public interface IRpcServerLifecycleObserver
 {
     /// <summary>
-    ///     Runs after the connection acceptor has been created and before the accept loop starts.
+    ///     Runs after the connection acceptor has been created and before the host dispatches accepted connections.
     /// </summary>
     /// <param name="context">Ready listener information.</param>
     /// <param name="cancellationToken">Host cancellation token.</param>
@@ -20,4 +20,12 @@ public interface IRpcServerLifecycleObserver
     ValueTask OnListeningAsync(
         RpcServerListeningContext context,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Runs when the transport stops accepting connections unexpectedly, before listener
+    ///     disposal and Session cleanup. The first accept can fail before the listening notification.
+    /// </summary>
+    /// <param name="context">Address of the failed listener.</param>
+    /// <param name="exception">The original accept failure.</param>
+    void OnListenerFailed(RpcServerListeningContext context, Exception exception) { }
 }

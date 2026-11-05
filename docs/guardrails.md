@@ -67,6 +67,11 @@ publication and Startup Actors. Failure reverses successfully activated
 components. Pending, failed and stopping states appear in the normal readiness
 snapshot. See [Hotfix Components](./hotfix/components.md).
 
+Once all configured RPC listeners are listening, a terminal failure in any one
+of them makes the node NotReady with `LAKONA10154`. Check the affected endpoint
+and the original exception in the server logs. A listener failure before this
+point triggers startup rollback.
+
 Run readiness validation through the health route on the management HTTP listener:
 
 ```bash

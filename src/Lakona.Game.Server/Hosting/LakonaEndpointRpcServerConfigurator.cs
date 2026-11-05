@@ -4,6 +4,7 @@ using Lakona.Rpc.Server;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Server.Configuration;
+using Lakona.Game.Server.Health;
 using Lakona.Game.Server.ReliablePush;
 using Lakona.Game.Server.Sessions;
 using Lakona.Rpc.Core;
@@ -50,7 +51,10 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
             _endpoint.ConnectionLimits,
             loggerFactory?.CreateLogger<GameHandshakeConnectionAdmissionGate>()
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<GameHandshakeConnectionAdmissionGate>.Instance));
-        builder.UseSessionRequestGate(new GameHandshakeRpcGate(handshakeStates, context.Services.GetService<IGameSessionRegistry>()));
+        builder.UseSessionRequestGate(new GameHandshakeRpcGate(
+            handshakeStates,
+            context.Services.GetService<IGameSessionRegistry>(),
+            context.Services.GetService<LakonaServerReadinessState>()));
         BindGameFrameworkRpcs(builder.ServiceRegistry, context.Services, handshakeStates, serializerProfile);
 
         foreach (var observer in context.Services.GetServices<IRpcSessionLifecycleObserver>())

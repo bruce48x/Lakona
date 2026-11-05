@@ -18,7 +18,8 @@ internal sealed class BoundedConnectionAcceptor : IRpcConnectionAcceptor
         IRpcConnectionAcceptor inner,
         int maxPendingAcceptedConnections,
         ILogger logger,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Action<Exception>? onListenerFailed = null)
     {
         if (maxPendingAcceptedConnections <= 0)
             throw new ArgumentOutOfRangeException(
@@ -40,7 +41,7 @@ internal sealed class BoundedConnectionAcceptor : IRpcConnectionAcceptor
         // Start accepting immediately. Scheduling this loop through Task.Run can leave a
         // newly started host idle while the thread pool is saturated by concurrent builds
         // or tests, even though the acceptor itself already exposes an asynchronous API.
-        _acceptLoop = AcceptLoopAsync();
+        _acceptLoop = AcceptLoopAsync(onListenerFailed);
     }
 
     public string ListenAddress => _inner.ListenAddress;
@@ -112,7 +113,7 @@ internal sealed class BoundedConnectionAcceptor : IRpcConnectionAcceptor
         cleanupFailure?.Throw();
     }
 
-    private async Task AcceptLoopAsync()
+    private async Task AcceptLoopAsync(Action<Exception>? onListenerFailed)
     {
         Exception? failure = null;
         try
@@ -138,6 +139,8 @@ internal sealed class BoundedConnectionAcceptor : IRpcConnectionAcceptor
         catch (Exception exception)
         {
             failure = exception;
+            if (!_disposeCts.IsCancellationRequested)
+                onListenerFailed?.Invoke(exception);
         }
         finally
         {
