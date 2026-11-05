@@ -573,8 +573,9 @@ sequenceDiagram
         C->>E: Reserved establishment acknowledgement
         E->>S: Commit active binding
         C->>E: Next framework heartbeat confirms active session
-        E->>O: Open replay barrier
-        O-->>C: Replay pending reliable notifications before live delivery
+        E->>O: Replay pending notifications in sequence order
+        O-->>C: Send retained reliable notifications
+        O->>S: Open live delivery for this committed connection
     else Attempt is retryable before deadline
         E-->>C: Retryable transport or handshake failure
         Note over C,E: Retry with bounded backoff and a fresh transport
@@ -952,10 +953,16 @@ Reliable receipt order is contiguous per Game Session id. A
 duplicate is acknowledged without another queue admission; the exact next
 sequence is enqueued and acknowledged; a later sequence across a gap is neither
 enqueued nor acknowledged, and the session remains poisoned until a new
-validated session starts with a new id. After rebind, live reliable publication
-is retained but withheld until the next framework heartbeat establishes the
-replay barrier. Serialized outbox publication then sends pending commands in
-order before allowing newer live commands to reach the client.
+validated session starts with a new id. After rebind, the owner serializes the
+recovery heartbeat and live publications for that session. A publication that
+goes first while replay is pending is retained and included in the replay.
+A publication that follows a successful replay can send immediately.
+
+The heartbeat opens live delivery and business request admission after every
+pending send succeeds on its connection. An empty outbox can open immediately.
+The registry verifies the committed connection when it opens the gate. A failed
+or canceled send leaves the gate closed for a later heartbeat. A heartbeat from
+a superseded connection cannot release the new connection's gate.
 
 Acknowledgement confirms successful client queue admission, not business
 completion. The client advances `LastReceivedSequence` after admission and
@@ -1002,6 +1009,13 @@ sequence or recover its pending notifications. The resume-ticket store and
 reliable-push outbox are internal implementation contracts. Replacing the public
 session registry alone does not persist tickets and pending messages or
 transfer the exact gateway incarnation encoded in the session locator.
+
+A custom `IGameSessionRegistry` that supports reliable recovery must implement
+`TryMarkReliableReplayReadyAsync`. It must atomically verify the committed
+connection ID and clear the replay hold for that binding. The default
+implementation throws `NotSupportedException`. Heartbeats with no recovery
+hold do not require this operation. The existing `MarkReliableReplayReadyAsync`
+method remains available to its callers.
 
 Business services must not expose reliable-push ack RPC methods, and
 `ILakonaGameServer` must not expose reliable-push publish, replay, or ack
@@ -1151,10 +1165,10 @@ owner replies, failure, and shutdown. The response barrier waits these captured
 items, not for the entire session queue to become idle, and never waits for client
 business processing or ACK. Publication failures map to an RPC error.
 
-During replay hold, owner publication returns `Retained`: the outbox owns the
-record but has not sent it. This result also crosses the remote batch protocol
-and cannot satisfy the response barrier. Business request admission rejects
-`ReliableReplayPending` while framework recovery traffic remains enabled.
+A publication admitted ahead of replay while the hold is active returns
+`Retained`. The outbox owns the record for replay. This result also crosses the
+remote batch protocol and cannot satisfy the response barrier. Business request
+admission rejects `ReliableReplayPending` while framework recovery traffic remains enabled.
 Generated clients complete an immediate recovery heartbeat before marking the
 replacement connection recovered; periodic heartbeat scheduling resumes afterward.
 

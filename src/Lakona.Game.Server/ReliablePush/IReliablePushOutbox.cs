@@ -12,6 +12,7 @@ internal interface IReliablePushOutbox
     ValueTask ReplayPendingAsync(
         string ownerKey,
         Func<ReliablePushRecord, ValueTask> deliver,
+        Func<ValueTask>? onReplayed = null,
         CancellationToken cancellationToken = default);
 
     ValueTask AckAsync(string ownerKey, long sequence, CancellationToken cancellationToken = default);

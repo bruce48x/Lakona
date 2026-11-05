@@ -75,7 +75,7 @@ public sealed class EndpointEncodedNotificationTests
         if (reliable)
         {
             payload.Value = -1;
-            await owner.GetRequiredService<IReliablePushRuntime>().ReplayPendingAsync(key, ct);
+            await owner.GetRequiredService<IReliablePushRuntime>().ReplayPendingAsync(key, connectionId, ct);
             Assert.Equal(first, await ReceiveAsync());
         }
 

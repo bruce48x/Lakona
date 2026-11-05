@@ -243,7 +243,7 @@ public sealed class ClientNotificationDirectRoutingTests
 
         Assert.Equal(ClientNotificationStatus.Accepted,
             await dispatcher.DispatchAsync(command, TestContext.Current.CancellationToken));
-        await runtime.ReplayPendingAsync(new GameSessionKey(command.OwnerKey, command.SessionId), TestContext.Current.CancellationToken);
+        await runtime.ReplayPendingAsync(new GameSessionKey(command.OwnerKey, command.SessionId), "resumed-connection", TestContext.Current.CancellationToken);
 
         Assert.Single(runtime.Published);
         Assert.Single(runtime.Resumed);
@@ -316,7 +316,7 @@ public sealed class ClientNotificationDirectRoutingTests
             return new(ClientNotificationStatus.Accepted);
         }
 
-        public ValueTask ReplayPendingAsync(GameSessionKey session, CancellationToken cancellationToken = default)
+        public ValueTask ReplayPendingAsync(GameSessionKey session, string connectionId, CancellationToken cancellationToken = default)
         {
             Resumed.Add(session);
             return default;

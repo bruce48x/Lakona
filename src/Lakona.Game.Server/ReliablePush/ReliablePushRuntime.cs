@@ -56,9 +56,6 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
         CancellationToken cancellationToken)
     {
         var immediateStatus = ClientNotificationStatus.RouteNotFound;
-        var replayPending = await _sessions
-            .IsReliableReplayPendingAsync(session, cancellationToken)
-            .ConfigureAwait(false);
         try
         {
             await _outbox.PublishAsync(
@@ -67,15 +64,17 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
                 command,
                 async record =>
                 {
-                    if (replayPending)
+                    // Capture the destination before checking its hold. A rebind must never
+                    // redirect an admitted write onto a connection still waiting for replay.
+                    var connectionId = await _sessions.GetConnectionIdAsync(session, cancellationToken).ConfigureAwait(false);
+                    if (await _sessions.IsReliableReplayPendingAsync(session, cancellationToken).ConfigureAwait(false))
                     {
                         immediateStatus = ClientNotificationStatus.Retained;
                         return;
                     }
-                    immediateStatus = await DispatchRecordAsync(
-                        session,
-                        record,
-                        cancellationToken).ConfigureAwait(false);
+                    immediateStatus = connectionId is null
+                        ? ClientNotificationStatus.CallbackUnavailable
+                        : await DispatchRecordAsync(session, record, connectionId, cancellationToken).ConfigureAwait(false);
                 },
                 cancellationToken).ConfigureAwait(false);
         }
@@ -124,6 +123,7 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
 
     public async ValueTask ReplayPendingAsync(
         GameSessionKey session,
+        string connectionId,
         CancellationToken cancellationToken = default)
     {
         if (!await _sessions.GetReliablePushPolicyAsync(session, cancellationToken).ConfigureAwait(false))
@@ -131,20 +131,33 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
             return;
         }
 
+        var held = await _sessions.IsReliableReplayPendingAsync(session, cancellationToken).ConfigureAwait(false);
         try
         {
-            await _sessions.MarkReliableReplayReadyAsync(session, cancellationToken).ConfigureAwait(false);
             await _outbox.ReplayPendingAsync(
                 session,
                 async record =>
                 {
-                    await DispatchRecordAsync(session, record, cancellationToken).ConfigureAwait(false);
+                    if (await _sessions.GetConnectionIdAsync(session, cancellationToken).ConfigureAwait(false) != connectionId)
+                        throw new InvalidOperationException("The connection was replaced during reliable replay.");
+
+                    var status = await DispatchRecordAsync(session, record, connectionId, cancellationToken).ConfigureAwait(false);
+                    if (status != ClientNotificationStatus.Accepted)
+                        throw new InvalidOperationException($"Reliable replay could not send sequence {record.Sequence}: {status}.");
                 },
+                held ? CompleteReplayAsync : null,
                 cancellationToken).ConfigureAwait(false);
         }
         catch (ReliablePushContinuityLostException)
         {
             await _sessions.MarkReliableContinuityLostAsync(session, cancellationToken).ConfigureAwait(false);
+            if (held) throw;
+        }
+
+        async ValueTask CompleteReplayAsync()
+        {
+            if (!await _sessions.TryMarkReliableReplayReadyAsync(session, connectionId, cancellationToken).ConfigureAwait(false))
+                throw new InvalidOperationException("The connection can no longer complete reliable replay.");
         }
     }
 
@@ -170,6 +183,7 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
     private async ValueTask<ClientNotificationStatus> DispatchRecordAsync(
         GameSessionKey session,
         ReliablePushRecord record,
+        string connectionId,
         CancellationToken cancellationToken)
     {
         if (record.Payload is not ClientNotificationCommand command)
@@ -186,7 +200,7 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
                 record.Kind))
         };
 
-        return await _localDispatcher.DispatchAsync(command, cancellationToken).ConfigureAwait(false);
+        return await _localDispatcher.DispatchAsync(command, connectionId, cancellationToken).ConfigureAwait(false);
     }
 
     private static string CreateRecordKind(ClientNotificationCommand command)

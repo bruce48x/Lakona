@@ -66,9 +66,13 @@ internal sealed class LocalClientNotificationCommandDispatcher
         return ClientNotificationStatus.Accepted;
     }
 
-    public async ValueTask<ClientNotificationStatus> DispatchAsync(
+    public ValueTask<ClientNotificationStatus> DispatchAsync(
         ClientNotificationCommand command,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        DispatchAsync(command, null, cancellationToken);
+
+    internal async ValueTask<ClientNotificationStatus> DispatchAsync(
+        ClientNotificationCommand command, string? connectionId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
         cancellationToken.ThrowIfCancellationRequested();
@@ -83,9 +87,9 @@ internal sealed class LocalClientNotificationCommandDispatcher
             return ClientNotificationStatus.CallbackUnavailable;
         }
 
-        var callback = await _callbacks
-            .ResolveAsync(callbackType, session, cancellationToken)
-            .ConfigureAwait(false);
+        var callback = connectionId is null
+            ? await _callbacks.ResolveAsync(callbackType, session, cancellationToken).ConfigureAwait(false)
+            : _callbacks.Resolve(callbackType, connectionId);
         if (callback is null)
         {
             return ClientNotificationStatus.CallbackUnavailable;

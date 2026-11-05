@@ -883,14 +883,14 @@ public sealed class LakonaGameServerTests
         await ((ClientNotificationCommandRouter)provider.GetRequiredService<IClientNotificationCommandRouter>())
             .WaitForIdleAsync(session, TestContext.Current.CancellationToken);
 
-        await reliablePush.ReplayPendingAsync(session, TestContext.Current.CancellationToken);
+        await reliablePush.ReplayPendingAsync(session, "connection-a", TestContext.Current.CancellationToken);
 
         var outcome = await reliablePush.AckAsync(
             session,
             session,
             1,
             TestContext.Current.CancellationToken);
-        await reliablePush.ReplayPendingAsync(session, TestContext.Current.CancellationToken);
+        await reliablePush.ReplayPendingAsync(session, "connection-a", TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientNotificationStatus.Accepted, publish);
         Assert.Equal(["payload", "payload"], callback.Delivered);
@@ -931,7 +931,7 @@ public sealed class LakonaGameServerTests
                 "payload");
         await ((ClientNotificationCommandRouter)provider.GetRequiredService<IClientNotificationCommandRouter>())
             .WaitForIdleAsync(session, TestContext.Current.CancellationToken);
-        await reliablePush.ReplayPendingAsync(session, TestContext.Current.CancellationToken);
+        await reliablePush.ReplayPendingAsync(session, "connection-a", TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientNotificationStatus.Accepted, publish);
         Assert.Equal(["payload", "payload"], callback.Delivered);

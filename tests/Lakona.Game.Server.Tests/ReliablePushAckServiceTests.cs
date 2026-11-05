@@ -28,8 +28,8 @@ public sealed class ReliablePushAckServiceTests
             TestContext.Current.CancellationToken);
         var oldReplayed = new List<ReliablePushRecord>();
         var newReplayed = new List<ReliablePushRecord>();
-        await outbox.ReplayPendingAsync(oldSession, Capture(oldReplayed), TestContext.Current.CancellationToken);
-        await outbox.ReplayPendingAsync(newSession, Capture(newReplayed), TestContext.Current.CancellationToken);
+        await outbox.ReplayPendingAsync(oldSession, Capture(oldReplayed), cancellationToken: TestContext.Current.CancellationToken);
+        await outbox.ReplayPendingAsync(newSession, Capture(newReplayed), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(ReliablePushAckStatus.Accepted, outcome.Status);
         Assert.Empty(oldReplayed);
@@ -54,7 +54,7 @@ public sealed class ReliablePushAckServiceTests
             1,
             TestContext.Current.CancellationToken);
         var replayed = new List<ReliablePushRecord>();
-        await outbox.ReplayPendingAsync(current, Capture(replayed), TestContext.Current.CancellationToken);
+        await outbox.ReplayPendingAsync(current, Capture(replayed), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(ReliablePushAckStatus.SessionMismatch, outcome.Status);
         Assert.Single(replayed);

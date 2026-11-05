@@ -22,6 +22,7 @@ internal interface IReliablePushRuntime
 
     ValueTask ReplayPendingAsync(
         GameSessionKey session,
+        string connectionId,
         CancellationToken cancellationToken = default);
 
     ValueTask<ReliablePushAckOutcome> AckAsync(

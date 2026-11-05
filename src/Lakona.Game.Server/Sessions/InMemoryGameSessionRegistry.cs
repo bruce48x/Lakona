@@ -211,6 +211,27 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
         return default;
     }
 
+    public ValueTask<bool> TryMarkReliableReplayReadyAsync(
+        GameSessionKey session, string connectionId, CancellationToken cancellationToken = default)
+    {
+        ValidateSession(session);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_sessions.TryGetValue(session, out var state))
+            return new(false);
+
+        lock (state.Gate)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (state.ConnectionId != connectionId || state.PendingBinding is not null ||
+                state.DisconnectedAt is not null || state.Termination is not null || state.ReliableContinuityLost)
+                return new(false);
+
+            state.ReliableReplayPending = false;
+            return new(true);
+        }
+    }
+
     public ValueTask<GameSessionSnapshot?> TakeResumedSessionAsync(
         GameSessionKey expectedSession, string connectionId, CancellationToken cancellationToken = default)
     {
@@ -991,8 +1012,11 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionRegistry
                     $"Game session '{session}' disconnected before its binding could be committed.");
             }
 
-            state.ResumeNotificationPending |= pending.DisconnectedAt is not null ||
+            var isReplacement = pending.DisconnectedAt is not null ||
                 (pending.PreviousConnectionId is not null && pending.PreviousConnectionId != connectionId);
+            state.ResumeNotificationPending |= isReplacement;
+            if (isReplacement && state.ReliablePushPolicy == true)
+                state.ReliableReplayPending = true;
             state.SerializerProfile = pending.SerializerProfile;
             if (pending.PreviousConnectionId != connectionId)
                 RemoveConnectionMapping(_connectionToSession, pending.PreviousConnectionId, session);

@@ -57,7 +57,7 @@ public sealed class ReliablePushDiagnosticsTests
         Assert.Equal(new KeyValuePair<string, object?>("reason", "capacity"), Assert.Single(measurement.Tags));
 
         await runtime.AckAsync(session, session, 302, Token);
-        await runtime.ReplayPendingAsync(session, Token);
+        await runtime.ReplayPendingAsync(session, "first", Token);
         Assert.Equal(ClientNotificationStatus.Failed, await runtime.PublishAsync(session, Command(session), Token));
         Assert.Equal(302, callback.Deliveries);
         Assert.Single(evidence.Logs);
@@ -110,10 +110,10 @@ public sealed class ReliablePushDiagnosticsTests
         Assert.Equal(33, evidence.Measurements.Sum(m => m.Value));
         Assert.False(await sessions.IsReliableContinuityLostAsync(session, Token));
         callback.Failure = null;
-        await runtime.ReplayPendingAsync(session, Token);
+        await runtime.ReplayPendingAsync(session, "first", Token);
         Assert.Equal(1, callback.Deliveries);
         await runtime.AckAsync(session, session, 1, Token);
-        await runtime.ReplayPendingAsync(session, Token);
+        await runtime.ReplayPendingAsync(session, "first", Token);
         Assert.Equal(1, callback.Deliveries);
         Assert.Equal(ClientNotificationStatus.Accepted, await runtime.PublishAsync(session, Command(session), Token));
     }

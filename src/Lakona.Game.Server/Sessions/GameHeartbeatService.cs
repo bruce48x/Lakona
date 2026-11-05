@@ -82,7 +82,8 @@ public sealed class GameHeartbeatService : IGameHeartbeatService
 
                 if (!string.IsNullOrWhiteSpace(request.SessionId))
                 {
-                    await ReplayPendingAsync(activeSession, cancellationToken).ConfigureAwait(false);
+                    if (_reliablePush is not null)
+                        await _reliablePush.ReplayPendingAsync(activeSession, connectionId, cancellationToken).ConfigureAwait(false);
                     var resumed = await _sessions.TakeResumedSessionAsync(activeSession, connectionId, cancellationToken).ConfigureAwait(false);
                     if (resumed is not null)
                     {
@@ -118,16 +119,6 @@ public sealed class GameHeartbeatService : IGameHeartbeatService
                     Status = GameHeartbeatStatus.StateLost,
                     Message = "Game session state was lost."
                 };
-        }
-    }
-
-    private async ValueTask ReplayPendingAsync(
-        GameSessionKey session,
-        CancellationToken cancellationToken)
-    {
-        if (_reliablePush is not null)
-        {
-            await _reliablePush.ReplayPendingAsync(session, cancellationToken).ConfigureAwait(false);
         }
     }
 }

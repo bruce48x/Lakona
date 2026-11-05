@@ -32,9 +32,9 @@ internal sealed class GameSessionCallbackResolver
         ArgumentNullException.ThrowIfNull(callbackContractType);
         var connectionId = await sessions.GetConnectionIdAsync(session, cancellationToken)
             .ConfigureAwait(false);
-        if (connectionId is null || connections.Get(connectionId) is not { } connection)
-            return null;
-
-        return callbackProxies.TryCreate(callbackContractType, connection);
+        return connectionId is null ? null : Resolve(callbackContractType, connectionId);
     }
+
+    internal object? Resolve(Type callbackContractType, string connectionId) =>
+        connections.Get(connectionId) is { } connection ? callbackProxies.TryCreate(callbackContractType, connection) : null;
 }

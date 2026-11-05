@@ -40,7 +40,7 @@ public sealed class ReliablePushOutboxTests
         await outbox.AckAsync("player-a", 1, cancellationToken);
         var replayed = new List<ReliablePushRecord>();
 
-        await outbox.ReplayPendingAsync("player-a", Capture(replayed), cancellationToken);
+        await outbox.ReplayPendingAsync("player-a", Capture(replayed), cancellationToken: cancellationToken);
 
         Assert.Collection(
             replayed,
@@ -59,7 +59,7 @@ public sealed class ReliablePushOutboxTests
 
         await outbox.AckAsync("player-a", 2, cancellationToken);
         var replayed = new List<ReliablePushRecord>();
-        await outbox.ReplayPendingAsync("player-a", Capture(replayed), cancellationToken);
+        await outbox.ReplayPendingAsync("player-a", Capture(replayed), cancellationToken: cancellationToken);
 
         var record = Assert.Single(replayed);
         Assert.Equal(3, record.Sequence);
@@ -79,7 +79,7 @@ public sealed class ReliablePushOutboxTests
         var replayed = new List<ReliablePushRecord>();
 
         var replayFailure = await Assert.ThrowsAsync<ReliablePushContinuityLostException>(() => outbox
-            .ReplayPendingAsync("player-a", Capture(replayed), cancellationToken)
+            .ReplayPendingAsync("player-a", Capture(replayed), cancellationToken: cancellationToken)
             .AsTask());
         Assert.False(replayFailure.NewlyLost);
 
@@ -96,7 +96,7 @@ public sealed class ReliablePushOutboxTests
 
         var sequence = await outbox.PublishAsync("player-a", "MatchReady", "ready", Capture(delivered), cancellationToken);
         var replayed = new List<ReliablePushRecord>();
-        await outbox.ReplayPendingAsync("player-a", Capture(replayed), cancellationToken);
+        await outbox.ReplayPendingAsync("player-a", Capture(replayed), cancellationToken: cancellationToken);
 
         Assert.Equal(1, sequence);
         var record = Assert.Single(delivered);
@@ -132,7 +132,7 @@ public sealed class ReliablePushOutboxTests
         await outbox.ReplayPendingAsync(
             "player-a",
             Capture(replayed),
-            TestContext.Current.CancellationToken);
+            cancellationToken: TestContext.Current.CancellationToken);
         Assert.Empty(replayed);
     }
 

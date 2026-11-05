@@ -26,12 +26,14 @@ internal static class ReliablePushOutboxSessionExtensions
         this IReliablePushOutbox outbox,
         GameSessionKey session,
         Func<ReliablePushRecord, ValueTask> deliver,
+        Func<ValueTask>? onReplayed = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(outbox);
         return outbox.ReplayPendingAsync(
             ReliablePushSessionOwnerKey.Create(session),
             deliver,
+            onReplayed,
             cancellationToken);
     }
 

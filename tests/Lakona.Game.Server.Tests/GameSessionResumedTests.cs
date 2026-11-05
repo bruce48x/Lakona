@@ -123,14 +123,14 @@ public sealed class GameSessionResumedTests
         public bool Block;
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public async ValueTask ReplayPendingAsync(GameSessionKey session, CancellationToken cancellationToken = default)
+        public async ValueTask ReplayPendingAsync(GameSessionKey session, string connectionId, CancellationToken cancellationToken = default)
         {
             if (Block)
             {
                 Entered.TrySetResult();
                 await Release.Task.WaitAsync(cancellationToken);
             }
-            await sessions.MarkReliableReplayReadyAsync(session, cancellationToken);
+            await sessions.TryMarkReliableReplayReadyAsync(session, connectionId, cancellationToken);
         }
         public ValueTask<ClientNotificationStatus> PublishAsync(GameSessionKey session, ClientNotificationCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public ValueTask<ReliablePushAckOutcome> AckAsync(GameSessionKey currentSession, GameSessionKey acknowledgedSession, long sequence, CancellationToken cancellationToken = default) => throw new NotSupportedException();

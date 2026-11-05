@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-11-05 — Ordered reliable delivery after session recovery
+
+**Key releases:** `Lakona.Game.Server 0.53.21`.
+
+- The server sends retained reliable notifications in sequence on the replacement
+  connection before opening business request admission and live delivery.
+- Custom session registries that support reliable recovery must implement
+  `IGameSessionRegistry.TryMarkReliableReplayReadyAsync` to verify the current
+  connection and release its replay hold atomically.
+
 ## 2026-11-04 — Endpoint-encoded notifications and Hotfix calls across reloads
 
 **Key releases:** `Lakona.Game.Server 0.53.18`, `Lakona.Rpc.Core 0.16.2`,

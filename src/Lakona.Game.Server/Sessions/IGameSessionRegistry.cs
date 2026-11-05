@@ -37,6 +37,14 @@ public interface IGameSessionRegistry
         GameSessionKey session,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Releases the replay hold only for the specified, still-current committed connection.</summary>
+    ValueTask<bool> TryMarkReliableReplayReadyAsync(
+        GameSessionKey session,
+        string connectionId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(
+            "Reliable session recovery requires the registry to implement connection-checked replay completion.");
+
     /// <summary>Atomically consumes a committed recovery notification for the current connection after replay.</summary>
     ValueTask<GameSessionSnapshot?> TakeResumedSessionAsync(
         GameSessionKey session,

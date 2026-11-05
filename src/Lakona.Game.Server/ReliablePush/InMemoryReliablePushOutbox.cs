@@ -64,11 +64,13 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
     public async ValueTask ReplayPendingAsync(
         string ownerKey,
         Func<ReliablePushRecord, ValueTask> deliver,
+        Func<ValueTask>? onReplayed = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerKey);
         ArgumentNullException.ThrowIfNull(deliver);
-        var owner = TryGetOwner(ownerKey);
+        // Even an empty recovery must finish under the same lock as the first publication.
+        var owner = onReplayed is null ? TryGetOwner(ownerKey) : GetOrCreateOwner(ownerKey);
         if (owner is null)
         {
             return;
@@ -92,6 +94,11 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 await DeliverAsync(record, deliver, cancellationToken).ConfigureAwait(false);
+            }
+            if (onReplayed is not null)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await onReplayed().ConfigureAwait(false);
             }
         }
         finally

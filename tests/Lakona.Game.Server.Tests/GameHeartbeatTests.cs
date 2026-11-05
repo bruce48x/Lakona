@@ -124,6 +124,7 @@ public sealed class GameHeartbeatTests
 
         public ValueTask ReplayPendingAsync(
             GameSessionKey session,
+            string connectionId,
             CancellationToken cancellationToken = default)
         {
             Replayed.Add(session);
