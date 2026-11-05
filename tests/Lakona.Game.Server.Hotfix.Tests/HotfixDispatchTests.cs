@@ -424,10 +424,15 @@ public sealed class HotfixDispatchTests
         Assert.Equal("timer-callback", backend.LastArgs?.Value);
     }
 
-    [Fact]
-    public async Task LakonaTimer_from_TaskRun_after_scope_exit_throws()
+    [Theory]
+    [InlineData(false, "success")]
+    [InlineData(true, "success")]
+    [InlineData(true, "exception")]
+    [InlineData(true, "cancellation")]
+    public async Task Timer_dispatch_restores_outer_scope_and_rejects_escaped_timer_use(
+        bool suspend, string completion)
     {
-        EscapedTimerUse.Reset();
+        EscapedTimerUse.Reset(suspend);
         var scan = HotfixBehaviorScanner.Scan(
             typeof(EscapedTimerCallbackBehavior).Assembly,
             [typeof(EscapedTimerCallbackBehavior)]);
@@ -443,19 +448,59 @@ public sealed class HotfixDispatchTests
         var backend = new RecordingTimerBackend();
         using var runtime = CreateScopedRuntime(table, backend);
         using var lease = runtime.Snapshot.AcquireLease();
+        var outerBackend = new RecordingTimerBackend();
+        using var outerScope = LakonaTimerRuntime.Enter(outerBackend, lease);
 
-        await table.InvokeTimerAsync(
-            descriptor.MethodId,
-            new TimerTick<TimerArgs>(
-                TimerId.FromGuid(Guid.NewGuid()),
-                new TimerArgs("escaped")), TestTimer.CreateActor());
+        try
+        {
+            var invocation = table.InvokeTimerAsync(
+                descriptor.MethodId,
+                new TimerTick<TimerArgs>(
+                    TimerId.FromGuid(Guid.NewGuid()),
+                    new TimerArgs(completion)), TestTimer.CreateActor());
+            if (suspend)
+            {
+                Assert.False(invocation.IsCompleted);
+                EscapedTimerUse.ResumeCallback();
+            }
+            else
+            {
+                Assert.True(invocation.IsCompletedSuccessfully);
+            }
 
-        EscapedTimerUse.Release();
-        var exception = await EscapedTimerUse.WaitForExceptionAsync(TestContext.Current.CancellationToken);
+            var callbackException = await Record.ExceptionAsync(async () =>
+                await invocation.AsTask().WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+            switch (completion)
+            {
+                case "exception":
+                    Assert.Equal("Timer callback failed.", Assert.IsType<InvalidOperationException>(callbackException).Message);
+                    break;
+                case "cancellation":
+                    var canceled = Assert.IsAssignableFrom<OperationCanceledException>(callbackException);
+                    Assert.True(canceled.CancellationToken.IsCancellationRequested);
+                    break;
+                default:
+                    Assert.Null(callbackException);
+                    break;
+            }
 
-        Assert.IsType<InvalidOperationException>(exception);
-        Assert.Contains("active hotfix execution scope", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Null(backend.LastArgs);
+            Assert.Equal("inside-callback", backend.LastArgs?.Value);
+            await TestTimer.CreateOnceTimerAsync(
+                TestTimerEntries.HandleAsync, TimeSpan.Zero, new TimerArgs("outer-restored"), TestContext.Current.CancellationToken);
+            Assert.Equal("outer-restored", outerBackend.LastArgs?.Value);
+
+            EscapedTimerUse.Release();
+            var exception = Assert.IsType<InvalidOperationException>(
+                await EscapedTimerUse.WaitForExceptionAsync(TestContext.Current.CancellationToken));
+            Assert.Contains("active hotfix execution scope", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("inside-callback", backend.LastArgs?.Value);
+            Assert.Equal("outer-restored", outerBackend.LastArgs?.Value);
+        }
+        finally
+        {
+            EscapedTimerUse.ResumeCallback();
+            EscapedTimerUse.Release();
+        }
     }
 
     [Fact]
@@ -1114,11 +1159,16 @@ public sealed partial class TimerCallbackBehavior
 public sealed partial class EscapedTimerCallbackBehavior
 {
     [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
-    public ValueTask HandleAsync(global::Lakona.Game.Server.Actors.Actor timerOwner, TimerTick<TimerArgs> tick)
+    public async ValueTask HandleAsync(global::Lakona.Game.Server.Actors.Actor timerOwner, TimerTick<TimerArgs> tick)
     {
-        _ = tick;
         EscapedTimerUse.Start();
-        return default;
+        await EscapedTimerUse.WaitForCallbackReleaseAsync().ConfigureAwait(false);
+        await TestTimer.CreateOnceTimerAsync(
+            TestTimerEntries.HandleAsync, TimeSpan.Zero, new TimerArgs("inside-callback")).ConfigureAwait(false);
+        if (tick.Args.Value == "exception")
+            throw new InvalidOperationException("Timer callback failed.");
+        if (tick.Args.Value == "cancellation")
+            throw new OperationCanceledException(new CancellationToken(canceled: true));
     }
 }
 
@@ -1126,16 +1176,19 @@ public static class EscapedTimerUse
 {
     private static readonly object Sync = new();
     private static TaskCompletionSource? release;
-    private static TaskCompletionSource<Exception>? exception;
+    private static TaskCompletionSource? callbackRelease;
+    private static TaskCompletionSource<Exception?>? exception;
 
     public static void Start()
     {
         TaskCompletionSource releaseSource;
+        TaskCompletionSource<Exception?> exceptionSource;
         lock (Sync)
         {
             release ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            exception ??= new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+            exception ??= new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
             releaseSource = release;
+            exceptionSource = exception;
         }
 
         Task.Run(async () =>
@@ -1147,13 +1200,11 @@ public static class EscapedTimerUse
                     TestTimerEntries.HandleAsync,
                     TimeSpan.Zero,
                     new TimerArgs("escaped-after-scope")).ConfigureAwait(false);
+                exceptionSource.TrySetResult(null);
             }
             catch (Exception ex)
             {
-                lock (Sync)
-                {
-                    exception?.TrySetResult(ex);
-                }
+                exceptionSource.TrySetResult(ex);
             }
         });
     }
@@ -1166,23 +1217,40 @@ public static class EscapedTimerUse
         }
     }
 
-    public static async Task<Exception> WaitForExceptionAsync(CancellationToken cancellationToken)
+    public static async Task<Exception?> WaitForExceptionAsync(CancellationToken cancellationToken)
     {
-        TaskCompletionSource<Exception> source;
+        TaskCompletionSource<Exception?> source;
         lock (Sync)
         {
-            exception ??= new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+            exception ??= new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
             source = exception;
         }
 
         return await source.Task.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false);
     }
 
-    public static void Reset()
+    public static ValueTask WaitForCallbackReleaseAsync()
+    {
+        lock (Sync)
+        {
+            return callbackRelease is null ? default : new ValueTask(callbackRelease.Task);
+        }
+    }
+
+    public static void ResumeCallback()
+    {
+        lock (Sync)
+        {
+            callbackRelease?.TrySetResult();
+        }
+    }
+
+    public static void Reset(bool suspend)
     {
         lock (Sync)
         {
             release = null;
+            callbackRelease = suspend ? new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously) : null;
             exception = null;
         }
     }

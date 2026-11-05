@@ -15,6 +15,69 @@ public sealed partial class ActorTimerTests
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
     private static Task Wait(Task task) => task.WaitAsync(TimeSpan.FromSeconds(5), TestCancellation);
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Suspended_callback_can_create_a_child_timer_and_cancel_itself(bool withArguments)
+    {
+        var observer = new ContractObserver();
+        await using var fixture = new Fixture(observer: observer);
+        var owner = await fixture.CreateActorAsync("suspended-parent");
+        var entered = Signal();
+        var resume = Signal();
+        var finished = Signal();
+        TimerId parent = default;
+        TimerId child = default;
+        fixture.Probe.OnTick = async (self, tick) =>
+        {
+            try
+            {
+                Assert.Same(owner, self);
+                if (tick.TimerId == parent)
+                {
+                    Assert.Equal(withArguments ? 41 : 1, tick.Args);
+                    entered.SetResult();
+                    await resume.Task.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+                    child = self.CreateOnceTimer(static (TimerBehavior behavior) => behavior.TickAsync,
+                        TimeSpan.Zero, 42);
+                    self.DestroyTimer(tick.TimerId);
+                }
+                else
+                {
+                    Assert.Equal(child, tick.TimerId);
+                    Assert.Equal(42, tick.Args);
+                    finished.SetResult();
+                }
+            }
+            catch (Exception exception)
+            {
+                finished.TrySetException(exception);
+                throw;
+            }
+        };
+        parent = await fixture.Catalog.AskAsync<TimerActor, TimerId>(owner.Context.Id, (self, _) =>
+        {
+            using var lease = fixture.AcquireCurrent();
+            using var scope = LakonaTimerRuntime.Enter(fixture.Backend, lease);
+            return new ValueTask<TimerId>(withArguments
+                ? self.CreatePeriodicTimer(static (TimerBehavior behavior) => behavior.TickAsync,
+                    TimeSpan.Zero, TimeSpan.FromDays(1), 41)
+                : self.CreatePeriodicTimer(static (TimerBehavior behavior) => behavior.TickWithoutArgsAsync,
+                    TimeSpan.Zero, TimeSpan.FromDays(1)));
+        }, TestCancellation);
+        await fixture.StartAsync();
+        try
+        {
+            await Wait(entered.Task);
+        }
+        finally { resume.TrySetResult(); }
+        await Wait(finished.Task);
+        Assert.False(fixture.Scheduler.Contains(parent));
+        await fixture.Scheduler.StopAsync(TestCancellation);
+        Assert.Equal(2, fixture.Probe.Calls.Count);
+        Assert.Empty(observer.Failures);
+    }
+
     [Fact]
     public async Task Awaited_cross_actor_call_preserves_owner_and_hotfix_scope_for_child_timer()
     {

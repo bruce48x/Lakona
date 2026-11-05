@@ -239,16 +239,17 @@ public sealed partial class ActorTimerTests
                 options.MailboxCapacity = mailboxCapacity;
             }).BuildServiceProvider();
             Catalog = services.GetRequiredService<ActorActivationCatalog>();
-            Reload(1);
             Scheduler = new LakonaTimerScheduler(this, time ?? TimeProvider.System,
                 new LakonaTimerOptions { DispatchQueueCapacity = 1, MaxActiveTimers = maxTimers },
                 observer, NullLogger<LakonaTimerScheduler>.Instance);
             Backend = new LakonaTimerBackend(Scheduler);
+            Reload(1);
         }
 
         public void Reload(int version)
         {
-            var provider = new ServiceCollection().AddSingleton(Probe).AddSingleton(new Generation(version)).BuildServiceProvider();
+            var provider = new ServiceCollection().AddSingleton(Probe).AddSingleton(new Generation(version))
+                .AddSingleton<ILakonaTimerBackend>(Backend).BuildServiceProvider();
             generationServices.Add(provider);
             var scan = HotfixBehaviorScanner.Scan(typeof(TimerBehavior).Assembly, [typeof(TimerBehavior)]);
             Assert.Empty(scan.Diagnostics);

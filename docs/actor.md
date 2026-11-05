@@ -618,6 +618,10 @@ key. Creation and cancellation require the owner's active turn and Hotfix
 scope. Missing or completed timers are ignored; canceling a timer owned by
 another activation is rejected.
 
+An asynchronous callback can create or cancel timers after an `await`.
+Its Hotfix scope remains active until the returned `ValueTask` completes,
+faults, or is canceled.
+
 Each timer has at most one pending or running callback. For a periodic timer,
 the next due time is `max(actualStart + period, completion)` using a monotonic
 clock. Slow callbacks do not build a historical backlog. Queue pressure delays

@@ -364,7 +364,7 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         return descriptor;
     }
 
-    public ValueTask InvokeTimerAsync(ulong methodId, object tick, object actor)
+    public async ValueTask InvokeTimerAsync(ulong methodId, object tick, object actor)
     {
         ArgumentNullException.ThrowIfNull(tick);
         if (!timerMethodBindings.TryGetValue(methodId, out var binding))
@@ -384,7 +384,8 @@ public sealed class HotfixDispatchTable : IDisposable, IAsyncDisposable
         if (!binding.ActorType.IsInstanceOfType(actor))
             throw new ArgumentException("The timer requires its exact Actor owner.", nameof(actor));
         using var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope();
-        return binding.Invoker.InvokeAsync(GetActivatedModule(binding.CallbackType), tick, actor);
+        await binding.Invoker.InvokeAsync(GetActivatedModule(binding.CallbackType), tick, actor)
+            .ConfigureAwait(false);
     }
 
     public ValueTask<TResult> InvokeServiceAsync<TContract, TArg, TResult>(int methodId, TArg arg)
