@@ -18,6 +18,8 @@ namespace Lakona.Game.Client
         private CancellationTokenSource? _cts;
         private Task? _loopTask;
 
+        internal RpcClientRuntime Client => _rpcClient;
+
         public LakonaGameHeartbeatLoop(
             RpcClientRuntime rpcClient,
             LakonaGameClientCore core,

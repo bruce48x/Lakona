@@ -398,6 +398,7 @@ public sealed class LakonaGameClientLifecycleTests
             var dispatcher = client.Dispatcher;
             first.Disconnect();
             Assert.Equal(1, await scheduler.DelayEntries.Reader.ReadAsync(ct).AsTask().WaitAsync(Deadline, ct));
+            await scheduler.DeadlineEntries.Reader.ReadAsync(ct).AsTask().WaitAsync(Deadline, ct);
             await AssertChange(changes, LakonaGameConnectionState.Connected, LakonaGameConnectionState.Reconnecting);
             scheduler.Step();
             await first.Disposed.Task.WaitAsync(Deadline, ct);
@@ -415,6 +416,8 @@ public sealed class LakonaGameClientLifecycleTests
                 second.Disconnect();
             }
             await AssertChange(changes, LakonaGameConnectionState.Connected, LakonaGameConnectionState.Reconnecting);
+            // RPC Stopped can publish the state before Disconnected admits recovery.
+            await scheduler.DeadlineEntries.Reader.ReadAsync(ct).AsTask().WaitAsync(Deadline, ct);
             Assert.Throws<InvalidOperationException>(client.EnsureApiReady);
             Assert.Equal(1, scheduler.DelayCount);
             cleanupRelease.TrySetResult();
@@ -582,6 +585,7 @@ public sealed class LakonaGameClientLifecycleTests
         await scheduler.Waiting.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
         scheduler.Step();
         await terminal.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
+        await second.Disposed.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
         Assert.Equal(1, second.DisposeCount);
         Assert.False(second.HeartbeatEntered.Task.IsCompleted);
         AssertState(client, LakonaGameConnectionState.Disconnected);

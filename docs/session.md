@@ -620,6 +620,22 @@ either returns to `Active` or reports `StateLost`, `RefreshRequired`, or
 `Terminated`; it never reports success after continuity is lost. Client options
 must use the transport-factory constructor so every connection generation gets
 a fresh transport.
+
+The client fixes one deadline when it accepts a connection failure. Waiting for
+an earlier recovery or connection cleanup, retry delays, connection setup,
+handshake, and the recovery heartbeat all consume that same window. A new
+attempt does not reset it. At expiry the client reports `StateLost` and
+`Disconnected` once, with a `TimeoutException`, and cancels outstanding recovery
+I/O. It reports this result without waiting for transport cleanup to finish.
+Cleanup remains owned by the client and `DisposeAsync` joins it; custom
+transports must honor the cancellation and cleanup contract.
+
+Publishing the recovered connection ends its deadline immediately, even while
+the old connection is still being cleaned up. A late reply or session notice
+cannot publish an expired candidate or revive its session. Disposal cancels
+recovery without reporting a timeout. Deadline waits and retries use the same
+injected recovery scheduler; the default scheduler uses the system UTC clock.
+
 Retry scheduling uses bounded exponential backoff with jitter through an
 injectable recovery scheduler so tests can advance time deterministically.
 

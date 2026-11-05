@@ -36,11 +36,18 @@ namespace Lakona.Game.Client.ReliablePush
 
         public async ValueTask StartSessionAsync(string sessionId, CancellationToken cancellationToken = default)
         {
+            var sequence = await LoadSessionSequenceAsync(sessionId, cancellationToken).ConfigureAwait(false);
+            StartSession(sessionId, sequence);
+        }
+
+        internal async ValueTask<long> LoadSessionSequenceAsync(string sessionId, CancellationToken cancellationToken)
+        {
             Task commits;
             lock (_gate) commits = _commitTail;
             try { await commits.ConfigureAwait(false); } catch { }
             var sequence = await _cursorStore.LoadAsync(sessionId, cancellationToken).ConfigureAwait(false);
-            StartSession(sessionId, sequence);
+            cancellationToken.ThrowIfCancellationRequested();
+            return sequence;
         }
 
         internal async ValueTask WaitForSessionAsync(string sessionId, CancellationToken cancellationToken)

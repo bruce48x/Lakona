@@ -28,6 +28,7 @@ namespace Lakona.Game.Client
         private RpcClientRuntime? _rpcClient;
         private SynchronizationContext? _dispatchContext;
         private Task? _recoveryTask;
+        private RecoveryOperation? _recovery;
         private TaskCompletionSource<bool>? _disposal;
         private bool _connectStarted;
         private LakonaGameConnectionState _connectionState;
@@ -114,7 +115,7 @@ namespace Lakona.Game.Client
         {
             try
             {
-                await ConnectGenerationAsync(false, ct).ConfigureAwait(false);
+                await ConnectGenerationAsync(null, ct).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -127,8 +128,9 @@ namespace Lakona.Game.Client
             }
         }
 
-        private async ValueTask ConnectGenerationAsync(bool recovering, CancellationToken ct)
+        private async ValueTask ConnectGenerationAsync(RecoveryOperation? recovery, CancellationToken ct)
         {
+            var recovering = recovery is not null;
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
             var token = linked.Token;
             await _connectionGate.WaitAsync(token).ConfigureAwait(false);
@@ -136,8 +138,11 @@ namespace Lakona.Game.Client
             {
                 token.ThrowIfCancellationRequested();
                 var client = new RpcClientRuntime(_options.CreateConnectionGeneration());
+                RpcClientRuntime? previous = null;
                 // A candidate can disconnect before it is published as the current generation.
                 bool disconnected = false;
+                bool candidate = true;
+                var candidateRecovery = recovery;
                 client.ConnectionStateChanged += change =>
                 {
                     if (change.CurrentState != RpcClientConnectionState.Stopped &&
@@ -167,23 +172,26 @@ namespace Lakona.Game.Client
                         ProtocolVersion = 1,
                         ResumeTicket = _core.ResumeTicket
                     }, token).ConfigureAwait(false);
+                    lock (_stateGate) ThrowIfRecoveryEnded(recovery, token);
                     if (recovering && hello.Recovery.Status != GameSessionRecoveryStatus.Resumed)
                     {
-                        _core.ApplyRecoveryRejection(hello.Recovery);
+                        FailRecovery(recovery!, new GameSessionRecoveryRejectedException(hello.Recovery.Status, hello.Recovery.Reason),
+                            () => _core.ApplyRecoveryRejection(hello.Recovery));
                         throw new GameSessionRecoveryRejectedException(hello.Recovery.Status, hello.Recovery.Reason);
                     }
                     _core.BindReliablePush(client);
-                    BindFrameworkNotifications(client);
+                    BindFrameworkNotifications(client, () => candidate && !disconnected && !token.IsCancellationRequested &&
+                        (candidateRecovery is null || (ReferenceEquals(_recovery, candidateRecovery) &&
+                            !candidateRecovery.Completed && !RecoveryTimeExpired(candidateRecovery))), token);
                     if (recovering)
                         await _core.CompleteRecoveryAsync(client, token).ConfigureAwait(false);
                     await _core.StopHeartbeatAsync().ConfigureAwait(false);
 
-                    RpcClientRuntime? previous;
                     lock (_stateGate)
                     {
                         if (_disposal is not null)
                             throw new OperationCanceledException("Lakona game client is being disposed.", token);
-                        token.ThrowIfCancellationRequested();
+                        ThrowIfRecoveryEnded(recovery, token);
                         if (disconnected || client.ConnectionState != RpcClientConnectionState.Connected)
                             throw new InvalidOperationException("RPC connection closed before becoming ready.");
                         previous = _rpcClient;
@@ -194,15 +202,33 @@ namespace Lakona.Game.Client
                         if (recovering) _core.MarkRecovered();
                         else _core.MarkReady();
                         _apiReady = true;
+                        candidate = false;
+                        // Live notification handlers must not retain the retired connection through this operation.
+                        candidateRecovery = null;
                         SetConnectionState(LakonaGameConnectionState.Connected);
+                        if (recovery is not null)
+                        {
+                            recovery.Completed = true;
+                            _recovery = null;
+                        }
                     }
-                    if (previous is not null)
-                        await previous.DisposeAsync().ConfigureAwait(false);
+                    recovery?.StopDeadline();
                 }
                 catch
                 {
+                    lock (_stateGate)
+                    {
+                        candidate = false;
+                        candidateRecovery = null;
+                    }
                     await client.DisposeAsync().ConfigureAwait(false);
                     throw;
+                }
+                // Publication completes recovery. Cleanup cannot revoke a healthy replacement.
+                if (previous is not null)
+                {
+                    try { await previous.DisposeAsync().ConfigureAwait(false); }
+                    catch (Exception error) { _connectionLogger.LogError(error, "Previous game connection cleanup failed."); }
                 }
             }
             finally
@@ -211,21 +237,41 @@ namespace Lakona.Game.Client
             }
         }
 
-        private void BindFrameworkNotifications(RpcClientRuntime client)
+        private bool CanApplyFrameworkNotification(RpcClientRuntime client, Func<bool> isCandidate)
+        {
+            return _disposal is null && ((ReferenceEquals(_rpcClient, client) && _apiReady) || isCandidate());
+        }
+
+        private void BindFrameworkNotifications(RpcClientRuntime client, Func<bool> isCandidate, CancellationToken candidateToken)
         {
             client.RegisterRawNotificationHandler(GameSessionNotificationRpcIds.ServiceId,
                 GameSessionNotificationRpcIds.EstablishedNotificationId, async payload =>
                 {
-                    await _core.ApplyGameSessionEstablishedAsync(LakonaInternalCodec.DecodeGameSessionEstablished(payload))
-                        .ConfigureAwait(false);
+                    CancellationToken token;
+                    lock (_stateGate)
+                    {
+                        if (!CanApplyFrameworkNotification(client, isCandidate)) return;
+                        token = ReferenceEquals(_rpcClient, client) && _apiReady ? _lifetime.Token : candidateToken;
+                    }
+                    var apply = await _core.PrepareGameSessionEstablishedAsync(
+                        LakonaInternalCodec.DecodeGameSessionEstablished(payload), token).ConfigureAwait(false);
+                    lock (_stateGate)
+                    {
+                        if (!CanApplyFrameworkNotification(client, isCandidate)) return;
+                        apply();
+                    }
                     using var acknowledgement = await client.CallRawAsync(GameSessionEstablishedRpcIds.ServiceId,
-                        GameSessionEstablishedRpcIds.AckMethodId, ReadOnlyMemory<byte>.Empty, _lifetime.Token)
+                        GameSessionEstablishedRpcIds.AckMethodId, ReadOnlyMemory<byte>.Empty, token)
                         .ConfigureAwait(false);
                 });
             client.RegisterRawNotificationHandler(GameSessionNotificationRpcIds.ServiceId,
                 GameSessionNotificationRpcIds.TerminatedNotificationId, payload =>
                 {
-                    _core.ApplySessionTerminationNotice(LakonaInternalCodec.DecodeSessionTerminationNotice(payload));
+                    lock (_stateGate)
+                    {
+                        if (CanApplyFrameworkNotification(client, isCandidate))
+                            _core.ApplySessionTerminationNotice(LakonaInternalCodec.DecodeSessionTerminationNotice(payload));
+                    }
                     return default;
                 });
         }
@@ -259,99 +305,199 @@ namespace Lakona.Game.Client
             _dispatcher.ClearCurrent(source);
             _core.MarkReconnecting();
             var previousRecovery = _recoveryTask;
+            var recovery = new RecoveryOperation(source,
+                _options.RecoveryScheduler.GetUtcNow() + _core.SessionResumeWindow, ex, _lifetime.Token);
+            _recovery = recovery;
             // Register every admitted generation's failure, even while the preceding
             // recovery is finishing cleanup. The worker joins its predecessor first.
             // RPC dispatch and heartbeat callbacks must never join their own loops.
-            _recoveryTask = Task.Run(() => RecoverConnectionAsync(previousRecovery, source, ex, stopConnection));
+            recovery.DeadlineTask = Task.Run(() => WatchRecoveryDeadlineAsync(recovery));
+            _recoveryTask = Task.Run(() => RecoverConnectionAsync(previousRecovery, recovery, stopConnection));
         }
 
-        private async Task RecoverConnectionAsync(Task? previousRecovery, RpcClientRuntime source,
-            Exception? reason, bool stopConnection)
+        private async Task RecoverConnectionAsync(Task? previousRecovery, RecoveryOperation recovery,
+            bool stopConnection)
         {
-            if (previousRecovery is not null)
+            try
             {
-                try { await previousRecovery.ConfigureAwait(false); }
-                catch (Exception error)
+                if (previousRecovery is not null)
                 {
-                    _connectionLogger.LogError(error, "Previous game connection recovery failed during handoff.");
+                    try { await previousRecovery.ConfigureAwait(false); }
+                    catch (Exception error)
+                    {
+                        _connectionLogger.LogError(error, "Previous game connection recovery failed during handoff.");
+                    }
                 }
-            }
-            lock (_stateGate)
-            {
-                // The preceding recovery may have retried, failed terminally, or been disposed.
-                if (_disposal is not null || !ReferenceEquals(_rpcClient, source) || _apiReady ||
-                    _connectionState != LakonaGameConnectionState.Reconnecting)
-                    return;
-            }
-            if (stopConnection)
-            {
-                try
+                lock (_stateGate) ThrowIfRecoveryEnded(recovery, recovery.Token);
+                if (stopConnection)
                 {
                     await _core.StopHeartbeatAsync().ConfigureAwait(false);
-                    await source.DisposeAsync().ConfigureAwait(false);
-                }
-                catch (Exception error)
-                {
-                    lock (_stateGate)
+                    try { await recovery.Source.DisposeAsync().ConfigureAwait(false); }
+                    catch (Exception error)
                     {
-                        if (_disposal is not null) return;
-                        _core.MarkConnectionFailed(new ClientConnectionFailure(
-                            ClientConnectionFailureKind.HeartbeatFailed, error.Message));
+                        FailRecovery(recovery, error, () => _core.MarkConnectionFailed(new ClientConnectionFailure(
+                            ClientConnectionFailureKind.HeartbeatFailed, error.Message)));
+                        return;
                     }
-                    ReportRecoveryFailure(error);
-                    return;
+                }
+                await RecoverAsync(recovery).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                ExpireRecovery(recovery);
+            }
+            catch (Exception error)
+            {
+                FailRecovery(recovery, error, () => _core.MarkConnectionFailed(new ClientConnectionFailure(
+                    ClientConnectionFailureKind.Disconnected, error.Message)));
+            }
+            finally
+            {
+                recovery.StopDeadline();
+                try { await recovery.DeadlineTask.ConfigureAwait(false); }
+                finally
+                {
+                    // A failed or expired recovery still owns its original connection.
+                    try { await DisposeRecoverySourceAsync(recovery).ConfigureAwait(false); }
+                    finally { recovery.Dispose(); }
                 }
             }
-            if (!_lifetime.IsCancellationRequested)
-                await RecoverAsync(reason).ConfigureAwait(false);
         }
 
-        private async Task RecoverAsync(Exception? disconnectReason)
+        private async Task RecoverAsync(RecoveryOperation recovery)
         {
             var scheduler = _options.RecoveryScheduler;
-            var deadline = scheduler.GetUtcNow() + _core.SessionResumeWindow;
             var attempt = 0;
-            while (scheduler.GetUtcNow() < deadline && !_lifetime.IsCancellationRequested)
+            while (!RecoveryTimeExpired(recovery) && !recovery.Token.IsCancellationRequested)
             {
                 try
                 {
-                    var remaining = deadline - scheduler.GetUtcNow();
+                    var remaining = recovery.Deadline - scheduler.GetUtcNow();
+                    if (remaining <= TimeSpan.Zero) break;
                     var delay = scheduler.GetDelay(attempt++);
                     if (delay > remaining) delay = remaining;
-                    await scheduler.DelayAsync(delay, _lifetime.Token).ConfigureAwait(false);
-                    await ConnectGenerationAsync(true, _lifetime.Token).ConfigureAwait(false);
+                    await scheduler.DelayAsync(delay, recovery.Token).ConfigureAwait(false);
+                    lock (_stateGate) ThrowIfRecoveryEnded(recovery, recovery.Token);
+                    await ConnectGenerationAsync(recovery, recovery.Token).ConfigureAwait(false);
                     return;
                 }
-                catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+                catch (OperationCanceledException) when (recovery.Token.IsCancellationRequested || RecoveryTimeExpired(recovery))
                 {
+                    ExpireRecovery(recovery);
                     return;
                 }
                 catch (GameSessionRecoveryRejectedException)
                 {
-                    ReportRecoveryFailure(disconnectReason);
                     return;
                 }
                 catch
                 {
                 }
             }
-            if (_lifetime.IsCancellationRequested) return;
-            _core.ApplyRecoveryRejection(new GameSessionRecoveryHandshakeResult
-            {
-                Status = GameSessionRecoveryStatus.StateLost,
-                Reason = "Game session recovery window expired."
-            });
-            ReportRecoveryFailure(disconnectReason);
+            ExpireRecovery(recovery);
         }
 
-        private void ReportRecoveryFailure(Exception? disconnectReason)
+        // Called under _stateGate, including immediately before publishing a replacement.
+        private void ThrowIfRecoveryEnded(RecoveryOperation? recovery, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            if (_disposal is not null || (recovery is not null &&
+                (!ReferenceEquals(_recovery, recovery) || recovery.Completed || RecoveryTimeExpired(recovery))))
+                throw new OperationCanceledException("Game session recovery has ended.", token);
+        }
+
+        private bool RecoveryTimeExpired(RecoveryOperation recovery) =>
+            _options.RecoveryScheduler.GetUtcNow() >= recovery.Deadline;
+
+        private async Task WatchRecoveryDeadlineAsync(RecoveryOperation recovery)
+        {
+            try
+            {
+                while (true)
+                {
+                    var remaining = recovery.Deadline - _options.RecoveryScheduler.GetUtcNow();
+                    if (remaining <= TimeSpan.Zero) break;
+                    await _options.RecoveryScheduler.DelayAsync(remaining, recovery.DeadlineToken).ConfigureAwait(false);
+                }
+                ExpireRecovery(recovery);
+                await DisposeRecoverySourceAsync(recovery).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (recovery.DeadlineToken.IsCancellationRequested) { }
+            catch (Exception error)
+            {
+                FailRecovery(recovery, error, () => _core.MarkConnectionFailed(new ClientConnectionFailure(
+                    ClientConnectionFailureKind.Disconnected, error.Message)));
+                await DisposeRecoverySourceAsync(recovery).ConfigureAwait(false);
+            }
+        }
+
+        private void ExpireRecovery(RecoveryOperation recovery)
+        {
+            if (!RecoveryTimeExpired(recovery)) return;
+            var error = new TimeoutException("Game session recovery window expired.", recovery.Reason);
+            FailRecovery(recovery, error, () => _core.ApplyRecoveryRejection(new GameSessionRecoveryHandshakeResult
+            {
+                Status = GameSessionRecoveryStatus.StateLost,
+                Reason = error.Message
+            }));
+        }
+
+        private void FailRecovery(RecoveryOperation recovery, Exception? reason, Action applyFailure)
         {
             lock (_stateGate)
             {
-                if (_disposal is not null) return;
+                if (_disposal is not null || !ReferenceEquals(_recovery, recovery) || recovery.Completed) return;
+                recovery.Completed = true;
+                _recovery = null;
+                applyFailure();
+                _apiReady = false;
                 SetConnectionState(LakonaGameConnectionState.Disconnected);
             }
-            Disconnected?.Invoke(disconnectReason);
+            recovery.StopDeadline();
+            recovery.Cancel();
+            Disconnected?.Invoke(reason);
+        }
+
+        private async Task DisposeRecoverySourceAsync(RecoveryOperation recovery)
+        {
+            try
+            {
+                await _core.StopHeartbeatAsync(recovery.Source).ConfigureAwait(false);
+                await recovery.Source.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception error) { _connectionLogger.LogError(error, "Failed game connection cleanup failed."); }
+        }
+
+        private sealed class RecoveryOperation : IDisposable
+        {
+            private readonly CancellationTokenSource _cancellation;
+            private readonly CancellationTokenSource _deadlineCancellation;
+
+            public RecoveryOperation(RpcClientRuntime source, DateTimeOffset deadline, Exception? reason, CancellationToken lifetime)
+            {
+                Source = source;
+                Deadline = deadline;
+                Reason = reason;
+                _cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime);
+                _deadlineCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime);
+                Token = _cancellation.Token;
+                DeadlineToken = _deadlineCancellation.Token;
+            }
+
+            public RpcClientRuntime Source { get; }
+            public DateTimeOffset Deadline { get; }
+            public Exception? Reason { get; }
+            public CancellationToken Token { get; }
+            public CancellationToken DeadlineToken { get; }
+            public Task DeadlineTask { get; set; } = Task.CompletedTask;
+            public bool Completed { get; set; } // Only read or changed under _stateGate.
+            public void Cancel() => _cancellation.Cancel();
+            public void StopDeadline() => _deadlineCancellation.Cancel();
+            public void Dispose()
+            {
+                _deadlineCancellation.Dispose();
+                _cancellation.Dispose();
+            }
         }
 
         public ValueTask DisposeAsync()

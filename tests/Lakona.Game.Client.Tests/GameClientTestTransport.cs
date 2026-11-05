@@ -38,6 +38,7 @@ internal sealed class GameClientTestTransport : ITransport
     public bool DisconnectOnHeartbeatCancellation { get; init; }
     public TimeSpan HeartbeatInterval { get; init; } = TimeSpan.FromHours(1);
     public TimeSpan HeartbeatTimeout { get; init; } = TimeSpan.FromHours(2);
+    public TimeSpan ResumeWindow { get; init; } = TimeSpan.FromSeconds(60);
     public GameHeartbeatStatus HeartbeatReplyStatus { get; set; } = GameHeartbeatStatus.Ok;
     public int BusinessRequestCount => Volatile.Read(ref _businessRequestCount);
     public CancellationToken ReceiveCancellation { get; private set; }
@@ -73,6 +74,7 @@ internal sealed class GameClientTestTransport : ITransport
             payload = LakonaInternalCodec.EncodeGameServerHello(new GameServerHello
             {
                 SelectedProtocolVersion = ProtocolVersion,
+                SessionResume = new GameSessionResumeHandshakeSettings { Window = ResumeWindow },
                 Heartbeat = new GameHeartbeatHandshakeSettings
                 {
                     Interval = HeartbeatInterval, Timeout = HeartbeatTimeout
@@ -175,18 +177,75 @@ internal sealed class IntegerSerializer : IRpcSerializer
 internal sealed class ControlledRecoveryScheduler : IGameSessionRecoveryScheduler
 {
     private readonly SemaphoreSlim _steps = new(0);
+    private readonly VirtualRecoveryScheduler _clock = new();
     private int _delayCount;
     public TaskCompletionSource Waiting { get; } = GameClientTestTransport.Signal();
     public Channel<int> DelayEntries { get; } = Channel.CreateUnbounded<int>();
+    public Channel<TimeSpan> DeadlineEntries => _clock.Delays;
     public int DelayCount => Volatile.Read(ref _delayCount);
-    public DateTimeOffset Now { get; set; } = DateTimeOffset.UnixEpoch;
+    public DateTimeOffset Now { get => _clock.GetUtcNow(); set => _clock.AdvanceTo(value); }
     public DateTimeOffset GetUtcNow() => Now;
     public TimeSpan GetDelay(int attempt) => TimeSpan.FromMilliseconds(1);
     public async ValueTask DelayAsync(TimeSpan delay, CancellationToken cancellationToken = default)
     {
+        // Existing tests step only the 1 ms retry; deadline waits follow the virtual clock.
+        if (delay > TimeSpan.FromMilliseconds(1))
+        {
+            await _clock.DelayAsync(delay, cancellationToken);
+            return;
+        }
         DelayEntries.Writer.TryWrite(Interlocked.Increment(ref _delayCount));
         Waiting.TrySetResult();
         await _steps.WaitAsync(cancellationToken);
     }
     public void Step() => _steps.Release();
+}
+
+internal sealed class VirtualRecoveryScheduler : IGameSessionRecoveryScheduler
+{
+    private readonly object _gate = new();
+    private readonly List<(DateTimeOffset Due, TaskCompletionSource Completion)> _delays = [];
+    private DateTimeOffset _now = DateTimeOffset.UnixEpoch;
+    public TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(1);
+    public Channel<TimeSpan> Delays { get; } = Channel.CreateUnbounded<TimeSpan>();
+    public Channel<TimeSpan> CanceledDelays { get; } = Channel.CreateUnbounded<TimeSpan>();
+
+    public DateTimeOffset GetUtcNow() { lock (_gate) return _now; }
+    public TimeSpan GetDelay(int attempt) => RetryDelay;
+
+    public async ValueTask DelayAsync(TimeSpan delay, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (delay <= TimeSpan.Zero) return;
+        var completion = GameClientTestTransport.Signal();
+        lock (_gate) _delays.Add((_now + delay, completion));
+        Delays.Writer.TryWrite(delay);
+        try
+        {
+            await completion.Task.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            CanceledDelays.Writer.TryWrite(delay);
+            throw;
+        }
+        finally
+        {
+            lock (_gate) _delays.RemoveAll(item => ReferenceEquals(item.Completion, completion));
+        }
+    }
+
+    public void Advance(TimeSpan elapsed) => AdvanceTo(GetUtcNow() + elapsed);
+
+    public void AdvanceTo(DateTimeOffset now)
+    {
+        TaskCompletionSource[] ready;
+        lock (_gate)
+        {
+            if (now < _now) throw new ArgumentOutOfRangeException(nameof(now));
+            _now = now;
+            ready = _delays.Where(item => item.Due <= now).Select(item => item.Completion).ToArray();
+        }
+        foreach (var completion in ready) completion.TrySetResult();
+    }
 }

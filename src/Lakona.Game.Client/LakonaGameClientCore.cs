@@ -70,16 +70,34 @@ namespace Lakona.Game.Client
             GameSessionEstablished established,
             CancellationToken cancellationToken = default)
         {
-            if (established == null) throw new ArgumentNullException(nameof(established));
-            if (string.IsNullOrWhiteSpace(established.ResumeTicket))
-            {
-                throw new InvalidOperationException("Game session resume ticket is required.");
-            }
+            ValidateSessionEstablished(established);
 
             await StartSessionAsync(
                 established.SessionId,
                 cancellationToken).ConfigureAwait(false);
             _resumeTicket = established.ResumeTicket;
+        }
+
+        // Read external cursor storage before committing under the connection owner's lock.
+        internal async ValueTask<Action> PrepareGameSessionEstablishedAsync(
+            GameSessionEstablished established, CancellationToken cancellationToken)
+        {
+            ValidateSessionEstablished(established);
+            var sequence = await _reliablePush.LoadSessionSequenceAsync(established.SessionId, cancellationToken).ConfigureAwait(false);
+            return () =>
+            {
+                _sessions.StartSession(established.SessionId, sequence);
+                _resumeTicket = established.ResumeTicket;
+            };
+        }
+
+        private static void ValidateSessionEstablished(GameSessionEstablished established)
+        {
+            if (established == null) throw new ArgumentNullException(nameof(established));
+            if (string.IsNullOrWhiteSpace(established.ResumeTicket))
+            {
+                throw new InvalidOperationException("Game session resume ticket is required.");
+            }
         }
 
         public void ApplyServerHello(GameServerHello hello)
@@ -151,11 +169,12 @@ namespace Lakona.Game.Client
             StartHeartbeat(rpcClient);
         }
 
-        internal async ValueTask StopHeartbeatAsync()
+        internal async ValueTask StopHeartbeatAsync(RpcClientRuntime? source = null)
         {
             LakonaGameHeartbeatLoop? previous;
             lock (_heartbeatLock)
             {
+                if (source is not null && !ReferenceEquals(_heartbeat?.Client, source)) return;
                 previous = _heartbeat;
                 _heartbeat = null;
             }
