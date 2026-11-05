@@ -495,8 +495,9 @@ with no ordering guarantee relative to asynchronous state notification delivery.
 
 Connection state is queried on the current RPC generation, so a locally stopped
 runtime is visible as `Reconnecting` even while its terminal event is waiting for
-queued work to drain. Replacement still starts through that existing event;
-state queries do not initiate recovery or change event timing. Previous-generation
+queued work to drain. Transport-driven recovery starts through that existing
+event; a heartbeat failure can independently request recovery and stop the old
+runtime. State queries do not initiate recovery or change event timing. Previous-generation
 cleanup cannot change the replacement's state. Initial connection failure or
 cancellation follows the existing automatic disposal path to `Disposed`, with
 the exception and `Snapshot.Failure` carrying the failure information.
@@ -543,6 +544,17 @@ it replaces the internal RPC connection. A framework-only opaque ticket is sent
 in the handshake; business RPC contracts do not carry resume identity. Calls
 already assigned to the failed connection fail and are never replayed
 automatically.
+
+A heartbeat timeout or RPC failure immediately marks the connection as
+`Reconnecting` and stops new business calls from using it. The recovery owner
+stops that connection, fails its pending calls, and starts the same recovery
+flow used for a transport disconnect. A heartbeat failure and the following
+disconnect notification count as one failure. If the replacement fails while
+the previous recovery is finishing cleanup, its recovery waits for that cleanup
+and then runs; the new failure is not discarded. Results from a retired heartbeat
+cannot change the replacement connection's state, and cancellation during
+shutdown does not start recovery. Explicit `StateLost` or `Terminated` heartbeat
+replies keep their session meaning rather than starting another connection.
 
 ```mermaid
 sequenceDiagram

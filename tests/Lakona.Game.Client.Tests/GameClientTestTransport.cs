@@ -16,10 +16,14 @@ public sealed class TestNumber
 internal sealed class GameClientTestTransport : ITransport
 {
     private readonly Channel<TransportFrame> _incoming = Channel.CreateUnbounded<TransportFrame>();
+    private int _businessRequestCount;
     public TaskCompletionSource ConnectEntered { get; } = Signal();
     public TaskCompletionSource ConnectCanceled { get; } = Signal();
     public TaskCompletionSource HandshakeEntered { get; } = Signal();
     public TaskCompletionSource HeartbeatEntered { get; } = Signal();
+    public TaskCompletionSource HeartbeatSuppressed { get; } = Signal();
+    public Channel<GameHeartbeatStatus> HeartbeatReplies { get; } = Channel.CreateUnbounded<GameHeartbeatStatus>();
+    public TaskCompletionSource BusinessEntered { get; } = Signal();
     public TaskCompletionSource EstablishedAcknowledged { get; } = Signal();
     public TaskCompletionSource Disposed { get; } = Signal();
     public TaskCompletionSource? ConnectRelease { get; init; }
@@ -27,7 +31,15 @@ internal sealed class GameClientTestTransport : ITransport
     public TaskCompletionSource? HeartbeatRelease { get; init; }
     public TaskCompletionSource? DisposeRelease { get; init; }
     public Exception? ConnectError { get; init; }
+    public Exception? DisposeError { get; init; }
     public bool IgnoreConnectCancellation { get; init; }
+    public bool SuppressHeartbeatReplies { get; set; }
+    public bool SuppressBusinessReplies { get; init; }
+    public bool DisconnectOnHeartbeatCancellation { get; init; }
+    public TimeSpan HeartbeatInterval { get; init; } = TimeSpan.FromHours(1);
+    public TimeSpan HeartbeatTimeout { get; init; } = TimeSpan.FromHours(2);
+    public GameHeartbeatStatus HeartbeatReplyStatus { get; set; } = GameHeartbeatStatus.Ok;
+    public int BusinessRequestCount => Volatile.Read(ref _businessRequestCount);
     public CancellationToken ReceiveCancellation { get; private set; }
     public GameSessionRecoveryStatus RecoveryStatus { get; init; } = GameSessionRecoveryStatus.Resumed;
     public bool IsConnected { get; private set; }
@@ -52,6 +64,7 @@ internal sealed class GameClientTestTransport : ITransport
         using var owned = TransportFrame.CopyOf(frame.Span);
         using var request = RpcEnvelopeCodec.DecodeRequest(owned);
         byte[] payload;
+        GameHeartbeatStatus? heartbeatStatus = null;
         if (request.ServiceId == GameHandshakeRpcIds.ServiceId && request.MethodId == GameHandshakeRpcIds.HandshakeMethodId)
         {
             Hello = LakonaInternalCodec.DecodeGameClientHello(request.Payload.Memory);
@@ -62,7 +75,7 @@ internal sealed class GameClientTestTransport : ITransport
                 SelectedProtocolVersion = ProtocolVersion,
                 Heartbeat = new GameHeartbeatHandshakeSettings
                 {
-                    Interval = TimeSpan.FromHours(1), Timeout = TimeSpan.FromHours(2)
+                    Interval = HeartbeatInterval, Timeout = HeartbeatTimeout
                 },
                 Recovery = new GameSessionRecoveryHandshakeResult { Status = RecoveryStatus }
             });
@@ -70,8 +83,23 @@ internal sealed class GameClientTestTransport : ITransport
         else if (request.ServiceId == GameHeartbeatRpcIds.ServiceId && request.MethodId == GameHeartbeatRpcIds.HeartbeatMethodId)
         {
             HeartbeatEntered.TrySetResult();
+            if (SuppressHeartbeatReplies)
+            {
+                HeartbeatSuppressed.TrySetResult();
+                if (DisconnectOnHeartbeatCancellation)
+                {
+                    try { await Task.Delay(Timeout.InfiniteTimeSpan, ct); }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        Disconnect();
+                        throw;
+                    }
+                }
+                return;
+            }
             if (HeartbeatRelease is not null) await HeartbeatRelease.Task.WaitAsync(ct);
-            payload = LakonaInternalCodec.EncodeGameHeartbeatReply(new GameHeartbeatReply { Status = GameHeartbeatStatus.Ok });
+            heartbeatStatus = HeartbeatReplyStatus;
+            payload = LakonaInternalCodec.EncodeGameHeartbeatReply(new GameHeartbeatReply { Status = heartbeatStatus.Value });
         }
         else if (request.ServiceId == GameSessionEstablishedRpcIds.ServiceId && request.MethodId == GameSessionEstablishedRpcIds.AckMethodId)
         {
@@ -80,9 +108,13 @@ internal sealed class GameClientTestTransport : ITransport
         }
         else
         {
+            Interlocked.Increment(ref _businessRequestCount);
+            BusinessEntered.TrySetResult();
+            if (SuppressBusinessReplies) return;
             payload = request.Payload.ToArray();
         }
         _incoming.Writer.TryWrite(RpcEnvelopeCodec.EncodeResponse(request.RequestId, RpcStatus.Ok, payload));
+        if (heartbeatStatus.HasValue) HeartbeatReplies.Writer.TryWrite(heartbeatStatus.Value);
     }
 
     public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
@@ -119,6 +151,7 @@ internal sealed class GameClientTestTransport : ITransport
         if (DisposeRelease is not null) await DisposeRelease.Task;
         _incoming.Writer.TryComplete();
         while (_incoming.Reader.TryRead(out var frame)) frame.Dispose();
+        if (DisposeError is not null) throw DisposeError;
     }
 }
 
@@ -142,12 +175,16 @@ internal sealed class IntegerSerializer : IRpcSerializer
 internal sealed class ControlledRecoveryScheduler : IGameSessionRecoveryScheduler
 {
     private readonly SemaphoreSlim _steps = new(0);
+    private int _delayCount;
     public TaskCompletionSource Waiting { get; } = GameClientTestTransport.Signal();
+    public Channel<int> DelayEntries { get; } = Channel.CreateUnbounded<int>();
+    public int DelayCount => Volatile.Read(ref _delayCount);
     public DateTimeOffset Now { get; set; } = DateTimeOffset.UnixEpoch;
     public DateTimeOffset GetUtcNow() => Now;
     public TimeSpan GetDelay(int attempt) => TimeSpan.FromMilliseconds(1);
     public async ValueTask DelayAsync(TimeSpan delay, CancellationToken cancellationToken = default)
     {
+        DelayEntries.Writer.TryWrite(Interlocked.Increment(ref _delayCount));
         Waiting.TrySetResult();
         await _steps.WaitAsync(cancellationToken);
     }

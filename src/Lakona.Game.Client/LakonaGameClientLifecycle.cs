@@ -41,6 +41,7 @@ namespace Lakona.Game.Client
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _bindCallbacks = bindCallbacks;
             _core = new LakonaGameClientCore(options.ReliablePushCursorStore);
+            _core.HeartbeatCompleted += HandleHeartbeatCompleted;
             _connectionLogger = options.LoggerFactory?.CreateLogger("Lakona.Game.Client.Connection") ?? NullLogger.Instance;
         }
 
@@ -175,7 +176,7 @@ namespace Lakona.Game.Client
                     BindFrameworkNotifications(client);
                     if (recovering)
                         await _core.CompleteRecoveryAsync(client, token).ConfigureAwait(false);
-                    await _core.ReplaceHeartbeatAsync(client).ConfigureAwait(false);
+                    await _core.StopHeartbeatAsync().ConfigureAwait(false);
 
                     RpcClientRuntime? previous;
                     lock (_stateGate)
@@ -187,6 +188,8 @@ namespace Lakona.Game.Client
                             throw new InvalidOperationException("RPC connection closed before becoming ready.");
                         previous = _rpcClient;
                         _rpcClient = client;
+                        // Publish the owner before a new heartbeat can report an outcome.
+                        _core.StartHeartbeat(client);
                         _dispatcher.SetCurrent(client);
                         if (recovering) _core.MarkRecovered();
                         else _core.MarkReady();
@@ -227,17 +230,80 @@ namespace Lakona.Game.Client
                 });
         }
 
-        // Called under _stateGate; only the current generation may initiate recovery.
+        private void HandleHeartbeatCompleted(RpcClientRuntime source, GameHeartbeatReply? reply, Exception? error)
+        {
+            lock (_stateGate)
+            {
+                // Ignore retired outcomes, including replies already queued when recovery began.
+                if (_disposal is not null || !_apiReady || !ReferenceEquals(_rpcClient, source))
+                    return;
+                if (error is null)
+                    _core.ApplyHeartbeatReply(reply!);
+                else
+                    HandleConnectionFailure(source, error, stopConnection: true);
+            }
+        }
+
         private void HandleDisconnected(RpcClientRuntime source, Exception? ex)
         {
-            if (_disposal is not null || !ReferenceEquals(_rpcClient, source))
+            HandleConnectionFailure(source, ex, stopConnection: false);
+        }
+
+        // Called under _stateGate; only the current, admitted generation may initiate recovery.
+        private void HandleConnectionFailure(RpcClientRuntime source, Exception? ex, bool stopConnection)
+        {
+            if (_disposal is not null || !_apiReady || !ReferenceEquals(_rpcClient, source))
                 return;
             _apiReady = false;
             SetConnectionState(LakonaGameConnectionState.Reconnecting);
             _dispatcher.ClearCurrent(source);
             _core.MarkReconnecting();
-            if (_recoveryTask is null || _recoveryTask.IsCompleted)
-                _recoveryTask = RecoverAsync(ex);
+            var previousRecovery = _recoveryTask;
+            // Register every admitted generation's failure, even while the preceding
+            // recovery is finishing cleanup. The worker joins its predecessor first.
+            // RPC dispatch and heartbeat callbacks must never join their own loops.
+            _recoveryTask = Task.Run(() => RecoverConnectionAsync(previousRecovery, source, ex, stopConnection));
+        }
+
+        private async Task RecoverConnectionAsync(Task? previousRecovery, RpcClientRuntime source,
+            Exception? reason, bool stopConnection)
+        {
+            if (previousRecovery is not null)
+            {
+                try { await previousRecovery.ConfigureAwait(false); }
+                catch (Exception error)
+                {
+                    _connectionLogger.LogError(error, "Previous game connection recovery failed during handoff.");
+                }
+            }
+            lock (_stateGate)
+            {
+                // The preceding recovery may have retried, failed terminally, or been disposed.
+                if (_disposal is not null || !ReferenceEquals(_rpcClient, source) || _apiReady ||
+                    _connectionState != LakonaGameConnectionState.Reconnecting)
+                    return;
+            }
+            if (stopConnection)
+            {
+                try
+                {
+                    await _core.StopHeartbeatAsync().ConfigureAwait(false);
+                    await source.DisposeAsync().ConfigureAwait(false);
+                }
+                catch (Exception error)
+                {
+                    lock (_stateGate)
+                    {
+                        if (_disposal is not null) return;
+                        _core.MarkConnectionFailed(new ClientConnectionFailure(
+                            ClientConnectionFailureKind.HeartbeatFailed, error.Message));
+                    }
+                    ReportRecoveryFailure(error);
+                    return;
+                }
+            }
+            if (!_lifetime.IsCancellationRequested)
+                await RecoverAsync(reason).ConfigureAwait(false);
         }
 
         private async Task RecoverAsync(Exception? disconnectReason)

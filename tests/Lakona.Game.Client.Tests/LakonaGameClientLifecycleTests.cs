@@ -256,6 +256,264 @@ public sealed class LakonaGameClientLifecycleTests
         AssertState(client, LakonaGameConnectionState.Connected);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Heartbeat_failure_recovers_once_and_fails_old_calls_without_replaying_them(
+        bool disconnectOnTimeout, bool invalidReply)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var first = new GameClientTestTransport
+        {
+            HeartbeatInterval = TimeSpan.FromMilliseconds(20),
+            HeartbeatTimeout = TimeSpan.FromMilliseconds(200),
+            SuppressBusinessReplies = true,
+            DisconnectOnHeartbeatCancellation = disconnectOnTimeout
+        };
+        var replayRelease = GameClientTestTransport.Signal();
+        var second = new GameClientTestTransport { HeartbeatRelease = replayRelease };
+        var scheduler = new ControlledRecoveryScheduler();
+        var transports = new Queue<GameClientTestTransport>([first, second]);
+        var connections = 0;
+        await using var client = new LakonaGameClientLifecycle(new LakonaGameClientOptions(() =>
+        {
+            Interlocked.Increment(ref connections);
+            return transports.Dequeue();
+        }, new IntegerSerializer()) { RecoveryScheduler = scheduler });
+        var changes = ObserveChanges(client);
+        await client.ConnectAsync(ct);
+        first.EstablishSession();
+        await first.EstablishedAcknowledged.Task.WaitAsync(Deadline, ct);
+        Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
+        await AssertChange(changes, LakonaGameConnectionState.Created, LakonaGameConnectionState.Connecting);
+        await AssertChange(changes, LakonaGameConnectionState.Connecting, LakonaGameConnectionState.Connected);
+
+        var dispatcher = client.Dispatcher;
+        var method = new RpcMethod<int, int>(42, 1);
+        var oldCall = dispatcher.CallAsync(method, 17, ct).AsTask();
+        await first.BusinessEntered.Task.WaitAsync(Deadline, ct);
+        if (invalidReply)
+        {
+            first.HeartbeatReplyStatus = (GameHeartbeatStatus)int.MaxValue;
+        }
+        else
+        {
+            first.SuppressHeartbeatReplies = true;
+            await first.HeartbeatSuppressed.Task.WaitAsync(Deadline, ct);
+        }
+        await scheduler.Waiting.Task.WaitAsync(Deadline, ct);
+        await AssertChange(changes, LakonaGameConnectionState.Connected, LakonaGameConnectionState.Reconnecting);
+        AssertState(client, LakonaGameConnectionState.Reconnecting);
+        Assert.Throws<InvalidOperationException>(client.EnsureApiReady);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => dispatcher.CallAsync(method, 99, ct).AsTask());
+        await Assert.ThrowsAnyAsync<Exception>(() => oldCall.WaitAsync(Deadline, ct));
+        Assert.True(oldCall.IsCompleted);
+        Assert.Equal(1, first.BusinessRequestCount);
+        Assert.Equal(1, scheduler.DelayCount);
+        Assert.Equal(1, connections);
+
+        scheduler.Step();
+        await second.HeartbeatEntered.Task.WaitAsync(Deadline, ct);
+        AssertState(client, LakonaGameConnectionState.Reconnecting);
+        Assert.Equal(0, second.BusinessRequestCount);
+        replayRelease.TrySetResult();
+        await AssertChange(changes, LakonaGameConnectionState.Reconnecting, LakonaGameConnectionState.Connected);
+        client.EnsureApiReady();
+        Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
+        Assert.Same(dispatcher, client.Dispatcher);
+        Assert.Equal("ticket", second.Hello!.ResumeTicket);
+        Assert.Equal(23, await dispatcher.CallAsync(method, 23, ct).AsTask().WaitAsync(Deadline, ct));
+        Assert.Equal(1, second.BusinessRequestCount);
+        Assert.Equal(2, connections);
+        await first.Disposed.Task.WaitAsync(Deadline, ct);
+        Assert.Equal(1, scheduler.DelayCount);
+        Assert.Equal(1, first.DisposeCount);
+        Assert.False(changes.Reader.TryRead(out _));
+    }
+
+    [Fact]
+    public async Task Dispose_during_unanswered_heartbeat_does_not_start_recovery()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var transport = new GameClientTestTransport
+        {
+            HeartbeatInterval = TimeSpan.FromMilliseconds(20),
+            HeartbeatTimeout = TimeSpan.FromHours(1)
+        };
+        var scheduler = new ControlledRecoveryScheduler();
+        var connections = 0;
+        await using var client = new LakonaGameClientLifecycle(new LakonaGameClientOptions(() =>
+        {
+            Interlocked.Increment(ref connections);
+            return transport;
+        }, new IntegerSerializer()) { RecoveryScheduler = scheduler });
+        var terminalEvents = 0;
+        client.Disconnected += _ => Interlocked.Increment(ref terminalEvents);
+        await client.ConnectAsync(ct);
+        transport.EstablishSession();
+        await transport.EstablishedAcknowledged.Task.WaitAsync(Deadline, ct);
+        transport.SuppressHeartbeatReplies = true;
+        await transport.HeartbeatSuppressed.Task.WaitAsync(Deadline, ct);
+
+        await client.DisposeAsync().AsTask().WaitAsync(Deadline, ct);
+
+        AssertState(client, LakonaGameConnectionState.Disposed);
+        Assert.Equal(0, scheduler.DelayCount);
+        Assert.Equal(1, connections);
+        Assert.Equal(0, terminalEvents);
+        Assert.Equal(1, transport.DisposeCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Replacement_failure_during_previous_cleanup_starts_another_recovery(bool heartbeatTimeout)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var cleanupRelease = GameClientTestTransport.Signal();
+        var first = new GameClientTestTransport { DisposeRelease = cleanupRelease };
+        var second = new GameClientTestTransport
+        {
+            HeartbeatInterval = TimeSpan.FromMilliseconds(20),
+            HeartbeatTimeout = TimeSpan.FromMilliseconds(200)
+        };
+        var third = new GameClientTestTransport();
+        var scheduler = new ControlledRecoveryScheduler();
+        var transports = new Queue<GameClientTestTransport>([first, second, third]);
+        var connections = 0;
+        await using var client = new LakonaGameClientLifecycle(new LakonaGameClientOptions(() =>
+        {
+            Interlocked.Increment(ref connections);
+            return transports.Dequeue();
+        }, new IntegerSerializer()) { RecoveryScheduler = scheduler });
+        var changes = ObserveChanges(client);
+        try
+        {
+            await client.ConnectAsync(ct);
+            first.EstablishSession();
+            await first.EstablishedAcknowledged.Task.WaitAsync(Deadline, ct);
+            await AssertChange(changes, LakonaGameConnectionState.Created, LakonaGameConnectionState.Connecting);
+            await AssertChange(changes, LakonaGameConnectionState.Connecting, LakonaGameConnectionState.Connected);
+            var dispatcher = client.Dispatcher;
+            first.Disconnect();
+            Assert.Equal(1, await scheduler.DelayEntries.Reader.ReadAsync(ct).AsTask().WaitAsync(Deadline, ct));
+            await AssertChange(changes, LakonaGameConnectionState.Connected, LakonaGameConnectionState.Reconnecting);
+            scheduler.Step();
+            await first.Disposed.Task.WaitAsync(Deadline, ct);
+            await AssertChange(changes, LakonaGameConnectionState.Reconnecting, LakonaGameConnectionState.Connected);
+            Assert.Equal(2, connections);
+            Assert.False(cleanupRelease.Task.IsCompleted);
+
+            if (heartbeatTimeout)
+            {
+                second.SuppressHeartbeatReplies = true;
+                await second.HeartbeatSuppressed.Task.WaitAsync(Deadline, ct);
+            }
+            else
+            {
+                second.Disconnect();
+            }
+            await AssertChange(changes, LakonaGameConnectionState.Connected, LakonaGameConnectionState.Reconnecting);
+            Assert.Throws<InvalidOperationException>(client.EnsureApiReady);
+            Assert.Equal(1, scheduler.DelayCount);
+            cleanupRelease.TrySetResult();
+            Assert.Equal(2, await scheduler.DelayEntries.Reader.ReadAsync(ct).AsTask().WaitAsync(Deadline, ct));
+            scheduler.Step();
+            await AssertChange(changes, LakonaGameConnectionState.Reconnecting, LakonaGameConnectionState.Connected);
+            Assert.Same(dispatcher, client.Dispatcher);
+            Assert.Equal(31, await dispatcher.CallAsync(new RpcMethod<int, int>(42, 1), 31, ct).AsTask().WaitAsync(Deadline, ct));
+            Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
+            Assert.Equal("ticket", third.Hello!.ResumeTicket);
+            await second.Disposed.Task.WaitAsync(Deadline, ct);
+            Assert.Equal(3, connections);
+            Assert.Equal(2, scheduler.DelayCount);
+            Assert.Equal(1, first.DisposeCount);
+            Assert.Equal(1, second.DisposeCount);
+        }
+        finally
+        {
+            cleanupRelease.TrySetResult();
+        }
+    }
+
+    [Theory]
+    [InlineData(GameHeartbeatStatus.StateLost, ClientSessionPhase.StateLost)]
+    [InlineData(GameHeartbeatStatus.Terminated, ClientSessionPhase.Terminated)]
+    public async Task Terminal_heartbeat_reply_updates_session_without_reconnecting(
+        GameHeartbeatStatus status, ClientSessionPhase phase)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var transport = new GameClientTestTransport
+        {
+            HeartbeatInterval = TimeSpan.FromMilliseconds(20),
+            HeartbeatTimeout = TimeSpan.FromSeconds(2)
+        };
+        var scheduler = new ControlledRecoveryScheduler();
+        await using var client = new LakonaGameClientLifecycle(
+            new LakonaGameClientOptions(transport, new IntegerSerializer()) { RecoveryScheduler = scheduler });
+        await client.ConnectAsync(ct);
+        transport.EstablishSession();
+        await transport.EstablishedAcknowledged.Task.WaitAsync(Deadline, ct);
+        transport.HeartbeatReplyStatus = status;
+        GameHeartbeatStatus observed;
+        do
+        {
+            observed = await transport.HeartbeatReplies.Reader.ReadAsync(ct).AsTask().WaitAsync(Deadline, ct);
+        } while (observed != status);
+        // The following heartbeat is sent only after the preceding reply has been applied.
+        Assert.Equal(status, await transport.HeartbeatReplies.Reader.ReadAsync(ct).AsTask().WaitAsync(Deadline, ct));
+
+        Assert.Equal(phase, client.Snapshot.Phase);
+        AssertState(client, LakonaGameConnectionState.Connected);
+        Assert.Equal(0, scheduler.DelayCount);
+        Assert.Equal(0, transport.DisposeCount);
+    }
+
+    [Fact]
+    public async Task Heartbeat_failure_is_terminal_if_disposing_the_failed_transport_throws()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var failure = new IOException("Failed transport cleanup.");
+        var transport = new GameClientTestTransport
+        {
+            HeartbeatInterval = TimeSpan.FromMilliseconds(20),
+            HeartbeatTimeout = TimeSpan.FromMilliseconds(200),
+            DisposeError = failure
+        };
+        var scheduler = new ControlledRecoveryScheduler();
+        var connections = 0;
+        var client = new LakonaGameClientLifecycle(new LakonaGameClientOptions(() =>
+        {
+            Interlocked.Increment(ref connections);
+            return transport;
+        }, new IntegerSerializer()) { RecoveryScheduler = scheduler });
+        var terminal = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.Disconnected += error => terminal.TrySetResult(error);
+        try
+        {
+            await client.ConnectAsync(ct);
+            transport.EstablishSession();
+            await transport.EstablishedAcknowledged.Task.WaitAsync(Deadline, ct);
+            transport.SuppressHeartbeatReplies = true;
+            await transport.HeartbeatSuppressed.Task.WaitAsync(Deadline, ct);
+            Assert.Same(failure, await terminal.Task.WaitAsync(Deadline, ct));
+            AssertState(client, LakonaGameConnectionState.Disconnected);
+            Assert.Equal(ClientSessionPhase.ConnectionFailed, client.Snapshot.Phase);
+            Assert.Equal(ClientConnectionFailureKind.HeartbeatFailed, client.Snapshot.Failure?.Kind);
+            Assert.Throws<InvalidOperationException>(client.EnsureApiReady);
+            Assert.Equal(0, scheduler.DelayCount);
+            Assert.Equal(1, connections);
+        }
+        finally
+        {
+            Assert.Same(failure, await Assert.ThrowsAsync<IOException>(
+                () => client.DisposeAsync().AsTask().WaitAsync(Deadline, ct)));
+        }
+        AssertState(client, LakonaGameConnectionState.Disposed);
+        Assert.Equal(1, transport.DisposeCount);
+    }
+
     [Fact]
     public async Task Failed_recovery_candidate_is_released_before_retry()
     {

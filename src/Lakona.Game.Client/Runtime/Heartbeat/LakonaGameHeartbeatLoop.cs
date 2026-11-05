@@ -70,6 +70,7 @@ namespace Lakona.Game.Client
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(_timeout);
 
+            GameHeartbeatReply reply;
             try
             {
                 var snapshot = _core.Snapshot;
@@ -84,32 +85,26 @@ namespace Lakona.Game.Client
                         requestPayload,
                         timeoutCts.Token)
                     .ConfigureAwait(false);
-                var reply = LakonaInternalCodec.DecodeGameHeartbeatReply(responsePayload.Memory);
-
-                switch (reply.Status)
-                {
-                    case GameHeartbeatStatus.Ok:
-                        return;
-                    case GameHeartbeatStatus.StateLost:
-                        _core.MarkStateLost();
-                        return;
-                    case GameHeartbeatStatus.Terminated:
-                        _core.ApplySessionTerminationNotice(
-                            new SessionTerminationNotice(SessionTerminationReason.Policy, reply.Message));
-                        return;
-                    default:
-                        _core.MarkReconnecting();
-                        return;
-                }
+                reply = LakonaInternalCodec.DecodeGameHeartbeatReply(responsePayload.Memory);
+                if (reply.Status != GameHeartbeatStatus.Ok &&
+                    reply.Status != GameHeartbeatStatus.StateLost &&
+                    reply.Status != GameHeartbeatStatus.Terminated)
+                    throw new InvalidOperationException("Unknown game heartbeat status.");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
             }
-            catch
+            catch (Exception exception)
             {
-                _core.MarkReconnecting();
+                cancellationToken.ThrowIfCancellationRequested();
+                _core.CompleteHeartbeat(_rpcClient, null, exception);
+                return;
             }
+
+            // A response can win the RPC cancellation race during replacement or shutdown.
+            cancellationToken.ThrowIfCancellationRequested();
+            _core.CompleteHeartbeat(_rpcClient, reply, null);
         }
 
         public async ValueTask DisposeAsync()

@@ -26,6 +26,8 @@ namespace Lakona.Game.Client
         private TimeSpan _sessionResumeWindow = TimeSpan.FromSeconds(60);
         private string? _resumeTicket;
 
+        internal event Action<RpcClientRuntime, GameHeartbeatReply?, Exception?>? HeartbeatCompleted;
+
         public LakonaGameClientCore(IReliablePushCursorStore? cursorStore = null)
         {
             _reliablePush = new ReliablePushInbox(cursorStore);
@@ -145,6 +147,12 @@ namespace Lakona.Game.Client
 
         public async ValueTask ReplaceHeartbeatAsync(RpcClientRuntime rpcClient)
         {
+            await StopHeartbeatAsync().ConfigureAwait(false);
+            StartHeartbeat(rpcClient);
+        }
+
+        internal async ValueTask StopHeartbeatAsync()
+        {
             LakonaGameHeartbeatLoop? previous;
             lock (_heartbeatLock)
             {
@@ -152,7 +160,33 @@ namespace Lakona.Game.Client
                 _heartbeat = null;
             }
             if (previous is not null) await previous.DisposeAsync().ConfigureAwait(false);
-            StartHeartbeat(rpcClient);
+        }
+
+        internal void CompleteHeartbeat(RpcClientRuntime source, GameHeartbeatReply? reply, Exception? error)
+        {
+            var completed = HeartbeatCompleted;
+            if (completed is not null)
+                completed(source, reply, error);
+            else if (error is not null)
+                MarkReconnecting();
+            else
+                ApplyHeartbeatReply(reply!);
+        }
+
+        internal void ApplyHeartbeatReply(GameHeartbeatReply reply)
+        {
+            switch (reply.Status)
+            {
+                case GameHeartbeatStatus.Ok:
+                    return;
+                case GameHeartbeatStatus.StateLost:
+                    MarkStateLost();
+                    return;
+                case GameHeartbeatStatus.Terminated:
+                    ApplySessionTerminationNotice(
+                        new SessionTerminationNotice(SessionTerminationReason.Policy, reply.Message));
+                    return;
+            }
         }
 
         public async ValueTask CompleteRecoveryAsync(RpcClientRuntime rpcClient, CancellationToken cancellationToken = default)
@@ -370,18 +404,7 @@ namespace Lakona.Game.Client
 
         public async ValueTask DisposeAsync()
         {
-            LakonaGameHeartbeatLoop? heartbeat;
-            lock (_heartbeatLock)
-            {
-                heartbeat = _heartbeat;
-                _heartbeat = null;
-            }
-
-            if (heartbeat is not null)
-            {
-                await heartbeat.DisposeAsync().ConfigureAwait(false);
-            }
-
+            await StopHeartbeatAsync().ConfigureAwait(false);
             await _reliablePushAcks.DisposeAsync().ConfigureAwait(false);
         }
     }
