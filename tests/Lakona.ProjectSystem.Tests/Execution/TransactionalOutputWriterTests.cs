@@ -7,13 +7,17 @@ namespace Lakona.ProjectSystem.Tests.Execution;
 
 public sealed class TransactionalOutputWriterTests
 {
-    [Fact]
-    public async Task WriteAsync_WritesPlanIntoTargetDirectory()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WriteAsync_WritesPlanIntoTargetDirectory(bool targetExists)
     {
         var parentRoot = CreateTempRoot();
         var targetRoot = Path.Combine(parentRoot, "Sample");
         try
         {
+            if (targetExists)
+                Directory.CreateDirectory(targetRoot);
             var plan = new GenerationPlan(
                 targetRoot,
                 [new GeneratedFile("Shared/Contracts/Login.cs", "public sealed class Login {}", FileWriteMode.Replace, GeneratedFileKind.Text)],
@@ -32,6 +36,56 @@ public sealed class TransactionalOutputWriterTests
         {
             Directory.Delete(parentRoot, recursive: true);
         }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task WriteAsync_PreservesTargetClaimedDuringGeneration(bool targetExists, bool addUserFile)
+    {
+        var parentRoot = CreateTempRoot();
+        var targetRoot = Path.Combine(parentRoot, "Sample");
+        var userFile = Path.Combine(targetRoot, "notes.txt");
+        try
+        {
+            if (targetExists)
+                Directory.CreateDirectory(targetRoot);
+
+            var files = new FilesWrittenDuringStaging(() =>
+            {
+                Directory.CreateDirectory(targetRoot);
+                if (addUserFile)
+                    File.WriteAllText(userFile, "user notes");
+            });
+            var plan = new GenerationPlan(targetRoot, files, [], []);
+            await Assert.ThrowsAsync<LakonaProjectCreationException>(() =>
+                new TransactionalOutputWriter().WriteAsync(plan, TestContext.Current.CancellationToken));
+
+            Assert.True(Directory.Exists(targetRoot));
+            Assert.False(File.Exists(Path.Combine(targetRoot, "generated.txt")));
+            if (addUserFile)
+                Assert.Equal("user notes", File.ReadAllText(userFile));
+            Assert.Empty(Directory.GetDirectories(parentRoot, ".Sample.tmp-*"));
+        }
+        finally
+        {
+            Directory.Delete(parentRoot, recursive: true);
+        }
+    }
+
+    // The writer enumerates files after validating the target and creating staging.
+    private sealed class FilesWrittenDuringStaging(Action claimTarget) : IReadOnlyList<GeneratedFile>
+    {
+        private readonly GeneratedFile[] files = [new("generated.txt", "generated", FileWriteMode.CreateOnly, GeneratedFileKind.Text)];
+        public int Count => files.Length;
+        public GeneratedFile this[int index] => files[index];
+        public IEnumerator<GeneratedFile> GetEnumerator()
+        {
+            claimTarget();
+            return ((IEnumerable<GeneratedFile>)files).GetEnumerator();
+        }
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     [Fact]

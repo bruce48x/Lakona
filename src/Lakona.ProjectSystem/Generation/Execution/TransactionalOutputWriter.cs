@@ -15,7 +15,8 @@ internal sealed class TransactionalOutputWriter
     public async Task WriteAsync(GenerationPlan plan, string? restoredUnityPackagesPath, CancellationToken cancellationToken)
     {
         var targetRoot = Path.GetFullPath(plan.RootPath);
-        if (Directory.Exists(targetRoot) && Directory.EnumerateFileSystemEntries(targetRoot).Any())
+        var targetExisted = Directory.Exists(targetRoot);
+        if (targetExisted && Directory.EnumerateFileSystemEntries(targetRoot).Any())
         {
             throw new LakonaProjectCreationException($"Target directory already exists and is not empty: {targetRoot}");
         }
@@ -60,12 +61,19 @@ internal sealed class TransactionalOutputWriter
                     cancellationToken);
             }
 
-            if (Directory.Exists(targetRoot))
+            try
             {
-                Directory.Delete(targetRoot, recursive: true);
-            }
+                // Only the empty directory accepted at startup may be removed.
+                // A concurrent write makes the non-recursive delete fail safely.
+                if (targetExisted)
+                    Directory.Delete(targetRoot, recursive: false);
 
-            Directory.Move(stagingRootFullPath, targetRoot);
+                Directory.Move(stagingRootFullPath, targetRoot);
+            }
+            catch (IOException error)
+            {
+                throw new LakonaProjectCreationException($"Could not publish the project to '{targetRoot}': {error.Message}", error);
+            }
         }
         catch (Exception generationError)
         {

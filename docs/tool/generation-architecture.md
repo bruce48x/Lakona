@@ -354,7 +354,9 @@ Transactional execution is:
 3. Create a sibling staging root named `.<ProjectName>.tmp-<random>`.
 4. Write all directories and files into staging.
 5. Extract embedded archives into staging only.
-6. Move staging root to final target root.
+6. If the target existed at the initial check, remove it with a non-recursive
+   delete. A file added during generation makes this step fail and stays in
+   place. Move the staging root to the final path.
 7. On failure before the move, delete staging.
 8. On move failure, keep the original target untouched and report cleanup
    failure if cleanup also fails.
