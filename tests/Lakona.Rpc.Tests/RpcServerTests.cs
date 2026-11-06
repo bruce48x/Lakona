@@ -1033,18 +1033,17 @@ public class RpcSessionTests
         Assert.Equal(1, buffered.DisposeCount);
     }
 
-    [Fact]
-    public async Task RemoteClose_ResetsServerStateAndRaisesDisconnected()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RemoteClose_ResetsServerStateAndRaisesDisconnected(bool firstReceiveFails)
     {
-        var transport = new ReconnectableEmptyFrameTransport();
+        var firstError = firstReceiveFails ? new IOException("First connection read failed.") : null;
+        var transport = new ReconnectableEmptyFrameTransport(firstError);
         var server = TestRpcSession.Create(transport, new JsonRpcSerializer(), ownsTransport: false);
 
-        var disconnectedCount = 0;
-        server.Disconnected += ex =>
-        {
-            Assert.Null(ex);
-            Interlocked.Increment(ref disconnectedCount);
-        };
+        var disconnects = new List<Exception?>();
+        server.Disconnected += disconnects.Add;
 
         await server.StartAsync();
         await server.WaitForCompletionAsync();
@@ -1053,7 +1052,7 @@ public class RpcSessionTests
         await server.WaitForCompletionAsync();
 
         Assert.Equal(2, transport.ConnectCount);
-        Assert.Equal(2, disconnectedCount);
+        Assert.Collection(disconnects, error => Assert.Same(firstError, error), error => Assert.Null(error));
 
         await server.DisposeAsync();
     }
@@ -1349,7 +1348,7 @@ public class RpcSessionTests
         return RpcEnvelopeCodec.DecodeResponse(frame);
     }
 
-    private sealed class ReconnectableEmptyFrameTransport : ITransport
+    private sealed class ReconnectableEmptyFrameTransport(IOException? firstError) : ITransport
     {
         public int ConnectCount { get; private set; }
         public bool IsConnected { get; private set; }
@@ -1369,6 +1368,7 @@ public class RpcSessionTests
         public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
         {
             IsConnected = false;
+            if (ConnectCount == 1 && firstError is not null) throw firstError;
             return ValueTask.FromResult(TransportFrame.Empty);
         }
 

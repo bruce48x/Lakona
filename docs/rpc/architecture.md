@@ -259,6 +259,13 @@ unexpected keepalive failure cancels the receive loop and becomes the terminal
 disconnect reason. No Session-owned task handle is discarded while its task can
 still access Session resources.
 
+A transport error while writing an RPC response ends that Session. The server
+records the original write error as its disconnect reason, stops accepting
+requests on the connection, and closes the transport it owns. Once the client
+observes the disconnect, its pending calls fail through the normal connection
+cleanup path. The handler may already have applied its business changes, so
+the RPC runtime leaves any retry decision to the application.
+
 With RPC keepalive enabled, a client or server Session starts a probe after
 an `Interval` without inbound traffic. Its `Timeout` starts before the Ping
 enters the shared writer and continues while the Ping is queued or the

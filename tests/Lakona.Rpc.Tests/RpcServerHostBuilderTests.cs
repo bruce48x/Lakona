@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server;
 using Lakona.Rpc.Serializer.Json;
@@ -569,6 +570,114 @@ public class RpcServerHostBuilderTests
             {
                 await ownedSession.DisposeAsync();
             }
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ResponseWriteFailure_ClosesOnlyItsConnectionBeforeOtherHandlersFinish(bool overloaded)
+    {
+        var guard = TimeSpan.FromSeconds(5);
+        var serializer = new JsonRpcSerializer();
+        LoopbackTransport.CreatePair(out var badPeer, out var badWire);
+        LoopbackTransport.CreatePair(out var healthyPeer, out var healthyWire);
+        var faulty = new FailFirstResponseTransport(badWire);
+        var acceptor = new ChannelConnectionAcceptor();
+        var observer = new RecordingSessionLifecycleObserver();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var businessExecutions = 0;
+        using var stopping = new CancellationTokenSource();
+        var host = RpcServerHostBuilder.Create()
+            .UseSerializer(serializer)
+            .UseAcceptor(acceptor)
+            .UseSessionLifecycleObserver(observer)
+            .UseLimits(limits =>
+            {
+                limits.MaxConcurrentRequestsPerSession = overloaded ? 1 : 2;
+                limits.MaxQueuedRequestsPerSession = 0;
+            })
+            .ConfigureServices(registry =>
+            {
+                registry.RegisterRaw(1, 1, async (_, _, _, ct) =>
+                {
+                    entered.SetResult();
+                    await release.Task;
+                    ct.ThrowIfCancellationRequested();
+                    return RpcRawResult.Ok(ReadOnlyMemory<byte>.Empty);
+                });
+                registry.RegisterRaw(1, 2, (_, _, payload, _) =>
+                {
+                    Interlocked.Increment(ref businessExecutions);
+                    return new ValueTask<RpcRawResult>(RpcRawResult.Ok(payload));
+                });
+                registry.RegisterRaw(1, 3, (_, _, payload, _) => new ValueTask<RpcRawResult>(RpcRawResult.Ok(payload)));
+            })
+            .Build();
+        await faulty.ConnectAsync();
+        await healthyWire.ConnectAsync();
+        var run = host.RunAsync(stopping.Token).AsTask();
+        await using var bad = new RpcClientRuntime(badPeer, serializer);
+        await using var healthy = new RpcClientRuntime(healthyPeer, serializer);
+        try
+        {
+            acceptor.Enqueue(new RpcAcceptedConnection(healthyWire, "healthy"));
+            await healthy.StartAsync();
+            var echo = new RpcMethod<int, int>(1, 3);
+            Assert.Equal(11, await healthy.CallAsync(echo, 11).AsTask().WaitAsync(guard));
+
+            acceptor.Enqueue(new RpcAcceptedConnection(faulty, "bad-write"));
+            await bad.StartAsync();
+            var sibling = bad.CallRawAsync(1, 1, ReadOnlyMemory<byte>.Empty).AsTask();
+            await entered.Task.WaitAsync(guard);
+            var triggering = bad.CallRawAsync(1, 2, ReadOnlyMemory<byte>.Empty).AsTask();
+
+            Assert.Equal(overloaded ? RpcStatus.Overloaded : RpcStatus.Ok, await faulty.FirstResponse.Task.WaitAsync(guard));
+            // The timeout only bounds the test. Neither call has a cancellation token or deadline.
+            await Assert.ThrowsAsync<InvalidOperationException>(() => triggering.WaitAsync(guard));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => sibling.WaitAsync(guard));
+            Assert.Equal(RpcClientConnectionState.Stopped, bad.ConnectionState);
+            Assert.Equal(22, await healthy.CallAsync(echo, 22).AsTask().WaitAsync(guard));
+            Assert.False(observer.Disconnected.Task.IsCompleted);
+
+            release.SetResult();
+            await observer.Disconnected.Task.WaitAsync(guard);
+        }
+        finally
+        {
+            release.TrySetResult();
+            stopping.Cancel();
+            await run.WaitAsync(guard);
+        }
+        var disconnected = Assert.Single(observer.DisconnectedContexts, entry => entry.Context.DisplayName == "bad-write");
+        Assert.Same(faulty.Error, disconnected.Error);
+        Assert.Equal(overloaded ? 0 : 1, businessExecutions);
+        Assert.Equal(1, faulty.ResponseWrites);
+    }
+
+    private sealed class FailFirstResponseTransport(ITransport inner) : ITransport
+    {
+        public IOException Error { get; } = new("Injected response write failure.");
+        public TaskCompletionSource<RpcStatus> FirstResponse { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _responseWrites;
+        public int ResponseWrites => Volatile.Read(ref _responseWrites);
+        public bool IsConnected => inner.IsConnected;
+        public ValueTask ConnectAsync(CancellationToken ct = default) => inner.ConnectAsync(ct);
+        public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default) => inner.ReceiveFrameAsync(ct);
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
+
+        public ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
+        {
+            if (RpcEnvelopeCodec.PeekFrameType(frame.Span) == RpcFrameType.Response &&
+                Interlocked.Increment(ref _responseWrites) == 1)
+            {
+                using var owned = TransportFrame.CopyOf(frame.Span);
+                using var response = RpcEnvelopeCodec.DecodeResponse(owned);
+                FirstResponse.SetResult(response.Status);
+                throw Error;
+            }
+            return inner.SendFrameAsync(frame, ct);
         }
     }
 

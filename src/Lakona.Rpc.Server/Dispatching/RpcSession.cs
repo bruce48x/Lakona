@@ -43,7 +43,6 @@ namespace Lakona.Rpc.Server
         private int _started;
         private int _terminated;
         private int _transportDisposed;
-        private long _disconnectReasonSet;
         private Exception? _disconnectReason;
 
         /// <summary>
@@ -375,7 +374,6 @@ namespace Lakona.Rpc.Server
             var keepAliveLoop = _keepAlive.Enabled
                 ? KeepAliveLoopAsync(serverCts)
                 : null;
-            Exception? disconnectError = null;
             var cancelInflightRequests = false;
 
             try
@@ -427,7 +425,7 @@ namespace Lakona.Rpc.Server
                 if (!ct.IsCancellationRequested)
                 {
                     cancelInflightRequests = true;
-                    disconnectError = ex;
+                    SetDisconnectReason(ex);
                 }
             }
             finally
@@ -449,16 +447,15 @@ namespace Lakona.Rpc.Server
                     }
                     catch (Exception ex)
                     {
-                        disconnectError ??= ex;
+                        SetDisconnectReason(ex);
                     }
                 }
 
-                if (disconnectError is null)
-                    disconnectError = _disconnectReason;
                 _requests.Writer.TryComplete();
                 await requestLoop.ConfigureAwait(false);
                 await _inflightRequests.WaitAsync().ConfigureAwait(false);
                 await DisposeScopedServicesAsync().ConfigureAwait(false);
+                var disconnectError = Interlocked.Exchange(ref _disconnectReason, null);
                 ResetRuntimeState(serverCts);
                 Disconnected?.Invoke(disconnectError);
             }
@@ -554,17 +551,9 @@ namespace Lakona.Rpc.Server
                 status = await _requestDispatcher.DispatchAsync(this, req, ct, startedAt, () => entered.TrySetResult(true)).ConfigureAwait(false);
                 outcome = RpcServerTelemetry.ResponseOutcome;
             }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            catch (Exception error)
             {
-                outcome = RpcServerTelemetry.CanceledOutcome;
-            }
-            catch (ObjectDisposedException)
-            {
-                outcome = RpcServerTelemetry.ConnectionClosedOutcome;
-            }
-            catch (InvalidOperationException) when (!_transport.IsConnected)
-            {
-                outcome = RpcServerTelemetry.ConnectionClosedOutcome;
+                outcome = await HandleUnansweredRequestAsync(req.RequestId, error, ct).ConfigureAwait(false);
             }
             finally
             {
@@ -596,17 +585,9 @@ namespace Lakona.Rpc.Server
                 await _requestDispatcher.SendOverloadedResponseAsync(requestId, ct).ConfigureAwait(false);
                 outcome = RpcServerTelemetry.ResponseOutcome;
             }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            catch (Exception error)
             {
-                outcome = RpcServerTelemetry.CanceledOutcome;
-            }
-            catch (ObjectDisposedException)
-            {
-                outcome = RpcServerTelemetry.ConnectionClosedOutcome;
-            }
-            catch (InvalidOperationException) when (!_transport.IsConnected)
-            {
-                outcome = RpcServerTelemetry.ConnectionClosedOutcome;
+                outcome = await HandleUnansweredRequestAsync(requestId, error, ct).ConfigureAwait(false);
             }
             finally
             {
@@ -617,6 +598,27 @@ namespace Lakona.Rpc.Server
                     RpcStatus.Overloaded,
                     Stopwatch.GetElapsedTime(startedAt));
             }
+        }
+
+        private async ValueTask<string> HandleUnansweredRequestAsync(uint requestId, Exception error, CancellationToken ct)
+        {
+            if (ct.IsCancellationRequested)
+                return error is OperationCanceledException ? RpcServerTelemetry.CanceledOutcome : RpcServerTelemetry.ConnectionClosedOutcome;
+
+            // The dispatcher turns handler errors into responses. If the response path itself
+            // fails, the peer can only finish its pending calls by observing the connection close.
+            if (SetDisconnectReason(error))
+            {
+                _logger.LogWarning(error,
+                    "Closing RPC connection {ConnectionId} after failing to complete request {RequestId}.",
+                    ConnectionId, requestId);
+                try { await AbortTransportAsync().ConfigureAwait(false); }
+                catch (Exception abortError)
+                {
+                    _logger.LogError(abortError, "Failed to abort RPC connection {ConnectionId}.", ConnectionId);
+                }
+            }
+            return RpcServerTelemetry.FailureOutcome;
         }
 
         private async ValueTask SendFrameAsyncSerialized(ReadOnlyMemory<byte> frame, CancellationToken ct)
@@ -693,19 +695,18 @@ namespace Lakona.Rpc.Server
 
         internal async ValueTask AbortTransportAsync()
         {
-            var cts = _cts;
-            if (cts is not null)
+            // Signal cancellation immediately; a handler's cancellation callback must not
+            // delay closing the transport and waking the remote caller.
+            var cancellation = _cts?.CancelAsync() ?? Task.CompletedTask;
+            try
             {
-                try
-                {
-                    cts.Cancel();
-                }
-                catch (ObjectDisposedException)
-                {
-                }
+                await DisposeOwnedTransportIfNeededAsync().ConfigureAwait(false);
             }
-
-            await DisposeOwnedTransportIfNeededAsync().ConfigureAwait(false);
+            finally
+            {
+                try { await cancellation.ConfigureAwait(false); }
+                catch (ObjectDisposedException) { }
+            }
         }
 
         private async ValueTask DisposeScopedServicesAsync()
@@ -777,11 +778,8 @@ namespace Lakona.Rpc.Server
             return (transport as IRemoteEndPointProvider)?.RemoteEndPoint;
         }
 
-        private void SetDisconnectReason(Exception ex)
-        {
-            if (Interlocked.CompareExchange(ref _disconnectReasonSet, 1, 0) == 0)
-                _disconnectReason = ex;
-        }
+        private bool SetDisconnectReason(Exception ex) =>
+            Interlocked.CompareExchange(ref _disconnectReason, ex, null) is null;
 
         private static void CancelSessionLoop(CancellationTokenSource serverCts)
         {
