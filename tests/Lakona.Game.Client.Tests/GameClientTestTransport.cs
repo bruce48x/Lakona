@@ -25,6 +25,7 @@ internal sealed class GameClientTestTransport : ITransport
     public Channel<GameHeartbeatStatus> HeartbeatReplies { get; } = Channel.CreateUnbounded<GameHeartbeatStatus>();
     public TaskCompletionSource BusinessEntered { get; } = Signal();
     public TaskCompletionSource EstablishedAcknowledged { get; } = Signal();
+    public Channel<ReliablePushAckRequest> ReliableAcknowledgements { get; } = Channel.CreateUnbounded<ReliablePushAckRequest>();
     public TaskCompletionSource Disposed { get; } = Signal();
     public TaskCompletionSource? ConnectRelease { get; init; }
     public TaskCompletionSource? HandshakeRelease { get; init; }
@@ -108,6 +109,11 @@ internal sealed class GameClientTestTransport : ITransport
             EstablishedAcknowledged.TrySetResult();
             payload = Array.Empty<byte>();
         }
+        else if (request.ServiceId == GameReliablePushRpcIds.ServiceId && request.MethodId == GameReliablePushRpcIds.AckMethodId)
+        {
+            ReliableAcknowledgements.Writer.TryWrite(LakonaInternalCodec.DecodeReliablePushAckRequest(request.Payload.Memory));
+            payload = LakonaInternalCodec.EncodeReliablePushAckOutcome(ReliablePushAckOutcome.Accepted());
+        }
         else
         {
             Interlocked.Increment(ref _businessRequestCount);
@@ -135,11 +141,11 @@ internal sealed class GameClientTestTransport : ITransport
             }));
     }
 
-    public void Push(int serviceId, int methodId, byte[] payload)
+    public void Push(int serviceId, int methodId, byte[] payload, RpcPushMetadata? metadata = null)
     {
         _incoming.Writer.TryWrite(RpcEnvelopeCodec.EncodePush(new RpcPushEnvelope
         {
-            ServiceId = serviceId, MethodId = methodId, Payload = payload
+            ServiceId = serviceId, MethodId = methodId, Payload = payload, Metadata = metadata
         }));
     }
 

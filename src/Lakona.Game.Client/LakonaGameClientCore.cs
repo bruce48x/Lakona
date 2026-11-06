@@ -30,7 +30,10 @@ namespace Lakona.Game.Client
 
         public LakonaGameClientCore(IReliablePushCursorStore? cursorStore = null)
         {
-            _reliablePush = new ReliablePushInbox(cursorStore);
+            _reliablePush = new ReliablePushInbox(cursorStore, error =>
+            {
+                lock (_receiptLock) TryMarkCursorSaveFailed(error);
+            });
             _sessions = new ClientSessionController(_reliablePush);
             _reliablePushAcks = new ReliablePushAckPump(
                 _sessions.ApplyAckOutcome,
@@ -250,13 +253,19 @@ namespace Lakona.Game.Client
             _heartbeatTimeout = heartbeat.Timeout;
         }
 
-        public void BindReliablePush(RpcClientRuntime rpcClient)
+        public void BindReliablePush(RpcClientRuntime rpcClient) => BindReliablePush(rpcClient, null);
+
+        internal void BindReliablePush(RpcClientRuntime rpcClient, Action<ReliablePushCursorSaveException>? cursorSaveFailed)
         {
             if (rpcClient == null) throw new ArgumentNullException(nameof(rpcClient));
             lock (_receiptLock)
             {
-                _receiptRuntime = rpcClient;
-                _reliablePushAcks.Bind(rpcClient);
+                if (!ReferenceEquals(_receiptRuntime, rpcClient))
+                {
+                    _reliablePush.BindConnection();
+                    _receiptRuntime = rpcClient;
+                    _reliablePushAcks.Bind(rpcClient);
+                }
             }
 
             rpcClient.SetNotificationReceiveMiddleware(async (metadata, enqueue, ct) =>
@@ -267,24 +276,40 @@ namespace Lakona.Game.Client
                     return;
                 }
                 var reliableMetadata = LakonaInternalCodec.DecodeReliablePushMetadata(metadata.Payload);
-                await _reliablePush.WaitForSessionAsync(reliableMetadata.SessionId, ct).ConfigureAwait(false);
-                var receipt = _reliablePush.ReceiveAsync(reliableMetadata, enqueue,
-                    (ack, token) =>
-                    {
-                        lock (_receiptLock)
-                        {
-                            token.ThrowIfCancellationRequested();
-                            if (!ReferenceEquals(_receiptRuntime, rpcClient))
-                                throw new OperationCanceledException("The reliable push connection has been replaced.");
-                            return new ValueTask<ReliablePushAckOutcome>(
-                                _reliablePushAcks.Queue(rpcClient, ack, _heartbeatTimeout));
-                        }
-                    }, ct);
-                _ = ObserveReceiptAsync(rpcClient, receipt, ct);
+                ValueTask<int> ready;
+                lock (_receiptLock)
+                {
+                    if (!AcceptsReceipts(rpcClient)) return;
+                    ready = _reliablePush.WaitForSessionAsync(reliableMetadata.SessionId, ct);
+                }
+                var generation = await ready.ConfigureAwait(false);
+                lock (_receiptLock)
+                {
+                    if (!AcceptsReceipts(rpcClient)) return;
+                }
+                // A replacement between this check and admission is fenced inside the inbox.
+                // The custom store can now start its write outside the connection owner's lock.
+                var receipt = _reliablePush.ReceiveCoreAsync(reliableMetadata, enqueue, QueueAck, ct, generation);
+                _ = ObserveReceiptAsync(rpcClient, receipt, ct, cursorSaveFailed);
             });
+
+            ValueTask<ReliablePushAckOutcome> QueueAck(ReliablePushAckRequest ack, CancellationToken token)
+            {
+                lock (_receiptLock)
+                {
+                    token.ThrowIfCancellationRequested();
+                    if (!AcceptsReceipts(rpcClient))
+                        throw new OperationCanceledException("The reliable push connection is no longer accepting receipts.");
+                    return new ValueTask<ReliablePushAckOutcome>(_reliablePushAcks.Queue(rpcClient, ack, _heartbeatTimeout));
+                }
+            }
         }
 
-        private async Task ObserveReceiptAsync(RpcClientRuntime runtime, ValueTask<ReliablePushProcessResult> receipt, CancellationToken ct)
+        private bool AcceptsReceipts(RpcClientRuntime source) =>
+            ReferenceEquals(_receiptRuntime, source) && Snapshot.Phase != ClientSessionPhase.ConnectionFailed;
+
+        private async Task ObserveReceiptAsync(RpcClientRuntime runtime, ValueTask<ReliablePushProcessResult> receipt,
+            CancellationToken ct, Action<ReliablePushCursorSaveException>? cursorSaveFailed)
         {
             try
             {
@@ -298,6 +323,19 @@ namespace Lakona.Game.Client
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+            catch (ReliablePushCursorSaveException error)
+            {
+                lock (_receiptLock)
+                {
+                    if (ct.IsCancellationRequested || !ReferenceEquals(_receiptRuntime, runtime)) return;
+                    if (cursorSaveFailed is null)
+                    {
+                        TryMarkCursorSaveFailed(error);
+                        return;
+                    }
+                }
+                cursorSaveFailed(error);
+            }
             catch
             {
                 lock (_receiptLock)
@@ -337,6 +375,13 @@ namespace Lakona.Game.Client
         public void MarkConnectionFailed(ClientConnectionFailure failure)
         {
             _sessions.MarkConnectionFailed(failure);
+        }
+
+        internal bool TryMarkCursorSaveFailed(ReliablePushCursorSaveException error)
+        {
+            if (!_reliablePush.IsCurrentFailure(error)) return false;
+            MarkConnectionFailed(new ClientConnectionFailure(ClientConnectionFailureKind.ReliablePushCursorSaveFailed, error.Message));
+            return true;
         }
 
         public void StartSession(string sessionId, long lastReliableSequence = 0)
@@ -423,6 +468,11 @@ namespace Lakona.Game.Client
 
         public async ValueTask DisposeAsync()
         {
+            lock (_receiptLock)
+            {
+                _receiptRuntime = null;
+                _reliablePush.BindConnection();
+            }
             await StopHeartbeatAsync().ConfigureAwait(false);
             await _reliablePushAcks.DisposeAsync().ConfigureAwait(false);
         }

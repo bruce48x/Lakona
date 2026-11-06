@@ -20,6 +20,7 @@ namespace Lakona.Game.Client.Sessions
         ConnectFailed,
         HandshakeFailed,
         HeartbeatFailed,
-        Disconnected
+        Disconnected,
+        ReliablePushCursorSaveFailed
     }
 }

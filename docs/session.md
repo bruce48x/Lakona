@@ -471,7 +471,7 @@ The generated client's `ConnectionState` is a synchronized
 | `Connecting` | Initial transport connection and Game handshake are in progress. |
 | `Connected` | The current connection completed Game initialization or recovery confirmation. |
 | `Reconnecting` | Recovery is pending or in progress, including waiting for the stopped generation to drain, backoff, handshake, and recovery confirmation. |
-| `Disconnected` | The connection is unavailable and automatic recovery has ended through rejection or expiry. |
+| `Disconnected` | The connection is unavailable after recovery rejection, expiry, or a terminal reliable-push cursor storage failure. |
 | `Disposed` | Disposal has started; the client cannot be used again. Await `DisposeAsync` for cleanup completion. |
 
 `IsConnected` is exactly `ConnectionState == LakonaGameConnectionState.Connected`.
@@ -973,6 +973,21 @@ a message may be removed by the server even if the client exits before executing
 it. There is no persistent client payload inbox or exactly-once business promise.
 Default cursor storage remains in-memory.
 
+If saving the cursor fails, the client retries on the same connection after a
+short delay, even when no more notifications arrive. Each save gets at most
+three attempts. A retry can save the highest contiguous sequence already in
+the queue and submit one cumulative ACK covering those messages. For example,
+if saving sequence 1 failed while sequences 2 through 4 arrived, saving 4
+successfully permits ACK 4.
+
+If all attempts fail, the session moves to `ConnectionFailed` with
+`Snapshot.Failure.Kind` set to `ReliablePushCursorSaveFailed`. The generated
+client reports the storage error and enters the `Disconnected` connection state.
+On a transport reconnect that resumes the same Game Session, the client keeps
+its in-memory receive cursor. Replayed messages already admitted to that queue
+can be acknowledged on the replacement connection after a successful save.
+Only newly received sequences enter the queue.
+
 Receive admission waits for framework session initialization when an earlier
 session-establishment notification is still initializing the client. It does not
 wait for business handlers. Cursor persistence and ACK work use a separate path;
@@ -985,8 +1000,10 @@ against the framework request that is producing it. Instead, one client-owned
 acknowledgement pump sends at most one ACK RPC at a time. ACKs are cumulative,
 so while one call is in flight the pump retains only the highest contiguous
 Reliable Sequence for the current Game Session and connection generation.
-This bounds network ACK state and pending ACK RPCs. Cursor-save tasks remain
-serialized separately and can accumulate behind a slow custom cursor store.
+Receipt tasks can accumulate while a custom cursor store is slow. They share
+one serialized save path. Each task checks the highest contiguous receive
+sequence when its turn starts. If that sequence is already saved, the task
+can submit its cumulative ACK immediately.
 
 The acknowledgement pump uses the negotiated heartbeat timeout as its internal
 call deadline. Client disposal cancels and waits for the pump, connection

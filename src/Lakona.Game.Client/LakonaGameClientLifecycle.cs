@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
+using Lakona.Game.Client.ReliablePush;
 using Lakona.Game.Client.Sessions;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
@@ -33,6 +34,7 @@ namespace Lakona.Game.Client
         private bool _connectStarted;
         private LakonaGameConnectionState _connectionState;
         private bool _apiReady;
+        private ReliablePushCursorSaveException? _cursorSaveFailure;
         private readonly ILogger _connectionLogger;
         private readonly Queue<(LakonaGameConnectionStateChange Change, Action<LakonaGameConnectionStateChange> Observers)> _stateChanges = new Queue<(LakonaGameConnectionStateChange, Action<LakonaGameConnectionStateChange>)>();
         private bool _stateChangesDispatching;
@@ -121,6 +123,7 @@ namespace Lakona.Game.Client
             {
                 lock (_stateGate)
                 {
+                    if (_cursorSaveFailure is not null) throw _cursorSaveFailure;
                     _core.MarkConnectionFailed(new ClientConnectionFailure(ClientConnectionFailureKind.ConnectFailed, ex.Message));
                 }
                 await DisposeAsync().ConfigureAwait(false);
@@ -179,10 +182,11 @@ namespace Lakona.Game.Client
                             () => _core.ApplyRecoveryRejection(hello.Recovery));
                         throw new GameSessionRecoveryRejectedException(hello.Recovery.Status, hello.Recovery.Reason);
                     }
-                    _core.BindReliablePush(client);
-                    BindFrameworkNotifications(client, () => candidate && !disconnected && !token.IsCancellationRequested &&
+                    bool IsCandidate() => candidate && !disconnected && !token.IsCancellationRequested &&
                         (candidateRecovery is null || (ReferenceEquals(_recovery, candidateRecovery) &&
-                            !candidateRecovery.Completed && !RecoveryTimeExpired(candidateRecovery))), token);
+                            !candidateRecovery.Completed && !RecoveryTimeExpired(candidateRecovery)));
+                    _core.BindReliablePush(client, error => HandleCursorSaveFailure(client, IsCandidate, error));
+                    BindFrameworkNotifications(client, IsCandidate, token);
                     if (recovering)
                         await _core.CompleteRecoveryAsync(client, token).ConfigureAwait(false);
                     await _core.StopHeartbeatAsync().ConfigureAwait(false);
@@ -239,7 +243,8 @@ namespace Lakona.Game.Client
 
         private bool CanApplyFrameworkNotification(RpcClientRuntime client, Func<bool> isCandidate)
         {
-            return _disposal is null && ((ReferenceEquals(_rpcClient, client) && _apiReady) || isCandidate());
+            return _disposal is null && _cursorSaveFailure is null &&
+                ((ReferenceEquals(_rpcClient, client) && _apiReady) || isCandidate());
         }
 
         private void BindFrameworkNotifications(RpcClientRuntime client, Func<bool> isCandidate, CancellationToken candidateToken)
@@ -293,6 +298,32 @@ namespace Lakona.Game.Client
         private void HandleDisconnected(RpcClientRuntime source, Exception? ex)
         {
             HandleConnectionFailure(source, ex, stopConnection: false);
+        }
+
+        private void HandleCursorSaveFailure(RpcClientRuntime source, Func<bool> isCandidate, ReliablePushCursorSaveException error)
+        {
+            lock (_stateGate)
+            {
+                if (!CanApplyFrameworkNotification(source, isCandidate) || !_core.TryMarkCursorSaveFailed(error)) return;
+                _cursorSaveFailure = error;
+                _apiReady = false;
+                _dispatcher.ClearCurrent(source);
+                _recovery = null;
+                SetConnectionState(LakonaGameConnectionState.Disconnected);
+                // Retire the failed connection outside its receive loop. A recovery candidate
+                // may still be waiting for its replay heartbeat or cleaning up the old source.
+                var cleanup = Task.Run(async () =>
+                {
+                    try
+                    {
+                        _lifetime.Cancel();
+                        await _core.DisposeAsync().ConfigureAwait(false);
+                    }
+                    finally { await source.DisposeAsync().ConfigureAwait(false); }
+                });
+                _recoveryTask = _recoveryTask is null ? cleanup : Task.WhenAll(_recoveryTask, cleanup);
+            }
+            Disconnected?.Invoke(error.InnerException);
         }
 
         // Called under _stateGate; only the current, admitted generation may initiate recovery.
@@ -400,6 +431,7 @@ namespace Lakona.Game.Client
         // Called under _stateGate, including immediately before publishing a replacement.
         private void ThrowIfRecoveryEnded(RecoveryOperation? recovery, CancellationToken token)
         {
+            if (_cursorSaveFailure is not null) throw _cursorSaveFailure;
             token.ThrowIfCancellationRequested();
             if (_disposal is not null || (recovery is not null &&
                 (!ReferenceEquals(_recovery, recovery) || recovery.Completed || RecoveryTimeExpired(recovery))))
