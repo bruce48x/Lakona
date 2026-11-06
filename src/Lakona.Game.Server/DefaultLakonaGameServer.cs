@@ -55,25 +55,35 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         where TLifecycle : class, IGameSessionLifecycle
         => StartBoundSessionAsync(ownerKey, connectionId, GameSessionLifecycleBindings.Identity(typeof(TLifecycle)), cancellationToken);
 
-    private async ValueTask<GameSessionKey> StartUnboundSessionAsync(
+    private ValueTask<GameSessionKey> StartUnboundSessionAsync(
         string ownerKey, string? lifecycleIdentity, CancellationToken cancellationToken)
     {
-        GameSessionKey? session = null;
+        if (_sessions is not IGameSessionEndpointBindingRegistry)
+            throw new NotSupportedException(
+                "Creating a session before its connection is known requires IGameSessionEndpointBindingRegistry.");
+        return CreateSessionAsync(ownerKey, lifecycleIdentity, cancellationToken);
+    }
+
+    private async ValueTask<GameSessionKey> CreateSessionAsync(
+        string ownerKey, string? lifecycleIdentity, CancellationToken cancellationToken)
+    {
+        var session = await _sessions.StartNewSessionAsync(ownerKey, cancellationToken).ConfigureAwait(false);
         try
         {
-            session = await _sessions.StartNewSessionAsync(ownerKey, cancellationToken).ConfigureAwait(false);
-            if (lifecycleIdentity is not null) _sessionLifecycles.Bind(session.Value, lifecycleIdentity);
-            await _sessions.SetReliablePushPolicyAsync(session.Value, false, cancellationToken).ConfigureAwait(false);
-            return session.Value;
+            if (lifecycleIdentity is not null) _sessionLifecycles.Bind(session, lifecycleIdentity);
+            return session;
         }
-        catch
+        catch (Exception exception)
         {
-            if (session is { } created)
+            _sessionLifecycles.Remove(session);
+            try
             {
-                _sessionLifecycles.Remove(created);
-                await _sessions.RemoveSessionAsync(created, CancellationToken.None).ConfigureAwait(false);
+                await _sessions.RemoveSessionAsync(session, CancellationToken.None).ConfigureAwait(false);
             }
-
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException("Game session creation and rollback failed.", exception, cleanupFailure);
+            }
             throw;
         }
     }
@@ -81,62 +91,11 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
     private async ValueTask<GameSessionKey> StartBoundSessionAsync(
         string ownerKey, string connectionId, string? lifecycleIdentity, CancellationToken cancellationToken)
     {
-        var policy = _deliveryPolicies.GetBindingPolicy(connectionId);
-        GameSessionKey? session = null;
-        GameSessionBindResult? binding = null;
-        try
-        {
-            session = await _sessions.StartNewSessionAsync(ownerKey, cancellationToken).ConfigureAwait(false);
-            if (lifecycleIdentity is not null) _sessionLifecycles.Bind(session.Value, lifecycleIdentity);
-            await _sessions.SetReliablePushPolicyAsync(
-                session.Value,
-                policy.ReliablePush,
-                cancellationToken).ConfigureAwait(false);
-            binding = await PrepareSessionBindingAsync(
-                session.Value,
-                connectionId,
-                policy.SerializerProfile,
-                cancellationToken).ConfigureAwait(false);
-            var resumeTicket = await _resumeTickets
-                .IssueAsync(session.Value, policy.EndpointScope, cancellationToken)
-                .ConfigureAwait(false);
-            await _sessionEstablished.NotifyAsync(
-                connectionId,
-                new Lakona.Game.Abstractions.Sessions.GameSessionEstablished
-                {
-                    SessionId = session.Value.SessionId,
-                    ResumeTicket = resumeTicket,
-                },
-                cancellationToken).ConfigureAwait(false);
-            await CommitSessionBindingAsync(
-                session.Value,
-                connectionId,
-                binding,
-                cancellationToken).ConfigureAwait(false);
-            return session.Value;
-        }
-        catch (Exception exception)
-        {
-            if (session is not { } created)
-            {
-                throw;
-            }
-
-            var cleanupFailures = await RollbackSessionEstablishmentAsync(
-                created,
-                connectionId,
-                binding,
-                removeSession: true,
-                revokeTicket: true).ConfigureAwait(false);
-            if (cleanupFailures.Count == 0)
-            {
-                throw;
-            }
-
-            throw new AggregateException(
-                "Game session establishment and rollback failed.",
-                [exception, .. cleanupFailures]);
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+        var session = await CreateSessionAsync(ownerKey, lifecycleIdentity, cancellationToken).ConfigureAwait(false);
+        await BindConnectionAsync(session, connectionId, newSession: true, resumeTicket: null, cancellationToken)
+            .ConfigureAwait(false);
+        return session;
     }
 
     public async ValueTask BindSessionAsync(
@@ -144,21 +103,51 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         string connectionId,
         CancellationToken cancellationToken = default)
     {
-        var policy = _deliveryPolicies.GetBindingPolicy(connectionId);
-        await _sessions.SetReliablePushPolicyAsync(
-            session,
-            policy.ReliablePush,
-            cancellationToken).ConfigureAwait(false);
+        await BindConnectionAsync(session, connectionId, newSession: false, resumeTicket: null, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    internal ValueTask<bool> TryBindRecoveredSessionAsync(
+        GameSessionKey session, string connectionId, string resumeTicket, CancellationToken cancellationToken) =>
+        BindConnectionAsync(session, connectionId, newSession: false, resumeTicket, cancellationToken);
+
+    private async ValueTask<bool> BindConnectionAsync(
+        GameSessionKey session, string connectionId, bool newSession, string? resumeTicket, CancellationToken cancellationToken)
+    {
         GameSessionBindResult? binding = null;
+        var issuingTicket = false;
+        string? provisionalTicket = null;
         try
         {
-            binding = await PrepareSessionBindingAsync(session, connectionId, policy.SerializerProfile, cancellationToken)
+            var policy = _deliveryPolicies.GetBindingPolicy(connectionId);
+            binding = await PrepareSessionBindingAsync(session, connectionId, policy, cancellationToken)
                 .ConfigureAwait(false);
-            await CommitSessionBindingAsync(
-                session,
-                connectionId,
-                binding,
-                cancellationToken).ConfigureAwait(false);
+            if (resumeTicket is not null)
+            {
+                // A provisional ticket may have been revoked between the handshake lookup and this reservation.
+                if (binding.IsFirstBinding ||
+                    await _resumeTickets.ResolveAsync(resumeTicket, policy.EndpointScope, cancellationToken)
+                        .ConfigureAwait(false) != session)
+                {
+                    await _sessions.RollbackSessionBindingAsync(session, connectionId, CancellationToken.None)
+                        .ConfigureAwait(false);
+                    return false;
+                }
+            }
+            else if (newSession || binding.IsFirstBinding)
+            {
+                issuingTicket = true;
+                provisionalTicket = await _resumeTickets.IssueAsync(session, policy.EndpointScope, cancellationToken)
+                    .ConfigureAwait(false);
+                await _sessionEstablished.NotifyAsync(connectionId, new GameSessionEstablished
+                {
+                    SessionId = session.SessionId,
+                    ResumeTicket = provisionalTicket
+                }, cancellationToken).ConfigureAwait(false);
+            }
+
+            await CommitSessionBindingAsync(session, connectionId, binding, cancellationToken).ConfigureAwait(false);
+            return true;
         }
         catch (Exception exception)
         {
@@ -166,8 +155,9 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
                 session,
                 connectionId,
                 binding,
-                removeSession: false,
-                revokeTicket: false).ConfigureAwait(false);
+                removeSession: newSession,
+                revokeTicket: issuingTicket,
+                closeConnection: provisionalTicket is not null).ConfigureAwait(false);
             if (cleanupFailures.Count == 0)
             {
                 throw;
@@ -267,15 +257,22 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         _connectionStates.TryClose(connectionId);
     }
 
-    private ValueTask<GameSessionBindResult> PrepareSessionBindingAsync(
+    private async ValueTask<GameSessionBindResult> PrepareSessionBindingAsync(
         GameSessionKey session,
         string connectionId,
-        string? profile,
+        GameConnectionDeliveryPolicyRegistry.DeliveryPolicy policy,
         CancellationToken cancellationToken)
     {
-        return profile is null
-            ? _sessions.PrepareSessionBindingAsync(session, connectionId, cancellationToken)
-            : _sessions.PrepareProfiledSessionBindingAsync(session, connectionId, profile, cancellationToken);
+        if (_sessions is IGameSessionEndpointBindingRegistry registry)
+            return await registry.PrepareEndpointSessionBindingAsync(
+                session, connectionId, policy.ReliablePush, policy.SerializerProfile, cancellationToken).ConfigureAwait(false);
+
+        // Registries implementing the original API still support immediate establishment and subsequent rebinds.
+        await _sessions.SetReliablePushPolicyAsync(session, policy.ReliablePush, cancellationToken).ConfigureAwait(false);
+        return policy.SerializerProfile is null
+            ? await _sessions.PrepareSessionBindingAsync(session, connectionId, cancellationToken).ConfigureAwait(false)
+            : await _sessions.PrepareProfiledSessionBindingAsync(session, connectionId, policy.SerializerProfile, cancellationToken)
+                .ConfigureAwait(false);
     }
 
     private async ValueTask CommitSessionBindingAsync(
@@ -298,10 +295,21 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         string connectionId,
         GameSessionBindResult? binding,
         bool removeSession,
-        bool revokeTicket)
+        bool revokeTicket,
+        bool closeConnection)
     {
         var failures = new List<Exception>();
         if (removeSession) _sessionLifecycles.Remove(session);
+        if (closeConnection)
+        {
+            // An establishment ACK identifies only its connection. Retire it before another attempt can wait for an ACK.
+            await TryRollbackStepAsync(() =>
+            {
+                _connections.Remove(connectionId);
+                _connectionStates.TryClose(connectionId);
+                return default;
+            }, "establishment connection", failures).ConfigureAwait(false);
+        }
         if (revokeTicket)
         {
             await TryRollbackStepAsync(

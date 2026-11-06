@@ -49,10 +49,16 @@ internal sealed class GameSessionHandshakeRecoveryService(
             };
         }
 
-        await gameServer.BindSessionAsync(
-            session.Value,
-            connectionId,
-            cancellationToken).ConfigureAwait(false);
+        if (gameServer is DefaultLakonaGameServer server)
+        {
+            if (!await server.TryBindRecoveredSessionAsync(session.Value, connectionId, resumeTicket, cancellationToken)
+                .ConfigureAwait(false))
+                return Lost("The original session binding or resume ticket is no longer valid.");
+        }
+        else
+        {
+            await gameServer.BindSessionAsync(session.Value, connectionId, cancellationToken).ConfigureAwait(false);
+        }
 
         return new GameSessionRecoveryHandshakeResult { Status = GameSessionRecoveryStatus.Resumed };
     }

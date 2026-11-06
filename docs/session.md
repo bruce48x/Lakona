@@ -259,6 +259,11 @@ var realtime = await gameServer.StartSessionAsync<RealtimeSessionLifecycle>(owne
 
 Both classes implement `IGameSessionLifecycle` and carry `[HotfixLifecycle]`.
 Generic overloads also support creating an unbound session, then binding it later.
+An unbound session has no endpoint policy. Its first `BindSessionAsync` uses the
+actual connection's policy and completes the same ticket and client acknowledgement
+exchange as creating a bound session. Custom registries that support deferred
+binding implement `IGameSessionEndpointBindingRegistry`. The original registry
+contract supports creating and binding in one call and rebinding an established session.
 The non-generic overloads intentionally select no business lifecycle handler;
 they do not fall back to an arbitrary implementation. Framework-owned cleanup,
 resume tickets and reliable delivery still run for these sessions.
@@ -585,15 +590,20 @@ sequenceDiagram
 ```
 
 Session establishment uses a reserved framework notification followed by a
-reserved acknowledgement. `StartSessionAsync` does not let the surrounding
-business RPC complete until the client has applied the Session id, generation,
-and opaque ticket. This prevents a successful login response from racing the
-client's recovery state. Binding remains prepared and invisible through the
-connection index until Session locator issuance, ticket issuance, notification, and
-acknowledgement all succeed. A missing connection or any failed step rolls back
-the ticket, restores an existing Session's prior binding with any intervening
-disconnects preserved, and
-removes a newly created Session instead of retaining a half-established entry.
+reserved acknowledgement. Both first-binding paths wait for the client to apply
+the Session id, generation, and opaque ticket before committing the binding.
+The registry keeps the reserved connection hidden from session lookups while the
+acknowledgement is pending. It commits the reliable-push policy and serializer
+profile with the first binding. A candidate disconnect before the first commit
+invalidates that attempt and leaves the unbound session available for retry.
+On failure the framework revokes the provisional ticket and releases the
+reservation. If the client might already have received the ticket, the server
+closes that connection so a late acknowledgement cannot confirm a later attempt.
+A session created by the same call is removed. A session created
+earlier retains its key, items and lifecycle selection, so its owner can retry
+on another endpoint. A recovery handshake checks its original ticket again
+under the binding reservation. A successful recovery uses that ticket and
+skips the first-binding notification.
 
 During preparation, the old connection remains reserved to that Session so its
 disconnect event is still observed and it cannot be rebound to another Session.

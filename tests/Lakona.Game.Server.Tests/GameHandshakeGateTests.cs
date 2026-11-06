@@ -1,5 +1,7 @@
 using Lakona.Game.Abstractions;
 using Lakona.Game.Abstractions.Sessions;
+using Lakona.Game.Client;
+using Lakona.Game.Client.Sessions;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Health;
@@ -9,6 +11,7 @@ using Lakona.Rpc.Core;
 using Lakona.Rpc.Serializer.Json;
 using Lakona.Rpc.Server;
 using Lakona.Rpc.Transport.Loopback;
+using Lakona.Rpc.Transport.Tcp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -18,6 +21,76 @@ namespace Lakona.Game.Server.Tests;
 
 public sealed class GameHandshakeGateTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Deferred_session_binding_resumes_on_a_new_connection(bool reliablePush)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(10));
+        var ct = deadline.Token;
+        await using var acceptor = new TcpConnectionAcceptor(0);
+        var address = new Uri(acceptor.ListenAddress);
+        var observer = new RecordingRpcSessionLifecycleObserver();
+        var services = new ServiceCollection()
+            .AddTestEndpointRuntimes()
+            .AddLogging()
+            .AddSingleton(LakonaRpcServiceCatalog.FromTypes([]))
+            .AddSingleton<IRpcSessionLifecycleObserver>(observer);
+        services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
+        await using var provider = services.BuildServiceProvider();
+        var endpoint = new LakonaGameEndpointOptions
+        {
+            Transport = "tcp", Serializer = "json", Host = address.Host, Port = address.Port, ReliablePush = reliablePush
+        };
+        var builder = RpcServerHostBuilder.Create();
+        new LakonaEndpointRpcServerConfigurator(endpoint).Configure(
+            new LakonaGameServerRpcContext("test", endpoint, builder, provider, [], ct));
+        builder.UseAcceptor(acceptor);
+        using var stopServer = new CancellationTokenSource();
+        var serverTask = builder.Build().RunAsync(stopServer.Token).AsTask();
+
+        try
+        {
+            await using var client = new LakonaGameClientLifecycle(new LakonaGameClientOptions(
+                () => new TcpTransport(address.Host, address.Port), new JsonRpcSerializer()));
+            var reconnected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            client.ConnectionStateChanged += change =>
+            {
+                if (change.PreviousState == LakonaGameConnectionState.Reconnecting &&
+                    change.CurrentState == LakonaGameConnectionState.Connected)
+                    reconnected.TrySetResult();
+            };
+            var server = provider.GetRequiredService<ILakonaGameServer>();
+            var sessions = provider.GetRequiredService<IGameSessionRegistry>();
+            var session = await server.StartSessionAsync("player-a", ct);
+            await client.ConnectAsync(ct);
+            var firstId = await observer.FirstStarted.Task.WaitAsync(ct);
+            await server.BindSessionAsync(session, firstId, ct);
+            Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
+            Assert.Equal(session.SessionId, client.Snapshot.SessionId);
+            Assert.Equal(reliablePush, await sessions.GetReliablePushPolicyAsync(session, ct));
+
+            Assert.True(provider.GetRequiredService<GameHandshakeConnectionStateRegistry>().TryClose(firstId));
+            await observer.FirstDisconnected.Task.WaitAsync(ct);
+            await reconnected.Task.WaitAsync(ct);
+            Assert.Equal(ClientSessionPhase.Active, client.Snapshot.Phase);
+            Assert.Equal(session.SessionId, client.Snapshot.SessionId);
+            var replacement = await sessions.GetConnectionIdAsync(session, ct);
+            Assert.NotNull(replacement);
+            Assert.NotEqual(firstId, replacement);
+            Assert.Null(await sessions.GetCurrentSessionAsync(firstId, ct));
+            Assert.Equal(session, await sessions.GetCurrentSessionAsync(replacement, ct));
+            Assert.False(await sessions.IsReliableReplayPendingAsync(session, ct));
+        }
+        finally
+        {
+            stopServer.Cancel();
+            await serverTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        }
+    }
+
     [Fact]
     public async Task ReplayPendingBlocksBusinessButAllowsRecoveryTraffic()
     {

@@ -8,6 +8,73 @@ namespace Lakona.Game.Server.Tests;
 public sealed class GameSessionBindingRaceTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Disconnect_before_first_commit_keeps_the_unbound_session_for_retry(bool disconnectBySession)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider();
+        var registry = CreateRegistry(time);
+        var session = await registry.StartNewSessionAsync("owner", ct);
+        await registry.SetSessionItemAsync(session, "room", GameSessionItemValue.FromString("room-1"), ct);
+        await registry.PrepareEndpointSessionBindingAsync(session, "candidate", false, "json", ct);
+
+        if (disconnectBySession)
+            await registry.MarkSessionDisconnectedAsync(session, "candidate", ct);
+        else
+            Assert.Null(await registry.MarkConnectionDisconnectedAsync("candidate", ct));
+
+        time.Advance(TimeSpan.FromMinutes(2));
+        Assert.Empty(await registry.ExpireSessionsAsync(time.GetUtcNow(), ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            registry.PrepareEndpointSessionBindingAsync(session, "retry", true, "binary", ct).AsTask());
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            registry.CommitSessionBindingAsync(session, "candidate", ct).AsTask());
+        await registry.RollbackSessionBindingAsync(session, "candidate", ct);
+        var retry = await registry.PrepareEndpointSessionBindingAsync(session, "retry", true, "binary", ct);
+        Assert.True(retry.IsFirstBinding);
+        await registry.CommitSessionBindingAsync(session, "retry", ct);
+        Assert.Equal(session, await registry.GetCurrentSessionAsync("retry", ct));
+        Assert.Equal("room-1", (await registry.GetSessionItemAsync(session, "room", ct))?.GetString());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Endpoint_policy_and_first_binding_belong_to_the_committed_reservation(bool reliable)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var registry = new InMemoryGameSessionRegistry();
+        var session = await registry.StartNewSessionAsync("owner", ct);
+
+        var abandoned = await registry.PrepareEndpointSessionBindingAsync(session, "first", !reliable, "json", ct);
+        Assert.True(abandoned.IsFirstBinding);
+        Assert.Null(await registry.GetCurrentSessionAsync("first", ct));
+        Assert.False(await registry.GetReliablePushPolicyAsync(session, ct));
+        Assert.Null(await registry.GetNotificationSerializerProfileAsync(session, ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            registry.SetReliablePushPolicyAsync(session, !reliable, ct).AsTask());
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            registry.PrepareEndpointSessionBindingAsync(session, "racer", reliable, "binary", ct).AsTask());
+        await registry.RollbackSessionBindingAsync(session, "first", ct);
+
+        var retry = await registry.PrepareEndpointSessionBindingAsync(session, "retry", reliable, "binary", ct);
+        Assert.True(retry.IsFirstBinding);
+        await registry.CommitSessionBindingAsync(session, "retry", ct);
+        Assert.Equal(reliable, await registry.GetReliablePushPolicyAsync(session, ct));
+        Assert.Equal("binary", await registry.GetNotificationSerializerProfileAsync(session, ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            registry.PrepareEndpointSessionBindingAsync(session, "wrong-policy", !reliable, "binary", ct).AsTask());
+        Assert.Equal("retry", await registry.GetConnectionIdAsync(session, ct));
+
+        await registry.MarkConnectionDisconnectedAsync("retry", ct);
+        var resumed = await registry.PrepareEndpointSessionBindingAsync(session, "resumed", reliable, "binary", ct);
+        Assert.False(resumed.IsFirstBinding);
+        await registry.CommitSessionBindingAsync(session, "resumed", ct);
+        Assert.Equal(reliable, await registry.IsReliableReplayPendingAsync(session, ct));
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(false, true)]

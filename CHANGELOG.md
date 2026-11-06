@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-11-06 — Recoverable first binding for deferred game sessions
+
+**Key releases:** `Lakona.Game.Server 0.53.25`.
+
+- A session created before its connection is known can establish and resume on
+  either delivery policy. If the client fails to acknowledge first binding, the
+  server revokes that attempt's ticket and preserves the session for retry.
+- Custom registries can implement `IGameSessionEndpointBindingRegistry` to
+  reserve the first binding and commit the endpoint policy with it.
+
 ## 2026-11-05 — Ordered reliable delivery and RPC listener supervision
 
 **Key releases:** `Lakona.Game.Server 0.53.22` and `Lakona.Rpc.Server 0.17.23`.

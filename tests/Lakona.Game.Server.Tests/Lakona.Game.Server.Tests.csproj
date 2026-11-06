@@ -24,6 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/Lakona.Game.Client/Lakona.Game.Client.csproj" />
     <ProjectReference Include="../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
     <ProjectReference Include="../../src/Lakona.Game.Testing/Lakona.Game.Testing.csproj" />
     <ProjectReference Include="../../src/Lakona.Rpc.Analyzers/Lakona.Rpc.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />

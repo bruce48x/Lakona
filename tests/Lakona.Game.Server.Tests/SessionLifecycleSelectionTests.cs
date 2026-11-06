@@ -5,6 +5,7 @@ using Lakona.Game.Server.Hotfix.Loading;
 using Lakona.Game.Server.Hotfix.Scanning;
 using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Lakona.Game.Server.Tests;
@@ -53,6 +54,60 @@ public sealed class SessionLifecycleSelectionTests
         await server.TerminateSessionAsync(sibling, Lakona.Game.Abstractions.SessionTerminationReason.Policy, cancellationToken: token);
         Assert.True((await Publish(manager, new Probe("v3"), token, includeControl: false)).Succeeded);
         await Assert.ThrowsAsync<InvalidOperationException>(() => server.StartSessionAsync<Control>("new-owner", token).AsTask());
+    }
+
+    [Fact]
+    public async Task Failed_first_ack_preserves_unbound_session_data_and_lifecycle_for_another_endpoint()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var notifier = new FirstEstablishmentGate();
+        HotfixManager manager = null!;
+        var services = new ServiceCollection();
+        services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
+        services.AddSingleton<IGameSessionEstablishedNotifier>(notifier);
+        services.AddSingleton<IHotfixRuntimeAccessor>(_ => manager);
+        await using var root = services.BuildServiceProvider();
+        await using var ownedManager = manager = new HotfixManager(
+            new CurrentDirectoryHotfixAssemblySource(".", "unused.dll"), rootServices: root, participants: []);
+        var probe = new Probe("v1");
+        Assert.True((await Publish(manager, probe, ct)).Succeeded);
+        var server = root.GetRequiredService<ILakonaGameServer>();
+        var registry = root.GetRequiredService<IGameSessionRegistry>();
+        var tickets = root.GetRequiredService<IGameSessionResumeTicketStore>();
+        var policies = root.GetRequiredService<GameConnectionDeliveryPolicyRegistry>();
+        policies.Set("first", false, "plain-endpoint", "json");
+        policies.Set("retry", true, "reliable-endpoint", "memorypack");
+        var connections = root.GetRequiredService<GameHandshakeConnectionStateRegistry>();
+        using var handshakeSlots = new SemaphoreSlim(0, 1);
+        await using var firstConnection = connections.RegisterPending("first", TimeSpan.FromMinutes(1), handshakeSlots, NullLogger.Instance);
+        Assert.True(firstConnection.MarkComplete());
+        var session = await server.StartSessionAsync<Control>("owner", ct);
+        var room = GameSessionItemValue.FromString("room-1");
+        await server.SetSessionItemAsync(session, "room", room, ct);
+
+        var firstBind = server.BindSessionAsync(session, "first", ct).AsTask();
+        var first = await notifier.First.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        notifier.Acknowledge.SetException(new TimeoutException("Establishment ACK missing."));
+        await Assert.ThrowsAsync<TimeoutException>(() => firstBind);
+        Assert.True(firstConnection.SessionCancellation.IsCancellationRequested);
+        Assert.Null(await tickets.ResolveAsync(first.ResumeTicket, "plain-endpoint", ct));
+        Assert.Null(await registry.GetConnectionIdAsync(session, ct));
+        Assert.Null(await registry.GetCurrentSessionAsync("first", ct));
+
+        await server.BindSessionAsync(session, "retry", ct);
+        Assert.Equal(2, notifier.Notifications.Count);
+        var second = notifier.Notifications.Last();
+        Assert.Equal(session.SessionId, second.SessionId);
+        Assert.NotEqual(first.ResumeTicket, second.ResumeTicket);
+        Assert.Equal(session, await tickets.ResolveAsync(second.ResumeTicket, "reliable-endpoint", ct));
+        Assert.Equal(session, await registry.GetCurrentSessionAsync("retry", ct));
+        Assert.True(await registry.GetReliablePushPolicyAsync(session, ct));
+        Assert.Equal("memorypack", await registry.GetNotificationSerializerProfileAsync(session, ct));
+        Assert.Equal(room, await server.GetSessionItemAsync(session, "room", ct));
+        var handler = root.GetServices<IGameSessionLifecycleHandler>().OfType<GameSessionHotfixLifecycleHandler>().Single();
+        await handler.OnSessionDisconnectedAsync(new(session, "retry"), ct);
+        Assert.Equal(["v1:control:disconnected"], probe.Events);
     }
 
     [Fact]

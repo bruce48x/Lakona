@@ -27,6 +27,7 @@ public interface ILakonaGameServer
     /// <remarks>
     /// Use this overload when the connection will be bound later with
     /// <see cref="BindSessionAsync(GameSessionKey, string, CancellationToken)"/>.
+    /// A custom registry must implement <see cref="IGameSessionEndpointBindingRegistry"/> for deferred binding.
     /// </remarks>
     ValueTask<GameSessionKey> StartSessionAsync(
         string ownerKey,
@@ -50,6 +51,7 @@ public interface ILakonaGameServer
         string ownerKey, string connectionId, CancellationToken cancellationToken = default)
         where TLifecycle : class, IGameSessionLifecycle;
 
+    /// <summary>Binds the session to a connection. First binding waits for the client to acknowledge its recovery ticket.</summary>
     ValueTask BindSessionAsync(
         GameSessionKey session,
         string connectionId,

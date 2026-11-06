@@ -12,6 +12,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Lakona.Game.Abstractions;
+using Lakona.Game.Abstractions.Sessions;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Rpc;
 using Lakona.Game.Cluster.Rpc.Membership;
@@ -848,6 +849,41 @@ public sealed class LakonaGameServerTests
         }
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("json")]
+    public async Task Legacy_registry_preserves_direct_establishment_and_recovery(string? profile)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var registry = DispatchProxy.Create<IGameSessionRegistry, LegacySessionRegistry>();
+        var notifier = new FirstEstablishmentGate();
+        notifier.Acknowledge.SetResult();
+        var services = new ServiceCollection().AddTestEndpointRuntimes().AddLogging();
+        services.AddSingleton(registry);
+        services.AddSingleton<IGameSessionEstablishedNotifier>(notifier);
+        services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
+        await using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+        var endpoints = provider.GetRequiredService<GameConnectionDeliveryPolicyRegistry>();
+        endpoints.Set("login", true, "endpoint", profile);
+        endpoints.Set("reconnect", true, "endpoint", profile);
+
+        var error = await Assert.ThrowsAsync<NotSupportedException>(() => server.StartSessionAsync("player", ct).AsTask());
+        Assert.Contains(nameof(IGameSessionEndpointBindingRegistry), error.Message);
+        Assert.Equal(0, registry.GetDiagnosticsSnapshot().TotalSessions);
+
+        var session = await server.StartSessionAsync("player", "login", ct);
+        var established = Assert.Single(notifier.Notifications);
+        Assert.Equal(session.SessionId, established.SessionId);
+        await server.MarkSessionDisconnectedAsync(session, "login", ct);
+        var recovery = await provider.GetRequiredService<IGameSessionHandshakeRecoveryService>()
+            .RecoverAsync(established.ResumeTicket, "reconnect", "endpoint", ct);
+        Assert.Equal(GameSessionRecoveryStatus.Resumed, recovery.Status);
+        Assert.Equal(session, await registry.GetCurrentSessionAsync("reconnect", ct));
+        Assert.Single(notifier.Notifications);
+    }
+
     [Fact]
     public async Task ClientNotificationsPublishesReplaysAndAcknowledgesReliablePush()
     {
@@ -1367,6 +1403,20 @@ public sealed class LakonaGameServerTests
     private static async ValueTask WaitUntilCanceledAsync(CancellationToken cancellationToken)
     {
         await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+    }
+
+    public class LegacySessionRegistry : DispatchProxy
+    {
+        private readonly InMemoryGameSessionRegistry registry = new();
+
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            var result = targetMethod!.Invoke(registry, args);
+            return result is ValueTask<GameSessionBindResult> binding ? LegacyResultAsync(binding) : result;
+        }
+
+        private static async ValueTask<GameSessionBindResult> LegacyResultAsync(ValueTask<GameSessionBindResult> binding)
+            => new((await binding).SessionBecameActive);
     }
 
     public class TerminationSnapshotSessionRegistry : DispatchProxy
