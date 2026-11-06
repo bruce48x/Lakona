@@ -1,31 +1,30 @@
 ## Evidence And Triage
 
-Report every supported finding; do not impose a numerical quota. Deduplicate
-findings that share the same module, seam, cause, and remedy.
+Report every supported finding — no quota. Deduplicate findings sharing
+module, seam, cause, and remedy.
 
-For each finding include:
+Each finding includes:
 
 - stable ID: `MACRO-###`, `MICRO-###`, `CONSUMER-###`, `PERF-###`,
   `RELIABILITY-###`, `EVOLUTION-###`, `OPS-###`, or `STANDARD-###`
-- recommendation strength: `Strong`, `Worth exploring`, or `Speculative`
-- scope and exact files or symbols
+- strength: `Strong`, `Worth exploring`, or `Speculative`
+- scope: exact files or symbols
 - observed evidence
 - violated repository rule or design principle, when one exists; a
-  `STANDARD-###` finding must always name the rule file and section
+  `STANDARD-###` must name the rule file and section
 - current cost or credible failure mode
-- performance status and measured trade-off vector when applicable
+- performance status and measured trade-off vector, when applicable
 - evidence status and required verification
-- deletion-test result when applicable
+- deletion-test result, when applicable
 - counterevidence and uncertainty
 - discussion question
-- possible direction without detailed interface design or an implementation
-  plan
+- possible direction — no detailed interface design or implementation plan
 
-Strength and size are separate. A small local smell may be `Strong`; a large
-redesign may be `Speculative`.
+Strength and size are separate: a small local smell may be `Strong`; a
+large redesign may be `Speculative`.
 
-Also record investigated suspicions that were rejected when doing so prevents a
-future reviewer from repeating substantial work.
+Also record investigated suspicions that were rejected when that saves a
+future reviewer substantial rework.
 
 ## Markdown Report
 
@@ -59,23 +58,23 @@ Use this structure:
 ## Recommended Discussion Order
 ```
 
-Use Markdown tables only where they improve comparison. Prefer headings and
-short evidence-rich paragraphs for findings. Link repository files with
-relative paths and line numbers where possible.
+Use Markdown tables only where they improve comparison; prefer headings
+and short evidence-rich paragraphs for findings. Link files with relative
+paths and line numbers where possible.
 
-Before returning, run `git status --porcelain` and record its output in the
-report to substantiate `Changes made by review` and the pre-existing worktree
-changes; the tree must still contain anything that was pre-existing.
+Before returning, run `git status --porcelain` and record its output in
+the report to substantiate `Changes made by review` and pre-existing
+worktree changes; the tree must still contain anything pre-existing.
 
-Return the absolute report path and a concise summary to the user. Do not ask
-which finding to implement. Ask which findings they want to discuss.
+Return the absolute report path and a concise summary. Do not ask which
+finding to implement — ask which findings to discuss.
 
 ## Discussion And Approval
 
-Treat the Markdown report as the working record and discuss its findings in the
-review session. Do not create an issue, ticket, branch, or implementation plan
-as part of the review.
+The Markdown report is the working record; discuss its findings in the
+review session. Do not create an issue, ticket, branch, or implementation
+plan as part of the review.
 
-Only an explicit later decision that identifies an accepted finding can
-authorize a separate implementation task. The review itself never authorizes
-code changes.
+Only an explicit later decision identifying an accepted finding can
+authorize a separate implementation task; the review itself never
+authorizes code changes.
