@@ -113,6 +113,7 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
     private ProjectPackagingChoice selectedRuntime = null!;
     private ProjectPackagingChoice selectedConfiguration = null!;
     private CancellationTokenSource? packagingCancellation;
+    private bool disposed;
     private bool isPackaging;
     private string outputDirectory;
     private string statusText = "";
@@ -255,7 +256,7 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public bool CanPackage => !IsPackaging && !string.IsNullOrWhiteSpace(dotNetExecutablePath)
+    public bool CanPackage => !disposed && !IsPackaging && !string.IsNullOrWhiteSpace(dotNetExecutablePath)
         && LakonaProjectBuildTag.IsValid(BuildTag) && buildTagSaveError is null;
 
     public bool CanClose => !IsPackaging;
@@ -323,29 +324,37 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
 
     public async Task PackageAsync(CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
         var request = CreateRequest();
-        packagingCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        packagingCancellation = operation;
         IsPackaging = true;
         ArtifactPath = null;
         FailureLogPath = null;
         StatusText = Text.PackagingStarted;
         try
         {
-            var progress = new CallbackProgress<LakonaPackageProgress>(UpdateProgress);
+            var progress = new FormProgress(update =>
+            {
+                if (!disposed && packagingCancellation == operation)
+                    UpdateProgress(update);
+            });
             var result = await packager.PackAsync(
                 request,
                 progress,
-                packagingCancellation.Token);
+                operation.Token);
+            if (disposed) return;
             ArtifactPath = result.ArtifactPath;
             StatusText = Text.PackageSucceeded;
-            artifactFolderLauncher.OpenContainingFolder(result.ArtifactPath);
+            if (!disposed) artifactFolderLauncher.OpenContainingFolder(result.ArtifactPath);
         }
-        catch (OperationCanceledException) when (packagingCancellation.IsCancellationRequested)
+        catch (OperationCanceledException) when (operation.IsCancellationRequested)
         {
-            StatusText = Text.PackageCanceled;
+            if (!disposed) StatusText = Text.PackageCanceled;
         }
         catch (Exception exception)
         {
+            if (disposed) return;
             StatusText = Text.PackageFailed(FirstLine(exception.Message));
             try
             {
@@ -358,7 +367,6 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         }
         finally
         {
-            packagingCancellation.Dispose();
             packagingCancellation = null;
             IsPackaging = false;
         }
@@ -378,10 +386,10 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
 
     public void Dispose()
     {
+        if (disposed) return;
+        disposed = true;
         localization.PropertyChanged -= Localization_PropertyChanged;
         packagingCancellation?.Cancel();
-        packagingCancellation?.Dispose();
-        packagingCancellation = null;
     }
 
     private void UpdateProgress(LakonaPackageProgress progress)
@@ -471,11 +479,21 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         return true;
     }
 
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-
-    private sealed class CallbackProgress<T>(Action<T> callback) : IProgress<T>
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
-        public void Report(T value) => callback(value);
+        if (!disposed) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    private sealed class FormProgress(Action<LakonaPackageProgress> update) : IProgress<LakonaPackageProgress>
+    {
+        private readonly SynchronizationContext? context = SynchronizationContext.Current;
+
+        public void Report(LakonaPackageProgress value)
+        {
+            if (context is null || context == SynchronizationContext.Current)
+                update(value);
+            else
+                context.Post(_ => update(value), null);
+        }
     }
 }

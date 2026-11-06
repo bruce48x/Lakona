@@ -303,6 +303,61 @@ public sealed class ProjectPackagingFormTests
         Assert.Equal(20, Directory.GetFiles(logDirectory, "package-*.log").Length);
     }
 
+    [Theory]
+    [InlineData(false, "cancel")]
+    [InlineData(true, "cancel")]
+    [InlineData(true, "success")]
+    [InlineData(true, "failure")]
+    public async Task Pending_package_finishes_after_cancel_or_form_close(bool close, string outcome)
+    {
+        var root = CreateProjectRoot(nameof(Pending_package_finishes_after_cancel_or_form_close));
+        var packager = new PendingPackager();
+        var launcher = new RecordingArtifactFolderLauncher();
+        using var form = new ProjectPackagingForm(root, CreateDotNetExecutablePath(root), packager,
+            new HubLocalization(HubLanguage.English), launcher);
+        var operation = form.PackageAsync(TestContext.Current.CancellationToken);
+        Assert.True(form.IsPackaging);
+        if (close) form.Dispose();
+        else form.Cancel();
+        Assert.True(packager.Token.IsCancellationRequested);
+        var changes = new List<string?>();
+        form.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
+        packager.Progress!.Report(new LakonaPackageProgress(LakonaPackageStage.Building, "late progress"));
+        switch (outcome)
+        {
+            case "cancel": packager.Completion.SetCanceled(packager.Token); break;
+            case "failure": packager.Completion.SetException(new IOException("late failure")); break;
+            default: packager.Completion.SetResult(new LakonaPackageResult(LakonaPackageKind.Server,
+                Path.Combine(root, "server.zip"), null, "Release", "version")); break;
+        }
+        await operation;
+        Assert.Null(launcher.OpenedArtifactPath);
+        Assert.False(form.HasArtifact);
+        Assert.False(form.HasFailureLog);
+        Assert.False(form.IsPackaging);
+        if (close) Assert.Empty(changes);
+        else
+        {
+            Assert.True(form.CanPackage);
+            Assert.Equal(form.Text.PackageCanceled, form.StatusText);
+        }
+    }
+
+    private sealed class PendingPackager : ILakonaProjectPackager
+    {
+        public CancellationToken Token { get; private set; }
+        public IProgress<LakonaPackageProgress>? Progress { get; private set; }
+        public TaskCompletionSource<LakonaPackageResult> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<LakonaPackageResult> PackAsync(LakonaPackageRequest request,
+            IProgress<LakonaPackageProgress>? progress = null, CancellationToken cancellationToken = default)
+        {
+            Token = cancellationToken;
+            Progress = progress;
+            return Completion.Task;
+        }
+    }
+
     private static string CreateProjectRoot(string testName)
     {
         var root = Path.Combine(Path.GetTempPath(), nameof(ProjectPackagingFormTests), testName, Guid.NewGuid().ToString("N"));

@@ -212,6 +212,10 @@ After a package completes successfully, Hub opens the artifact's containing
 folder automatically while keeping the completed artifact path visible in the
 packaging dialog.
 
+Closing the window during packaging requests cancellation. The running
+operation releases its cancellation source when it finishes. Late progress
+and results do not update the closed form or launch an artifact folder.
+
 Packaging failures keep the dialog actions visible and show only a concise,
 single-line summary in the dialog. Hub decodes redirected `dotnet` output as
 UTF-8 and writes the complete exception and build output to a UTF-8 log under
