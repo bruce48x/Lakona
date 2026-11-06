@@ -1285,6 +1285,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
     {
         private static readonly object Sync = new();
         private static readonly List<string> ValueList = [];
+        private static TaskCompletionSource? valuesChanged;
         private static TaskCompletionSource? releaseBlocked;
         private static int active;
 
@@ -1313,7 +1314,8 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
                 if (string.Equals(BlockValue, tick.Args.Value, StringComparison.Ordinal))
                     releaseBlocked ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 ValueList.Add(tick.Args.Value);
-                Monitor.PulseAll(Sync);
+                valuesChanged?.TrySetResult();
+                valuesChanged = null;
             }
 
             try
@@ -1372,15 +1374,18 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
             timeout.CancelAfter(TimeSpan.FromSeconds(10));
             while (true)
             {
+                Task changed;
                 lock (Sync)
                 {
                     if (predicate())
                     {
                         return;
                     }
+                    valuesChanged ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    changed = valuesChanged.Task;
                 }
 
-                await Task.Delay(5, timeout.Token).ConfigureAwait(false);
+                await changed.WaitAsync(timeout.Token).ConfigureAwait(false);
             }
         }
     }

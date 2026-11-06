@@ -53,7 +53,7 @@ internal static class GitChangeSetReader
         var commits = GitRunner.Run(repositoryRoot, "log", "--format=%H", "--", scope.ProjectPath)
             .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        var anchors = new List<VersionAnchor>();
+        string? latestAnchorParent = null;
         foreach (var commit in commits)
         {
             var parents = GitRunner.Run(repositoryRoot, "rev-list", "--parents", "-n", "1", commit)
@@ -64,21 +64,21 @@ internal static class GitChangeSetReader
             var parent = parents[1];
             var currentVersion = ReadVersionAtRef(repositoryRoot, commit, scope.ProjectPath);
             var parentVersion = ReadVersionAtRef(repositoryRoot, parent, scope.ProjectPath);
-            if (!string.IsNullOrWhiteSpace(currentVersion) &&
-                !string.Equals(currentVersion, parentVersion, StringComparison.Ordinal))
-            {
-                anchors.Add(new VersionAnchor(commit, parent));
-            }
+            if (string.IsNullOrWhiteSpace(currentVersion) ||
+                string.Equals(currentVersion, parentVersion, StringComparison.Ordinal))
+                continue;
+
+            // Git lists newer commits first. Only the latest and preceding anchors can define the range.
+            if (latestAnchorParent is not null)
+                return commit;
+            if (HasRelevantChangesAfter(repositoryRoot, commit, head, scope.IsRelevantPath))
+                return commit;
+
+            latestAnchorParent = parent;
         }
 
-        if (anchors.Count > 0)
-        {
-            var latest = anchors[0];
-            if (HasRelevantChangesAfter(repositoryRoot, latest.Commit, head, scope.IsRelevantPath))
-                return latest.Commit;
-
-            return anchors.Count > 1 ? anchors[1].Commit : latest.Parent;
-        }
+        if (latestAnchorParent is not null)
+            return latestAnchorParent;
 
         throw new InvalidOperationException(
             $"Could not resolve {scope.DisplayName} base from {scope.ProjectPath} version history. " +
@@ -167,8 +167,6 @@ internal static class GitChangeSetReader
     {
         return value.Length >= 40 && value.All(character => character == '0');
     }
-
-    private sealed record VersionAnchor(string Commit, string Parent);
 }
 
 internal sealed record VersionGuardScope(

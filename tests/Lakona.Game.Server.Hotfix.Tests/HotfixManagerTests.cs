@@ -287,7 +287,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Validate_runs_publication_candidate_validation_without_preparing()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(
+        using var compiled = new CompiledHotfixFixture(
             TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var events = new List<string>();
@@ -500,7 +500,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_fails_when_state_type_is_loaded_from_hotfix_context()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var hotfixDir = Path.GetDirectoryName(compiled.HotfixAssemblyPath)!;
         var stableName = Path.GetFileName(compiled.StableAssemblyPath);
         var localStablePath = Path.Combine(hotfixDir, stableName);
@@ -517,7 +517,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_replaces_current_snapshot_after_successful_scan()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var source = new FixedAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
         var manager = new HotfixManager(source, [stableAssembly.GetName().Name!]);
@@ -533,7 +533,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_excludes_non_local_actor_behavior_from_every_dispatch_table()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var actorType = stableAssembly.GetType("StableContracts.ArenaSimulation", throwOnError: true)!;
         await using var rootServices = new ServiceCollection()
@@ -554,7 +554,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_success_writes_framework_information_log()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var loggerProvider = new RecordingLoggerProvider();
         await using var rootServices = new ServiceCollection()
@@ -586,7 +586,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_failure_writes_framework_error_log()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
         var loggerProvider = new RecordingLoggerProvider();
@@ -618,7 +618,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_failure_keeps_previous_snapshot()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
         var manager = new HotfixManager(source, [stableAssembly.GetName().Name!]);
@@ -640,7 +640,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_publishes_hotfix_service_provider_with_dispatch_table()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
         var manager = new HotfixManager(source, [
@@ -669,7 +669,7 @@ public sealed class HotfixManagerTests
     public async Task Inflight_rpc_maps_exception_with_its_original_hotfix_generation()
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        using var compiled = await CompiledHotfixFixture.CreateAsync(deadline.Token);
+        using var compiled = new CompiledHotfixFixture(deadline.Token);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
         using var root = new ServiceCollection().AddSingleton<RpcServiceExceptionHandler>(_ => -2).BuildServiceProvider();
@@ -736,7 +736,7 @@ public sealed class HotfixManagerTests
     public async Task Reload_admits_nested_calls_on_the_leased_generation_and_new_calls_on_the_published_generation()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var compiled = await CompiledHotfixFixture.CreateAsync(ct);
+        using var compiled = new CompiledHotfixFixture(ct);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
         await using var manager = new HotfixManager(source, [
@@ -790,7 +790,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task ServiceProviderAccessor_uses_leased_snapshot_services_inside_dispatch_scope()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
         var manager = new HotfixManager(source, [
@@ -813,7 +813,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task ServiceProviderAccessor_uses_volatile_current_services_outside_dispatch_scope()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
         var manager = new HotfixManager(source, [
@@ -838,7 +838,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task ServiceProviderAccessor_uses_current_services_for_disposed_captured_dispatch_scope()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
         var manager = new HotfixManager(source, [
@@ -875,7 +875,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_shares_configured_stable_assemblies_from_default_context()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var source = new FixedAssemblySource(compiled.HotfixAssemblyPath);
         var manager = new HotfixManager(source, [stableAssembly.GetName().Name!]);
@@ -890,7 +890,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_uses_default_load_context_for_game_server_authoring_types()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var manager = new HotfixManager(
             new FixedAssemblySource(compiled.HotfixAssemblyPath),
@@ -911,7 +911,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_does_not_hold_source_dll_file_lock()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var manager = new HotfixManager(
             new FixedAssemblySource(compiled.HotfixAssemblyPath),
@@ -931,7 +931,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_does_not_hold_private_dependency_dll_file_lock()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var manager = new HotfixManager(
             new FixedAssemblySource(compiled.HotfixWithPrivateDependencyAssemblyPath),
@@ -960,7 +960,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_releases_previous_collectible_load_context_after_replacement()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var source = new SwitchableAssemblySource(compiled.HotfixAssemblyPath);
         var manager = new HotfixManager(source, [stableAssembly.GetName().Name!]);
@@ -977,7 +977,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_does_not_replace_dispatch_after_scan_failure()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
         var manager = new HotfixManager(source, [stableAssembly.GetName().Name!]);
@@ -1008,7 +1008,7 @@ public sealed class HotfixManagerTests
     public async Task Reload_canceled_after_source_resolution_does_not_publish()
     {
         using var cts = new CancellationTokenSource();
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var source = new SwitchableAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
         var manager = new HotfixManager(source, [stableAssembly.GetName().Name!]);
@@ -1028,7 +1028,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task ReloadAsync_serializes_concurrent_reloads()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var source = new BlockingAssemblySource(compiled.ManagerTestHotfixAssemblyPath);
         var manager = new HotfixManager(source, [stableAssembly.GetName().Name!]);
@@ -1110,7 +1110,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_fails_when_state_type_is_defined_in_hotfix_assembly()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var manager = new HotfixManager(new FixedAssemblySource(compiled.HotfixOwnedStateAssemblyPath));
 
         var result = await manager.ReloadAsync(TestContext.Current.CancellationToken);
@@ -1123,7 +1123,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_fails_when_return_type_is_defined_in_hotfix_assembly()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var manager = new HotfixManager(
             new FixedAssemblySource(compiled.HotfixOwnedReturnAssemblyPath),
@@ -1139,7 +1139,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_fails_when_argument_type_is_defined_in_hotfix_assembly()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var manager = new HotfixManager(
             new FixedAssemblySource(compiled.HotfixOwnedArgumentAssemblyPath),
@@ -1155,7 +1155,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_fails_when_service_return_type_is_defined_in_hotfix_assembly()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var manager = new HotfixManager(
             new FixedAssemblySource(compiled.HotfixOwnedServiceReturnAssemblyPath),
@@ -1172,7 +1172,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_fails_when_service_argument_type_is_defined_in_hotfix_assembly()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var manager = new HotfixManager(
             new FixedAssemblySource(compiled.HotfixOwnedServiceArgumentAssemblyPath),
@@ -1192,7 +1192,7 @@ public sealed class HotfixManagerTests
     [InlineData(1, true)]
     public async Task Reload_publishes_valid_service_despite_observer_failures(int observerFailure, bool cleanupFailure)
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var requestType = stableAssembly.GetType("StableContracts.ServiceRequest", throwOnError: true)!;
         var replyType = stableAssembly.GetType("StableContracts.ServiceReply", throwOnError: true)!;
@@ -1261,7 +1261,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_validates_generation_local_constructor_dependencies_before_publish()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var manager = new HotfixManager(
             new FixedAssemblySource(compiled.ConstructorDiServiceHotfixAssemblyPath),
@@ -1276,7 +1276,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_fails_before_publish_when_constructor_dependency_is_missing()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var firstSource = new SwitchableAssemblySource(compiled.ValidServiceHotfixAssemblyPath);
         var contract = stableAssembly.GetType("StableContracts.IManagerService", throwOnError: true)!;
@@ -1299,7 +1299,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_validates_lifecycle_constructor_dependencies_before_publish()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var contract = stableAssembly.GetType("StableContracts.IManagerLifecycle", throwOnError: true)!;
         var manager = new HotfixManager(
@@ -1315,7 +1315,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_validates_root_constructor_dependencies_before_publish()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var contract = stableAssembly.GetType("StableContracts.IManagerService", throwOnError: true)!;
         await using var rootServices = new ServiceCollection()
@@ -1335,7 +1335,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Runtime_services_resolve_hotfix_local_dependencies_from_root_provider()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var requestType = stableAssembly.GetType("StableContracts.ServiceRequest", throwOnError: true)!;
         var replyType = stableAssembly.GetType("StableContracts.ServiceReply", throwOnError: true)!;
@@ -1419,7 +1419,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_fails_before_publish_when_service_has_multiple_unmarked_constructors()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var contract = stableAssembly.GetType("StableContracts.IManagerService", throwOnError: true)!;
         await using var rootServices = new ServiceCollection()
@@ -1441,7 +1441,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task Reload_uses_activator_utilities_constructor_attribute()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var contract = stableAssembly.GetType("StableContracts.IManagerService", throwOnError: true)!;
         var manager = new HotfixManager(
@@ -1457,7 +1457,7 @@ public sealed class HotfixManagerTests
     [Fact]
     public async Task AddLakonaGameHotfix_second_call_rebuilds_manager_with_latest_source_and_shared_policy()
     {
-        using var compiled = await CompiledHotfixFixture.CreateAsync(TestContext.Current.CancellationToken);
+        using var compiled = new CompiledHotfixFixture(TestContext.Current.CancellationToken);
         var stableAssembly = Assembly.LoadFrom(compiled.StableAssemblyPath);
         var services = new ServiceCollection();
         services.AddLakonaGameHotfix(new FixedAssemblySource(@"Z:\missing\Missing.Hotfix.dll"), ["MissingStableContracts"]);
@@ -1622,165 +1622,20 @@ public sealed class HotfixManagerTests
         }
     }
 
-    private sealed class CompiledHotfixFixture : IDisposable
+    private sealed class CompiledHotfixFixture(CancellationToken cancellationToken) : IDisposable
     {
-        private CompiledHotfixFixture(
-            string rootDirectory,
-            string stableAssemblyPath,
-            string hotfixAssemblyPath,
-            string secondHotfixAssemblyPath,
-            string invalidHotfixAssemblyPath,
-            string hotfixOwnedStateAssemblyPath,
-            string hotfixOwnedReturnAssemblyPath,
-            string hotfixOwnedArgumentAssemblyPath,
-            string managerTestHotfixAssemblyPath,
-            string privateDependencyAssemblyPath,
-            string hotfixWithPrivateDependencyAssemblyPath,
-            string hotfixOwnedServiceReturnAssemblyPath,
-            string hotfixOwnedServiceArgumentAssemblyPath,
-            string validServiceHotfixAssemblyPath,
-            string constructorDiServiceHotfixAssemblyPath,
-            string constructorDiLifecycleHotfixAssemblyPath,
-            string rootDiServiceHotfixAssemblyPath,
-            string rootDiLocalServiceHotfixAssemblyPath,
-            string missingDiServiceHotfixAssemblyPath,
-            string multipleConstructorServiceHotfixAssemblyPath,
-            string selectedConstructorDiServiceHotfixAssemblyPath)
-        {
-            RootDirectory = rootDirectory;
-            StableAssemblyPath = stableAssemblyPath;
-            HotfixAssemblyPath = hotfixAssemblyPath;
-            SecondHotfixAssemblyPath = secondHotfixAssemblyPath;
-            InvalidHotfixAssemblyPath = invalidHotfixAssemblyPath;
-            HotfixOwnedStateAssemblyPath = hotfixOwnedStateAssemblyPath;
-            HotfixOwnedReturnAssemblyPath = hotfixOwnedReturnAssemblyPath;
-            HotfixOwnedArgumentAssemblyPath = hotfixOwnedArgumentAssemblyPath;
-            ManagerTestHotfixAssemblyPath = managerTestHotfixAssemblyPath;
-            PrivateDependencyAssemblyPath = privateDependencyAssemblyPath;
-            HotfixWithPrivateDependencyAssemblyPath = hotfixWithPrivateDependencyAssemblyPath;
-            HotfixOwnedServiceReturnAssemblyPath = hotfixOwnedServiceReturnAssemblyPath;
-            HotfixOwnedServiceArgumentAssemblyPath = hotfixOwnedServiceArgumentAssemblyPath;
-            ValidServiceHotfixAssemblyPath = validServiceHotfixAssemblyPath;
-            ConstructorDiServiceHotfixAssemblyPath = constructorDiServiceHotfixAssemblyPath;
-            ConstructorDiLifecycleHotfixAssemblyPath = constructorDiLifecycleHotfixAssemblyPath;
-            RootDiServiceHotfixAssemblyPath = rootDiServiceHotfixAssemblyPath;
-            RootDiLocalServiceHotfixAssemblyPath = rootDiLocalServiceHotfixAssemblyPath;
-            MissingDiServiceHotfixAssemblyPath = missingDiServiceHotfixAssemblyPath;
-            MultipleConstructorServiceHotfixAssemblyPath = multipleConstructorServiceHotfixAssemblyPath;
-            SelectedConstructorDiServiceHotfixAssemblyPath = selectedConstructorDiServiceHotfixAssemblyPath;
-        }
+        // Only compiler references are shared. Each fixture emits unique assemblies into its own directory.
+        private static readonly MetadataReference[] PlatformReferences = GetTrustedPlatformReferences().ToArray();
+        private static readonly MetadataReference AbstractionsReference = MetadataReference.CreateFromFile(typeof(HotfixBehaviorOfAttribute).Assembly.Location);
+        private static readonly MetadataReference TestsReference = MetadataReference.CreateFromFile(typeof(IGenerationMarker).Assembly.Location);
+        private static readonly MetadataReference DependencyInjectionReference = MetadataReference.CreateFromFile(typeof(ServiceCollectionServiceExtensions).Assembly.Location);
+        private static readonly MetadataReference DependencyInjectionAbstractionsReference = MetadataReference.CreateFromFile(typeof(ActivatorUtilitiesConstructorAttribute).Assembly.Location);
+        private readonly string rootDirectory = Path.Combine(Path.GetTempPath(), "LakonaGameHotfixTests", Guid.NewGuid().ToString("N"));
+        private readonly string suffix = Guid.NewGuid().ToString("N");
+        private readonly Dictionary<string, string> emitted = new(StringComparer.Ordinal);
 
-        public string RootDirectory { get; }
-
-        public string StableAssemblyPath { get; }
-
-        public string HotfixAssemblyPath { get; }
-
-        public string SecondHotfixAssemblyPath { get; }
-
-        public string InvalidHotfixAssemblyPath { get; }
-
-        public string HotfixOwnedStateAssemblyPath { get; }
-
-        public string HotfixOwnedReturnAssemblyPath { get; }
-
-        public string HotfixOwnedArgumentAssemblyPath { get; }
-
-        public string ManagerTestHotfixAssemblyPath { get; }
-
-        public string PrivateDependencyAssemblyPath { get; }
-
-        public string HotfixWithPrivateDependencyAssemblyPath { get; }
-
-        public string HotfixOwnedServiceReturnAssemblyPath { get; }
-
-        public string HotfixOwnedServiceArgumentAssemblyPath { get; }
-
-        public string ValidServiceHotfixAssemblyPath { get; }
-
-        public string ConstructorDiServiceHotfixAssemblyPath { get; }
-
-        public string ConstructorDiLifecycleHotfixAssemblyPath { get; }
-
-        public string RootDiServiceHotfixAssemblyPath { get; }
-
-        public string RootDiLocalServiceHotfixAssemblyPath { get; }
-
-        public string MissingDiServiceHotfixAssemblyPath { get; }
-
-        public string MultipleConstructorServiceHotfixAssemblyPath { get; }
-
-        public string SelectedConstructorDiServiceHotfixAssemblyPath { get; }
-
-        public static async Task<CompiledHotfixFixture> CreateAsync(CancellationToken cancellationToken)
-        {
-            var root = Path.Combine(Path.GetTempPath(), "LakonaGameHotfixTests", Guid.NewGuid().ToString("N"));
-            var suffix = Guid.NewGuid().ToString("N");
-            var stableAssemblyName = $"StableContracts_{suffix}";
-            var hotfixAssemblyName = $"HotfixLogic_{suffix}";
-            var secondHotfixAssemblyName = $"HotfixLogicV2_{suffix}";
-            var invalidAssemblyName = $"InvalidHotfixLogic_{suffix}";
-            var stableAssemblyPath = Path.Combine(root, "stable", $"{stableAssemblyName}.dll");
-            var hotfixAssemblyPath = Path.Combine(root, "hotfix", $"{hotfixAssemblyName}.dll");
-            var secondHotfixAssemblyPath = Path.Combine(root, "hotfix-v2", $"{secondHotfixAssemblyName}.dll");
-            var invalidAssemblyPath = Path.Combine(root, "invalid", $"{invalidAssemblyName}.dll");
-            var hotfixOwnedStateAssemblyName = $"HotfixOwnedState_{suffix}";
-            var hotfixOwnedReturnAssemblyName = $"HotfixOwnedReturn_{suffix}";
-            var hotfixOwnedArgumentAssemblyName = $"HotfixOwnedArgument_{suffix}";
-            var managerTestHotfixAssemblyName = $"ManagerTestHotfix_{suffix}";
-            var hotfixOwnedStateAssemblyPath = Path.Combine(root, "hotfix-owned-state", $"{hotfixOwnedStateAssemblyName}.dll");
-            var hotfixOwnedReturnAssemblyPath = Path.Combine(root, "hotfix-owned-return", $"{hotfixOwnedReturnAssemblyName}.dll");
-            var hotfixOwnedArgumentAssemblyPath = Path.Combine(root, "hotfix-owned-argument", $"{hotfixOwnedArgumentAssemblyName}.dll");
-            var managerTestHotfixAssemblyPath = Path.Combine(root, "manager-test-hotfix", $"{managerTestHotfixAssemblyName}.dll");
-            var privateDependencyAssemblyName = $"PrivateHelper_{suffix}";
-            var hotfixWithPrivateDependencyAssemblyName = $"HotfixWithPrivateDep_{suffix}";
-            var privateDependencyAssemblyPath = Path.Combine(root, "private-dep", $"{privateDependencyAssemblyName}.dll");
-            var hotfixWithPrivateDependencyAssemblyPath = Path.Combine(root, "hotfix-with-dep", $"{hotfixWithPrivateDependencyAssemblyName}.dll");
-            var hotfixOwnedServiceReturnAssemblyName = $"HotfixOwnedServiceReturn_{suffix}";
-            var hotfixOwnedServiceArgumentAssemblyName = $"HotfixOwnedServiceArgument_{suffix}";
-            var validServiceHotfixAssemblyName = $"ValidServiceHotfix_{suffix}";
-            var constructorDiServiceHotfixAssemblyName = $"ConstructorDiServiceHotfix_{suffix}";
-            var constructorDiLifecycleHotfixAssemblyName = $"ConstructorDiLifecycleHotfix_{suffix}";
-            var rootDiServiceHotfixAssemblyName = $"RootDiServiceHotfix_{suffix}";
-            var rootDiLocalServiceHotfixAssemblyName = $"RootDiLocalServiceHotfix_{suffix}";
-            var missingDiServiceHotfixAssemblyName = $"MissingDiServiceHotfix_{suffix}";
-            var multipleConstructorServiceHotfixAssemblyName = $"MultipleConstructorServiceHotfix_{suffix}";
-            var selectedConstructorDiServiceHotfixAssemblyName = $"SelectedConstructorDiServiceHotfix_{suffix}";
-            var hotfixOwnedServiceReturnAssemblyPath = Path.Combine(root, "hotfix-owned-service-return", $"{hotfixOwnedServiceReturnAssemblyName}.dll");
-            var hotfixOwnedServiceArgumentAssemblyPath = Path.Combine(root, "hotfix-owned-service-argument", $"{hotfixOwnedServiceArgumentAssemblyName}.dll");
-            var validServiceHotfixAssemblyPath = Path.Combine(root, "valid-service-hotfix", $"{validServiceHotfixAssemblyName}.dll");
-            var constructorDiServiceHotfixAssemblyPath = Path.Combine(root, "constructor-di-service-hotfix", $"{constructorDiServiceHotfixAssemblyName}.dll");
-            var constructorDiLifecycleHotfixAssemblyPath = Path.Combine(root, "constructor-di-lifecycle-hotfix", $"{constructorDiLifecycleHotfixAssemblyName}.dll");
-            var rootDiServiceHotfixAssemblyPath = Path.Combine(root, "root-di-service-hotfix", $"{rootDiServiceHotfixAssemblyName}.dll");
-            var rootDiLocalServiceHotfixAssemblyPath = Path.Combine(root, "root-di-local-service-hotfix", $"{rootDiLocalServiceHotfixAssemblyName}.dll");
-            var missingDiServiceHotfixAssemblyPath = Path.Combine(root, "missing-di-service-hotfix", $"{missingDiServiceHotfixAssemblyName}.dll");
-            var multipleConstructorServiceHotfixAssemblyPath = Path.Combine(root, "multiple-constructor-service-hotfix", $"{multipleConstructorServiceHotfixAssemblyName}.dll");
-            var selectedConstructorDiServiceHotfixAssemblyPath = Path.Combine(root, "selected-constructor-di-service-hotfix", $"{selectedConstructorDiServiceHotfixAssemblyName}.dll");
-
-            Directory.CreateDirectory(Path.GetDirectoryName(stableAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(hotfixAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(secondHotfixAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(invalidAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(hotfixOwnedStateAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(hotfixOwnedReturnAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(hotfixOwnedArgumentAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(managerTestHotfixAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(privateDependencyAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(hotfixWithPrivateDependencyAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(hotfixOwnedServiceReturnAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(hotfixOwnedServiceArgumentAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(validServiceHotfixAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(constructorDiServiceHotfixAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(constructorDiLifecycleHotfixAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(rootDiServiceHotfixAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(rootDiLocalServiceHotfixAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(missingDiServiceHotfixAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(multipleConstructorServiceHotfixAssemblyPath)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(selectedConstructorDiServiceHotfixAssemblyPath)!);
-
-            await EmitAssemblyAsync(
-                stableAssemblyName,
-                stableAssemblyPath,
+        public string StableAssemblyPath =>
+            Emit("stable", "StableContracts",
                 """
                 namespace StableContracts;
 
@@ -1814,21 +1669,13 @@ public sealed class HotfixManagerTests
                     ValueTask ExpiredAsync(Lakona.Game.Server.Hotfix.HotfixLifecycleCall<LifecycleRequest> call);
                 }
                 """,
-                [
+                () => [
                     MetadataReference.CreateFromFile(typeof(RpcMethodAttribute).Assembly.Location),
                     MetadataReference.CreateFromFile(typeof(NodeRoleAttribute).Assembly.Location)
-                ],
-                cancellationToken);
+                ]);
 
-            var stableReference = MetadataReference.CreateFromFile(stableAssemblyPath);
-            var abstractionsReference = MetadataReference.CreateFromFile(typeof(HotfixBehaviorOfAttribute).Assembly.Location);
-            var testsReference = MetadataReference.CreateFromFile(typeof(IGenerationMarker).Assembly.Location);
-            var dependencyInjectionReference = MetadataReference.CreateFromFile(typeof(ServiceCollectionServiceExtensions).Assembly.Location);
-            var dependencyInjectionAbstractionsReference = MetadataReference.CreateFromFile(typeof(ActivatorUtilitiesConstructorAttribute).Assembly.Location);
-
-            await EmitAssemblyAsync(
-                hotfixAssemblyName,
-                hotfixAssemblyPath,
+        public string HotfixAssemblyPath =>
+            Emit("hotfix", "HotfixLogic",
                 $$"""
                 using StableContracts;
                 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -1844,12 +1691,10 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [stableReference, abstractionsReference],
-                cancellationToken);
+                () => [MetadataReference.CreateFromFile(StableAssemblyPath), AbstractionsReference]);
 
-            await EmitAssemblyAsync(
-                secondHotfixAssemblyName,
-                secondHotfixAssemblyPath,
+        public string SecondHotfixAssemblyPath =>
+            Emit("hotfix-v2", "HotfixLogicV2",
                 $$"""
                 using StableContracts;
                 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -1884,18 +1729,16 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [
-                    stableReference,
-                    abstractionsReference,
+                () => [
+                    MetadataReference.CreateFromFile(StableAssemblyPath),
+                    AbstractionsReference,
                     MetadataReference.CreateFromFile(typeof(RpcServiceExceptionHandler).Assembly.Location),
                     MetadataReference.CreateFromFile(typeof(IGenerationMarker).Assembly.Location),
                     MetadataReference.CreateFromFile(typeof(ServiceCollectionServiceExtensions).Assembly.Location)
-                ],
-                cancellationToken);
+                ]);
 
-            await EmitAssemblyAsync(
-                invalidAssemblyName,
-                invalidAssemblyPath,
+        public string InvalidHotfixAssemblyPath =>
+            Emit("invalid", "InvalidHotfixLogic",
                 $$"""
                 using StableContracts;
                 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -1912,12 +1755,10 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [stableReference, abstractionsReference],
-                cancellationToken);
+                () => [MetadataReference.CreateFromFile(StableAssemblyPath), AbstractionsReference]);
 
-            await EmitAssemblyAsync(
-                hotfixOwnedStateAssemblyName,
-                hotfixOwnedStateAssemblyPath,
+        public string HotfixOwnedStateAssemblyPath =>
+            Emit("hotfix-owned-state", "HotfixOwnedState",
                 """
                 using Lakona.Game.Server.Hotfix.Abstractions;
 
@@ -1936,12 +1777,10 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [abstractionsReference],
-                cancellationToken);
+                () => [AbstractionsReference]);
 
-            await EmitAssemblyAsync(
-                hotfixOwnedReturnAssemblyName,
-                hotfixOwnedReturnAssemblyPath,
+        public string HotfixOwnedReturnAssemblyPath =>
+            Emit("hotfix-owned-return", "HotfixOwnedReturn",
                 """
                 using StableContracts;
                 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -1961,12 +1800,10 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [stableReference, abstractionsReference],
-                cancellationToken);
+                () => [MetadataReference.CreateFromFile(StableAssemblyPath), AbstractionsReference]);
 
-            await EmitAssemblyAsync(
-                hotfixOwnedArgumentAssemblyName,
-                hotfixOwnedArgumentAssemblyPath,
+        public string HotfixOwnedArgumentAssemblyPath =>
+            Emit("hotfix-owned-argument", "HotfixOwnedArgument",
                 """
                 using StableContracts;
                 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -1986,12 +1823,10 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [stableReference, abstractionsReference],
-                cancellationToken);
+                () => [MetadataReference.CreateFromFile(StableAssemblyPath), AbstractionsReference]);
 
-            await EmitAssemblyAsync(
-                managerTestHotfixAssemblyName,
-                managerTestHotfixAssemblyPath,
+        public string ManagerTestHotfixAssemblyPath =>
+            Emit("manager-test-hotfix", "ManagerTestHotfix",
                 """
                 using StableContracts;
                 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -2026,18 +1861,16 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [
-                    stableReference,
-                    abstractionsReference,
+                () => [
+                    MetadataReference.CreateFromFile(StableAssemblyPath),
+                    AbstractionsReference,
                     MetadataReference.CreateFromFile(typeof(RpcServiceExceptionHandler).Assembly.Location),
                     MetadataReference.CreateFromFile(typeof(IGenerationMarker).Assembly.Location),
                     MetadataReference.CreateFromFile(typeof(ServiceCollectionServiceExtensions).Assembly.Location)
-                ],
-                cancellationToken);
+                ]);
 
-            await EmitAssemblyAsync(
-                privateDependencyAssemblyName,
-                privateDependencyAssemblyPath,
+        public string PrivateDependencyAssemblyPath =>
+            Emit("private-dep", "PrivateHelper",
                 """
                 namespace PrivateHelper;
 
@@ -2049,14 +1882,10 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [],
-                cancellationToken);
+                () => []);
 
-            var privateDepReference = MetadataReference.CreateFromFile(privateDependencyAssemblyPath);
-
-            await EmitAssemblyAsync(
-                hotfixWithPrivateDependencyAssemblyName,
-                hotfixWithPrivateDependencyAssemblyPath,
+        public string HotfixWithPrivateDependencyAssemblyPath =>
+            Emit("hotfix-with-dep", "HotfixWithPrivateDep",
                 """
                 using StableContracts;
                 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -2073,12 +1902,11 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [stableReference, abstractionsReference, privateDepReference],
-                cancellationToken);
+                () => [MetadataReference.CreateFromFile(StableAssemblyPath), AbstractionsReference, MetadataReference.CreateFromFile(PrivateDependencyAssemblyPath)],
+                copyDependency: PrivateDependencyAssemblyPath);
 
-            await EmitAssemblyAsync(
-                hotfixOwnedServiceReturnAssemblyName,
-                hotfixOwnedServiceReturnAssemblyPath,
+        public string HotfixOwnedServiceReturnAssemblyPath =>
+            Emit("hotfix-owned-service-return", "HotfixOwnedServiceReturn",
                 """
                 using System.Threading.Tasks;
                 using StableContracts;
@@ -2098,12 +1926,10 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [stableReference, abstractionsReference, testsReference],
-                cancellationToken);
+                () => [MetadataReference.CreateFromFile(StableAssemblyPath), AbstractionsReference, TestsReference]);
 
-            await EmitAssemblyAsync(
-                hotfixOwnedServiceArgumentAssemblyName,
-                hotfixOwnedServiceArgumentAssemblyPath,
+        public string HotfixOwnedServiceArgumentAssemblyPath =>
+            Emit("hotfix-owned-service-argument", "HotfixOwnedServiceArgument",
                 """
                 using System.Threading.Tasks;
                 using StableContracts;
@@ -2123,12 +1949,10 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [stableReference, abstractionsReference, testsReference],
-                cancellationToken);
+                () => [MetadataReference.CreateFromFile(StableAssemblyPath), AbstractionsReference, TestsReference]);
 
-            await EmitAssemblyAsync(
-                validServiceHotfixAssemblyName,
-                validServiceHotfixAssemblyPath,
+        public string ValidServiceHotfixAssemblyPath =>
+            Emit("valid-service-hotfix", "ValidServiceHotfix",
                 """
                 using System.Threading.Tasks;
                 using StableContracts;
@@ -2146,12 +1970,10 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [stableReference, abstractionsReference, testsReference],
-                cancellationToken);
+                () => [MetadataReference.CreateFromFile(StableAssemblyPath), AbstractionsReference, TestsReference]);
 
-            await EmitAssemblyAsync(
-                constructorDiServiceHotfixAssemblyName,
-                constructorDiServiceHotfixAssemblyPath,
+        public string ConstructorDiServiceHotfixAssemblyPath =>
+            Emit("constructor-di-service-hotfix", "ConstructorDiServiceHotfix",
                 """
                 using System.Threading.Tasks;
                 using StableContracts;
@@ -2193,17 +2015,15 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [
-                    stableReference,
-                    abstractionsReference,
-                    testsReference,
-                    dependencyInjectionReference
-                ],
-                cancellationToken);
+                () => [
+                    MetadataReference.CreateFromFile(StableAssemblyPath),
+                    AbstractionsReference,
+                    TestsReference,
+                    DependencyInjectionReference
+                ]);
 
-            await EmitAssemblyAsync(
-                constructorDiLifecycleHotfixAssemblyName,
-                constructorDiLifecycleHotfixAssemblyPath,
+        public string ConstructorDiLifecycleHotfixAssemblyPath =>
+            Emit("constructor-di-lifecycle-hotfix", "ConstructorDiLifecycleHotfix",
                 """
                 using System.Threading.Tasks;
                 using StableContracts;
@@ -2250,17 +2070,15 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [
-                    stableReference,
-                    abstractionsReference,
-                    testsReference,
-                    dependencyInjectionReference
-                ],
-                cancellationToken);
+                () => [
+                    MetadataReference.CreateFromFile(StableAssemblyPath),
+                    AbstractionsReference,
+                    TestsReference,
+                    DependencyInjectionReference
+                ]);
 
-            await EmitAssemblyAsync(
-                rootDiServiceHotfixAssemblyName,
-                rootDiServiceHotfixAssemblyPath,
+        public string RootDiServiceHotfixAssemblyPath =>
+            Emit("root-di-service-hotfix", "RootDiServiceHotfix",
                 """
                 using System.Threading.Tasks;
                 using StableContracts;
@@ -2286,12 +2104,10 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [stableReference, abstractionsReference, testsReference],
-                cancellationToken);
+                () => [MetadataReference.CreateFromFile(StableAssemblyPath), AbstractionsReference, TestsReference]);
 
-            await EmitAssemblyAsync(
-                rootDiLocalServiceHotfixAssemblyName,
-                rootDiLocalServiceHotfixAssemblyPath,
+        public string RootDiLocalServiceHotfixAssemblyPath =>
+            Emit("root-di-local-service-hotfix", "RootDiLocalServiceHotfix",
                 """
                 using System.Threading.Tasks;
                 using StableContracts;
@@ -2334,17 +2150,15 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [
-                    stableReference,
-                    abstractionsReference,
-                    testsReference,
-                    dependencyInjectionAbstractionsReference
-                ],
-                cancellationToken);
+                () => [
+                    MetadataReference.CreateFromFile(StableAssemblyPath),
+                    AbstractionsReference,
+                    TestsReference,
+                    DependencyInjectionAbstractionsReference
+                ]);
 
-            await EmitAssemblyAsync(
-                missingDiServiceHotfixAssemblyName,
-                missingDiServiceHotfixAssemblyPath,
+        public string MissingDiServiceHotfixAssemblyPath =>
+            Emit("missing-di-service-hotfix", "MissingDiServiceHotfix",
                 """
                 using System.Threading.Tasks;
                 using StableContracts;
@@ -2370,12 +2184,10 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [stableReference, abstractionsReference, testsReference],
-                cancellationToken);
+                () => [MetadataReference.CreateFromFile(StableAssemblyPath), AbstractionsReference, TestsReference]);
 
-            await EmitAssemblyAsync(
-                multipleConstructorServiceHotfixAssemblyName,
-                multipleConstructorServiceHotfixAssemblyPath,
+        public string MultipleConstructorServiceHotfixAssemblyPath =>
+            Emit("multiple-constructor-service-hotfix", "MultipleConstructorServiceHotfix",
                 """
                 using System.Threading.Tasks;
                 using StableContracts;
@@ -2402,12 +2214,10 @@ public sealed class HotfixManagerTests
                     }
                 }
                 """,
-                [stableReference, abstractionsReference, testsReference],
-                cancellationToken);
+                () => [MetadataReference.CreateFromFile(StableAssemblyPath), AbstractionsReference, TestsReference]);
 
-            await EmitAssemblyAsync(
-                selectedConstructorDiServiceHotfixAssemblyName,
-                selectedConstructorDiServiceHotfixAssemblyPath,
+        public string SelectedConstructorDiServiceHotfixAssemblyPath =>
+            Emit("selected-constructor-di-service-hotfix", "SelectedConstructorDiServiceHotfix",
                 """
                 using System.Threading.Tasks;
                 using StableContracts;
@@ -2459,48 +2269,19 @@ public sealed class HotfixManagerTests
                     public string Generation => "selected";
                 }
                 """,
-                [
-                    stableReference,
-                    abstractionsReference,
-                    testsReference,
-                    dependencyInjectionReference,
-                    dependencyInjectionAbstractionsReference
-                ],
-                cancellationToken);
-
-            // Copy private dependency next to the hotfix assembly so AssemblyDependencyResolver finds it.
-            var privateDepNextToHotfix = Path.Combine(Path.GetDirectoryName(hotfixWithPrivateDependencyAssemblyPath)!, Path.GetFileName(privateDependencyAssemblyPath));
-            File.Copy(privateDependencyAssemblyPath, privateDepNextToHotfix, overwrite: true);
-
-            return new CompiledHotfixFixture(
-                root,
-                stableAssemblyPath,
-                hotfixAssemblyPath,
-                secondHotfixAssemblyPath,
-                invalidAssemblyPath,
-                hotfixOwnedStateAssemblyPath,
-                hotfixOwnedReturnAssemblyPath,
-                hotfixOwnedArgumentAssemblyPath,
-                managerTestHotfixAssemblyPath,
-                privateDependencyAssemblyPath,
-                hotfixWithPrivateDependencyAssemblyPath,
-                hotfixOwnedServiceReturnAssemblyPath,
-                hotfixOwnedServiceArgumentAssemblyPath,
-                validServiceHotfixAssemblyPath,
-                constructorDiServiceHotfixAssemblyPath,
-                constructorDiLifecycleHotfixAssemblyPath,
-                rootDiServiceHotfixAssemblyPath,
-                rootDiLocalServiceHotfixAssemblyPath,
-                missingDiServiceHotfixAssemblyPath,
-                multipleConstructorServiceHotfixAssemblyPath,
-                selectedConstructorDiServiceHotfixAssemblyPath);
-        }
+                () => [
+                    MetadataReference.CreateFromFile(StableAssemblyPath),
+                    AbstractionsReference,
+                    TestsReference,
+                    DependencyInjectionReference,
+                    DependencyInjectionAbstractionsReference
+                ]);
 
         public void Dispose()
         {
             try
             {
-                Directory.Delete(RootDirectory, recursive: true);
+                Directory.Delete(rootDirectory, recursive: true);
             }
             catch (IOException)
             {
@@ -2510,36 +2291,35 @@ public sealed class HotfixManagerTests
             }
         }
 
-        private static async Task EmitAssemblyAsync(
-            string assemblyName,
-            string assemblyPath,
-            string source,
-            IReadOnlyList<MetadataReference> additionalReferences,
-            CancellationToken cancellationToken)
+        private string Emit(string directory, string name, string source, Func<MetadataReference[]> references,
+            string? copyDependency = null)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var syntaxTree = CSharpSyntaxTree.ParseText(source, cancellationToken: cancellationToken);
-            var references = GetTrustedPlatformReferences()
-                .Concat(additionalReferences)
-                .GroupBy(static reference => reference.Display, StringComparer.OrdinalIgnoreCase)
-                .Select(static group => group.First())
-                .ToArray();
-            var compilation = CSharpCompilation.Create(
-                assemblyName,
-                [syntaxTree],
-                references,
-                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-            await using var stream = File.Create(assemblyPath);
-            var emit = compilation.Emit(stream, cancellationToken: cancellationToken);
-            if (!emit.Success)
+            lock (emitted)
             {
-                var diagnostics = string.Join(Environment.NewLine, emit.Diagnostics);
-                throw new InvalidOperationException($"Could not emit test assembly '{assemblyName}'.{Environment.NewLine}{diagnostics}");
-            }
+                if (emitted.TryGetValue(name, out var existing)) return existing;
+                cancellationToken.ThrowIfCancellationRequested();
+                var assemblyName = $"{name}_{suffix}";
+                var output = Directory.CreateDirectory(Path.Combine(rootDirectory, directory));
+                var path = Path.Combine(output.FullName, assemblyName + ".dll");
+                var compilation = CSharpCompilation.Create(assemblyName,
+                    [CSharpSyntaxTree.ParseText(source, cancellationToken: cancellationToken)],
+                    PlatformReferences.Concat(references()).DistinctBy(reference => reference.Display, StringComparer.OrdinalIgnoreCase),
+                    new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-            await stream.FlushAsync(cancellationToken);
+                using (var stream = File.Create(path))
+                {
+                    var result = compilation.Emit(stream, cancellationToken: cancellationToken);
+                    if (!result.Success)
+                    {
+                        var diagnostics = string.Join(Environment.NewLine, result.Diagnostics);
+                        throw new InvalidOperationException($"Failed to emit {assemblyName}:{Environment.NewLine}{diagnostics}");
+                    }
+                }
+                if (copyDependency is not null)
+                    File.Copy(copyDependency, Path.Combine(output.FullName, Path.GetFileName(copyDependency)));
+                emitted.Add(name, path);
+                return path;
+            }
         }
 
         private static IEnumerable<MetadataReference> GetTrustedPlatformReferences()

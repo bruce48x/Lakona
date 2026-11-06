@@ -336,6 +336,9 @@ public sealed class PackageVersionGraphFixtureTests
         fixture.WriteProject("src/Lakona.Tool/Lakona.Tool.csproj", ToolProject("0.2.0"));
         var previousToolVersionCommit = fixture.Commit("Bump tool to 0.2.0");
 
+        fixture.WriteProject("src/Lakona.Tool/Lakona.Tool.csproj", ToolProject("0.2.0") + "\n<!-- Packaging note -->");
+        fixture.Commit("Edit tool project without changing its version");
+
         fixture.WriteFile("src/A/A.cs", "internal sealed class A { public int Value => 1; }");
         fixture.WriteProject("src/Lakona.Tool/Lakona.Tool.csproj", ToolProject("0.3.0"));
         fixture.Commit("Bump tool to 0.3.0");

@@ -6,36 +6,20 @@ namespace Lakona.Rpc.Tests;
 public class LoopbackTransportTests
 {
     [Fact]
-    public async Task CreatePair_BothSidesCanCommunicate()
-    {
-        LoopbackTransport.CreatePair(out var client, out var server);
-        await client.ConnectAsync();
-        await server.ConnectAsync();
-
-        var data = new byte[] { 1, 2, 3 };
-        await client.SendFrameAsync(data);
-        var received = await server.ReceiveFrameAsync();
-
-        Assert.Equal(data, received.ToArray());
-
-        await client.DisposeAsync();
-        await server.DisposeAsync();
-    }
-
-    [Fact]
     public async Task CreatePair_BidirectionalCommunication()
     {
         LoopbackTransport.CreatePair(out var client, out var server);
         await client.ConnectAsync();
         await server.ConnectAsync();
 
-        await client.SendFrameAsync(new byte[] { 1 });
+        var payload = new byte[] { 1, 2, 3 };
+        await client.SendFrameAsync(payload);
         await server.SendFrameAsync(new byte[] { 2 });
 
         var fromClient = await server.ReceiveFrameAsync();
         var fromServer = await client.ReceiveFrameAsync();
 
-        Assert.Equal(new byte[] { 1 }, fromClient.ToArray());
+        Assert.Equal(payload, fromClient.ToArray());
         Assert.Equal(new byte[] { 2 }, fromServer.ToArray());
 
         await client.DisposeAsync();

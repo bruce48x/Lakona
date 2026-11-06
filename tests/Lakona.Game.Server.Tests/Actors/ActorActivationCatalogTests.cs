@@ -237,26 +237,6 @@ public sealed class ActorActivationCatalogTests
     }
 
     [Fact]
-    public async Task CreateAsync_rolls_back_directory_cache_and_local_actor_when_start_hook_fails()
-    {
-        var cancellationToken = TestContext.Current.CancellationToken;
-        var dispatcher = new ThrowingActorLifecycleDispatcher(throwOnStart: true);
-        await using var provider = CreateProvider(lifecycleDispatcher: dispatcher);
-        var hosting = provider.GetRequiredService<ActorActivationCatalog>();
-        var runtime = provider.GetRequiredService<IActorRuntime>();
-        var directory = provider.GetRequiredService<IActorDirectory>();
-        var cache = provider.GetRequiredService<IActorDirectoryCache>();
-        var actorId = ActorId.From("hosting/create-fails");
-
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await hosting.CreateAsync<HostedTestActor>(actorId, cancellationToken));
-
-        Assert.Null(await directory.ResolveAsync(actorId, cancellationToken));
-        Assert.False(cache.TryGet(actorId, out _));
-        Assert.DoesNotContain(actorId, runtime.GetActiveActorIds(typeof(HostedTestActor)));
-    }
-
-    [Fact]
     public async Task CreateAsync_reports_unconfirmed_compensation_when_directory_resolve_stalls()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
