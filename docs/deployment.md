@@ -206,8 +206,10 @@ lakona-tool hotfix rollback \
 
 Install extracts to a staging directory, validates the manifest and SHA-256
 checksums, moves the verified version under `hotfix/versions/`, and writes
-`READY` last. Reinstalling identical content is idempotent; different content
-under the same version fails.
+`READY` last. Reinstalling an existing version succeeds only when its `READY`
+file exists, its checksum list matches the incoming package, and its installed
+files pass SHA-256 verification. On a mismatch the installer reports the
+version and reason and leaves the existing directory intact.
 
 Activate, status, and rollback use the running node's loopback-only HTTP admin
 endpoint. V1 deliberately has no remote upload, public management endpoint, or

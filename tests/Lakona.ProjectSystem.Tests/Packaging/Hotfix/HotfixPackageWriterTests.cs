@@ -254,6 +254,43 @@ public sealed class HotfixPackageWriterTests
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
                 async () => await new HotfixPackageInstaller().InstallAsync(secondZip, installRoot, TestContext.Current.CancellationToken));
             Assert.Contains("different content", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(version, exception.Message);
+            Assert.Equal("first", await File.ReadAllTextAsync(Path.Combine(installRoot, "versions", version, "Server.Hotfix.dll"), TestContext.Current.CancellationToken));
+            Assert.True(File.Exists(Path.Combine(installRoot, "versions", version, "READY")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("READY")]
+    [InlineData("Server.Hotfix.dll")]
+    public async Task Reinstall_rejects_and_preserves_a_damaged_installation(string damagedFile)
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            const string version = "20260612-153045Z";
+            var token = TestContext.Current.CancellationToken;
+            var zip = await WritePackageWithVersionAsync(root, version);
+            var installer = new HotfixPackageInstaller();
+            var installRoot = Path.Combine(root, "hotfix");
+            await installer.InstallAsync(zip, installRoot, token);
+            var path = Path.Combine(installRoot, "versions", version, damagedFile);
+            if (damagedFile == "READY")
+                File.Delete(path);
+            else
+                await File.WriteAllTextAsync(path, "corrupt", token);
+
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => installer.InstallAsync(zip, installRoot, token));
+            Assert.Contains(version, error.Message);
+            Assert.Contains(damagedFile, error.Message);
+            if (damagedFile == "READY")
+                Assert.False(File.Exists(path));
+            else
+                Assert.Equal("corrupt", await File.ReadAllTextAsync(path, token));
         }
         finally
         {

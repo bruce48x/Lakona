@@ -33,12 +33,25 @@ internal sealed class HotfixPackageInstaller
             var target = Path.Combine(root, "versions", manifest.Version);
             if (Directory.Exists(target))
             {
-                if (await SameChecksumsAsync(staging, target, cancellationToken).ConfigureAwait(false))
+                if (!File.Exists(Path.Combine(target, "READY")))
                 {
-                    return manifest.Version;
+                    throw new InvalidOperationException($"Installed hotfix version '{manifest.Version}' is missing READY.");
                 }
 
-                throw new InvalidOperationException($"Hotfix version '{manifest.Version}' already exists with different content.");
+                try
+                {
+                    if (!await SameChecksumsAsync(staging, target, cancellationToken).ConfigureAwait(false))
+                        throw new InvalidOperationException("The same version already exists with different content.");
+
+                    await HotfixPackageVerifier.VerifyChecksumsAsync(
+                        target, manifest.Assembly, allowReadyMarker: true, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
+                {
+                    throw new InvalidOperationException($"Cannot reuse installed hotfix version '{manifest.Version}': {ex.Message}", ex);
+                }
+
+                return manifest.Version;
             }
 
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
