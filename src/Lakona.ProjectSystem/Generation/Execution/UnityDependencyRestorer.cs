@@ -7,10 +7,10 @@ using Lakona.ProjectSystem.Generation.Planning;
 
 namespace Lakona.ProjectSystem.Generation.Execution;
 
-internal sealed class UnityDependencyRestorer : IUnityDependencyRestorer
+internal sealed class UnityDependencyRestorer(Func<ProcessStartInfo, Process?> startEditor, TimeSpan restoreTimeout) : IUnityDependencyRestorer
 {
     private const string NuGetForUnityResource = "Lakona.ProjectSystem.Generation.Rendering.Client.TemplateAssets.NuGetForUnity.4.5.0.zip";
-    private static readonly TimeSpan RestoreTimeout = TimeSpan.FromMinutes(10);
+    public UnityDependencyRestorer() : this(Process.Start, TimeSpan.FromMinutes(10)) { }
 
     public async Task<UnityEditorInstallation> ResolveEditorAsync(
         LakonaProjectSpec spec,
@@ -32,6 +32,7 @@ internal sealed class UnityDependencyRestorer : IUnityDependencyRestorer
         UnityEditorInstallation editor,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var bootstrapRoot = Path.Combine(Path.GetTempPath(), "Lakona.ProjectSystem.Restore", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(bootstrapRoot);
 
@@ -43,11 +44,22 @@ internal sealed class UnityDependencyRestorer : IUnityDependencyRestorer
             VerifyPackages(plan, packagesRoot);
             return new RestoredUnityDependencies(packagesRoot, bootstrapRoot);
         }
-        catch
+        catch (EditorStopException ex)
+        {
+            // The editor may still be using this directory.
+            throw new LakonaProjectCreationException(ex.Message, ex);
+        }
+        catch (Exception failure)
         {
             if (Directory.Exists(bootstrapRoot))
             {
-                Directory.Delete(bootstrapRoot, recursive: true);
+                try { Directory.Delete(bootstrapRoot, recursive: true); }
+                catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException)
+                {
+                    throw new LakonaProjectCreationException(
+                        $"Restore failed and the temporary project could not be removed: {bootstrapRoot}",
+                        new AggregateException(failure, cleanup));
+                }
             }
 
             throw;
@@ -81,7 +93,7 @@ internal sealed class UnityDependencyRestorer : IUnityDependencyRestorer
         File.WriteAllText(destination, generated.Content);
     }
 
-    private static async Task RunRestoreAsync(string executable, string projectRoot, CancellationToken cancellationToken)
+    private async Task RunRestoreAsync(string executable, string projectRoot, CancellationToken cancellationToken)
     {
         var logPath = Path.Combine(projectRoot, "restore.log");
         var startInfo = new ProcessStartInfo(executable)
@@ -101,7 +113,8 @@ internal sealed class UnityDependencyRestorer : IUnityDependencyRestorer
         Process process;
         try
         {
-            process = Process.Start(startInfo)
+            cancellationToken.ThrowIfCancellationRequested();
+            process = startEditor(startInfo)
                 ?? throw new LakonaProjectCreationException($"Unable to start editor: {executable}");
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
@@ -110,17 +123,18 @@ internal sealed class UnityDependencyRestorer : IUnityDependencyRestorer
         }
 
         using (process)
-        using (var timeout = new CancellationTokenSource(RestoreTimeout))
+        using (var timeout = new CancellationTokenSource(restoreTimeout))
         using (var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token))
         {
             try
             {
                 await process.WaitForExitAsync(linked.Token).ConfigureAwait(false);
             }
-            catch (OperationCanceledException) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException)
             {
-                process.Kill(entireProcessTree: true);
-                throw new LakonaProjectCreationException($"Editor dependency restore timed out after {RestoreTimeout.TotalMinutes:0} minutes.");
+                await StopEditorAsync(process, projectRoot).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                throw new LakonaProjectCreationException($"Editor dependency restore timed out after {restoreTimeout.TotalMinutes:0.##} minutes.");
             }
 
             if (process.ExitCode != 0 || !File.Exists(Path.Combine(projectRoot, "LakonaNuGetRestore.success")))
@@ -130,6 +144,28 @@ internal sealed class UnityDependencyRestorer : IUnityDependencyRestorer
             }
         }
     }
+
+    internal static async Task StopEditorAsync(Process process, string projectRoot)
+    {
+        try
+        {
+            try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+            catch (Exception ex) when ((ex is InvalidOperationException or System.ComponentModel.Win32Exception) && process.HasExited)
+            {
+                // The editor exited between HasExited and Kill.
+            }
+
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await process.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            throw new EditorStopException(
+                $"Could not confirm editor process {process.Id} stopped. Temporary project retained at '{projectRoot}'.", ex);
+        }
+    }
+
+    private sealed class EditorStopException(string message, Exception cause) : Exception(message, cause);
 
     private static void VerifyPackages(GenerationPlan plan, string packagesRoot)
     {

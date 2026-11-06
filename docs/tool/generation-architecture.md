@@ -231,7 +231,10 @@ restoration never runs a binary whose version differs from the recorded one.
 The bootstrap contains only the resolved editor version, NuGetForUnity,
 `packages.config`, and NuGet configuration. Creation fails without publishing
 the target when the editor is unavailable, cannot start, times out, or produces
-an incomplete restore. On success, the verified `Assets/Packages` tree is
+an incomplete restore. Cancellation and timeout terminate the launched editor
+process tree and wait for the editor to exit before deleting its temporary
+project. If exit cannot be confirmed, the failure reports the PID and retained
+project path. On success, the verified `Assets/Packages` tree is
 copied into transactional staging before the final rename and Git
 initialization. The generated repository intentionally tracks that tree so a
 clone can compile on its first editor open without another NuGetForUnity
