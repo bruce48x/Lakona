@@ -35,6 +35,11 @@ public sealed class PostgresUserStore(NpgsqlDataSource dataSource)
             victory_points integer NOT NULL,
             updated_at_utc timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS agar_user_settlements (
+            user_id varchar(128) NOT NULL REFERENCES agar_users(user_id) ON DELETE CASCADE,
+            settlement_id text NOT NULL,
+            PRIMARY KEY (user_id, settlement_id)
+        );
         """;
 
     private const string LoadSql =
@@ -50,7 +55,7 @@ public sealed class PostgresUserStore(NpgsqlDataSource dataSource)
         WHERE user_id = @UserId;
         """;
 
-    private const string SaveSql =
+    private const string SaveLoginSql =
         """
         INSERT INTO agar_users (
             user_id,
@@ -67,16 +72,32 @@ public sealed class PostgresUserStore(NpgsqlDataSource dataSource)
             @LoginCount,
             @CreatedAtUtc,
             @LastLoginAtUtc,
-            @WinCount,
-            @VictoryPoints,
+            0,
+            0,
             CURRENT_TIMESTAMP)
         ON CONFLICT (user_id) DO UPDATE
         SET password_hash = EXCLUDED.password_hash,
             login_count = EXCLUDED.login_count,
             last_login_at_utc = EXCLUDED.last_login_at_utc,
-            win_count = EXCLUDED.win_count,
-            victory_points = EXCLUDED.victory_points,
-            updated_at_utc = CURRENT_TIMESTAMP;
+            updated_at_utc = CURRENT_TIMESTAMP
+        RETURNING win_count, victory_points;
+        """;
+
+    private const string ApplySettlementSql =
+        """
+        WITH recorded AS (
+            INSERT INTO agar_user_settlements (user_id, settlement_id)
+            SELECT user_id, @SettlementId FROM agar_users WHERE user_id = @UserId
+            ON CONFLICT (user_id, settlement_id) DO NOTHING
+            RETURNING user_id
+        )
+        UPDATE agar_users AS u
+        SET win_count = GREATEST(0, u.win_count) + @WinDelta,
+            victory_points = GREATEST(0, u.victory_points) + @PointsDelta,
+            updated_at_utc = CURRENT_TIMESTAMP
+        FROM recorded
+        WHERE u.user_id = recorded.user_id
+        RETURNING u.win_count, u.victory_points;
         """;
 
     [ComponentStart]
@@ -102,7 +123,7 @@ public sealed class PostgresUserStore(NpgsqlDataSource dataSource)
                 cancellationToken: cancellationToken)).ConfigureAwait(false);
     }
 
-    public async ValueTask SaveAsync(
+    internal async ValueTask<(int WinCount, int VictoryPoints)> SaveLoginAsync(
         PersistedUser user,
         CancellationToken cancellationToken = default)
     {
@@ -112,11 +133,50 @@ public sealed class PostgresUserStore(NpgsqlDataSource dataSource)
         await using var connection = await dataSource
             .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
-        await connection.ExecuteAsync(
+        return await connection.QuerySingleAsync<(int, int)>(
             new CommandDefinition(
-                SaveSql,
+                SaveLoginSql,
                 user,
                 cancellationToken: cancellationToken)).ConfigureAwait(false);
+    }
+
+    internal async ValueTask<(int WinCount, int VictoryPoints, bool Applied)?> ApplySettlementAsync(
+        string userId,
+        string settlementId,
+        int winDelta,
+        int pointsDelta,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateUserId(userId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(settlementId);
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var applied = await connection.QuerySingleOrDefaultAsync<(int WinCount, int VictoryPoints)?>(
+            new CommandDefinition(
+                ApplySettlementSql,
+                new { UserId = userId, SettlementId = settlementId, WinDelta = winDelta, PointsDelta = pointsDelta },
+                cancellationToken: cancellationToken)).ConfigureAwait(false);
+        if (applied is { } totals)
+            return (totals.WinCount, totals.VictoryPoints, true);
+
+        // A concurrent insert can win after our statement snapshot. Read its committed totals in a new statement.
+        const string readTotalsSql = """
+            SELECT win_count, victory_points FROM agar_users WHERE user_id = @UserId;
+            """;
+        var current = await connection.QuerySingleOrDefaultAsync<(int WinCount, int VictoryPoints)?>(
+            new CommandDefinition(readTotalsSql, new { UserId = userId }, cancellationToken: cancellationToken))
+            .ConfigureAwait(false);
+        return current is { } existing ? (existing.WinCount, existing.VictoryPoints, false) : null;
+    }
+
+    internal async ValueTask ResetVictoryPointsAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        ValidateUserId(userId);
+        const string sql = """
+            UPDATE agar_users SET victory_points = 0, updated_at_utc = CURRENT_TIMESTAMP WHERE user_id = @UserId;
+            """;
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await connection.ExecuteAsync(new CommandDefinition(sql, new { UserId = userId }, cancellationToken: cancellationToken))
+            .ConfigureAwait(false);
     }
 
     private static void ValidateUserId(string userId)

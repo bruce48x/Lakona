@@ -91,17 +91,8 @@ public sealed partial class LeaderboardBehavior
             }
             catch (ActorNotFoundException)
             {
-                var persistedUser = await _userStore
-                    .LoadAsync(player.PlayerId, CancellationToken.None)
-                    .ConfigureAwait(false);
-                if (persistedUser is null)
-                {
-                    continue;
-                }
-
-                persistedUser.VictoryPoints = 0;
                 await _userStore
-                    .SaveAsync(persistedUser, CancellationToken.None)
+                    .ResetVictoryPointsAsync(player.PlayerId, CancellationToken.None)
                     .ConfigureAwait(false);
             }
         }

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Server.App.Infrastructure.Redis;
+using Server.App.Users;
 using Server.Hotfix.Users;
 using Server.Hotfix.Leaderboard;
 using Xunit;
@@ -51,6 +52,16 @@ public sealed class AgarPersistenceFixture : IAsyncDisposable
 
 internal static class TestPersistence
 {
+    public static async Task InsertUserAsync(IServiceProvider provider, PersistedUser user, CancellationToken cancellationToken)
+    {
+        const string sql = """
+            INSERT INTO agar_users (user_id, password_hash, login_count, created_at_utc, last_login_at_utc, win_count, victory_points)
+            VALUES (@UserId, @PasswordHash, @LoginCount, @CreatedAtUtc, @LastLoginAtUtc, @WinCount, @VictoryPoints);
+            """;
+        await using var connection = await provider.GetRequiredService<NpgsqlDataSource>().OpenConnectionAsync(cancellationToken);
+        await connection.ExecuteAsync(new CommandDefinition(sql, user, cancellationToken: cancellationToken));
+    }
+
     public static void AddServices(IServiceCollection services)
     {
         var id = "test_" + Guid.NewGuid().ToString("N");

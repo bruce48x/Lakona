@@ -16,7 +16,7 @@ public sealed class AgarOperationsHttpTests
     {
         await using var persistence = TestPersistence.CreateProvider();
         var store = persistence.GetRequiredService<PostgresUserStore>();
-        await store.SaveAsync(
+        await TestPersistence.InsertUserAsync(persistence,
             new PersistedUser
             {
                 UserId = "alice",

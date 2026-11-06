@@ -292,7 +292,8 @@ key 只用于选择亲和性，不是物理 actor id。当前三节点拓扑只�
 队列允许清空。RPC service 不应在 enqueue/cancel 前调用 `EnsureCreatedAsync`。
 
 本地 `docker-compose.yml` 会把 `infra/postgres/init` 挂载到 Postgres
-`/docker-entrypoint-initdb.d`，其中 `001-agar-users.sql` 创建用户持久化表。
+`/docker-entrypoint-initdb.d`，其中 `001-agar-users.sql` 创建用户表和结算操作表。
+在已有数据库上部署新版时，可先执行这份 SQL 补齐表结构，再切换服务端。旧版结算的处理见[结算边界](docs/topics/victory-points.md#结算边界)。
 用户 SQL 和 Redis 排行榜操作由 `Server.Hotfix` 中的具体 HotfixComponent
 负责。Hotfix 的 `PostgresUserStore` 通过 `[ComponentConfigureServices]`
 自动在 data 节点注册稳定 NpgsqlDataSource，无须 Program 手动调用；
