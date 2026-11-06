@@ -206,6 +206,12 @@ Unity tests use NUnit and Unity Test Framework. Use `[UnityTest]` with
 `IEnumerator` for asynchronous Unity tests and alias assertions with
 `using NUnitAssert = NUnit.Framework.Assert;`.
 
+Run `pwsh -File scripts/rpc/test-unity-sample-shutdown.ps1` to verify the Unity
+RPC testers when a component closes during connection, login, or polling.
+It restores the sample dependencies in isolated projects and runs the PlayMode
+tests for WebSocket, TCP and KCP, including a TCP peer that holds its socket
+open without replying.
+
 Source-scan tests that read `src/**` must be updated when source files move or
 are renamed.
 

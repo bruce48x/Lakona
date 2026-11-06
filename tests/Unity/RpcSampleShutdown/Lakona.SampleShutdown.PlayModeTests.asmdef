@@ -1,0 +1,7 @@
+{
+  "name": "Lakona.SampleShutdown.PlayModeTests",
+  "references": ["Lakona.Rpc.Testing"],
+  "overrideReferences": true,
+  "precompiledReferences": ["nunit.framework.dll", "Lakona.Rpc.Core.dll", "Lakona.Rpc.Client.dll"],
+  "optionalUnityReferences": ["TestAssemblies"]
+}

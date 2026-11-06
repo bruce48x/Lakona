@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Rpc.Testing
 {
-    public sealed class RpcConnectionTester : RpcConnectionTesterBase
+    public class RpcConnectionTester : RpcConnectionTesterBase
     {
         [SerializeField] private RpcEndpointSettings _endpoint = RpcEndpointSettings.CreateWebSocket("127.0.0.1", 20000, "/ws");
 

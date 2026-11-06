@@ -106,7 +106,7 @@ namespace Rpc.Testing
         private VisualElement? _sessionsContent;
         private Label? _logsLabel;
         private readonly Dictionary<int, SessionView> _sessionViews = new();
-        private bool _cleanupStarted;
+        private Task? _cleanupTask;
         private bool _debugUiBound;
         private bool _isShuttingDown;
         private bool _styleSheetAttached;
@@ -171,18 +171,19 @@ namespace Rpc.Testing
             if (_isShuttingDown)
                 return;
 
-            if (_sessions.Count > 0)
+            if (_state == ConnectionState.Connecting || _sessions.Count > 0 || _cleanupTask is { IsCompleted: false })
             {
                 Debug.LogWarning("RpcConnectionTester already connected.");
                 return;
             }
 
+            _cleanupTask = null;
             try
             {
                 UpdateStatus(ConnectionState.Connecting, "Connecting...");
                 var targetCount = Mathf.Max(1, ConnectionCount);
 
-                for (var i = 0; i < targetCount; i++)
+                for (var i = 0; i < targetCount && !_isShuttingDown; i++)
                 {
                     var session = new ConnectionSession(this, i);
                     _sessions.Add(session);
@@ -190,13 +191,18 @@ namespace Rpc.Testing
                     await session.StartAsync();
                 }
 
-                UpdateStatus(ConnectionState.Connected, $"Connected x{_sessions.Count}");
+                if (!_isShuttingDown)
+                    UpdateStatus(ConnectionState.Connected, $"Connected x{_sessions.Count}");
+            }
+            catch (Exception) when (_isShuttingDown)
+            {
+                // Closing the connection also ends any startup RPC still awaiting a reply.
             }
             catch (Exception ex)
             {
                 Debug.LogError($"RPC test failed: {ex}");
                 UpdateStatus(ConnectionState.Error, ex.Message);
-                await CleanupAsync(false);
+                await CleanupAsync();
             }
         }
 
@@ -231,45 +237,37 @@ namespace Rpc.Testing
 
         private void BeginShutdown()
         {
-            if (_cleanupStarted)
-                return;
-
-            _cleanupStarted = true;
             _isShuttingDown = true;
-
-            foreach (var session in _sessions.ToArray())
-                session.BeginShutdown();
-
-            _ = CleanupAsync(true);
+            _ = CleanupAsync();
         }
 
-        private async Task CleanupAsync(bool notifyDisconnected)
+        private Task CleanupAsync()
         {
-            var sessions = _sessions.ToArray();
-            _sessions.Clear();
-            MarkUiDirty();
+            return _cleanupTask ??= Task.WhenAll(Array.ConvertAll(_sessions.ToArray(), DisposeSessionAsync));
+        }
 
-            foreach (var session in sessions)
+        private async Task DisposeSessionAsync(ConnectionSession session)
+        {
+            try
             {
-                try
-                {
-                    await session.DisposeAsync();
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"RPC cleanup error: {ex}");
-                }
+                await session.DisposeAsync();
             }
-
-            if (notifyDisconnected)
-                UpdateStatus(ConnectionState.Disconnected, "Disconnected");
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"RPC cleanup error: {ex}");
+            }
+            finally
+            {
+                _sessions.Remove(session);
+                if (!_isShuttingDown)
+                    MarkUiDirty();
+            }
         }
 
-        private void OnSessionDisconnected(ConnectionSession session, Exception? ex)
+        private async Task OnSessionDisconnectedAsync(ConnectionSession session, Exception? ex)
         {
-            _sessions.Remove(session);
-
-            if (_isShuttingDown)
+            await DisposeSessionAsync(session);
+            if (_isShuttingDown || _sessions.Exists(current => current.Index == session.Index))
                 return;
 
             if (ex is null)
@@ -606,40 +604,56 @@ namespace Rpc.Testing
             public Label Message { get; }
         }
 
-        private sealed class ConnectionSession : IAsyncDisposable
+        private sealed class ConnectionSession
         {
             private readonly RpcConnectionTesterBase _owner;
             private readonly CancellationTokenSource _cts = new();
             private readonly RpcClient.RpcNotificationBindings _callbacks;
+            private readonly SynchronizationContext _unityContext;
             private RpcClient? _connection;
-            private bool _disposed;
-            private Task? _pollingTask;
-            private IPlayerService? _proxy;
+            private Task _startupTask = Task.CompletedTask;
+            private Task _pollingTask = Task.CompletedTask;
+            private Task? _disposeTask;
             private bool _stopped;
 
             public ConnectionSession(RpcConnectionTesterBase owner, int index)
             {
                 _owner = owner;
                 Index = index;
+                _unityContext = SynchronizationContext.Current ?? throw new InvalidOperationException("Start sessions on the Unity thread.");
                 _callbacks = new RpcClient.RpcNotificationBindings();
                 _callbacks.Add(new PlayerCallbacks(this));
             }
 
             public int Index { get; }
 
-            public async Task StartAsync()
+            public Task StartAsync() => _startupTask = StartCoreAsync(_cts.Token);
+
+            private async Task StartCoreAsync(CancellationToken token)
             {
-                _connection = new RpcClient(_owner.CreateClientOptions(), _callbacks);
-                await _connection.ConnectAsync(_cts.Token);
-                _connection.Disconnected += OnDisconnected;
-                _proxy = _connection.Api.Game.Player;
+                var connection = new RpcClient(_owner.CreateClientOptions(), _callbacks);
+                try
+                {
+                    await connection.ConnectAsync(token);
+                    token.ThrowIfCancellationRequested();
+                }
+                catch
+                {
+                    await connection.DisposeAsync();
+                    throw;
+                }
+
+                _connection = connection;
+                connection.Disconnected += OnDisconnected;
+                var player = new PlayerServiceClient(connection.Runtime);
 
                 var account = $"{_owner.Account}-{Index + 1}";
-                var reply = await _proxy.LoginAsync(new LoginRequest
+                var reply = await player.LoginAsync(new LoginRequest
                 {
                     Account = account,
                     Password = _owner.Password
-                });
+                }, token);
+                token.ThrowIfCancellationRequested();
 
                 _owner.UpdateSession(Index, snapshot =>
                 {
@@ -648,65 +662,53 @@ namespace Rpc.Testing
                     snapshot.LastMessage = $"token={reply.Token}";
                 });
                 _owner.AppendLog($"Session[{Index}] login ok: code={reply.Code}, token={reply.Token}");
-                _pollingTask = RunPollingAsync(account);
+                _pollingTask = RunPollingAsync(account, player, token);
             }
 
             private void HandleNotify(string message)
             {
-                if (_stopped || _owner._isShuttingDown)
-                    return;
+                _unityContext.Post(_ =>
+                {
+                    if (_stopped || _owner._isShuttingDown)
+                        return;
 
-                _owner.UpdateSession(Index, snapshot => snapshot.LastMessage = message);
-                _owner.AppendLog($"Session[{Index}] server push: {message}");
+                    _owner.UpdateSession(Index, snapshot => snapshot.LastMessage = message);
+                    _owner.AppendLog($"Session[{Index}] server push: {message}");
+                }, null);
             }
 
-            public void BeginShutdown()
+            public Task DisposeAsync() => _disposeTask ??= DisposeCoreAsync();
+
+            private async Task DisposeCoreAsync()
             {
-                if (_stopped)
-                    return;
-
                 _stopped = true;
-                _cts.Cancel();
-
                 if (_connection is not null)
                     _connection.Disconnected -= OnDisconnected;
-            }
-
-            public async ValueTask DisposeAsync()
-            {
-                if (_disposed)
-                    return;
-
-                _disposed = true;
-                BeginShutdown();
-
-                if (_pollingTask is not null)
+                try
                 {
-                    try
-                    {
-                        await _pollingTask;
-                    }
-                    catch (OperationCanceledException)
-                    {
-                    }
+                    _cts.Cancel();
+                    var close = _connection?.DisposeAsync().AsTask() ?? Task.CompletedTask;
+                    await Task.WhenAll(close, _startupTask, _pollingTask);
                 }
-
-                if (_connection is not null)
-                    await _connection.DisposeAsync();
-
-                _cts.Dispose();
+                catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+                {
+                }
+                finally
+                {
+                    _cts.Dispose();
+                }
             }
 
-            private async Task RunPollingAsync(string account)
+            private async Task RunPollingAsync(string account, PlayerServiceClient player, CancellationToken token)
             {
                 var interval = Mathf.Max(0.1f, _owner.RequestIntervalSeconds);
 
-                while (!_cts.IsCancellationRequested && !_stopped)
+                while (!token.IsCancellationRequested)
                 {
                     try
                     {
-                        var step = await _proxy!.IncrStep(new StepRequest());
-                        if (_cts.IsCancellationRequested || _stopped || _owner._isShuttingDown)
+                        var step = await player.IncrStep(new StepRequest(), token);
+                        if (token.IsCancellationRequested || _owner._isShuttingDown)
                             return;
 
                         _owner.UpdateSession(Index, snapshot =>
@@ -716,7 +718,7 @@ namespace Rpc.Testing
                             snapshot.State = "Polling";
                         });
                         _owner.AppendLog($"Session[{Index}] {account} step={step.Step}");
-                        await Task.Delay(TimeSpan.FromSeconds(interval), _cts.Token);
+                        await Task.Delay(TimeSpan.FromSeconds(interval), token);
                     }
                     catch (OperationCanceledException)
                     {
@@ -727,11 +729,11 @@ namespace Rpc.Testing
 
             private void OnDisconnected(Exception? ex)
             {
-                if (_stopped)
-                    return;
-
-                _stopped = true;
-                _owner.OnSessionDisconnected(this, ex);
+                _unityContext.Post(state =>
+                {
+                    if (!_stopped && !_owner._isShuttingDown)
+                        _ = _owner.OnSessionDisconnectedAsync(this, ex);
+                }, null);
             }
 
             private sealed class PlayerCallbacks : RpcClient.PlayerNotificationsBase

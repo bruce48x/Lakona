@@ -28,7 +28,7 @@ namespace Rpc.Testing
         }
     }
 
-    public sealed class RpcConnectionTester : MonoBehaviour
+    public class RpcConnectionTester : MonoBehaviour
     {
         [SerializeField] private RpcEndpointSettings _endpoint = RpcEndpointSettings.CreateKcp("127.0.0.1", 20000);
 
@@ -38,19 +38,9 @@ namespace Rpc.Testing
         public float RequestIntervalSeconds = 1f;
         public bool AutoConnect = true;
 
-        private readonly CancellationTokenSource _cts = new();
-        private readonly RpcClient.RpcNotificationBindings _callbacks;
-        private RpcClient? _connection;
-        private IPlayerService? _player;
-        private Task? _pollingTask;
-        private bool _cleanupStarted;
-        private bool _stopped;
-
-        public RpcConnectionTester()
-        {
-            _callbacks = new RpcClient.RpcNotificationBindings();
-            _callbacks.Add(new PlayerCallbacks(this));
-        }
+        private CancellationTokenSource? _lifetime;
+        private Task _cleanupTask = Task.CompletedTask;
+        private bool _shuttingDown;
 
         private async void Start()
         {
@@ -68,141 +58,136 @@ namespace Rpc.Testing
         private void OnDestroy()
         {
             BeginShutdown();
-            _cts.Dispose();
         }
 
+        protected virtual RpcClientOptions CreateClientOptions() =>
+            new RpcClientOptions(new KcpTransport(_endpoint.Host, _endpoint.Port), new MemoryPackRpcSerializer());
+
         [ContextMenu("Connect And Test")]
-        public async Task ConnectAndTestAsync()
+        public Task ConnectAndTestAsync()
         {
-            if (_cleanupStarted || _connection is not null)
-                return;
+            if (_shuttingDown)
+                return _cleanupTask;
+            if (_lifetime is not null)
+                return Task.CompletedTask;
 
+            var lifetime = new CancellationTokenSource();
+            _lifetime = lifetime;
+            var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             Debug.Log($"[KCP] Connecting to {_endpoint.Host}:{_endpoint.Port}");
+            _cleanupTask = RunSessionAsync(lifetime, started);
+            return started.Task;
+        }
 
+        private async Task RunSessionAsync(CancellationTokenSource lifetime, TaskCompletionSource<bool> started)
+        {
+            var token = lifetime.Token;
             try
             {
-                _connection = new RpcClient(
-                    new RpcClientOptions(
-                        new KcpTransport(_endpoint.Host, _endpoint.Port),
-                        new MemoryPackRpcSerializer()),
-                    _callbacks);
-                await _connection.ConnectAsync(_cts.Token);
-                _connection.Disconnected += OnDisconnected;
-                _player = _connection.Api.Game.Player;
-
-                var reply = await _player.LoginAsync(new LoginRequest
+                var context = SynchronizationContext.Current
+                    ?? throw new InvalidOperationException("Start the RPC tester on the Unity main thread.");
+                var callbacks = new RpcClient.RpcNotificationBindings();
+                callbacks.Add(new PlayerCallbacks(context, token));
+                var connection = new RpcClient(CreateClientOptions(), callbacks);
+                void OnDisconnected(Exception? error) => context.Post(_ =>
                 {
-                    Account = Account,
-                    Password = Password
-                });
+                    if (token.IsCancellationRequested)
+                        return;
+                    if (error is null)
+                        Debug.Log("[KCP] Disconnected.");
+                    else
+                        Debug.LogWarning($"[KCP] Disconnected: {error.Message}");
+                    lifetime.Cancel();
+                }, null);
 
-                Debug.Log($"[KCP] Login ok: account={Account}, code={reply.Code}, token={reply.Token}");
-                _pollingTask = RunPollingAsync();
+                connection.Disconnected += OnDisconnected;
+                var requests = Task.CompletedTask;
+                try
+                {
+                    // Connect owns initialization until it returns. Shutdown cancels it before disposing the client.
+                    await connection.ConnectAsync(token);
+                    token.ThrowIfCancellationRequested();
+                    requests = RunRequestsAsync(connection, started, token);
+                    await Task.WhenAny(requests, Task.Delay(Timeout.Infinite, token));
+                }
+                finally
+                {
+                    connection.Disconnected -= OnDisconnected;
+                    lifetime.Cancel();
+                    try
+                    {
+                        await connection.DisposeAsync();
+                    }
+                    finally
+                    {
+                        await requests;
+                    }
+                }
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[KCP] Connect failed: {ex}");
-                await CleanupAsync();
+                if (!_shuttingDown)
+                    Debug.LogError($"[KCP] Session failed: {ex}");
             }
-        }
-
-        private async Task RunPollingAsync()
-        {
-            var interval = Mathf.Max(0.1f, RequestIntervalSeconds);
-
-            while (!_cts.IsCancellationRequested && !_stopped)
+            finally
             {
-                try
-                {
-                    var step = await _player!.IncrStep(new StepRequest());
-                    if (_cts.IsCancellationRequested || _stopped)
-                        return;
-
-                    Debug.Log($"[KCP] {Account} step={step.Step}");
-                    await Task.Delay(TimeSpan.FromSeconds(interval), _cts.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                    return;
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[KCP] Polling failed: {ex.Message}");
-                    return;
-                }
+                _lifetime = null;
+                lifetime.Dispose();
+                started.TrySetResult(false);
             }
         }
 
-            private void HandleNotify(string message)
+        private async Task RunRequestsAsync(RpcClient connection, TaskCompletionSource<bool> started, CancellationToken token)
         {
-            if (_stopped)
-                return;
+            try
+            {
+                var player = new PlayerServiceClient(connection.Runtime);
+                var reply = await player.LoginAsync(new LoginRequest { Account = Account, Password = Password }, token);
+                token.ThrowIfCancellationRequested();
+                Debug.Log($"[KCP] Login ok: account={Account}, code={reply.Code}, token={reply.Token}");
+                started.TrySetResult(true);
 
-            Debug.Log($"[KCP] Push: {message}");
+                var interval = TimeSpan.FromSeconds(Mathf.Max(0.1f, RequestIntervalSeconds));
+                while (!token.IsCancellationRequested)
+                {
+                    var step = await player.IncrStep(new StepRequest(), token);
+                    token.ThrowIfCancellationRequested();
+                    Debug.Log($"[KCP] {Account} step={step.Step}");
+                    await Task.Delay(interval, token);
+                }
+            }
+            catch (Exception) when (token.IsCancellationRequested)
+            {
+                // Both canceled calls and calls interrupted by connection disposal finish this session.
+            }
+            catch (Exception ex) when (started.Task.IsCompleted)
+            {
+                Debug.LogWarning($"[KCP] Polling failed: {ex.Message}");
+            }
         }
 
         private void BeginShutdown()
         {
-            if (_cleanupStarted)
-                return;
-
-            _cleanupStarted = true;
-            _stopped = true;
-            _cts.Cancel();
-
-            if (_connection is not null)
-                _connection.Disconnected -= OnDisconnected;
-
-            _ = CleanupAsync();
-        }
-
-        private async Task CleanupAsync()
-        {
-            if (_pollingTask is not null)
-            {
-                try
-                {
-                    await _pollingTask;
-                }
-                catch (OperationCanceledException)
-                {
-                }
-            }
-
-            if (_connection is not null)
-            {
-                await _connection.DisposeAsync();
-                _connection = null;
-            }
-        }
-
-        private void OnDisconnected(Exception? ex)
-        {
-            if (_stopped)
-                return;
-
-            _stopped = true;
-            _connection = null;
-
-            if (ex is null)
-                Debug.Log("[KCP] Disconnected.");
-            else
-                Debug.LogWarning($"[KCP] Disconnected: {ex.Message}");
+            _shuttingDown = true;
+            _lifetime?.Cancel();
         }
 
         private sealed class PlayerCallbacks : RpcClient.PlayerNotificationsBase
         {
-            private readonly RpcConnectionTester _owner;
+            private readonly SynchronizationContext _context;
+            private readonly CancellationToken _token;
 
-            public PlayerCallbacks(RpcConnectionTester owner)
+            public PlayerCallbacks(SynchronizationContext context, CancellationToken token)
             {
-                _owner = owner;
+                _context = context;
+                _token = token;
             }
 
-            public override void OnNotify(PlayerNotify notify)
+            public override void OnNotify(PlayerNotify notify) => _context.Post(_ =>
             {
-                _owner.HandleNotify(notify.Message);
-            }
+                if (!_token.IsCancellationRequested)
+                    Debug.Log($"[KCP] Push: {notify.Message}");
+            }, null);
         }
     }
 }

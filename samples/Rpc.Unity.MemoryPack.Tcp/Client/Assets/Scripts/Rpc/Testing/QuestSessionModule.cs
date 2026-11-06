@@ -1,37 +1,37 @@
 #nullable enable
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Game.Rpc.Contracts;
 using Client.Generated;
-using Lakona.Rpc.Client;
 
 namespace Rpc.Testing
 {
     internal sealed class QuestSessionModule : RpcClient.QuestNotificationsBase
     {
         private readonly IConnectionSessionHost _host;
-        private IQuestService? _service;
+        private QuestServiceClient? _service;
 
         public QuestSessionModule(IConnectionSessionHost host)
         {
             _host = host;
         }
 
-        public void Attach(IQuestService service)
+        public void Attach(QuestServiceClient service)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
         }
 
-        public async ValueTask<int> LoadAsync()
+        public async ValueTask<int> LoadAsync(CancellationToken cancellationToken)
         {
-            var progress = await GetService().GetProgressAsync(new ProgressRequest());
+            var progress = await GetService().GetProgressAsync(new ProgressRequest(), cancellationToken);
             return progress.Progress;
         }
 
-        public async ValueTask<int> PollAsync()
+        public async ValueTask<int> PollAsync(CancellationToken cancellationToken)
         {
-            var progress = await GetService().IncrProgress(new ProgressRequest());
+            var progress = await GetService().IncrProgress(new ProgressRequest(), cancellationToken);
             if (!_host.IsStopping)
                 _host.UpdateQuestProgress(progress.Progress);
             return progress.Progress;
@@ -39,14 +39,10 @@ namespace Rpc.Testing
 
         public override void OnQuestNotify(QuestNotify notify)
         {
-            if (_host.IsStopping)
-                return;
-
-            _host.UpdateLastMessage(notify.Message);
-            _host.AppendLog($"Session[{_host.Index}] quest push: {notify.Message}");
+            _host.HandleNotification("quest", notify.Message);
         }
 
-        private IQuestService GetService()
+        private QuestServiceClient GetService()
         {
             return _service ?? throw new InvalidOperationException("Quest service is not attached.");
         }
