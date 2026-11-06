@@ -1,37 +1,3 @@
-## Write Findings For The Maintainer
-
-Give each finding a title that names the observable problem or the work it
-makes harder. Write the opening paragraph in the report's language for a
-Lakona maintainer who did not investigate the issue. Describe one concrete
-operation in time order. Say what triggers the problem, what should happen,
-and what happens or could happen instead. For a maintenance finding, show
-which change takes extra work and why.
-
-Put symbols, file links, evidence labels, and reproduction details after that
-explanation. Introduce an unfamiliar term when the reader needs it and explain
-its job. Distinguish the behavior a test actually observed from a possible
-consequence inferred from the code.
-
-A report could introduce RELIABILITY-001 like this.
-
-> **A hot reload can interrupt a request halfway through**
->
-> After a hot reload, new requests use the new version. A request that is
-> already running should be able to finish on the old version. But if it asks
-> the framework to do more work, the framework treats that step as a new
-> request and refuses to let it use the old version. When a player wins in
-> Agar, the server saves the player's points and then updates the
-> leaderboard. If a reload happens between those steps, the points may be
-> saved even though the server never sends the leaderboard update.
-
-The two-version test reproduced the rejection. The leaderboard consequence
-follows from the sample's call order. State that distinction in the evidence.
-
-Before returning the report, read each title and opening paragraph with the
-evidence hidden. Could a maintainer explain when the issue appears, what they
-expected, and what goes wrong or costs extra? Rewrite any opening that requires
-a source link or knowledge of an internal symbol to answer those questions.
-
 ## Evidence And Triage
 
 Report every supported finding; do not impose a numerical quota. Deduplicate
