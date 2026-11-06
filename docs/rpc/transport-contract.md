@@ -18,7 +18,10 @@ not require transport implementations to share a base class or exception type.
 | Reconnection | Create a new transport for a new connection | No common guarantee of reuse after failed initialization, terminal I/O failure, or disposal |
 
 `RpcConnectionChannel` serializes writes from requests, responses, notifications,
-and keepalive. Client and Session receive loops supply the single reader. A
+and keepalive. If cancellation wins before the writer claims a queued frame,
+the sender removes that entry immediately and completes its send as canceled.
+The remaining frames keep their FIFO order even while an earlier write stalls.
+Client and Session receive loops supply the single reader. A
 custom caller bypassing those owners must provide the same serialization.
 Repeated initialization is not permission to race two `ConnectAsync` calls or to
 race initialization with disposal. Normal client disposal cancels and joins its

@@ -35,7 +35,8 @@ run in that order; after a service method yields, the next admitted request may
 start subject to the existing in-flight budget. Completion and response order
 between independent requests can differ from request order. Each connection also
 has one FIFO writer shared by notifications, responses, and keepalive sends;
-send completion means the actual transport write completed.
+successful send completion means the actual transport write completed.
+Queued cancellation follows the [transport contract](transport-contract.md#responsibility-boundary).
 
 Game notification publication participates in a
 [request response barrier](../session.md#notification-and-response-publication-order).

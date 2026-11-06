@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Lakona.Rpc.Core;
 
 namespace Lakona.Rpc.Tests;
@@ -97,15 +98,87 @@ public sealed class RpcConnectionChannelTests
         Assert.Equal(new byte[] { 1, 3 }, transport.Sent);
     }
 
+    [Fact]
+    public async Task Canceled_burst_releases_queued_frames_while_active_write_is_blocked()
+    {
+        await using var transport = new BlockingSendTransport();
+        using var channel = new RpcConnectionChannel(transport, RpcKeepAliveOptions.Disabled);
+        using var cancellation = new CancellationTokenSource();
+        var first = channel.SendAsync(new byte[] { 1 }).AsTask();
+        var (frames, canceled, live) = QueueBurst(channel, cancellation.Token);
+        try
+        {
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Task.WhenAll(canceled).WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.All(canceled, send => Assert.True(send.IsCanceled));
+            Assert.False(first.IsCompleted);
+            Assert.False(live.IsCompleted);
+            GC.Collect();
+            Assert.Equal(0, frames.Count(reference => reference.IsAlive));
+        }
+        finally { transport.Release.TrySetResult(); }
+
+        await Task.WhenAll(first, live).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(new byte[] { 1, 3, 4, 5 }, transport.Sent);
+    }
+
+    // Keep all strong references to the test buffers outside the GC assertion's stack frame.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (WeakReference[] Frames, Task[] Canceled, Task Live) QueueBurst(
+        RpcConnectionChannel channel, CancellationToken cancellation)
+    {
+        var frames = new WeakReference[3000];
+        var canceled = new Task[frames.Length];
+        var live = new List<Task>();
+        for (var i = 0; i < frames.Length; i++)
+        {
+            var frame = new byte[] { 2 };
+            frames[i] = new WeakReference(frame);
+            canceled[i] = channel.SendAsync(frame, cancellation).AsTask();
+            if (i % 1000 == 500)
+                live.Add(channel.SendAsync(new byte[] { (byte)(3 + live.Count) }).AsTask());
+        }
+        return (frames, canceled, Task.WhenAll(live));
+    }
+
+    [Fact]
+    public async Task Canceling_an_active_send_waits_until_the_transport_releases_the_frame()
+    {
+        await using var transport = new BlockingSendTransport();
+        using var channel = new RpcConnectionChannel(transport, RpcKeepAliveOptions.Disabled);
+        using var cancellation = new CancellationTokenSource();
+        var active = channel.SendAsync(new byte[] { 1 }, cancellation.Token).AsTask();
+        await transport.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var following = channel.SendAsync(new byte[] { 2 }).AsTask();
+        try
+        {
+            cancellation.Cancel();
+            Assert.False(active.IsCompleted);
+            Assert.False(following.IsCompleted);
+        }
+        finally { transport.Release.TrySetResult(); }
+
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => active.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        await following.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(new byte[] { 2 }, transport.Sent);
+    }
+
     private sealed class BlockingSendTransport : ITransport
     {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<byte> Sent { get; } = [];
         public bool IsConnected => true;
         public ValueTask ConnectAsync(CancellationToken ct = default) => default;
         public async ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
         {
-            if (frame.Span[0] == 1) await Release.Task.WaitAsync(ct);
+            if (frame.Span[0] == 1)
+            {
+                Started.TrySetResult();
+                await Release.Task;
+                ct.ThrowIfCancellationRequested();
+            }
             Sent.Add(frame.Span[0]);
         }
         public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default) => new(TransportFrame.Empty);

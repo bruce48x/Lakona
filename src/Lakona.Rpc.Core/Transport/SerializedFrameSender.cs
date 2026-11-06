@@ -5,7 +5,8 @@ internal sealed class SerializedFrameSender : IDisposable
     private readonly RpcKeepAliveState _keepAliveState;
     private readonly ITransport _transport;
     private readonly object _gate = new();
-    private readonly Queue<SendWork> _queue = new();
+    private readonly LinkedList<SendWork> _queue = new();
+    private readonly Action<object?> _cancelQueued;
     private bool _draining;
     private bool _disposed;
 
@@ -13,52 +14,54 @@ internal sealed class SerializedFrameSender : IDisposable
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         _keepAliveState = keepAliveState ?? throw new ArgumentNullException(nameof(keepAliveState));
+        _cancelQueued = CancelQueued;
     }
 
     public ValueTask SendAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         var work = new SendWork(frame, ct);
-        bool start;
+        LinkedListNode<SendWork>? queued = null;
         lock (_gate)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(SerializedFrameSender));
-            _queue.Enqueue(work);
-            start = !_draining;
-            _draining = true;
+            if (_draining)
+                queued = _queue.AddLast(work);
+            else
+                _draining = true;
         }
-        var registration = ct.Register(() =>
-        {
-            lock (_gate)
-            {
-                if (work.Started) return;
-                work.Canceled = true;
-            }
-            work.Completion.TrySetCanceled(ct);
-        });
-        if (start) _ = DrainAsync();
-        // The caller retains frame ownership until this task completes, including while queued.
-        return WaitForSendAsync(work, registration);
+
+        // An idle writer claimed this frame under the lock. Only queued frames need unlinking.
+        if (queued is null)
+            _ = DrainAsync(work);
+        else if (ct.CanBeCanceled)
+            return WaitForSendAsync(work.Completion.Task, ct.Register(_cancelQueued, queued));
+
+        return new ValueTask(work.Completion.Task);
     }
 
-    private static async ValueTask WaitForSendAsync(SendWork work, CancellationTokenRegistration registration)
+    private void CancelQueued(object? state)
     {
-        try { await work.Completion.Task.ConfigureAwait(false); }
+        var node = (LinkedListNode<SendWork>)state!;
+        lock (_gate)
+        {
+            // Dequeuing or disposal already claimed completion if the node was detached.
+            if (node.List is null) return;
+            _queue.Remove(node);
+        }
+        node.Value.Completion.TrySetCanceled(node.Value.Cancellation);
+    }
+
+    private static async ValueTask WaitForSendAsync(Task completion, CancellationTokenRegistration registration)
+    {
+        try { await completion.ConfigureAwait(false); }
         finally { registration.Dispose(); }
     }
 
-    private async Task DrainAsync()
+    private async Task DrainAsync(SendWork work)
     {
         while (true)
         {
-            SendWork work;
-            lock (_gate)
-            {
-                if (_queue.Count == 0) { _draining = false; return; }
-                work = _queue.Dequeue();
-                if (work.Canceled) continue;
-                work.Started = true;
-            }
             try
             {
                 work.Cancellation.ThrowIfCancellationRequested();
@@ -68,6 +71,18 @@ internal sealed class SerializedFrameSender : IDisposable
             }
             catch (OperationCanceledException) { work.Completion.TrySetCanceled(work.Cancellation); }
             catch (Exception error) { work.Completion.TrySetException(error); }
+
+            lock (_gate)
+            {
+                var first = _queue.First;
+                if (first is null)
+                {
+                    _draining = false;
+                    return;
+                }
+                work = first.Value;
+                _queue.RemoveFirst();
+            }
         }
     }
 
@@ -84,14 +99,16 @@ internal sealed class SerializedFrameSender : IDisposable
             work.Completion.TrySetException(new ObjectDisposedException(nameof(SerializedFrameSender)));
     }
 
-    private sealed class SendWork
+    private readonly struct SendWork
     {
         public SendWork(ReadOnlyMemory<byte> frame, CancellationToken cancellation)
-        { Frame = frame; Cancellation = cancellation; }
+        {
+            Frame = frame;
+            Cancellation = cancellation;
+            Completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
         public ReadOnlyMemory<byte> Frame { get; }
         public CancellationToken Cancellation { get; }
-        public bool Started { get; set; }
-        public bool Canceled { get; set; }
-        public TaskCompletionSource<bool> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> Completion { get; }
     }
 }
