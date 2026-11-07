@@ -7,13 +7,7 @@ internal static class FrameLimitTestAssertions
 {
     public static void UsesDerivedLengthPrefixedBudgets(object transport)
     {
-        var accumulatorField = transport.GetType().GetField(
-            "_accumulator",
-            BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(accumulatorField);
-
-        var accumulator = Assert.IsType<LengthPrefixedFrameAccumulator>(
-            accumulatorField!.GetValue(transport));
+        var accumulator = GetAccumulator(transport);
 
         Assert.Equal(
             RpcProtocolLimits.DefaultMaxTransportFrameSize,
@@ -21,6 +15,13 @@ internal static class FrameLimitTestAssertions
         Assert.Equal(
             RpcProtocolLimits.DefaultMaxLengthPrefixedFrameSize,
             GetPrivateField<int>(accumulator, "_maxBufferedBytes"));
+    }
+
+    public static LengthPrefixedFrameAccumulator GetAccumulator(object transport)
+    {
+        // WebSocket's shared framing owner also coordinates receive/dispose.
+        var framing = transport.GetType().GetField("_framing", BindingFlags.Instance | BindingFlags.NonPublic);
+        return GetPrivateField<LengthPrefixedFrameAccumulator>(framing?.GetValue(transport) ?? transport, "_accumulator");
     }
 
     private static T GetPrivateField<T>(object instance, string name)

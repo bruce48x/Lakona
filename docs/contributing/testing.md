@@ -44,6 +44,16 @@ outcomes; do not count a skipped check as a pass.
 
 ## Coverage By Contract
 
+Ordering tests should use explicit phase signals and gates rather than racing
+an assertion against a short peer timeout. A signal that a write has started
+does not freeze connection state until the test resumes. Keep protocol deadline
+checks separate from ordering checks; the test watchdog bounds a stuck test,
+not the peer's expected response time. To create notification backlogs, bind a
+controlled dispatch context, pause entry, observe receive/log events, and pump
+callbacks while checking complete ordered payload identities. Synchronously
+blocking a callback on the test runner's ambient context couples the test to
+unrelated test scheduling. Ensure cleanup also runs when an assertion fails.
+
 The repository test script uses minimal console logging, retaining failure
 details and final summaries, and writes TRX and hang sequences beneath
 `artifacts/test/<configuration>/results/<project>`.

@@ -15,6 +15,7 @@ namespace Lakona.Rpc.Transport.Kcp
         private readonly CancellationTokenSource _cts = new();
         private readonly ConcurrentDictionary<KcpSessionKey, KcpServerTransport> _sessions = new();
         private readonly Socket _socket;
+        private readonly KcpTransportOptions _options;
         private readonly Task _receiveLoop;
         private readonly int _maxPendingAcceptedConnections;
         private int _pendingAcceptedConnections;
@@ -44,8 +45,24 @@ namespace Lakona.Rpc.Transport.Kcp
         {
         }
 
-        public KcpListener(IPEndPoint endPoint, int maxPendingAcceptedConnections)
+        public KcpListener(int port, KcpTransportOptions options)
+            : this(port, "127.0.0.1", RpcConnectionAdmissionDefaults.MaxPendingAcceptedConnections, options)
         {
+        }
+
+        public KcpListener(int port, string host, int maxPendingAcceptedConnections, KcpTransportOptions options)
+            : this(ResolveEndPoint(host, port), maxPendingAcceptedConnections, options)
+        {
+        }
+
+        public KcpListener(IPEndPoint endPoint, int maxPendingAcceptedConnections)
+            : this(endPoint, maxPendingAcceptedConnections, new KcpTransportOptions())
+        {
+        }
+
+        public KcpListener(IPEndPoint endPoint, int maxPendingAcceptedConnections, KcpTransportOptions options)
+        {
+            _options = (options ?? throw new ArgumentNullException(nameof(options))).Snapshot();
             if (endPoint is null)
                 throw new ArgumentNullException(nameof(endPoint));
             if (maxPendingAcceptedConnections <= 0)
@@ -244,7 +261,8 @@ namespace Lakona.Rpc.Transport.Kcp
                             _socket,
                             remoteEndPoint,
                             conv,
-                            onDispose: () => _sessions.TryRemove(handshakeKey, out _));
+                            onDispose: () => _sessions.TryRemove(handshakeKey, out _),
+                            options: _options);
                         await transport.ConnectAsync(_cts.Token).ConfigureAwait(false);
                         var sessionAck = KcpHandshake.CreateAck(conv, localPort);
 #if NET8_0_OR_GREATER

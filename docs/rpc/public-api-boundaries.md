@@ -99,7 +99,7 @@ Regular application projects should build against this layer.
 - `RpcServerLimits`.
 - `RpcConnectionInfo` when a generated service factory needs connection
   identity or optional remote endpoint metadata.
-- Official transport constructors and `KcpConnectionRejectedException`.
+- Official transport constructors, `KcpTransportOptions`, and `KcpConnectionRejectedException`.
   Transport establishment and connection identity follow the
   [transport lifecycle contract](transport-contract.md).
   Framework admission uses `RpcServerHostBuilder.UseSessionAdmissionGate`.

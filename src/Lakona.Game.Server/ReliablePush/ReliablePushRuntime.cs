@@ -76,7 +76,7 @@ internal sealed class ReliablePushRuntime : IReliablePushRuntime
                         ? ClientNotificationStatus.CallbackUnavailable
                         : await DispatchRecordAsync(session, record, connectionId, cancellationToken).ConfigureAwait(false);
                 },
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken, retainedBytes: ClientNotificationSize.RetainedBytes(command)).ConfigureAwait(false);
         }
         catch (ReliablePushContinuityLostException ex)
         {

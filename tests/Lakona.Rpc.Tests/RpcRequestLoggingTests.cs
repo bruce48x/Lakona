@@ -313,73 +313,85 @@ public sealed class RpcRequestLoggingTests
     public async Task Client_notification_backlog_warns_without_dropping_or_disconnecting()
     {
         const int notificationCount = 257;
+        using var watchdog = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var ct = watchdog.Token;
+        var backlogLogged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        await using var ownedClientTransport = clientTransport;
+        await using var ownedServerTransport = serverTransport;
         var serializer = new JsonRpcSerializer();
-        var loggerProvider = new CategoryRecordingLoggerProvider();
+        var loggerProvider = new CategoryRecordingLoggerProvider(entry =>
+        {
+            if (entry.Category == "Lakona.Rpc.Client.Request" && entry.Level == LogLevel.Warning
+                && entry.Message.Contains("receive queue remains unbounded", StringComparison.Ordinal))
+                backlogLogged.TrySetResult();
+        });
         using var loggerFactory = LoggerFactory.Create(logging =>
         {
             logging.SetMinimumLevel(LogLevel.Warning);
             logging.AddProvider(loggerProvider);
         });
-        var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false);
-        var firstStarted = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseFirst = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var allHandled = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var handled = 0;
-        var disconnected = 0;
-        var client = new RpcClientRuntime(
-            clientTransport,
-            serializer,
-            loggerFactory: loggerFactory);
+        await using var server = TestRpcSession.Create(serverTransport, serializer, ownsTransport: false);
+        await using var client = new RpcClientRuntime(clientTransport, serializer, loggerFactory: loggerFactory);
+        // Own dispatch explicitly instead of blocking a worker in xUnit's ambient
+        // context. Pausing entry must not pause network reception or drop frames.
+        var context = new ControlledNotificationContext();
+        client.SetDispatchSynchronizationContext(context);
+        int received = 0, disconnected = 0;
+        var handled = new List<string>();
         client.Disconnected += _ => Interlocked.Increment(ref disconnected);
-        client.RegisterNotificationHandler<string>(NotifyMethod, _ =>
+        client.SetNotificationReceiveMiddleware((_, enqueue, _) =>
         {
-            if (Interlocked.Increment(ref handled) == 1)
-            {
-                firstStarted.TrySetResult();
-                releaseFirst.Task.GetAwaiter().GetResult();
-            }
-
-            if (Volatile.Read(ref handled) == notificationCount)
-            {
-                allHandled.TrySetResult();
-            }
+            enqueue();
+            if (Interlocked.Increment(ref received) == notificationCount) allReceived.TrySetResult();
+            return default;
+        });
+        client.RegisterNotificationHandler<string>(NotifyMethod, value =>
+        {
+            Assert.Same(context, SynchronizationContext.Current);
+            handled.Add(value);
             return default;
         });
 
         await server.StartAsync();
         await client.StartAsync();
-        await server.SendNotificationAsync(2, 2, "0");
-        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        for (var index = 1; index < notificationCount; index++)
-        {
+        for (var index = 0; index < notificationCount; index++)
             await server.SendNotificationAsync(2, 2, index.ToString());
+
+        await allReceived.Task.WaitAsync(ct);
+        await backlogLogged.Task.WaitAsync(ct);
+        Assert.Empty(handled);
+        Assert.True(loggerProvider.Contains(entry => entry.Category == "Lakona.Rpc.Client.Request"
+            && entry.Message.Contains("no notification was dropped", StringComparison.Ordinal)));
+        Assert.Equal(0, Volatile.Read(ref disconnected));
+
+        for (var index = 0; index < notificationCount; index++)
+            await context.RunNextAsync(ct);
+        Assert.Equal(Enumerable.Range(0, notificationCount).Select(i => i.ToString()), handled);
+        // Check that delivery resumes normally after draining the backlog.
+        await server.SendNotificationAsync(2, 2, "after-backlog");
+        await context.RunNextAsync(ct);
+        Assert.Equal(notificationCount + 1, handled.Count);
+        Assert.Equal("after-backlog", handled[^1]);
+        Assert.Equal(0, Volatile.Read(ref disconnected));
+    }
+
+    private sealed class ControlledNotificationContext : SynchronizationContext
+    {
+        private readonly System.Threading.Channels.Channel<(SendOrPostCallback Callback, object? State)> _callbacks =
+            System.Threading.Channels.Channel.CreateUnbounded<(SendOrPostCallback, object?)>();
+
+        public override void Post(SendOrPostCallback callback, object? state) => _callbacks.Writer.TryWrite((callback, state));
+
+        public async Task RunNextAsync(CancellationToken ct)
+        {
+            var work = await _callbacks.Reader.ReadAsync(ct).ConfigureAwait(false);
+            var previous = Current;
+            SetSynchronizationContext(this);
+            try { work.Callback(work.State); }
+            finally { SetSynchronizationContext(previous); }
         }
-
-        await WaitForLogEntryAsync(loggerProvider, entry =>
-            entry.Category == "Lakona.Rpc.Client.Request"
-            && entry.Level == LogLevel.Warning
-            && entry.Message.Contains(
-                "receive queue remains unbounded",
-                StringComparison.Ordinal));
-        Assert.Contains(loggerProvider.Entries, entry =>
-            entry.Category == "Lakona.Rpc.Client.Request"
-            && entry.Level == LogLevel.Warning
-            && entry.Message.Contains(
-                "no notification was dropped",
-                StringComparison.Ordinal));
-        Assert.Equal(0, disconnected);
-
-        releaseFirst.TrySetResult();
-        await allHandled.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(notificationCount, Volatile.Read(ref handled));
-
-        await client.DisposeAsync();
-        await server.StopAsync();
-        await clientTransport.DisposeAsync();
     }
 
     [Fact]
@@ -474,7 +486,7 @@ public sealed class RpcRequestLoggingTests
         return RpcEnvelopeCodec.DecodeResponse(frame);
     }
 
-    private sealed class CategoryRecordingLoggerProvider : ILoggerProvider
+    private sealed class CategoryRecordingLoggerProvider(Action<CategoryRecordingLoggerProvider.LogEntry>? onEntry = null) : ILoggerProvider
     {
         public List<LogEntry> Entries { get; } = [];
 
@@ -488,7 +500,7 @@ public sealed class RpcRequestLoggingTests
 
         public ILogger CreateLogger(string categoryName)
         {
-            return new CategoryRecordingLogger(categoryName, Entries);
+            return new CategoryRecordingLogger(categoryName, Entries, onEntry);
         }
 
         public void Dispose()
@@ -497,7 +509,7 @@ public sealed class RpcRequestLoggingTests
 
         public sealed record LogEntry(string Category, LogLevel Level, string Message, Exception? Exception);
 
-        private sealed class CategoryRecordingLogger(string category, List<LogEntry> entries) : ILogger
+        private sealed class CategoryRecordingLogger(string category, List<LogEntry> entries, Action<LogEntry>? onEntry) : ILogger
         {
             public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
 
@@ -510,10 +522,13 @@ public sealed class RpcRequestLoggingTests
                 Exception? exception,
                 Func<TState, Exception?, string> formatter)
             {
+                LogEntry entry;
                 lock (entries)
                 {
-                    entries.Add(new LogEntry(category, logLevel, formatter(state, exception), exception));
+                    entry = new LogEntry(category, logLevel, formatter(state, exception), exception);
+                    entries.Add(entry);
                 }
+                onEntry?.Invoke(entry);
             }
         }
 

@@ -6,10 +6,9 @@ namespace Lakona.Rpc.Transport.WebSocket;
 
 public sealed class WsServerTransport : ITransport, IRemoteEndPointProvider
 {
-    private readonly Action? _onDispose;
     private readonly CancellationToken _disconnectToken;
     private readonly NetWebSocket _webSocket;
-    private readonly LengthPrefixedFrameAccumulator _accumulator = new();
+    private readonly WsTransportFraming _framing;
 
     public WsServerTransport(
         NetWebSocket webSocket,
@@ -19,14 +18,14 @@ public sealed class WsServerTransport : ITransport, IRemoteEndPointProvider
     {
         _webSocket = webSocket ?? throw new ArgumentNullException(nameof(webSocket));
         RemoteEndPoint = remoteEndPoint;
-        _onDispose = onDispose;
+        _framing = new WsTransportFraming(_webSocket, onDispose);
         _disconnectToken = disconnectToken;
     }
 
     public EndPoint? RemoteEndPoint { get; }
 
     public bool IsConnected =>
-        !_disconnectToken.IsCancellationRequested &&
+        !_framing.IsStopping && !_disconnectToken.IsCancellationRequested &&
         _webSocket.State == System.Net.WebSockets.WebSocketState.Open;
 
     public ValueTask ConnectAsync(CancellationToken ct = default)
@@ -41,23 +40,11 @@ public sealed class WsServerTransport : ITransport, IRemoteEndPointProvider
 
     public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
     {
-        return WsTransportFraming.ReceiveFrameAsync(_webSocket, _accumulator, ct);
+        return _framing.ReceiveFrameAsync(ct);
     }
 
     public ValueTask DisposeAsync()
     {
-        return DisposeCoreAsync();
-    }
-
-    private async ValueTask DisposeCoreAsync()
-    {
-        try
-        {
-            await WsTransportFraming.DisposeAsync(_webSocket).ConfigureAwait(false);
-        }
-        finally
-        {
-            _onDispose?.Invoke();
-        }
+        return _framing.DisposeAsync();
     }
 }

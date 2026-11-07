@@ -24,6 +24,14 @@ first synchronous segment after the response follow received frame order:
 adding async wrappers, deferring the await, or explicitly switching execution
 contexts does not extend this guarantee across those scheduling boundaries.
 
+The default serial context must publish its idle state with a full memory
+barrier before rechecking the callback queue. A release-only flag write can
+leave a racing producer observing the old busy flag while the consumer observes
+an empty queue, stranding callbacks without a scheduled drain. The atomic idle
+handoff and subsequent claim preserve progress without allowing two consumers.
+`RpcDispatchSynchronizationContextTests` exercises this handoff independently
+of network I/O; `TcpRpcProgressTests` covers real concurrent RPC bursts.
+
 Pending calls return standard ValueTask results directly from single-use result
 sources. Request sending does not delay result subscription. Generated void
 calls use the framework's result adapter instead of additional async wrappers.
@@ -122,6 +130,25 @@ that handle once. Access through a disposed non-empty handle throws
 `ObjectDisposedException`; it cannot read or create further slices, while
 other live slices remain valid. The shared `TransportFrame.Empty` value owns no
 buffer and remains reusable after disposal.
+
+The shared length-prefixed accumulator used by KCP and WebSocket grows only as
+bytes arrive; a large advertised length alone does not reserve the payload.
+For large frames, capacity growth stops at the known frame length (or bytes
+already appended when several frames arrive together). Completed payloads larger than 64 KiB transfer
+the accumulator's GC-owned array into a `TransportFrame`; only trailing bytes
+are copied to the next accumulator buffer. Small frames retain the reusable
+buffer/copy path. An empty accumulator does not retain a buffer larger than
+64 KiB. `Clear` discards partial data and releases its backing array; it is not
+thread-safe and must share the transport's receive/close synchronization.
+Buffer provenance follows the shared lease: pooled arrays return to their pool,
+whereas transferred GC-owned arrays are released without entering ArrayPool.
+Slices preserve the same independent lifetime in both cases. These rules avoid
+an extra large payload copy and connection-held jumbo buffers, but do not remove
+incremental growth copies, serializer allocations, or garbage awaiting GC.
+Growth uses doubling below 1 MiB and up to fourfold steps above it, capped by
+the known frame/buffer limit. This reduces repeated large-array copies and GC
+allocation, at the cost of more spare capacity while a large frame is partial;
+receiving only its prefix still allocates only a small buffer.
 
 The client pending-request module consumes ownership of every decoded response.
 It transfers a matched response to its waiting caller and immediately disposes

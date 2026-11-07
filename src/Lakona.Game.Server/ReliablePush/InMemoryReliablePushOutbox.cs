@@ -1,14 +1,18 @@
+using Lakona.Game.Server.Sessions;
+
 namespace Lakona.Game.Server.ReliablePush;
 
 internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
 {
     private readonly Lock gate = new();
     private readonly ReliablePushOptions options;
+    private readonly NotificationByteBudget<string> byteBudget;
     private readonly Dictionary<string, OwnerState> owners = new(StringComparer.Ordinal);
 
     public InMemoryReliablePushOutbox(ReliablePushOptions options)
     {
         this.options = options ?? throw new ArgumentNullException(nameof(options));
+        byteBudget = new(options.MaxPendingBytesPerSession, options.MaxPendingBytesPerProcess);
     }
 
     public async ValueTask<long> PublishAsync(
@@ -16,32 +20,45 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
         string kind,
         object payload,
         Func<ReliablePushRecord, ValueTask> deliver,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long retainedBytes = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(kind);
         ArgumentNullException.ThrowIfNull(payload);
         ArgumentNullException.ThrowIfNull(deliver);
+        if (retainedBytes < 0) throw new ArgumentOutOfRangeException(nameof(retainedBytes));
+        cancellationToken.ThrowIfCancellationRequested();
 
         var owner = GetOrCreateOwner(ownerKey);
-        await owner.Serial.WaitAsync(cancellationToken).ConfigureAwait(false);
+        IDisposable reservation;
+        lock (owner.Gate)
+        {
+            if (owner.Removed) throw new InvalidOperationException("Reliable push owner was removed.");
+            if (owner.ContinuityLost) throw new ReliablePushContinuityLostException();
+            var reserved = owner.Pending.Count + owner.WaitingPublications < Math.Max(1, options.MaxPendingPerSession)
+                ? byteBudget.TryReserve(ownerKey, checked(128 + retainedBytes)) : null;
+            if (reserved is null)
+            {
+                owner.ContinuityLost = true;
+                throw new ReliablePushContinuityLostException(
+                    newlyLost: true, owner.Pending.Count, owner.LastSequence, owner.AcknowledgedSequence);
+            }
+            reservation = reserved;
+            owner.WaitingPublications++;
+        }
+
+        var acquired = false;
+        var retained = false;
         try
         {
+            await owner.Serial.WaitAsync(cancellationToken).ConfigureAwait(false);
+            acquired = true;
             ReliablePushRecord record;
             lock (owner.Gate)
             {
-                if (owner.ContinuityLost)
-                {
-                    throw new ReliablePushContinuityLostException();
-                }
-
-                if (owner.Pending.Count >= Math.Max(1, options.MaxPendingPerSession))
-                {
-                    owner.ContinuityLost = true;
-                    throw new ReliablePushContinuityLostException(
-                        newlyLost: true, owner.Pending.Count, owner.LastSequence, owner.AcknowledgedSequence);
-                }
-
+                if (owner.Removed) throw new InvalidOperationException("Reliable push owner was removed.");
+                if (owner.ContinuityLost) throw new ReliablePushContinuityLostException();
                 record = new ReliablePushRecord
                 {
                     OwnerKey = ownerKey,
@@ -49,15 +66,25 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
                     Payload = payload,
                     Sequence = ++owner.LastSequence,
                     CreatedAtUtc = DateTime.UtcNow,
+                    ByteReservation = reservation,
+                    ActiveDeliveries = 1,
                 };
                 owner.Pending.Add(record);
+                owner.WaitingPublications--;
+                retained = true;
             }
-            await DeliverAsync(record, deliver, cancellationToken).ConfigureAwait(false);
+            try { await DeliverAsync(record, deliver, cancellationToken).ConfigureAwait(false); }
+            finally { ReleaseDelivery(owner, record); }
             return record.Sequence;
         }
         finally
         {
-            owner.Serial.Release();
+            if (!retained)
+            {
+                lock (owner.Gate) owner.WaitingPublications--;
+                reservation.Dispose();
+            }
+            if (acquired) owner.Serial.Release();
         }
     }
 
@@ -82,18 +109,27 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
             ReliablePushRecord[] pending;
             lock (owner.Gate)
             {
+                if (owner.Removed) throw new InvalidOperationException("Reliable push owner was removed.");
                 if (owner.ContinuityLost)
                 {
                     throw new ReliablePushContinuityLostException();
                 }
 
                 pending = owner.Pending.OrderBy(static record => record.Sequence).ToArray();
+                foreach (var record in pending) record.ActiveDeliveries++;
             }
 
-            foreach (var record in pending)
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                await DeliverAsync(record, deliver, cancellationToken).ConfigureAwait(false);
+                foreach (var record in pending)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await DeliverAsync(record, deliver, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                foreach (var record in pending) ReleaseDelivery(owner, record);
             }
             if (onReplayed is not null)
             {
@@ -126,7 +162,12 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
 
         lock (owner.Gate)
         {
-            owner.Pending.RemoveAll(record => record.Sequence <= sequence);
+            owner.Pending.RemoveAll(record =>
+            {
+                if (record.Sequence > sequence) return false;
+                RetireRecord(record);
+                return true;
+            });
             owner.AcknowledgedSequence = Math.Max(owner.AcknowledgedSequence, Math.Min(sequence, owner.LastSequence));
         }
         return default;
@@ -151,9 +192,16 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
         await owner.Serial.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            lock (owner.Gate)
+            {
+                owner.Removed = true;
+                foreach (var record in owner.Pending) RetireRecord(record);
+                owner.Pending.Clear();
+            }
             lock (gate)
             {
-                owners.Remove(ownerKey);
+                if (owners.TryGetValue(ownerKey, out var current) && ReferenceEquals(current, owner))
+                    owners.Remove(ownerKey);
             }
         }
         finally
@@ -199,6 +247,21 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
         }
     }
 
+    private static void RetireRecord(ReliablePushRecord record)
+    {
+        record.Retired = true;
+        if (record.ActiveDeliveries == 0) record.ByteReservation?.Dispose();
+    }
+
+    private static void ReleaseDelivery(OwnerState owner, ReliablePushRecord record)
+    {
+        lock (owner.Gate)
+        {
+            record.ActiveDeliveries--;
+            if (record.Retired && record.ActiveDeliveries == 0) record.ByteReservation?.Dispose();
+        }
+    }
+
     private static async ValueTask DeliverAsync(
         ReliablePushRecord record,
         Func<ReliablePushRecord, ValueTask> deliver,
@@ -221,6 +284,8 @@ internal sealed class InMemoryReliablePushOutbox : IReliablePushOutbox
         public long AcknowledgedSequence { get; set; }
 
         public bool ContinuityLost { get; set; }
+        public bool Removed { get; set; }
+        public int WaitingPublications { get; set; }
 
         public List<ReliablePushRecord> Pending { get; } = [];
     }

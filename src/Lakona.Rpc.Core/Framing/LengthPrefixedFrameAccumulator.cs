@@ -9,6 +9,7 @@ namespace Lakona.Rpc.Core;
 /// </remarks>
 public sealed class LengthPrefixedFrameAccumulator
 {
+    private const int RetainedBufferLimit = 64 * 1024;
     private byte[] _buffer = Array.Empty<byte>();
     private readonly int _maxFrameSize;
     private readonly int _maxBufferedBytes;
@@ -37,7 +38,7 @@ public sealed class LengthPrefixedFrameAccumulator
         if (newCount > _maxBufferedBytes)
             throw new InvalidOperationException("Frame buffer exceeded maximum size.");
 
-        EnsureCapacity(newCount);
+        EnsureCapacity(newCount, data);
         data.CopyTo(_buffer.AsSpan(_count));
         _count = newCount;
     }
@@ -58,12 +59,33 @@ public sealed class LengthPrefixedFrameAccumulator
         if (_count < totalLength)
             return false;
 
+        if (_buffer.Length > RetainedBufferLimit && payloadLength > RetainedBufferLimit)
+        {
+            // Hand off the completed payload without a second full-frame allocation.
+            // Only the following bytes belong to this accumulator after the handoff.
+            var completed = _buffer;
+            var remaining = _count - totalLength;
+            var tail = remaining == 0 ? Array.Empty<byte>() : new byte[remaining];
+            completed.AsSpan(totalLength, remaining).CopyTo(tail);
+            frame = TransportFrame.AdoptOwned(completed, 4, payloadLength);
+            _buffer = tail;
+            _count = remaining;
+            return true;
+        }
+
         frame = TransportFrame.Allocate(payloadLength);
         if (payloadLength > 0)
             _buffer.AsSpan(4, payloadLength).CopyTo(frame.GetWritableSpan());
 
         Consume(totalLength);
         return true;
+    }
+
+    /// <summary>Discards buffered bytes, releasing any in-progress large frame. Not thread-safe.</summary>
+    public void Clear()
+    {
+        _buffer = Array.Empty<byte>();
+        _count = 0;
     }
 
     private void Consume(int count)
@@ -73,17 +95,34 @@ public sealed class LengthPrefixedFrameAccumulator
             _buffer.AsSpan(count, remaining).CopyTo(_buffer);
 
         _count = remaining;
+        if (remaining == 0 && _buffer.Length > RetainedBufferLimit)
+            _buffer = Array.Empty<byte>();
     }
 
-    private void EnsureCapacity(int requiredCapacity)
+    private void EnsureCapacity(int requiredCapacity, ReadOnlySpan<byte> incoming)
     {
         if (_buffer.Length >= requiredCapacity)
             return;
 
         var newCapacity = _buffer.Length == 0 ? 256 : _buffer.Length;
         while (newCapacity < requiredCapacity)
-            newCapacity = checked(newCapacity * 2);
+        {
+            // Once at least 1 MiB is buffered, fewer growth copies reduce both LOH
+            // allocation and garbage. The known frame length below still caps growth;
+            // a prefix alone never triggers a payload-sized allocation.
+            var factor = newCapacity >= 1024 * 1024 ? 4 : 2;
+            newCapacity = (int)Math.Min((long)newCapacity * factor, _maxBufferedBytes);
+        }
 
+        // A prefix alone never reserves the advertised payload. Growth follows received
+        // bytes, but does not round a known large frame up to the next power of two.
+        var limit = _maxBufferedBytes;
+        if (_count >= 4)
+            limit = checked(4 + LengthPrefix.ReadPayloadLength(_buffer.AsSpan(0, 4), _maxFrameSize));
+        else if (_count == 0 && incoming.Length >= 4)
+            limit = checked(4 + LengthPrefix.ReadPayloadLength(incoming.Slice(0, 4), _maxFrameSize));
+        newCapacity = Math.Min(newCapacity, limit > RetainedBufferLimit
+            ? Math.Max(requiredCapacity, limit) : _maxBufferedBytes);
         Array.Resize(ref _buffer, newCapacity);
     }
 }

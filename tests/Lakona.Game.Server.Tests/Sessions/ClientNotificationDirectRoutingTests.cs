@@ -20,6 +20,41 @@ public sealed class ClientNotificationDirectRoutingTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task Encoded_queue_byte_budget_rejects_and_recovers(bool processBudget)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var gateway = Gateway();
+        var remote = new BlockingRemoteDispatcher();
+        var command = Command(gateway);
+        command.Payload = new byte[1024];
+        var bytes = checked((int)ClientNotificationSize.RetainedBytes(command));
+        await using var router = new ClientNotificationCommandRouter(new RecordingRuntime(),
+            TestNotificationProfiles.JsonCommands(), new TestClusterMembership(Snapshot(gateway)), remote,
+            new NodeId("producer"), maximumPendingBytesPerSession: processBudget ? bytes * 4 : bytes,
+            maximumPendingBytesPerProcess: processBudget ? bytes : bytes * 4);
+        var session = new GameSessionKey(command.OwnerKey, command.SessionId);
+        Assert.Equal(ClientNotificationStatus.Accepted, router.Enqueue(command));
+        await remote.FirstStarted.Task.WaitAsync(ct);
+        try
+        {
+            var rejected = Command(gateway);
+            rejected.SessionId = command.SessionId;
+            rejected.OwnerKey = command.OwnerKey;
+            rejected.Payload = command.Payload;
+            if (processBudget) rejected.OwnerKey = "other-player";
+            Assert.Equal(ClientNotificationStatus.Backpressure, router.Enqueue(rejected));
+            Assert.Equal(1, router.QueueCount);
+        }
+        finally { remote.Release.TrySetResult(); }
+        await router.WaitForIdleAsync(session, ct);
+        Assert.Equal(ClientNotificationStatus.Accepted, router.Enqueue(command));
+        await router.WaitForIdleAsync(session, ct);
+        Assert.Equal(0, router.QueueCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task Process_backpressure_does_not_retain_rejected_session_queues(bool generated)
     {
         var ct = TestContext.Current.CancellationToken;

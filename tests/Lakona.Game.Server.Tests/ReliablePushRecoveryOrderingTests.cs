@@ -244,10 +244,10 @@ public sealed class ReliablePushRecoveryOrderingTests
         public TaskCompletionSource Continue { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public async ValueTask<long> PublishAsync(string ownerKey, string kind, object payload,
-            Func<ReliablePushRecord, ValueTask> deliver, CancellationToken cancellationToken = default)
+            Func<ReliablePushRecord, ValueTask> deliver, CancellationToken cancellationToken = default, long retainedBytes = 0)
         {
             if (PauseReplay == false) await PauseAsync(cancellationToken);
-            return await _inner.PublishAsync(ownerKey, kind, payload, deliver, cancellationToken);
+            return await _inner.PublishAsync(ownerKey, kind, payload, deliver, cancellationToken, retainedBytes);
         }
 
         public async ValueTask ReplayPendingAsync(string ownerKey, Func<ReliablePushRecord, ValueTask> deliver,

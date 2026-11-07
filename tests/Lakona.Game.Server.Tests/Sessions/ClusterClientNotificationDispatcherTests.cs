@@ -11,7 +11,7 @@ namespace Lakona.Game.Server.Tests.Sessions;
 public sealed class ClusterClientNotificationDispatcherTests
 {
     [Fact]
-    public async Task Oversized_command_records_batch_byte_backpressure()
+    public async Task Pending_byte_budget_records_backpressure()
     {
         using var metrics = new MetricReasonCollector(
             LakonaGameServerTelemetry.SessionMeterName,
@@ -19,7 +19,7 @@ public sealed class ClusterClientNotificationDispatcherTests
             "lakona.game.notification.reason");
         await using var dispatcher = new ClusterClientNotificationDispatcher(
             new RecordingClientFactory(new RecordingRpcClient()),
-            new ClientNotificationBatchOptions { MaximumBatchBytes = 128 });
+            new ClientNotificationBatchOptions { MaximumBatchBytes = 128, MaximumPendingBytesPerSession = 512 });
 
         var status = await dispatcher.DispatchAsync(
             CreateTarget("gateway-1", 1),
@@ -27,7 +27,7 @@ public sealed class ClusterClientNotificationDispatcherTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal(ClientNotificationStatus.Backpressure, status);
-        Assert.Contains("batch_bytes", metrics.Reasons);
+        Assert.Contains("pending_bytes", metrics.Reasons);
     }
 
     [Fact]
@@ -81,9 +81,20 @@ public sealed class ClusterClientNotificationDispatcherTests
         Assert.Single(client.Requests[0].Commands);
 
         await dispatcher.DisposeAsync();
-        Assert.Equal(ClientNotificationStatus.Accepted, await second);
-        Assert.Equal(2, client.Requests.Count);
-        Assert.Equal("second", Assert.Single(client.Requests[1].Commands).MethodName);
+        Assert.Equal(ClientNotificationStatus.Failed, await second);
+        Assert.Single(client.Requests);
+    }
+
+    [Fact]
+    public async Task Large_notification_is_sent_immediately_as_a_singleton_batch()
+    {
+        var client = new RecordingRpcClient();
+        await using var dispatcher = new ClusterClientNotificationDispatcher(new RecordingClientFactory(client),
+            new ClientNotificationBatchOptions { Window = TimeSpan.FromSeconds(1) });
+        var command = CreateCommand("large", 12 * 1024 * 1024);
+        Assert.Equal(ClientNotificationStatus.Accepted, await dispatcher.DispatchAsync(CreateTarget("gateway-1", 1), command, TestContext.Current.CancellationToken)
+            .AsTask().WaitAsync(TimeSpan.FromMilliseconds(500), TestContext.Current.CancellationToken));
+        Assert.Same(command, Assert.Single(Assert.Single(client.Requests).Commands));
     }
 
     private static ClientNotificationCommand CreateCommand(string method, int payloadBytes = 0) => new()
@@ -96,6 +107,51 @@ public sealed class ClusterClientNotificationDispatcherTests
         MethodId = 2,
         Payload = new byte[payloadBytes]
     };
+
+    [Fact]
+    public async Task Inflight_bytes_remain_reserved_after_caller_cancels_and_release_on_failure()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new RecordingRpcClient
+        {
+            BeforeReply = async ct => { entered.TrySetResult(); await release.Task.WaitAsync(ct); throw new IOException(); }
+        };
+        var command = CreateCommand("held", 1024);
+        var size = checked((int)ClientNotificationSize.RetainedBytes(command));
+        await using var dispatcher = new ClusterClientNotificationDispatcher(new RecordingClientFactory(client),
+            new ClientNotificationBatchOptions { Window = TimeSpan.Zero,
+                MaximumPendingBytesPerSession = size, MaximumPendingBytesPerProcess = size });
+        using var cancel = new CancellationTokenSource();
+        var first = dispatcher.DispatchAsync(CreateTarget("gateway-1", 1), command, cancel.Token).AsTask();
+        try
+        {
+            await entered.Task.WaitAsync(TestContext.Current.CancellationToken);
+            cancel.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+            Assert.Equal(ClientNotificationStatus.Backpressure, await dispatcher.DispatchAsync(
+                CreateTarget("gateway-1", 1), command, TestContext.Current.CancellationToken));
+        }
+        finally { release.TrySetResult(); }
+        // Disposal joins the actual in-flight call, even though its original caller left.
+        await dispatcher.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Failed_send_releases_bytes_for_the_next_batch()
+    {
+        var client = new RecordingRpcClient { BeforeReply = _ => throw new IOException() };
+        var command = CreateCommand("held", 1024);
+        var size = checked((int)ClientNotificationSize.RetainedBytes(command));
+        await using var dispatcher = new ClusterClientNotificationDispatcher(new RecordingClientFactory(client),
+            new ClientNotificationBatchOptions { Window = TimeSpan.Zero,
+                MaximumPendingBytesPerSession = size, MaximumPendingBytesPerProcess = size });
+        Assert.Equal(ClientNotificationStatus.Failed, await dispatcher.DispatchAsync(
+            CreateTarget("gateway-1", 1), command, TestContext.Current.CancellationToken));
+        client.BeforeReply = null;
+        Assert.Equal(ClientNotificationStatus.Accepted, await dispatcher.DispatchAsync(
+            CreateTarget("gateway-1", 1), command, TestContext.Current.CancellationToken));
+    }
 
     private static RouteLocation CreateTarget(string node, int incarnation) => new(
         new RouteKey("client-session:test"),
@@ -117,26 +173,29 @@ public sealed class ClusterClientNotificationDispatcherTests
     private sealed class RecordingRpcClient : IRpcClient
     {
         private readonly object gate = new();
+        public Func<CancellationToken, Task>? BeforeReply { get; set; }
 
         public List<ClientNotificationBatchDispatchRequest> Requests { get; } = [];
 
-        public ValueTask<TResult> CallAsync<TArg, TResult>(
+        public async ValueTask<TResult> CallAsync<TArg, TResult>(
             RpcMethod<TArg, TResult> method,
             TArg? arg,
             CancellationToken ct = default)
         {
+            ct.ThrowIfCancellationRequested();
+            if (BeforeReply is { } beforeReply) await beforeReply(ct);
             var request = Assert.IsType<ClientNotificationBatchDispatchRequest>(arg);
             lock (gate)
             {
                 Requests.Add(request);
             }
 
-            return ValueTask.FromResult((TResult)(object)new ClientNotificationBatchDispatchReply
+            return (TResult)(object)new ClientNotificationBatchDispatchReply
             {
                 Statuses = Enumerable.Repeat(
                     (int)ClientNotificationStatus.Accepted,
                     request.Commands.Count).ToArray()
-            });
+            };
         }
 
         public void RegisterNotificationHandler<TArg>(

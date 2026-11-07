@@ -24,6 +24,7 @@ internal static class ClientNotificationDiagnostics
                     ClientNotificationBackpressureReason.SessionCapacity => "session_capacity",
                     ClientNotificationBackpressureReason.ProcessCapacity => "process_capacity",
                     ClientNotificationBackpressureReason.BatchBytes => "batch_bytes",
+                    ClientNotificationBackpressureReason.PendingBytes => "pending_bytes",
                     _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null)
                 }));
 }
@@ -32,5 +33,6 @@ internal enum ClientNotificationBackpressureReason
 {
     SessionCapacity,
     ProcessCapacity,
-    BatchBytes
+    BatchBytes,
+    PendingBytes
 }

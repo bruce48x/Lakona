@@ -15,4 +15,8 @@ internal sealed class ReliablePushRecord
     public DateTime LastAttemptAtUtc { get; set; }
 
     public int AttemptCount { get; set; }
+
+    internal IDisposable? ByteReservation { get; init; }
+    internal int ActiveDeliveries { get; set; }
+    internal bool Retired { get; set; }
 }

@@ -86,6 +86,15 @@ composition root. Generated projects register only the implementations selected
 at project creation, so changing a name also requires adding the corresponding
 package reference and startup registration.
 
+KCP protocol tuning is configured through the transport package's
+`KcpTransportOptions`, passed to `KcpTransport` on the client and
+`KcpConnectionAcceptor` in the server's `RegisterEndpointTransport` factory.
+The options are copied when the transport/listener is constructed. They are not
+additional automatic fields of `Lakona:Endpoints[]`; applications that load
+them from configuration bind their own options section and pass that object
+to the factory. See [KCP tuning](rpc/transport-contract.md#kcp) for defaults,
+accepted ranges and the distinction between protocol windows and send budgets.
+
 `Serializer` names a wire profile. Use `RegisterEndpointSerializer(name, factory)`
 in the application host on every node that may send notifications to sessions
 using that profile, including business nodes with an empty `Endpoints` array.
@@ -191,9 +200,15 @@ exists, the generated client retries the same endpoint within this window using
 a framework-only opaque ticket. `ReliablePush` only selects whether callback
 commands produced during the interruption are retained and replayed.
 
-`Lakona:ReliablePush:MaxPendingPerSession` defaults to 256. Reaching it marks
-the session `StateRefreshRequired`; Lakona never drops an old prefix and claims
-that replay is complete.
+`Lakona:ReliablePush:MaxPendingPerSession` defaults to 256. The Outbox also
+bounds retained encoded bytes with `MaxPendingBytesPerSession` (134217728,
+128 MiB) and `MaxPendingBytesPerProcess` (536870912, 512 MiB). All byte limits
+must be positive. Exhausting any Outbox budget marks the publishing session
+`StateRefreshRequired`; Lakona never drops an old prefix and claims replay is
+complete. Reservations include publications waiting for the session's delivery
+lock; cancellation before record creation releases that reservation without
+assigning a sequence. ACK and session removal release retained budgets; active
+delivery or replay continues to reserve bytes until it releases the payload.
 
 ## Hotfix Development Reload
 
@@ -344,14 +359,29 @@ gateway batching:
 - `BatchWindowMilliseconds`: maximum remote batching wait; default `10`, and
   `0` flushes immediately.
 - `MaximumBatchSize`: maximum commands in one remote batch; default `256`.
-- `MaximumBatchBytes`: approximate serialized byte budget per batch; default
-  `262144`.
+- `MaximumBatchBytes`: approximate serialized byte threshold for combining small
+  notifications; default `262144`. A larger individual notification is immediately
+  sent as a singleton batch. Final encoded RPC envelopes remain limited to 64 MiB,
+  including routing, serializer and RPC overhead.
 - `MaximumPendingPerSession`: producer queue budget for one session; default
   `256`.
 - `MaximumPendingPerProcess`: total producer queue budget; default `65536`.
 
-Exhausting either pending-command budget returns `Backpressure`. Batching never
-coalesces or overwrites accepted business notifications.
+- `MaximumPendingBytesPerSession`: retained encoded notification budget per
+  session; default `134217728` (128 MiB).
+- `MaximumPendingBytesPerProcess`: retained encoded notification budget per
+  process; default `536870912` (512 MiB).
+
+Byte limits must be positive. The producer's encoded-command queue and the remote
+batch dispatcher each enforce these budgets for their own retained work, including
+in-flight batches. They count payload/metadata buffers with a conservative routing
+and record allowance; these are not exact managed-heap measurements. Typed DTOs
+waiting for serialization remain governed by the existing command-count limits.
+Exhaustion returns `Backpressure` at that admission boundary; an already accepted
+typed notification can fail later during encoding or remote admission. Caller
+cancellation does not withdraw an admitted remote batch or release its bytes early.
+Dispatcher shutdown cancels and joins in-flight work and fails unsent batches.
+Batching never coalesces or overwrites accepted business notifications.
 
 ## Node Roles And Actor Hosting
 

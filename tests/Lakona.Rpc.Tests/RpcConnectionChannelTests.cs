@@ -5,6 +5,29 @@ namespace Lakona.Rpc.Tests;
 
 public sealed class RpcConnectionChannelTests
 {
+    [Fact]
+    public async Task Byte_budget_rejects_overload_and_queued_cancellation_releases_capacity()
+    {
+        await using var transport = new BlockingSendTransport();
+        using var channel = new RpcConnectionChannel(transport, RpcKeepAliveOptions.Disabled);
+        using var cancellation = new CancellationTokenSource();
+        var large = new byte[64 * 1024 * 1024];
+        large[0] = 1;
+        var active = channel.SendAsync(large).AsTask();
+        var queued = channel.SendAsync(large, cancellation.Token).AsTask();
+        try
+        {
+            Assert.Throws<InvalidOperationException>(() => channel.SendAsync(new byte[] { 2 }));
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => queued.WaitAsync(TimeSpan.FromSeconds(5)));
+            var next = channel.SendAsync(new byte[] { 3 }).AsTask();
+            transport.Release.TrySetResult();
+            await Task.WhenAll(active, next).WaitAsync(TimeSpan.FromSeconds(5));
+            await channel.SendAsync(large);
+        }
+        finally { transport.Release.TrySetResult(); }
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -15,24 +38,28 @@ public sealed class RpcConnectionChannelTests
         {
             Enabled = true,
             Interval = TimeSpan.FromMilliseconds(10),
-            Timeout = TimeSpan.FromMilliseconds(20),
+            // This test checks probe ordering, not timeout accuracy. The peer deadline
+            // must exceed the test watchdog so scheduler delay cannot impersonate a
+            // stale probe. Actual blocked/unanswered deadlines have separate coverage.
+            Timeout = TimeSpan.FromMinutes(1),
             MeasureRtt = false
         });
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var timedOut = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
         var receiving = channel.ReceiveApplicationFrameAsync(cancellation.Token).AsTask();
         var probing = channel.RunKeepAliveAsync("keepalive timed out", error => timedOut.TrySetResult(error), cancellation.Token);
         try
         {
-            var outcome = await Task.WhenAny(transport.SecondPing.Task, timedOut.Task).WaitAsync(cancellation.Token);
-            Assert.True(outcome == transport.SecondPing.Task,
-                "A Pong consumed before the Ping write completed was overwritten by a stale pending probe.");
+            await transport.FirstPongProcessed.Task.WaitAsync(cancellation.Token);
+            Assert.False(transport.SecondPing.Task.IsCompleted);
+            transport.CompleteFirstWrite.TrySetResult();
+            // A stale pending first probe prevents the next Ping entirely. Waiting for
+            // that event detects the bug without racing the second probe's deadline.
+            await transport.SecondPing.Task.WaitAsync(cancellation.Token);
+            if (replyToSecondPing)
+                await transport.SecondPongProcessed.Task.WaitAsync(cancellation.Token);
             Assert.False(channel.TimedOut);
-            if (!replyToSecondPing)
-            {
-                Assert.IsType<TimeoutException>(await timedOut.Task.WaitAsync(cancellation.Token));
-                Assert.True(channel.TimedOut);
-            }
+            Assert.False(timedOut.Task.IsCompleted);
         }
         finally
         {
@@ -49,6 +76,9 @@ public sealed class RpcConnectionChannelTests
         private TaskCompletionSource? pongProcessed;
         private int pings;
         public TaskCompletionSource SecondPing { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource FirstPongProcessed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource SecondPongProcessed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource CompleteFirstWrite { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool IsConnected => true;
         public ValueTask ConnectAsync(CancellationToken ct = default) => default;
         public async ValueTask SendFrameAsync(ReadOnlyMemory<byte> frame, CancellationToken ct = default)
@@ -67,6 +97,17 @@ public sealed class RpcConnectionChannelTests
             }));
             // The receiver requests another frame only after it has consumed the Pong.
             await processed.Task.WaitAsync(ct);
+            if (pings == 1)
+            {
+                FirstPongProcessed.TrySetResult();
+                await CompleteFirstWrite.Task.WaitAsync(ct);
+            }
+            else
+            {
+                SecondPongProcessed.TrySetResult();
+                // Keep the proof at the second probe until the test cancels its owner.
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            }
         }
         public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
         {

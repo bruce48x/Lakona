@@ -928,7 +928,7 @@ handshake and is enforced by an exact disconnect deadline.
 Capacity overflow or a client sequence gap returns `StateRefreshRequired`
 instead of silently applying a partial stream.
 
-At the pending limit, the next publication fails and permanently marks that
+At the pending-record or retained-byte limit, the next publication fails and permanently marks that
 session's reliable stream as continuity-lost. A later cumulative ACK may remove
 pending records but cannot restore the rejected notification or clear this
 state. Further publications fail and replay remains blocked; recovery requires
@@ -1116,6 +1116,12 @@ for immediate flush. The target defaults are 256 pending commands per session
 and a provisional, configurable 65,536 pending commands per process; the latter
 must be confirmed by Room fan-out measurements and never becomes unbounded.
 `MaximumBatchSize` and `MaximumBatchBytes` also flush remote batches early.
+A single command above the batch byte threshold is flushed alone, subject to the
+final RPC envelope limit. Encoded notifications and remote batches additionally
+reserve per-session and process byte budgets until actual delivery completes.
+The reliable Outbox separately reserves retained bytes until ACK/removal and the
+last active delivery or replay releases the record. See the byte budget defaults
+and accounting scope in [Configuration](configuration.md#notifications).
 Local-owner delivery does not wait for the remote batch window. Short-lived
 per-session drains preserve FIFO. A fixed session-affine worker pool is not
 part of the contract and requires large-session-count measurements before
@@ -1130,7 +1136,7 @@ after bursts of rejected notifications to different sessions.
 
 Every rejected notification increments
 `lakona.game.notification.backpressure` on the `Lakona.Game.Session` meter.
-The bounded reason is `session_capacity`, `process_capacity`, or `batch_bytes`;
+The bounded reason is `session_capacity`, `process_capacity`, or `pending_bytes`;
 session, owner, callback, and gateway identities are deliberately excluded
 from metric tags.
 

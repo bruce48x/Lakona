@@ -17,6 +17,7 @@ namespace Lakona.Rpc.Transport.Kcp
         private const int MaxBufferedBytes = RpcProtocolLimits.DefaultMaxLengthPrefixedFrameSize;
         private readonly SemaphoreSlim _receiveSignal = new(0, 1);
         private readonly SimpleSegManager.Kcp _kcp;
+        private readonly KcpFrameSender _sender;
         private readonly object _kcpGate = new();
         private readonly Action? _onDispose;
         private readonly EndPoint _remote;
@@ -28,12 +29,20 @@ namespace Lakona.Rpc.Transport.Kcp
         private int _disposed;
 
         public KcpServerTransport(Socket socket, EndPoint remote, uint conv, Action? onDispose = null)
+            : this(socket, remote, conv, onDispose, new KcpTransportOptions())
         {
+        }
+
+        public KcpServerTransport(Socket socket, EndPoint remote, uint conv, Action? onDispose, KcpTransportOptions options)
+        {
+            var snapshot = (options ?? throw new ArgumentNullException(nameof(options))).Snapshot();
             _socket = socket ?? throw new ArgumentNullException(nameof(socket));
             _remote = remote ?? throw new ArgumentNullException(nameof(remote));
             _onDispose = onDispose;
 
             _kcp = new SimpleSegManager.Kcp(conv, this, this);
+            snapshot.Apply(_kcp);
+            _sender = new KcpFrameSender(_kcp, _kcpGate, next => _updateRegistration?.Reschedule(next), Fail);
         }
 
         void IKcpCallback.Output(IMemoryOwner<byte> buffer, int avalidLength)
@@ -93,19 +102,7 @@ namespace Lakona.Rpc.Transport.Kcp
                 throw new InvalidOperationException("Not connected.");
             }
 
-            using var packed = LengthPrefix.Pack(frame.Span);
-            DateTimeOffset nextUpdate;
-            lock (_kcpGate)
-            {
-                _kcp.Send(packed.Span, null!);
-                var now = DateTimeOffset.UtcNow;
-                _kcp.Update(in now);
-                nextUpdate = _kcp.Check(in now);
-            }
-
-            _updateRegistration?.Reschedule(nextUpdate);
-
-            return default;
+            return _sender.SendAsync(frame, ct);
         }
 
         public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
@@ -137,17 +134,15 @@ namespace Lakona.Rpc.Transport.Kcp
             if (Interlocked.Exchange(ref _disposed, 1) != 0)
                 return;
 
+            _sender.Stop(new ObjectDisposedException(nameof(KcpServerTransport)));
             _updateRegistration?.Dispose();
             _updateRegistration = null;
             lock (_kcpGate)
+            {
                 _kcp.Dispose();
-            try
-            {
-                _receiveSignal.Release();
+                _accumulator.Clear();
             }
-            catch (SemaphoreFullException)
-            {
-            }
+            SignalReceiveData();
 
             _onDispose?.Invoke();
         }
@@ -163,6 +158,7 @@ namespace Lakona.Rpc.Transport.Kcp
                     return;
 
                 _kcp.Input(data);
+                _sender.Signal();
                 if (_kcp.PeekSize() > 0)
                     SignalReceiveData();
             }
@@ -220,21 +216,15 @@ namespace Lakona.Rpc.Transport.Kcp
 
         private void SignalRemainingReceiveData()
         {
-            if (_accumulator.Count > 0 || _kcp.PeekSize() > 0)
+            if (_kcp.PeekSize() > 0)
                 SignalReceiveData();
         }
 
         private void SignalReceiveData()
         {
-            try
+            lock (_kcpGate)
             {
-                _receiveSignal.Release();
-            }
-            catch (SemaphoreFullException)
-            {
-            }
-            catch (ObjectDisposedException)
-            {
+                if (_receiveSignal.CurrentCount == 0) _receiveSignal.Release();
             }
         }
 
@@ -257,6 +247,7 @@ namespace Lakona.Rpc.Transport.Kcp
                 return;
 
             Volatile.Write(ref _isConnected, 0);
+            _sender.Stop(exception);
             SignalReceiveData();
         }
 

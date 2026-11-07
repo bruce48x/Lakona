@@ -115,7 +115,9 @@ public static class SessionServiceCollectionExtensions
                 logger,
                 notificationOptions.MaximumPendingPerSession,
                 notificationOptions.MaximumPendingPerProcess,
-                services.GetRequiredService<IGameSessionRegistry>())
+                services.GetRequiredService<IGameSessionRegistry>(),
+                notificationOptions.MaximumPendingBytesPerSession,
+                notificationOptions.MaximumPendingBytesPerProcess)
             : new ClientNotificationCommandRouter(
                 localDispatcher,
                 commands,
@@ -125,6 +127,8 @@ public static class SessionServiceCollectionExtensions
                 logger,
                 notificationOptions.MaximumPendingPerSession,
                 notificationOptions.MaximumPendingPerProcess,
-                services.GetRequiredService<IGameSessionRegistry>());
+                services.GetRequiredService<IGameSessionRegistry>(),
+                notificationOptions.MaximumPendingBytesPerSession,
+                notificationOptions.MaximumPendingBytesPerProcess);
     }
 }

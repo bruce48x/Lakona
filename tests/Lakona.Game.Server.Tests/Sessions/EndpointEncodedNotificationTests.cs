@@ -1,4 +1,8 @@
 using System.Buffers;
+using System.Net;
+using Lakona.Game.Cluster;
+using Lakona.Rpc.Transport.Kcp;
+using Lakona.Rpc.Transport.Tcp;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Lakona.Game.Abstractions;
@@ -22,6 +26,88 @@ public sealed class EndpointEncodedNotificationTests
 {
     private const int ServiceId = 731;
     private const int MethodId = 1;
+
+    [Fact]
+    public async Task Large_remote_notification_crosses_tcp_and_kcp_and_replays_after_rebinding()
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromMinutes(5));
+        var ct = deadline.Token;
+        const string profile = "large-memorypack";
+        await using var cluster = new LakonaTestClusterBuilder().AddNode("owner")
+            .ConfigureNodes(node => node.ConfigureServices((services, _) =>
+                services.AddLakonaEndpointSerializer(profile, () => new MemoryPackRpcSerializer()))).Build();
+        await cluster.StartAsync(ct);
+        var owner = cluster.Node("owner").Services;
+        var sessions = owner.GetRequiredService<IGameSessionRegistry>();
+        var key = await sessions.StartNewSessionAsync("large-player", ct);
+        var membership = owner.GetRequiredService<IClusterMembership>();
+        Assert.True(MembershipSessionLocator.TryResolve(key, membership, out var location));
+        var runtime = owner.GetRequiredService<IReliablePushRuntime>();
+        owner.GetRequiredService<GameSessionCallbackProxyRegistry>().Add(new ProbeBinder());
+
+        await using var tcp = new TcpConnectionAcceptor(0);
+        var target = new RouteLocation(location!.Route, location.NodeReference, location.MembershipView,
+            new NodeEndpoint(tcp.ListenAddress));
+        var registry = new RpcServiceRegistry();
+        ClientNotificationCommandBinder.BindOwned(registry, new ClientNotificationOwnerDispatcher(runtime, membership, location.Node));
+        using var stop = new CancellationTokenSource();
+        var serving = ServeClusterAsync();
+        await using var factory = new ClusterClientFactory(new ClusterRpcChannel());
+        await using var dispatcher = new ClusterClientNotificationDispatcher(factory);
+        await using var listener = new KcpListener(0);
+        var payload = new EndpointProbePayload { Value = 73, Data = new byte[12 * 1024 * 1024] };
+        new Random(42).NextBytes(payload.Data);
+        var serializer = new MemoryPackRpcSerializer();
+        try
+        {
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                await using var client = new KcpTransport("127.0.0.1", ((IPEndPoint)listener.LocalEndPoint!).Port);
+                await client.ConnectAsync(ct);
+                var accepted = await listener.AcceptAsync(ct);
+                var connectionId = "large-" + attempt;
+                await using var server = TestRpcSession.Create(accepted.Transport, serializer, true, connectionId: connectionId);
+                await server.StartAsync(ct);
+                owner.GetRequiredService<GameFrameworkConnectionRegistry>().Set(connectionId, new RpcNotificationChannel(server));
+                await sessions.PrepareProfiledSessionBindingAsync(key, connectionId, profile, ct);
+                await sessions.CommitSessionBindingAsync(key, connectionId, ct);
+                await sessions.SetReliablePushPolicyAsync(key, true, ct);
+                var receiving = client.ReceiveFrameAsync(ct).AsTask();
+                if (attempt == 0)
+                {
+                    var command = await owner.GetRequiredService<ClientNotificationCommandFactory>()
+                        .CreateAsync<IEndpointProbeNotifications, EndpointProbePayload>(key, ServiceId, MethodId,
+                            nameof(IEndpointProbeNotifications.OnValue), payload, null, ct);
+                    Assert.Equal(ClientNotificationStatus.Accepted, await dispatcher.DispatchAsync(target, command, ct));
+                }
+                else
+                    await runtime.ReplayPendingAsync(key, connectionId, ct);
+                using var frame = await receiving;
+                using var push = RpcEnvelopeCodec.DecodePush(frame);
+                var decoded = serializer.Deserialize<EndpointProbePayload>(push.Payload.Memory);
+                Assert.True(decoded.Data.AsSpan().SequenceEqual(payload.Data));
+                Assert.Equal(73, decoded.Value);
+                Assert.Equal(1, LakonaInternalCodec.DecodeReliablePushMetadata(push.Metadata!.Payload).Sequence.Value);
+            }
+            await owner.GetRequiredService<IReliablePushOutbox>().AckAsync(key, 1, ct);
+        }
+        finally
+        {
+            stop.Cancel();
+            await serving.WaitAsync(TimeSpan.FromSeconds(15), ct);
+        }
+
+        async Task ServeClusterAsync()
+        {
+            var accepted = await tcp.AcceptAsync(ct);
+            await ClusterRpcProtocolNegotiation.NegotiateServerAsync(accepted.Transport, ClusterProtocol.Identifier, ct);
+            await using var session = TestRpcSession.Create(accepted.Transport, new MemoryPackRpcSerializer(), true, registry);
+            await session.StartAsync(ct);
+            try { await Task.Delay(Timeout.InfiniteTimeSpan, stop.Token); }
+            catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
+        }
+    }
 
     [Theory]
     [InlineData(false, false, false)]
@@ -149,6 +235,7 @@ public sealed class EndpointEncodedNotificationTests
 public partial class EndpointProbePayload
 {
     public int Value;
+    public byte[] Data = [];
 }
 
 [RpcService(731, NotificationContract = typeof(IEndpointProbeNotifications))]

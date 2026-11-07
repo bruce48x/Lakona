@@ -16,17 +16,17 @@ public sealed class KcpClientReceiveLifetimeTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using var listener = new KcpListener(new IPEndPoint(IPAddress.Loopback, 0));
         await using var client = new KcpTransport("127.0.0.1", ((IPEndPoint)listener.LocalEndPoint!).Port);
+        Socket? socket = null;
+        using var pool = new ReceiveBufferObserver(() => socket?.SafeHandle.IsClosed == true);
+        pool.CaptureRental = true;
         await client.ConnectAsync(deadline.Token);
+        pool.CaptureRental = false;
         await using var server = (await listener.AcceptAsync(deadline.Token)).Transport;
 
         // Inspect the actual socket handle only to observe the resource lifetime at pool return.
-        var socket = Assert.IsType<Socket>(typeof(KcpTransport)
+        socket = Assert.IsType<Socket>(typeof(KcpTransport)
             .GetField("_socket", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(client));
-        var handle = socket.SafeHandle;
-        using var pool = new ReceiveBufferObserver(() => handle.IsClosed);
-        pool.CaptureRental = true;
         var receive = client.ReceiveFrameAsync().AsTask();
-        pool.CaptureRental = false;
         Assert.False(receive.IsCompleted);
         Assert.True(pool.SawRental);
         Assert.Equal(0, pool.ReturnCount);
@@ -45,7 +45,7 @@ public sealed class KcpClientReceiveLifetimeTests
     }
 
     [Fact]
-    public async Task Canceling_receive_releases_its_buffer_and_allows_the_next_receive()
+    public async Task Canceling_application_receive_keeps_protocol_pump_and_allows_next_receive()
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using var listener = new KcpListener(new IPEndPoint(IPAddress.Loopback, 0));
@@ -58,11 +58,11 @@ public sealed class KcpClientReceiveLifetimeTests
             pool.CaptureRental = true;
             var receive = client.ReceiveFrameAsync(cancellation.Token).AsTask();
             pool.CaptureRental = false;
-            Assert.True(pool.SawRental);
+            Assert.False(pool.SawRental);
             Assert.False(receive.IsCompleted);
             cancellation.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => receive.WaitAsync(deadline.Token));
-            Assert.Equal(1, pool.ReturnCount);
+            Assert.Equal(0, pool.ReturnCount);
         }
 
         Assert.True(client.IsConnected);
@@ -100,7 +100,6 @@ public sealed class KcpClientReceiveLifetimeTests
 
     private sealed class ReceiveBufferObserver(Func<bool> socketClosed) : EventListener
     {
-        private readonly int _callerThread = Environment.CurrentManagedThreadId;
         private int _bufferId;
         private int _returnCount;
         public bool CaptureRental { get; set; }
@@ -118,7 +117,7 @@ public sealed class KcpClientReceiveLifetimeTests
         {
             if (data.Payload is not { Count: >= 2 }) return;
             if (data.EventName == "BufferRented" && CaptureRental
-                && Environment.CurrentManagedThreadId == _callerThread && (int)data.Payload[1]! == 64 * 1024)
+                && (int)data.Payload[1]! == 64 * 1024)
                 _bufferId = (int)data.Payload[0]!;
             if (data.EventName == "BufferReturned" && _bufferId != 0 && (int)data.Payload[0]! == _bufferId)
             {

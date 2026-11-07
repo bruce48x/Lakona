@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Lakona.Game.Server.Sessions;
+using Lakona.Game.Server.Configuration;
 
 namespace Lakona.Game.Server.ReliablePush;
 
@@ -13,6 +14,8 @@ public static class ReliablePushServiceCollectionExtensions
     {
         var options = new ReliablePushOptions();
         configure?.Invoke(options);
+        if (options.MaxPendingBytesPerSession <= 0 || options.MaxPendingBytesPerProcess <= 0)
+            throw new ArgumentOutOfRangeException(nameof(configure), "Reliable push byte budgets must be positive.");
 
         services.TryAddSingleton(options);
         services.TryAddSingleton<IReliablePushOutbox, InMemoryReliablePushOutbox>();
@@ -38,6 +41,10 @@ public static class ReliablePushServiceCollectionExtensions
                 options.MaxPendingPerSession = maxPending;
             }
 
+            options.MaxPendingBytesPerSession = LakonaConfigurationReader.ReadInt(section,
+                nameof(options.MaxPendingBytesPerSession), options.MaxPendingBytesPerSession);
+            options.MaxPendingBytesPerProcess = LakonaConfigurationReader.ReadInt(section,
+                nameof(options.MaxPendingBytesPerProcess), options.MaxPendingBytesPerProcess);
             configure?.Invoke(options);
         });
     }

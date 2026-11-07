@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.Sockets.Kcp;
@@ -16,8 +15,12 @@ namespace Lakona.Rpc.Transport.Kcp
         private const int ReceiveBufferSize = 64 * 1024;
         private static readonly TimeSpan DefaultConnectTimeout = TimeSpan.FromSeconds(10);
         private static readonly TimeSpan DefaultHandshakeRetryInterval = TimeSpan.FromMilliseconds(250);
-        private readonly ConcurrentQueue<TransportFrame> _frames = new();
+        private readonly SemaphoreSlim _receiveSignal = new(0, 1);
+        private readonly CancellationTokenSource _receiveLifetime = new();
+        private Task? _receiveLoop;
+        private KcpFrameSender? _sender;
         private readonly object _kcpGate = new();
+        private readonly KcpTransportOptions _options;
         private readonly string _host;
         private readonly int _port;
         private readonly uint? _conversationId;
@@ -43,12 +46,23 @@ namespace Lakona.Rpc.Transport.Kcp
         {
         }
 
+        public KcpTransport(string host, int port, KcpTransportOptions options)
+            : this(host, port, null, DefaultConnectTimeout, DefaultHandshakeRetryInterval, options ?? throw new ArgumentNullException(nameof(options)))
+        {
+        }
+
+        public KcpTransport(string host, int port, uint conversationId, KcpTransportOptions options)
+            : this(host, port, conversationId, DefaultConnectTimeout, DefaultHandshakeRetryInterval, options ?? throw new ArgumentNullException(nameof(options)))
+        {
+        }
+
         internal KcpTransport(
             string host,
             int port,
             uint? conversationId,
             TimeSpan connectTimeout,
-            TimeSpan handshakeRetryInterval)
+            TimeSpan handshakeRetryInterval,
+            KcpTransportOptions? options = null)
         {
             if (conversationId == 0)
                 throw new ArgumentOutOfRangeException(nameof(conversationId), "Conversation id must be non-zero.");
@@ -61,6 +75,7 @@ namespace Lakona.Rpc.Transport.Kcp
                     "Handshake retry interval must be positive and shorter than the connect timeout.");
             }
 
+            _options = (options ?? new KcpTransportOptions()).Snapshot();
             _host = host ?? throw new ArgumentNullException(nameof(host));
             _port = port;
             _conversationId = conversationId;
@@ -99,8 +114,11 @@ namespace Lakona.Rpc.Transport.Kcp
                     _remote = new IPEndPoint(ipAddress, sessionPort);
                     _socket = socket;
                     _kcp = new SimpleSegManager.Kcp(conv, this, this);
+                    _options.Apply(_kcp);
+                    _sender = new KcpFrameSender(_kcp, _kcpGate, next => _updateRegistration?.Reschedule(next), Fail);
                     _updateRegistration = KcpUpdateScheduler.Register(UpdateKcp, Fail);
                     Volatile.Write(ref _isConnected, 1);
+                    _receiveLoop = ReceiveDatagramsAsync(socket, _receiveLifetime.Token);
                 }
                 catch
                 {
@@ -129,102 +147,70 @@ namespace Lakona.Rpc.Transport.Kcp
                 throw new InvalidOperationException("Not connected.");
             }
 
-            using var packed = LengthPrefix.Pack(frame.Span);
-            DateTimeOffset nextUpdate;
-            lock (_kcpGate)
-            {
-                _kcp.Send(packed.Span, null!);
-                var now = DateTimeOffset.UtcNow;
-                _kcp.Update(in now);
-                nextUpdate = _kcp.Check(in now);
-            }
-
-            _updateRegistration?.Reschedule(nextUpdate);
-
-            return default;
+            return _sender!.SendAsync(frame, ct);
         }
 
         public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
         {
-            if (!IsConnected || _socket is null || _remote is null)
+            while (true)
             {
-                ThrowIfFailed();
-                throw new InvalidOperationException("Not connected.");
+                lock (_kcpGate)
+                {
+                    if (!IsConnected)
+                    {
+                        ThrowIfFailed();
+                        throw new ObjectDisposedException(nameof(KcpTransport));
+                    }
+                    if (TryReadFrame(out var frame)) return frame;
+                }
+                await _receiveSignal.WaitAsync(ct).ConfigureAwait(false);
             }
+        }
 
-            // This receive owns the buffer until socket I/O and input processing finish.
-            // Disposal may close the socket, but must not return memory still used by it.
+        private async Task ReceiveDatagramsAsync(Socket socket, CancellationToken ct)
+        {
+            // ACK processing must continue even without an application receive call.
+            // Application bytes stay in KCP's bounded receive window until requested.
             var buffer = ArrayPool<byte>.Shared.Rent(ReceiveBufferSize);
             try
             {
-                while (true)
+                while (!ct.IsCancellationRequested)
                 {
-                    if (TryDequeueFrame(out var queued))
-                        return queued;
-
 #if NET8_0_OR_GREATER
-                    SocketReceiveFromResult received;
-                    try
-                    {
-                        received = await _socket.ReceiveFromAsync(buffer, SocketFlags.None, _receiveAny, ct).ConfigureAwait(false);
-                    }
-                    catch when (Volatile.Read(ref _terminalFailure) is not null)
-                    {
-                        ThrowIfFailed();
-                        throw;
-                    }
+                    var received = await socket.ReceiveFromAsync(buffer, SocketFlags.None, _receiveAny, ct).ConfigureAwait(false);
 #else
-                    SocketReceiveFromResult received;
-                    try
-                    {
-                        received = await ReceiveFromAsync(_socket, buffer, ct).ConfigureAwait(false);
-                    }
-                    catch when (Volatile.Read(ref _terminalFailure) is not null)
-                    {
-                        ThrowIfFailed();
-                        throw;
-                    }
+                    var received = await ReceiveFromAsync(socket, buffer, ct).ConfigureAwait(false);
 #endif
-                    if (!EndPointEquals(received.RemoteEndPoint, _remote))
-                        continue;
-
-                    ProcessInput(buffer.AsSpan(0, received.ReceivedBytes));
-
-                    if (TryDequeueFrame(out var frame))
-                        return frame;
+                    if (EndPointEquals(received.RemoteEndPoint, _remote))
+                        ProcessInput(buffer.AsSpan(0, received.ReceivedBytes));
                 }
             }
-            finally
+            catch (Exception error)
             {
-                ArrayPool<byte>.Shared.Return(buffer);
+                if (!ct.IsCancellationRequested) Fail(error);
             }
+            finally { ArrayPool<byte>.Shared.Return(buffer); }
         }
 
         public async ValueTask DisposeAsync()
         {
             Volatile.Write(ref _isConnected, 0);
-            if (Interlocked.Exchange(ref _disposed, 1) != 0)
-                return;
-
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            _sender?.Stop(new ObjectDisposedException(nameof(KcpTransport)));
+            SignalReceiveData();
             _updateRegistration?.Dispose();
             _updateRegistration = null;
-
+            // Closing the socket precedes returning the receive loop's pooled buffer.
+            _socket?.Dispose();
+            _receiveLifetime.Cancel();
+            if (_receiveLoop is not null) await _receiveLoop.ConfigureAwait(false);
             lock (_kcpGate)
             {
                 _kcp?.Dispose();
+                _accumulator.Clear();
                 _kcp = null;
             }
-
-            while (_frames.TryDequeue(out var frame))
-                frame.Dispose();
-
-            try
-            {
-                _socket?.Dispose();
-            }
-            catch
-            {
-            }
+            _receiveLifetime.Dispose();
         }
 
         void IKcpCallback.Output(IMemoryOwner<byte> buffer, int avalidLength)
@@ -362,54 +348,40 @@ namespace Lakona.Rpc.Transport.Kcp
                 }
 
                 _kcp.Input(data);
-                DrainKcp();
+                _sender?.Signal();
+                if (_kcp.PeekSize() > 0) SignalReceiveData();
             }
 
             _updateRegistration?.Reschedule(DateTimeOffset.UtcNow);
         }
 
-        private void DrainKcp()
+        private bool TryReadFrame(out TransportFrame frame)
         {
+            if (_accumulator.TryReadFrame(out frame)) return true;
             while (true)
             {
                 var size = _kcp!.PeekSize();
-                if (size <= 0)
-                    break;
-
-                if (size > MaxBufferedBytes)
-                    throw new InvalidOperationException($"Frame too large: {size} bytes");
-
+                if (size <= 0) break;
+                if (size > MaxBufferedBytes) throw new InvalidOperationException($"Frame too large: {size} bytes");
                 var payload = ArrayPool<byte>.Shared.Rent(size);
                 try
                 {
                     _kcp.Recv(payload.AsSpan(0, size));
-                    AppendAndUnpack(payload.AsSpan(0, size));
+                    _accumulator.Append(payload.AsSpan(0, size));
                 }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(payload);
-                }
+                finally { ArrayPool<byte>.Shared.Return(payload); }
+                if (_accumulator.TryReadFrame(out frame)) return true;
             }
-        }
-
-        private void AppendAndUnpack(ReadOnlySpan<byte> payload)
-        {
-            _accumulator.Append(payload);
-
-            while (_accumulator.TryReadFrame(out var frame))
-                _frames.Enqueue(frame);
-        }
-
-        private bool TryDequeueFrame(out TransportFrame frame)
-        {
-            if (_frames.TryDequeue(out var queued))
-            {
-                frame = queued;
-                return true;
-            }
-
             frame = TransportFrame.Empty;
             return false;
+        }
+
+        private void SignalReceiveData()
+        {
+            lock (_kcpGate)
+            {
+                if (_receiveSignal.CurrentCount == 0) _receiveSignal.Release();
+            }
         }
 
         private DateTimeOffset UpdateKcp(DateTimeOffset now)
@@ -433,6 +405,8 @@ namespace Lakona.Rpc.Transport.Kcp
                 return;
 
             Volatile.Write(ref _isConnected, 0);
+            _sender?.Stop(exception);
+            SignalReceiveData();
             try
             {
                 _socket?.Dispose();

@@ -14,9 +14,23 @@ dotnet add package Lakona.Rpc.Transport.Kcp
 ```csharp
 var transport = new KcpTransport("127.0.0.1", 20000);
 var assigned = new KcpTransport("127.0.0.1", 20000, conversationId: 1234);
+var tuned = new KcpTransport("127.0.0.1", 20000, new KcpTransportOptions
+{
+    UpdateIntervalMilliseconds = 20,
+    SendWindowSize = 128
+});
+var tuned = new KcpTransport("127.0.0.1", 20000, new KcpTransportOptions
+{
+    UpdateIntervalMilliseconds = 20,
+    SendWindowSize = 128
+});
 ```
 
 Import `Lakona.Rpc.Transport.Kcp`; pass the selected transport to client options.
+The same options type is accepted by `KcpListener` and `KcpConnectionAcceptor`.
+See the transport contract for defaults, validation and configuration lifetime.
+The same options type is accepted by `KcpListener` and `KcpConnectionAcceptor`.
+See the transport contract for defaults, validation and configuration lifetime.
 
 ## Guides
 

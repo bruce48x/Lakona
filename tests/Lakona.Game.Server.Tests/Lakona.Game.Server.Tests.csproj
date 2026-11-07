@@ -32,5 +32,6 @@
     <ProjectReference Include="../../src/Lakona.Rpc.Serializer.Json/Lakona.Rpc.Serializer.Json.csproj" />
     <ProjectReference Include="../../src/Lakona.Rpc.Serializer.MemoryPack/Lakona.Rpc.Serializer.MemoryPack.csproj" />
     <ProjectReference Include="../../src/Lakona.Rpc.Transport.Loopback/Lakona.Rpc.Transport.Loopback.csproj" />
+    <ProjectReference Include="../../src/Lakona.Rpc.Transport.Kcp/Lakona.Rpc.Transport.Kcp.csproj" />
   </ItemGroup>
 </Project>

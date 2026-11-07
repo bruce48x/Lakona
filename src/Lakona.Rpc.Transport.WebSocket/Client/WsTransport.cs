@@ -7,7 +7,7 @@ public sealed class WsTransport : ITransport
 {
     private readonly Uri _uri;
     private readonly ClientWebSocket _webSocket = new();
-    private readonly LengthPrefixedFrameAccumulator _accumulator = new();
+    private readonly WsTransportFraming _framing;
 
     public WsTransport(string url)
     {
@@ -15,14 +15,16 @@ public sealed class WsTransport : ITransport
             throw new ArgumentException("WebSocket URL is required.", nameof(url));
 
         _uri = new Uri(url, UriKind.Absolute);
+        _framing = new WsTransportFraming(_webSocket);
     }
 
     public WsTransport(Uri uri)
     {
         _uri = uri ?? throw new ArgumentNullException(nameof(uri));
+        _framing = new WsTransportFraming(_webSocket);
     }
 
-    public bool IsConnected => _webSocket.State == WebSocketState.Open;
+    public bool IsConnected => !_framing.IsStopping && _webSocket.State == WebSocketState.Open;
 
     public async ValueTask ConnectAsync(CancellationToken ct = default)
     {
@@ -39,11 +41,11 @@ public sealed class WsTransport : ITransport
 
     public ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
     {
-        return WsTransportFraming.ReceiveFrameAsync(_webSocket, _accumulator, ct);
+        return _framing.ReceiveFrameAsync(ct);
     }
 
     public ValueTask DisposeAsync()
     {
-        return WsTransportFraming.DisposeAsync(_webSocket);
+        return _framing.DisposeAsync();
     }
 }

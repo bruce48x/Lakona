@@ -7,7 +7,8 @@ internal interface IReliablePushOutbox
         string kind,
         object payload,
         Func<ReliablePushRecord, ValueTask> deliver,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        long retainedBytes = 0);
 
     ValueTask ReplayPendingAsync(
         string ownerKey,

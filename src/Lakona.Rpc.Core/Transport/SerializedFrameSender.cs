@@ -7,6 +7,10 @@ internal sealed class SerializedFrameSender : IDisposable
     private readonly object _gate = new();
     private readonly LinkedList<SendWork> _queue = new();
     private readonly Action<object?> _cancelQueued;
+    private const long MaximumPendingBytes = 128L * 1024 * 1024;
+    private const int MaximumPendingFrames = 65_536;
+    private long _pendingBytes;
+    private int _pendingFrames;
     private bool _draining;
     private bool _disposed;
 
@@ -25,6 +29,10 @@ internal sealed class SerializedFrameSender : IDisposable
         lock (_gate)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(SerializedFrameSender));
+            if (frame.Length > MaximumPendingBytes - _pendingBytes || _pendingFrames >= MaximumPendingFrames)
+                throw new InvalidOperationException("RPC send queue capacity exceeded (128 MiB or 65536 frames per connection).");
+            _pendingBytes += frame.Length;
+            _pendingFrames++;
             if (_draining)
                 queued = _queue.AddLast(work);
             else
@@ -48,6 +56,8 @@ internal sealed class SerializedFrameSender : IDisposable
             // Dequeuing or disposal already claimed completion if the node was detached.
             if (node.List is null) return;
             _queue.Remove(node);
+            _pendingBytes -= node.Value.Frame.Length;
+            _pendingFrames--;
         }
         node.Value.Completion.TrySetCanceled(node.Value.Cancellation);
     }
@@ -62,27 +72,36 @@ internal sealed class SerializedFrameSender : IDisposable
     {
         while (true)
         {
+            Exception? failure = null;
             try
             {
                 work.Cancellation.ThrowIfCancellationRequested();
                 await _transport.SendFrameAsync(work.Frame, work.Cancellation).ConfigureAwait(false);
                 _keepAliveState.MarkSent();
-                work.Completion.TrySetResult(true);
             }
-            catch (OperationCanceledException) { work.Completion.TrySetCanceled(work.Cancellation); }
-            catch (Exception error) { work.Completion.TrySetException(error); }
+            catch (Exception error) { failure = error; }
 
+            var completion = work.Completion;
+            var cancellation = work.Cancellation;
+            bool more;
             lock (_gate)
             {
+                _pendingBytes -= work.Frame.Length;
+                _pendingFrames--;
                 var first = _queue.First;
-                if (first is null)
+                more = first is not null;
+                if (first is null) _draining = false;
+                else
                 {
-                    _draining = false;
-                    return;
+                    work = first.Value;
+                    _queue.RemoveFirst();
                 }
-                work = first.Value;
-                _queue.RemoveFirst();
             }
+            // An awaiting producer may immediately submit another frame.
+            if (failure is OperationCanceledException) completion.TrySetCanceled(cancellation);
+            else if (failure is not null) completion.TrySetException(failure);
+            else completion.TrySetResult(true);
+            if (!more) return;
         }
     }
 
@@ -93,6 +112,8 @@ internal sealed class SerializedFrameSender : IDisposable
         {
             _disposed = true;
             pending = _queue.ToArray();
+            foreach (var work in pending) _pendingBytes -= work.Frame.Length;
+            _pendingFrames -= pending.Length;
             _queue.Clear();
         }
         foreach (var work in pending)

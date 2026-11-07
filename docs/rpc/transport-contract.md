@@ -21,6 +21,11 @@ not require transport implementations to share a base class or exception type.
 and keepalive. If cancellation wins before the writer claims a queued frame,
 the sender removes that entry immediately and completes its send as canceled.
 The remaining frames keep their FIFO order even while an earlier write stalls.
+The shared sender admits at most 128 MiB and 65,536 frames per connection,
+including the active write. Exhaustion fails the new send with
+`InvalidOperationException` before enqueueing; it does not move retained buffers
+into an unbounded waiting list. Completion, queued cancellation, and disposal
+release their reservations.
 Client and Session receive loops supply the single reader. A
 custom caller bypassing those owners must provide the same serialization.
 Repeated initialization is not permission to race two `ConnectAsync` calls or to
@@ -65,12 +70,78 @@ Transport-specific behavior remains relevant:
 | --- | --- |
 | TCP | Client connects; accepted server initializes framing. Orderly remote EOF currently throws `IOException`. `TcpClient.Connected` is only locally known state. Do not rely on the client's ability to allocate another socket after disposal. |
 | WebSocket | Client connects; accepted server uses the accepted socket. Remote close currently throws `IOException`. Disposal attempts a close handshake with a one-second timeout, then aborts if needed. Cancellation may abort the socket. |
-| KCP | Client performs the bounded bootstrap; accepted server initialization may already have occurred in the listener. UDP supplies no peer-close signal, so silent peer loss needs RPC keepalive. Sending synchronously queues owned bytes into KCP. |
+| KCP | Client performs the bounded bootstrap; accepted server initialization may already have occurred in the listener. UDP supplies no peer-close signal, so silent peer loss needs RPC keepalive. Sending queues owned chunks into KCP, asynchronously waiting for bounded capacity when necessary. |
 | Loopback | Initialization activates an endpoint of one shared pair. Disposing either endpoint closes both directions and wakes waiting readers/writers. A closed pair cannot become a new connection. |
 
 ## Official Transport Behavior
 
 ### KCP
+
+`KcpTransportOptions` is the shared client/listener/acceptor configuration API.
+Existing constructors remain supported. Options are validated and copied at
+construction, before socket startup; changing the original object does not
+change a connection or future sessions accepted by that listener. Peers configure
+their own endpoints independently; settings are not negotiated on the wire.
+
+| Option | Default | Accepted values |
+| --- | --- | --- |
+| `UpdateIntervalMilliseconds` | 20 | 10–5000 milliseconds |
+| `SendWindowSize` | 128 | 1–512 segments |
+| `ReceiveWindowSize` | 128 | 128–65535 segments |
+| `NoDelay` | false | Enables shorter retransmission timeouts when true |
+| `FastResend` | 0 | Nonnegative ACK-skip threshold; 0 disables fast retransmission |
+| `CongestionControl` | true | Disabling congestion control is an explicit deployment choice |
+
+```csharp
+var options = new KcpTransportOptions { UpdateIntervalMilliseconds = 20, SendWindowSize = 128 };
+var client = new KcpTransport("127.0.0.1", 20000, options);
+var acceptor = new KcpConnectionAcceptor(20000, "0.0.0.0",
+    RpcConnectionAdmissionDefaults.MaxPendingAcceptedConnections, options);
+```
+
+The previous library defaults can be selected with interval 100 and send window
+32; the other defaults are unchanged. MTU remains 1400, message mode remains
+enabled, and the 512-segment pending budget remains fixed. The receive-window
+minimum exceeds the fragments in a 64 KiB chunk; exposing MTU or smaller receive
+windows independently could prevent a complete KCP message from being received.
+Larger receive windows permit more per-connection buffering. These settings do
+not change RPC frame limits or request/heartbeat deadlines.
+
+KCP remains in message mode. Each RPC frame has one length prefix and is written
+as ordered KCP messages of at most 64 KiB. Existing frame accumulation reconstructs
+the original frame without a new wire protocol. Only the first chunk is packed
+with the length prefix; subsequent chunks are submitted from the original frame.
+Small frames still use one KCP Send. KCP retains its own reliable segment copies;
+this is not end-to-end zero-copy transmission. Every KCP Send return value must
+match the submitted chunk length. The normal 64 MiB decoded RPC envelope limit
+still applies, with the existing transport-security overhead allowance.
+
+One connection admits at most 512 queued or unacknowledged KCP segments (about
+688 KiB of segment payload at the fixed default MTU). A full budget suspends the
+single writer until datagram input advances acknowledgements. No unbounded queue
+of waiting transport writes is created. Cancellation before any chunk is accepted
+preserves the connection; failure or cancellation after partial submission makes
+it terminal. Disposal and protocol failure wake both pending readers and writers.
+A completed send means full transport acceptance, not peer receipt.
+
+Capacity and receive-data notifications coalesce to one pending semaphore
+signal. Producers check and release under the connection's KCP lock; consumers
+only remove a signal and recheck protocol or terminal state. Ordinary repeated
+notifications must not allocate `SemaphoreFullException` as control flow.
+Cancellation and shutdown must still wake pending work.
+
+Large frames remain ordered on the same connection and can delay later RPCs,
+notifications and heartbeats. RPC keepalive observes complete inbound frames;
+KCP ACK progress is not application-level liveness. Configure request/heartbeat
+deadlines for the supported payload sizes and link speeds. Chunking does not
+introduce frame multiplexing or guarantee a particular transfer rate.
+
+The client owns a continuous UDP receive loop so ACKs progress independently of
+application reads, including during a send-only upload. Both client and server
+leave application bytes in KCP's bounded receive window until ReceiveFrameAsync
+drains them into the length-prefixed accumulator. Application receive cancellation
+does not stop the UDP loop. Client disposal closes the socket, joins that loop,
+and only then releases KCP state.
 
 The KCP server listener accepts UDP datagrams up to 2,048 bytes. It discards
 larger datagrams in full and continues receiving traffic for all connections.
@@ -121,6 +192,25 @@ Session within the existing pending and active connection limits; it never
 replaces or terminates another conversation. Whether the new RPC Session
 recovers an existing Game Session remains a Lakona.Game decision.
 
+### WebSocket
+
+Client and accepted-server transports share a framing owner which closes receive
+admission when disposal begins. An active receive is aborted and allowed to exit
+before its partial-frame accumulator is cleared or the server's disposal callback
+runs. Clearing cannot race an append or return the receive operation's pooled
+socket buffer while it is still in use. A frame already completed by that receive
+keeps its independent ownership, including any slices, after transport disposal.
+
+With no active receive, disposal retains the close handshake with its one-second
+timeout and abort fallback. A close handshake must not start a second receive
+while an application receive is pending. Repeated disposal shares cleanup
+completion, and an accepted transport invokes its disposal callback only once.
+
+`WebSocketReceiveLifetimeTests` verifies both ends with real sockets interrupted
+during an 8 MiB partial transfer, with and without caller cancellation first. A
+controlled socket additionally delays receive completion after abort to verify
+cleanup ordering and the lifetime of a frame which completes during disposal.
+
 ### Loopback
 
 The Loopback transport models one connection pair with one shared lifecycle
@@ -145,19 +235,20 @@ in-memory queues.
 | Abort of an idle receive | Disposal ends the actual pending receive, accepting an empty frame or connection/cancellation exception |
 | Connection cancellation and bounded bootstrap | `TcpTransportTests`, `KcpTransportTests`, and RPC `RpcClientLifecycleTests` |
 | Send serialization and queued cancellation | RPC `RpcConnectionChannelTests` |
-| KCP client receive-buffer lifetime | `KcpClientReceiveLifetimeTests` observes pool-return ordering on socket abort, return on cancellation, subsequent reception, and incoming frames racing disposal |
+| KCP client receive-buffer lifetime | `KcpClientReceiveLifetimeTests` observes pool-return ordering on socket abort, continued protocol ownership during application cancellation, subsequent reception, and incoming frames racing disposal |
 | Backpressure, owned queues, and failure isolation | Loopback tests in `Lakona.Rpc.Tests`, KCP transport and regression tests |
 
-The KCP client rents a buffer for each receive operation and returns it in that
-operation's `finally`, after socket I/O and datagram processing have ended.
-Disposal closes the socket without returning the active receive's buffer. Input
-processing checks connection/KCP state under the same lock as KCP disposal, so
-an arriving datagram cannot access a released KCP instance.
-
-These checks run on .NET 10. They do not establish Unity/netstandard runtime
-behavior, bounded cancellation of a network send under sustained pressure, or
-frame integrity after partial-send cancellation. The targeted KCP receive tests
-do not establish every send/disposal race or replace sustained stress testing.
+The KCP client's UDP loop owns its pooled receive buffer until socket I/O ends;
+disposal closes the socket before returning that buffer. Input and KCP disposal
+share a lock. `KcpLargeFrameTests` exercises 12 MiB transfers in both directions,
+send-only ACK progress, following-frame integrity, bounded queues with a stalled
+receiver, pre-send cancellation, partial-send cancellation, and disposal.
+`KcpSignalTests` observes first-chance exceptions during repeated capacity
+notifications. `TcpRpcProgressTests` checks unique requests and complete response
+contents across concurrent bursts and idle transitions with real TCP sockets;
+it is a bounded progress check, not a reproduction of every intermittent stall.
+These checks run on .NET 10; they do not replace Unity runtime or long-running
+loss/reordering and throughput measurements.
 
 Keep failures found by those tests separate from documentation cleanup. Do not
 weaken an ownership requirement merely to match one implementation, and do not

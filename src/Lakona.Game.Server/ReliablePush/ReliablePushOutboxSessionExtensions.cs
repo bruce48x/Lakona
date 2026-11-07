@@ -11,7 +11,8 @@ internal static class ReliablePushOutboxSessionExtensions
         string kind,
         object payload,
         Func<ReliablePushRecord, ValueTask> deliver,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long retainedBytes = 0)
     {
         ArgumentNullException.ThrowIfNull(outbox);
         return outbox.PublishAsync(
@@ -19,7 +20,8 @@ internal static class ReliablePushOutboxSessionExtensions
             kind,
             payload,
             deliver,
-            cancellationToken);
+            cancellationToken,
+            retainedBytes);
     }
 
     public static ValueTask ReplayPendingAsync(

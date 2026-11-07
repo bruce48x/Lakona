@@ -15,6 +15,10 @@ public sealed class LakonaNotificationOptions
 
     public int MaximumPendingPerProcess { get; init; } = 65_536;
 
+    public int MaximumPendingBytesPerSession { get; init; } = 128 * 1024 * 1024;
+
+    public int MaximumPendingBytesPerProcess { get; init; } = 512 * 1024 * 1024;
+
     internal static LakonaNotificationOptions FromConfiguration(IConfiguration section)
     {
         var defaults = new LakonaNotificationOptions();
@@ -29,7 +33,11 @@ public sealed class LakonaNotificationOptions
             MaximumPendingPerSession = LakonaConfigurationReader.ReadInt(
                 section, nameof(MaximumPendingPerSession), defaults.MaximumPendingPerSession),
             MaximumPendingPerProcess = LakonaConfigurationReader.ReadInt(
-                section, nameof(MaximumPendingPerProcess), defaults.MaximumPendingPerProcess)
+                section, nameof(MaximumPendingPerProcess), defaults.MaximumPendingPerProcess),
+            MaximumPendingBytesPerSession = LakonaConfigurationReader.ReadInt(
+                section, nameof(MaximumPendingBytesPerSession), defaults.MaximumPendingBytesPerSession),
+            MaximumPendingBytesPerProcess = LakonaConfigurationReader.ReadInt(
+                section, nameof(MaximumPendingBytesPerProcess), defaults.MaximumPendingBytesPerProcess)
         };
     }
 
@@ -37,6 +45,8 @@ public sealed class LakonaNotificationOptions
     {
         Window = TimeSpan.FromMilliseconds(BatchWindowMilliseconds),
         MaximumBatchSize = MaximumBatchSize,
-        MaximumBatchBytes = MaximumBatchBytes
+        MaximumBatchBytes = MaximumBatchBytes,
+        MaximumPendingBytesPerSession = MaximumPendingBytesPerSession,
+        MaximumPendingBytesPerProcess = MaximumPendingBytesPerProcess
     };
 }

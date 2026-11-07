@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- Exercise the real dispatcher through its existing test friend boundary. -->
+    <AssemblyName>Lakona.Rpc.Tests</AssemblyName>
+    <LakonaSourceRoot Condition="'$(LakonaSourceRoot)' == ''">$(MSBuildThisFileDirectory)../..</LakonaSourceRoot>
+    <DefineConstants Condition="Exists('$(LakonaSourceRoot)/src/Lakona.Rpc.Transport.Kcp/KcpTransportOptions.cs')">$(DefineConstants);KCP_OPTIONS</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(LakonaSourceRoot)/src/Lakona.Rpc.Client/Lakona.Rpc.Client.csproj" />
+    <ProjectReference Include="$(LakonaSourceRoot)/src/Lakona.Rpc.Server/Lakona.Rpc.Server.csproj" />
+    <ProjectReference Include="$(LakonaSourceRoot)/src/Lakona.Rpc.Transport.Kcp/Lakona.Rpc.Transport.Kcp.csproj" />
+    <ProjectReference Include="$(LakonaSourceRoot)/src/Lakona.Rpc.Transport.Tcp/Lakona.Rpc.Transport.Tcp.csproj" />
+    <ProjectReference Include="$(LakonaSourceRoot)/src/Lakona.Rpc.Serializer.MemoryPack/Lakona.Rpc.Serializer.MemoryPack.csproj" />
+  </ItemGroup>
+</Project>

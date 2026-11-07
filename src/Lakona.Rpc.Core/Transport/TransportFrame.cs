@@ -124,6 +124,12 @@ public sealed class TransportFrame : IDisposable
         return new TransportFrame(new SharedBuffer(buffer), 0, length);
     }
 
+    // The accumulator transfers a GC-owned array, which must never enter ArrayPool.
+    internal static TransportFrame AdoptOwned(byte[] buffer, int offset, int length)
+    {
+        return new TransportFrame(new SharedBuffer(buffer, pooled: false), offset, length);
+    }
+
     internal Span<byte> GetWritableSpan()
     {
         var owner = GetOwnerForAccess();
@@ -162,16 +168,19 @@ public sealed class TransportFrame : IDisposable
     internal sealed class SharedBuffer
     {
         private byte[]? _buffer;
+        private readonly bool _pooled;
         private int _refCount = 1;
 
         public SharedBuffer(int size)
         {
             _buffer = ArrayPool<byte>.Shared.Rent(size);
+            _pooled = true;
         }
 
-        public SharedBuffer(byte[] buffer)
+        public SharedBuffer(byte[] buffer, bool pooled = true)
         {
             _buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
+            _pooled = pooled;
         }
 
         public void AddRef()
@@ -196,7 +205,7 @@ public sealed class TransportFrame : IDisposable
                 return;
 
             var buffer = Interlocked.Exchange(ref _buffer, null);
-            if (buffer is not null)
+            if (buffer is not null && _pooled)
                 ArrayPool<byte>.Shared.Return(buffer);
         }
 

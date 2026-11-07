@@ -25,8 +25,18 @@ public sealed class KcpConnectionAcceptor : IRpcConnectionAcceptor
     }
 
     public KcpConnectionAcceptor(int port, string host, int maxPendingAcceptedConnections)
+        : this(port, host, maxPendingAcceptedConnections, new KcpTransportOptions())
     {
-        _listener = new KcpListener(port, host, maxPendingAcceptedConnections);
+    }
+
+    public KcpConnectionAcceptor(int port, KcpTransportOptions options)
+        : this(port, "127.0.0.1", RpcConnectionAdmissionDefaults.MaxPendingAcceptedConnections, options)
+    {
+    }
+
+    public KcpConnectionAcceptor(int port, string host, int maxPendingAcceptedConnections, KcpTransportOptions options)
+    {
+        _listener = new KcpListener(port, host, maxPendingAcceptedConnections, options);
         _listenAddress = FormatListenAddress();
     }
 

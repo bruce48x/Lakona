@@ -26,6 +26,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
     private readonly CancellationTokenSource _shutdown = new();
     private int _disposed;
     private int _pendingTotal;
+    private readonly NotificationByteBudget<GameSessionKey> _byteBudget;
 
     internal int QueueCount => _queues.Count;
 
@@ -38,7 +39,9 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         ILogger<ClientNotificationCommandRouter>? logger = null,
         int capacityPerSession = DefaultCapacityPerSession,
         int totalCapacity = DefaultTotalCapacity,
-        IGameSessionRegistry? sessions = null)
+        IGameSessionRegistry? sessions = null,
+        int maximumPendingBytesPerSession = 128 * 1024 * 1024,
+        int maximumPendingBytesPerProcess = 512 * 1024 * 1024)
     {
         _localOwner = localOwner ?? throw new ArgumentNullException(nameof(localOwner));
         _commands = commands;
@@ -49,6 +52,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         _logger = logger;
         _capacityPerSession = ValidateCapacity(capacityPerSession);
         _totalCapacity = ValidateTotalCapacity(totalCapacity);
+        _byteBudget = new(maximumPendingBytesPerSession, maximumPendingBytesPerProcess);
     }
 
     public ClientNotificationCommandRouter(
@@ -60,7 +64,9 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         ILogger<ClientNotificationCommandRouter>? logger = null,
         int capacityPerSession = DefaultCapacityPerSession,
         int totalCapacity = DefaultTotalCapacity,
-        IGameSessionRegistry? sessions = null)
+        IGameSessionRegistry? sessions = null,
+        int maximumPendingBytesPerSession = 128 * 1024 * 1024,
+        int maximumPendingBytesPerProcess = 512 * 1024 * 1024)
     {
         _localDispatcher = localDispatcher ?? throw new ArgumentNullException(nameof(localDispatcher));
         _commands = commands;
@@ -71,12 +77,22 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         _logger = logger;
         _capacityPerSession = ValidateCapacity(capacityPerSession);
         _totalCapacity = ValidateTotalCapacity(totalCapacity);
+        _byteBudget = new(maximumPendingBytesPerSession, maximumPendingBytesPerProcess);
     }
 
     public ClientNotificationStatus Enqueue(ClientNotificationCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        return EnqueueWorkItem(new CommandWorkItem(ToSessionKey(command), command));
+        var session = ToSessionKey(command);
+        var reservation = _byteBudget.TryReserve(session, ClientNotificationSize.RetainedBytes(command));
+        if (reservation is null) return ByteBackpressure();
+        try
+        {
+            var status = EnqueueWorkItem(new CommandWorkItem(session, command) { Reservation = reservation });
+            if (status != ClientNotificationStatus.Accepted) reservation.Dispose();
+            return status;
+        }
+        catch { reservation.Dispose(); throw; }
     }
 
     public ClientNotificationStatus EnqueueGenerated<TCallback, TPayload>(
@@ -269,6 +285,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
             }
             finally
             {
+                item.Reservation?.Dispose();
                 lock (queue.Gate)
                 {
                     queue.PendingCount--;
@@ -296,7 +313,11 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         if (discardPending)
         {
             var discarded = queue.PendingCount;
-            foreach (var item in queue.Items) item.Completion.TrySetResult(ClientNotificationStatus.Failed);
+            foreach (var item in queue.Items)
+            {
+                item.Reservation?.Dispose();
+                item.Completion.TrySetResult(ClientNotificationStatus.Failed);
+            }
             queue.Items.Clear();
             queue.PendingCount = 0;
             if (discarded > 0)
@@ -408,7 +429,15 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
             methodId,
             methodName,
             payload, route, cancellationToken).ConfigureAwait(false);
+        using var reservation = _byteBudget.TryReserve(session, ClientNotificationSize.RetainedBytes(command));
+        if (reservation is null) return ByteBackpressure();
         return await _remoteDispatcher.DispatchAsync(route, command, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static ClientNotificationStatus ByteBackpressure()
+    {
+        ClientNotificationDiagnostics.RecordBackpressure(ClientNotificationBackpressureReason.PendingBytes);
+        return ClientNotificationStatus.Backpressure;
     }
 
     private ValueTask<ClientNotificationStatus> DispatchLocalAsync(
@@ -513,6 +542,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         }
 
         public GameSessionKey Session { get; }
+        public IDisposable? Reservation { get; init; }
         public TaskCompletionSource<ClientNotificationStatus> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public abstract ValueTask<ClientNotificationStatus> DeliverAsync(

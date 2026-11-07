@@ -32,6 +32,14 @@ Address one risk at a time. Each investigation must:
 6. Move lasting rules into the owning authority document and remove the
    completed entry from this register.
 
+The [RPC reliability performance probe](../benchmarks/rpc-reliability/README.md)
+compares a pinned baseline with a working-tree snapshot over real KCP and TCP
+RPC connections. It records small-message throughput and latency distributions,
+large-message completion time, and per-process memory, allocation, and CPU
+counters. Its local closed-loop results are development evidence; the retained
+run artifacts include environment and workload details and independent-run
+variation.
+
 Risk statuses are:
 
 - **Candidate**: static evidence exists, but no repeatable measurement has
@@ -43,7 +51,41 @@ Risk statuses are:
 
 ## Open Risks
 
-None.
+The current KCP tuning evidence is retained in
+`artifacts/rpc-reliability/kcp-tuning`: immutable pre-tuning and post-tuning
+sources, hashes, build logs, replay drivers, raw results, `summary.json`, and
+`report.html`. The baseline already includes RELIABILITY-022 and the signal /
+client-dispatch fixes. Measurements use Windows, .NET 10.0.11, 16 logical CPUs,
+Release, workstation GC, MemoryPack, separate processes and IPv4 loopback on a
+shared workstation. Small cases use 3 seconds warm-up, 15 seconds measurement
+and three repetitions. The initial candidate alternated with the baseline; the
+final growth refinement was rerun against that preserved baseline. 12 MiB uses
+three repetitions per direction,
+and 24 MiB one per direction. These are closed-loop local observations, not
+network-capacity guarantees. The bounded send and receive contracts are unchanged.
+
+- **Accepted — KCP idle scheduling allocation versus active latency.** The
+  20 ms update / 128 send-window default improves the measured small-message
+  latency and throughput and large-message time. In a separate one-process
+  probe with 200 idle connection pairs, five seconds of idle scheduling allocated
+  about 4.3 MiB, versus 1.7 MiB at the previous 100 ms / 32 defaults. The 10 ms
+  candidate allocated about 5.2 MiB. CPU-time samples were too coarse to claim
+  unchanged CPU cost. High idle-connection counts require deployment-specific
+  validation; applications may explicitly select a longer update interval.
+  Do not remove per-connection scheduling isolation merely to reduce this cost.
+- **Accepted — contiguous large-frame receive memory and GC pressure.**
+  Incremental growth and business deserialization still allocate in proportion
+  to payload size. The optimized receiver's sampled managed occupied-memory
+  peak increase was about 32 MiB for 12 MiB payloads and 74 MiB for 24 MiB,
+  excluding the preallocated business payload. This includes garbage awaiting
+  GC, not just live data; it is neither a retained-buffer nor a process-RSS
+  bound. Completed large accumulators transfer their storage and no longer
+  retain a jumbo array on the connection. A separate three-upload probe reduced
+  receiver allocation from about 107 to 97 MiB and post-GC managed memory from
+  about 61 to 13 MiB with the connection still open. Larger growth steps reserve
+  more spare capacity during a partial large frame, within the same frame limit.
+  Avoid upfront allocation from an
+  untrusted length prefix or unbounded decoded-frame queues as a shortcut.
 
 ## Reviewed Patterns Not Currently Listed as Risks
 
@@ -55,6 +97,11 @@ changed without new measurements:
 - Actor hosting operations are serialized per Actor rather than globally.
 - RPC request concurrency gates and serialized frame senders are scoped to one
   session or connection.
+- The default client dispatch context publishes idle with a full memory barrier
+  before checking for callbacks posted concurrently. Preserve the atomic
+  ownership handoff described in [RPC ordered entry](./rpc/architecture.md#ordered-message-entry);
+  replacing it with a release-only write can strand callbacks even when network
+  I/O and serialized sending have already completed.
 - KCP transport locks and deadline-aware update scheduling follow the
   [RPC transport contract](./rpc/transport-contract.md#kcp).
   Do not trade isolated, non-overlapping registration execution for a central
@@ -64,6 +111,10 @@ changed without new measurements:
   and decodes the next application frame. Do not restore an eager, unbounded
   decoded-frame queue or wait for one connection from the shared UDP receive
   loop.
+- KCP capacity and receive-data signals coalesce under the connection lock,
+  without exception-based repeated release. A pending signal represents current
+  protocol/terminal state, not a datagram count. Preserve the wake-up contract
+  in [RPC transports](./rpc/transport-contract.md#kcp).
 - Timer callbacks execute outside the timer scheduler lock, and the timer
   scheduler already has a dedicated performance harness.
 - Cross-node Hotfix Actor calls retain typed requests until a cached

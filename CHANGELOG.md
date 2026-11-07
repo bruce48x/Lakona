@@ -4,6 +4,20 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-11-07 — Large RPC messages with bounded delivery queues
+
+**Key releases:** `Lakona.Rpc.Core 0.16.5`, `Lakona.Rpc.Client 0.14.15`, `Lakona.Rpc.Transport.Kcp 0.11.61`,
+and `Lakona.Game.Server 0.53.26`.
+
+- KCP message mode carries large RPC frames through checked, bounded chunk writes;
+  client ACK processing continues independently of application receives. Validated
+  per-endpoint tuning and buffer ownership transfer reduce large-message overhead.
+- Large cross-node notifications use singleton batches. RPC sending, encoded
+  notification queues and reliable Outboxes enforce retained-data budgets, with
+  explicit overload outcomes and cancellation/shutdown cleanup.
+- Client dispatch uses an atomic idle handoff to prevent lost wake-ups under
+  concurrent RPC traffic; repeated KCP signals coalesce without exceptions.
+
 ## 2026-11-06 — Recoverable first binding for deferred game sessions
 
 **Key releases:** `Lakona.Game.Server 0.53.25`.

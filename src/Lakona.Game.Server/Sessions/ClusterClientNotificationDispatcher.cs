@@ -12,6 +12,9 @@ internal sealed class ClientNotificationBatchOptions
 
     public int MaximumBatchBytes { get; set; } = 256 * 1024;
 
+    public int MaximumPendingBytesPerSession { get; set; } = 128 * 1024 * 1024;
+    public int MaximumPendingBytesPerProcess { get; set; } = 512 * 1024 * 1024;
+
     internal void Validate()
     {
         if (Window < TimeSpan.Zero || Window > TimeSpan.FromSeconds(1))
@@ -40,6 +43,9 @@ internal sealed class ClusterClientNotificationDispatcher :
     private readonly object gate = new();
     private readonly Dictionary<GatewayKey, PendingBatch> batches = new();
     private int disposed;
+    private readonly HashSet<PendingBatch> outstanding = new();
+    private readonly CancellationTokenSource shutdown = new();
+    private readonly NotificationByteBudget<GameSessionKey> byteBudget;
 
     public ClusterClientNotificationDispatcher(
         IClusterClientFactory clientFactory,
@@ -48,6 +54,7 @@ internal sealed class ClusterClientNotificationDispatcher :
         this.clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
         this.options = options ?? new ClientNotificationBatchOptions();
         this.options.Validate();
+        byteBudget = new(this.options.MaximumPendingBytesPerSession, this.options.MaximumPendingBytesPerProcess);
     }
 
     public async ValueTask<ClientNotificationStatus> DispatchAsync(
@@ -67,10 +74,12 @@ internal sealed class ClusterClientNotificationDispatcher :
         {
             ObjectDisposedException.ThrowIf(disposed != 0, this);
             var estimatedBytes = EstimateBytes(command);
-            if (estimatedBytes > options.MaximumBatchBytes)
+            var reservation = byteBudget.TryReserve(new GameSessionKey(command.OwnerKey, command.SessionId),
+                ClientNotificationSize.RetainedBytes(command));
+            if (reservation is null)
             {
                 ClientNotificationDiagnostics.RecordBackpressure(
-                    ClientNotificationBackpressureReason.BatchBytes);
+                    ClientNotificationBackpressureReason.PendingBytes);
                 completion.TrySetResult(ClientNotificationStatus.Backpressure);
                 goto ExitLock;
             }
@@ -80,6 +89,7 @@ internal sealed class ClusterClientNotificationDispatcher :
             {
                 batch = new PendingBatch(key, target);
                 batches.Add(key, batch);
+                outstanding.Add(batch);
             }
 
             if (batch.Items.Count > 0
@@ -89,11 +99,12 @@ internal sealed class ClusterClientNotificationDispatcher :
                 (flushes ??= []).Add(batch);
                 batch = new PendingBatch(key, target);
                 batches.Add(key, batch);
+                outstanding.Add(batch);
             }
 
-            batch.Items.Add(new PendingItem(command, completion));
+            batch.Items.Add(new PendingItem(command, completion, reservation));
             batch.EstimatedBytes += estimatedBytes;
-            if (batch.Items.Count >= options.MaximumBatchSize || options.Window == TimeSpan.Zero)
+            if (batch.Items.Count >= options.MaximumBatchSize || batch.EstimatedBytes >= options.MaximumBatchBytes || options.Window == TimeSpan.Zero)
             {
                 batches.Remove(key);
                 (flushes ??= []).Add(batch);
@@ -128,67 +139,59 @@ internal sealed class ClusterClientNotificationDispatcher :
         PendingBatch[] pending;
         lock (gate)
         {
-            pending = batches.Values.ToArray();
+            pending = outstanding.ToArray();
             batches.Clear();
         }
-
-        await Task.WhenAll(pending.Select(FlushAsync)).ConfigureAwait(false);
+        shutdown.Cancel();
+        foreach (var batch in pending) _ = FlushAsync(batch);
+        await Task.WhenAll(pending.Select(static batch => batch.Done.Task)).ConfigureAwait(false);
+        shutdown.Dispose();
     }
 
     private async Task FlushAfterWindowAsync(PendingBatch batch)
     {
-        await Task.Delay(options.Window).ConfigureAwait(false);
+        try { await Task.Delay(options.Window, shutdown.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) { return; }
         lock (gate)
         {
-            if (!batches.TryGetValue(batch.Key, out var current)
-                || !ReferenceEquals(current, batch))
-            {
-                return;
-            }
-
+            if (!batches.TryGetValue(batch.Key, out var current) || !ReferenceEquals(current, batch)) return;
             batches.Remove(batch.Key);
         }
-
         await FlushAsync(batch).ConfigureAwait(false);
     }
 
     private async Task FlushAsync(PendingBatch batch)
     {
+        if (Interlocked.Exchange(ref batch.Started, 1) != 0) return;
+        int[]? statuses = null;
         try
         {
-            var client = await clientFactory.GetClientAsync(batch.Target).ConfigureAwait(false);
+            var client = await clientFactory.GetClientAsync(batch.Target, shutdown.Token).ConfigureAwait(false);
             var reply = await client.CallAsync(
                 ClusterClientNotificationProtocol.BatchDispatchMethod,
                 new ClientNotificationBatchDispatchRequest
                 {
                     Commands = batch.Items.Select(static item => item.Command).ToArray()
-                }).ConfigureAwait(false);
-            if (reply is null || reply.Statuses.Length != batch.Items.Count)
-            {
-                CompleteAll(batch, ClientNotificationStatus.Failed);
-                return;
-            }
-
-            for (var i = 0; i < batch.Items.Count; i++)
-            {
-                var raw = reply.Statuses[i];
-                batch.Items[i].Completion.TrySetResult(
-                    Enum.IsDefined(typeof(ClientNotificationStatus), raw)
-                        ? (ClientNotificationStatus)raw
-                        : ClientNotificationStatus.Failed);
-            }
+                }, shutdown.Token).ConfigureAwait(false);
+            if (reply is not null && reply.Statuses.Length == batch.Items.Count) statuses = reply.Statuses;
         }
         catch
         {
-            CompleteAll(batch, ClientNotificationStatus.Failed);
+            // Complete all items with a delivery failure after releasing their reservations.
         }
-    }
-
-    private static void CompleteAll(PendingBatch batch, ClientNotificationStatus status)
-    {
-        for (var i = 0; i < batch.Items.Count; i++)
+        finally
         {
-            batch.Items[i].Completion.TrySetResult(status);
+            foreach (var item in batch.Items) item.Reservation.Dispose();
+            lock (gate) outstanding.Remove(batch);
+            for (var i = 0; i < batch.Items.Count; i++)
+            {
+                var raw = statuses is null ? (int)ClientNotificationStatus.Failed : statuses[i];
+                batch.Items[i].Completion.TrySetResult(Enum.IsDefined(typeof(ClientNotificationStatus), raw)
+                    ? (ClientNotificationStatus)raw : ClientNotificationStatus.Failed);
+            }
+            // An already scheduled batching timer may still reference this batch.
+            batch.Items.Clear();
+            batch.Done.TrySetResult();
         }
     }
 
@@ -239,9 +242,12 @@ internal sealed class ClusterClientNotificationDispatcher :
         public List<PendingItem> Items { get; } = new();
         public int EstimatedBytes { get; set; }
         public bool TimerStarted { get; set; }
+        public int Started;
+        public TaskCompletionSource Done { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     private sealed record PendingItem(
         ClientNotificationCommand Command,
-        TaskCompletionSource<ClientNotificationStatus> Completion);
+        TaskCompletionSource<ClientNotificationStatus> Completion,
+        IDisposable Reservation);
 }
