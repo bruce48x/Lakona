@@ -11,7 +11,7 @@ public sealed class UnityRestoreProcessTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Interrupted_restore_stops_editor_and_child_before_removing_workspace(bool timeout)
+    public async Task Interrupted_restore_stops_editor_cleans_workspace_and_terminates_child(bool timeout)
     {
         using var cancel = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         using var readiness = CancellationTokenSource.CreateLinkedTokenSource(cancel.Token);
@@ -57,8 +57,15 @@ public sealed class UnityRestoreProcessTests
                 Assert.Equal(cancel.Token, error.CancellationToken);
             }
             Assert.True(editor!.HasExited);
-            Assert.True(child.HasExited);
             Assert.False(Directory.Exists(root));
+
+            // Kill(entireProcessTree: true) requests descendant termination, but waiting
+            // for the editor does not wait for its children. On Unix a killed grandchild
+            // may also remain visible until its new parent reaps it.
+            using var childExit = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            childExit.CancelAfter(TimeSpan.FromSeconds(10));
+            await child.WaitForExitAsync(childExit.Token);
+            Assert.True(child.HasExited);
         }
         finally
         {
@@ -69,7 +76,8 @@ public sealed class UnityRestoreProcessTests
                 using (process)
                 {
                     if (!process.HasExited) process.Kill(entireProcessTree: true);
-                    await process.WaitForExitAsync(CancellationToken.None);
+                    using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                    await process.WaitForExitAsync(cleanup.Token);
                 }
             }
         }
