@@ -76,13 +76,14 @@ internal sealed class RedisMembershipTable : IMembershipTable, IAsyncDisposable
         if redis.call('HGET', KEYS[1], 'v|' .. ARGV[3]) ~= ARGV[4] then return 0 end
         if redis.call('HGET', KEYS[1], 'g|' .. ARGV[3]) ~= ARGV[10] then return 0 end
         local newstatus = ARGV[7]
+        if newstatus == '3' and redis.call('HGET', KEYS[1], 'a|' .. ARGV[3]) ~= ARGV[8] then return 0 end
         local allowed = (oldstatus == '0' and (newstatus == '0' or newstatus == '1' or newstatus == '3'))
           or (oldstatus == '1' and (newstatus == '1' or newstatus == '2' or newstatus == '3'))
           or (oldstatus == '2' and (newstatus == '2' or newstatus == '3'))
         if not allowed then return 0 end
         redis.call('HSET', KEYS[1],
           'p|' .. ARGV[3], ARGV[6], 's|' .. ARGV[3], newstatus,
-          'v|' .. ARGV[3], ARGV[5], 'a|' .. ARGV[3], ARGV[8])
+          'v|' .. ARGV[3], ARGV[5])
         if newstatus == '3' and redis.call('HGET', KEYS[1], ARGV[9]) == ARGV[3] then
           redis.call('HDEL', KEYS[1], ARGV[9])
         end

@@ -217,9 +217,10 @@ internal sealed class MySqlMembershipTable : IMembershipTable, IAsyncDisposable
         await using var command = new MySqlCommand(
             """
             UPDATE lakona_membership_member
-            SET status = @status, entry_version = @version, i_am_alive = @alive, payload = @payload
+            SET status = @status, entry_version = @version, payload = @payload
             WHERE node_id = @node AND node_incarnation = @incarnation
               AND generation = @generation AND entry_version = @expectedEntryVersion
+              AND (@status <> 3 OR i_am_alive = @alive)
               AND ((status = 0 AND @status IN (0, 1, 3))
                 OR (status = 1 AND @status IN (1, 2, 3))
                 OR (status = 2 AND @status IN (2, 3)));

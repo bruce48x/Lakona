@@ -343,6 +343,159 @@ public abstract class MembershipTableContractTests
             afterCleanup.Entries.Select(static entry => entry.Reference.Node.Value));
     });
 
+    [Theory]
+    [InlineData(MembershipTableStatus.Joining)]
+    [InlineData(MembershipTableStatus.Active)]
+    [InlineData(MembershipTableStatus.Stopping)]
+    public Task DeathProposalCannotOvertakeACommittedHeartbeat(MembershipTableStatus status) => RunAsync(async (table, ct) =>
+    {
+        var snapshot = await table.ReadOrCreateAsync(ct);
+        snapshot = await InsertAtStatusAsync(table, snapshot, "server-1",
+            "11111111-1111-1111-1111-111111111111",
+            DateTimeOffset.Parse("2026-08-24T00:00:00Z"), status, ct);
+        var observed = Assert.Single(snapshot.Entries);
+        var refreshedAt = observed.IAmAliveTime.AddSeconds(1);
+        Assert.True(await table.TryUpdateIAmAliveAsync(observed.Reference, refreshedAt, ct));
+
+        Assert.False(await table.TryUpdateAsync(observed.WithStatus(MembershipTableStatus.Dead),
+            observed.Version, snapshot.Version, ct));
+        var refreshed = await table.ReadOrCreateAsync(ct);
+        Assert.Equal(snapshot.Version, refreshed.Version);
+        AssertEntryEqual(observed.WithIAmAliveTime(refreshedAt), Assert.Single(refreshed.Entries));
+
+        var current = Assert.Single(refreshed.Entries);
+        Assert.True(await table.TryUpdateAsync(current.WithStatus(MembershipTableStatus.Dead),
+            current.Version, refreshed.Version, ct));
+        Assert.False(await table.TryUpdateIAmAliveAsync(current.Reference, refreshedAt.AddSeconds(1), ct));
+        var dead = await table.ReadOrCreateAsync(ct);
+        Assert.Equal(snapshot.Version.Value + 1, dead.Version.Value);
+        AssertEntryEqual(current.WithStatus(MembershipTableStatus.Dead), Assert.Single(dead.Entries));
+    });
+
+    [Theory]
+    [InlineData("descriptor")]
+    [InlineData("vote")]
+    [InlineData("stopping")]
+    public Task StructuralUpdatesPreserveTheStoredHeartbeat(string kind) => RunAsync(async (table, ct) =>
+    {
+        var (active, snapshot, _) = await CreateActiveEntryAsync(table, ct);
+        var proposal = kind switch
+        {
+            "descriptor" => active.WithDescriptor(MembershipTableStatus.Active,
+                new NodeEndpoint("tcp://127.0.0.1:22001"),
+                new Dictionary<string, string> { ["role"] = "worker" }, [], []),
+            "vote" => active.WithSuspectVotes([new MembershipSuspectVote(
+                new NodeReference(active.Reference.Cluster, new NodeId("observer"), NodeIncarnationId.New()),
+                active.IAmAliveTime)]),
+            _ => active.WithStatus(MembershipTableStatus.Stopping)
+        };
+        var refreshedAt = active.IAmAliveTime.AddSeconds(1);
+        Assert.True(await table.TryUpdateIAmAliveAsync(active.Reference, refreshedAt, ct));
+        Assert.True(await table.TryUpdateAsync(proposal, active.Version, snapshot.Version, ct));
+        var committed = await table.ReadOrCreateAsync(ct);
+        Assert.Equal(snapshot.Version.Value + 1, committed.Version.Value);
+        AssertEntryEqual(proposal.WithIAmAliveTime(refreshedAt), Assert.Single(committed.Entries));
+
+        // A structural proposal cannot manufacture a heartbeat either.
+        var current = Assert.Single(committed.Entries);
+        var next = current.WithStatus(current.Status).WithIAmAliveTime(refreshedAt.AddDays(1));
+        Assert.True(await table.TryUpdateAsync(next, current.Version, committed.Version, ct));
+        AssertEntryEqual(next.WithIAmAliveTime(refreshedAt),
+            Assert.Single((await table.ReadOrCreateAsync(ct)).Entries));
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task DefunctDecisionRechecksExpiryAfterAHeartbeatWinsTheCommit(bool stillExpired) => RunAsync(async (table, ct) =>
+    {
+        await table.AllocateGenerationAsync(BuildTag, ct);
+        var (active, _, _) = await CreateActiveEntryAsync(table, ct);
+        var now = active.IAmAliveTime.AddMinutes(10).AddSeconds(1);
+        var time = new FixedTimeProvider(now);
+        var intercepted = new BeforeDeathTable(table);
+        var manager = new MembershipTableManager(new NodeId("joining"), NodeIncarnationId.New(),
+            new NodeEndpoint("tcp://127.0.0.1:22001"), new ClusterBuildTag(BuildTag),
+            intercepted, new ClusterMembershipState(), time);
+        await manager.JoinAsync(ct);
+        var before = await table.ReadOrCreateAsync(ct);
+        var refreshedAt = stillExpired ? active.IAmAliveTime.AddMilliseconds(500) : now;
+        intercepted.BeforeDeath = async () =>
+            Assert.True(await table.TryUpdateIAmAliveAsync(active.Reference, refreshedAt, ct));
+
+        Assert.Equal(stillExpired, await manager.TryMarkDefunctAsync(active.Reference, TimeSpan.FromMinutes(10), ct));
+        Assert.Equal(stillExpired ? 2 : 1, intercepted.DeathAttempts);
+        var after = await table.ReadOrCreateAsync(ct);
+        var target = after.Entries.Single(entry => entry.Reference == active.Reference);
+        Assert.Equal(stillExpired ? MembershipTableStatus.Dead : MembershipTableStatus.Active, target.Status);
+        Assert.Equal(refreshedAt, target.IAmAliveTime);
+        Assert.Equal(before.Version.Value + (stillExpired ? 1 : 0), after.Version.Value);
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task HeartbeatConflictDoesNotPreventVoteBasedDeathOrGracefulStop(bool gracefulStop) => RunAsync(async (table, ct) =>
+    {
+        await table.AllocateGenerationAsync(BuildTag, ct);
+        var (active, _, _) = await CreateActiveEntryAsync(table, ct);
+        var now = active.IAmAliveTime.AddSeconds(1);
+        var intercepted = new BeforeDeathTable(table);
+        var manager = new MembershipTableManager(new NodeId("observer"), NodeIncarnationId.New(),
+            new NodeEndpoint("tcp://127.0.0.1:22001"), new ClusterBuildTag(BuildTag),
+            intercepted, new ClusterMembershipState(), new FixedTimeProvider(now));
+        var local = await manager.JoinAsync(ct);
+        await manager.ActivateAsync(null, [], [], ct);
+        if (gracefulStop) await manager.MarkStoppingAsync(ct);
+        var target = gracefulStop ? local : active.Reference;
+        var refreshedAt = now.AddSeconds(1);
+        intercepted.BeforeDeath = async () =>
+            Assert.True(await table.TryUpdateIAmAliveAsync(target, refreshedAt, ct));
+
+        if (gracefulStop) await manager.MarkDeadAsync(ct);
+        else Assert.True(await manager.TrySuspectAsync(target, 1, TimeSpan.FromMinutes(3), ct));
+
+        Assert.Equal(2, intercepted.DeathAttempts);
+        var dead = (await table.ReadOrCreateAsync(ct)).Entries.Single(entry => entry.Reference == target);
+        Assert.Equal(MembershipTableStatus.Dead, dead.Status);
+        Assert.Equal(refreshedAt, dead.IAmAliveTime);
+        if (!gracefulStop) Assert.Equal(local, Assert.Single(dead.SuspectVotes).Observer);
+    });
+
+    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    private sealed class BeforeDeathTable(IMembershipTable inner) : IMembershipTable
+    {
+        public Func<Task>? BeforeDeath { get; set; }
+        public int DeathAttempts { get; private set; }
+        public ValueTask<MembershipTableGeneration> AllocateGenerationAsync(string buildTag, CancellationToken cancellationToken = default) =>
+            inner.AllocateGenerationAsync(buildTag, cancellationToken);
+        public ValueTask<MembershipTableSnapshot> ReadOrCreateAsync(CancellationToken cancellationToken = default) =>
+            inner.ReadOrCreateAsync(cancellationToken);
+        public ValueTask<bool> TryInsertAsync(MembershipTableEntry entry, MembershipViewId expectedVersion, CancellationToken cancellationToken = default) =>
+            inner.TryInsertAsync(entry, expectedVersion, cancellationToken);
+        public ValueTask<bool> TryReplaceAsync(NodeReference previous, long expectedPreviousVersion, MembershipTableEntry replacement, MembershipViewId expectedVersion, CancellationToken cancellationToken = default) =>
+            inner.TryReplaceAsync(previous, expectedPreviousVersion, replacement, expectedVersion, cancellationToken);
+        public async ValueTask<bool> TryUpdateAsync(MembershipTableEntry entry, long expectedEntryVersion, MembershipViewId expectedVersion, CancellationToken cancellationToken = default)
+        {
+            if (entry.Status == MembershipTableStatus.Dead)
+            {
+                DeathAttempts++;
+                var callback = BeforeDeath;
+                BeforeDeath = null;
+                if (callback is not null) await callback();
+            }
+            return await inner.TryUpdateAsync(entry, expectedEntryVersion, expectedVersion, cancellationToken);
+        }
+        public ValueTask<bool> TryUpdateIAmAliveAsync(NodeReference reference, DateTimeOffset timestamp, CancellationToken cancellationToken = default) =>
+            inner.TryUpdateIAmAliveAsync(reference, timestamp, cancellationToken);
+        public ValueTask<int> CleanupDefunctAsync(DateTimeOffset before, int maximumRows, CancellationToken cancellationToken = default) =>
+            inner.CleanupDefunctAsync(before, maximumRows, cancellationToken);
+    }
+
     private async Task RunAsync(Func<IMembershipTable, CancellationToken, Task> test)
     {
         var table = await CreateTableAsync();

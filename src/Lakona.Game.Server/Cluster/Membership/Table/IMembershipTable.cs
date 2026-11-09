@@ -12,6 +12,11 @@ public interface IMembershipTable
 
     ValueTask<bool> TryReplaceAsync(NodeReference previous, long expectedPreviousVersion, MembershipTableEntry replacement, MembershipViewId expectedVersion, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Atomically updates structural fields while preserving the stored heartbeat.
+    /// A transition to Dead also requires the stored IAmAliveTime to equal the
+    /// proposal's IAmAliveTime; on conflict, callers must reread and reconsider death.
+    /// </summary>
     ValueTask<bool> TryUpdateAsync(MembershipTableEntry entry, long expectedEntryVersion, MembershipViewId expectedVersion, CancellationToken cancellationToken = default);
 
     ValueTask<bool> TryUpdateIAmAliveAsync(NodeReference reference, DateTimeOffset timestamp, CancellationToken cancellationToken = default);

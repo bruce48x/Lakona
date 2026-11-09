@@ -91,6 +91,7 @@ internal sealed class InMemoryMembershipTable : IMembershipTable
                 || !currentRows.Entries.TryGetValue(entry.Reference, out var currentEntry)
                 || currentEntry.Version != expectedEntryVersion
                 || currentEntry.Generation != entry.Generation
+                || (entry.Status == MembershipTableStatus.Dead && currentEntry.IAmAliveTime != entry.IAmAliveTime)
                 || expectedEntryVersion == long.MaxValue
                 || entry.Version != expectedEntryVersion + 1
                 || !IsValidTransition(currentEntry.Status, entry.Status))
@@ -98,7 +99,9 @@ internal sealed class InMemoryMembershipTable : IMembershipTable
                 return new ValueTask<bool>(false);
             }
 
-            currentRows.Entries[entry.Reference] = entry;
+            currentRows.Entries[entry.Reference] = entry.IAmAliveTime == currentEntry.IAmAliveTime
+                ? entry
+                : entry.WithIAmAliveTime(currentEntry.IAmAliveTime);
             currentRows.Version = Next(currentRows.Version);
             return new ValueTask<bool>(true);
         }

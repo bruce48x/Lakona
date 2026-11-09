@@ -222,9 +222,10 @@ internal sealed class PostgresMembershipTable : IMembershipTable, IAsyncDisposab
         await using var command = new NpgsqlCommand(
             """
             UPDATE lakona_membership_member
-            SET status = $3, entry_version = $4, i_am_alive = $5, payload = $6
+            SET status = $3, entry_version = $4, payload = $6
             WHERE node_id = $1 AND node_incarnation = $2
               AND generation = $7 AND entry_version = $8
+              AND ($3 <> 3 OR i_am_alive = $5)
               AND ((status = 0 AND $3 IN (0, 1, 3))
                 OR (status = 1 AND $3 IN (1, 2, 3))
                 OR (status = 2 AND $3 IN (2, 3)));

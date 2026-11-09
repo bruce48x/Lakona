@@ -266,6 +266,20 @@ the CAS and retry from a fresh snapshot. Heartbeat writes update only
 `IAmAliveTime`, so routine liveness does not create a constant stream of new
 membership views.
 
+Structural updates preserve the stored `IAmAliveTime`; only the heartbeat
+operation advances it after insertion. `TryUpdateAsync` additionally compares
+the proposal's `IAmAliveTime` with the stored value when transitioning to `Dead`,
+in the same atomic commit as the row and view version checks. A heartbeat that
+wins this race rejects the stale death proposal without changing either version.
+The caller rereads and reevaluates its decision: startup must recheck heartbeat
+expiry, while suspicion still uses the probe votes rather than heartbeat freshness.
+Generation-based replacement remains a separate operation and preserves the old
+incarnation's heartbeat while fencing it.
+
+Custom `IMembershipTable` providers must implement these update semantics too.
+No interface signatures or database schema change; upgrade the server and its
+Membership adapter together to receive the fix on every writer.
+
 `Dead` rows are retained for a bounded diagnostic period and then removed in
 small batches. Cleanup does not advance the Membership view because those rows
 have already left every routing snapshot.
