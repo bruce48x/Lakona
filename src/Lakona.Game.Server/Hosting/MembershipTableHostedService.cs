@@ -29,10 +29,12 @@ internal sealed class MembershipTableHostedService : BackgroundService
     private Task? beginStoppingTask;
     private readonly MembershipTableSafetyWindow safetyWindow;
     private readonly CancellationTokenSource safetyCancellation = new();
+    private readonly CancellationTokenSource peerCancellation = new();
+    private readonly CancellationToken safetyToken;
+    private readonly CancellationToken peerToken;
     private DateTimeOffset nextDefunctCleanup;
     private DateTimeOffset nextTableRefresh;
     private DateTimeOffset nextIAmAlive;
-    private DateTimeOffset nextProbe;
 
     public MembershipTableHostedService(
         LakonaGameRuntimeOptions runtime,
@@ -56,6 +58,8 @@ internal sealed class MembershipTableHostedService : BackgroundService
         this.lifetime = lifetime;
         this.logger = logger;
         this.timeProvider = timeProvider ?? TimeProvider.System;
+        safetyToken = safetyCancellation.Token;
+        peerToken = peerCancellation.Token;
         safetyWindow = new MembershipTableSafetyWindow(this.timeProvider,
             TimeSpan.FromSeconds(runtime.Cluster.Membership.IAmAliveSeconds), admissionGate, OnSafetyWindowExpired);
         admissionGate.SafetyWindow = safetyWindow;
@@ -82,11 +86,13 @@ internal sealed class MembershipTableHostedService : BackgroundService
             "activate membership",
             cancellationToken).ConfigureAwait(false);
         safetyWindow.Start();
-        using var startupBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, safetyCancellation.Token);
         try
         {
-            await GossipMembershipAsync(startupBudget.Token).ConfigureAwait(false);
-            if (!safetyWindow.Check()) throw new ClusterMembershipFencedException("Membership safety window expired during startup.");
+            var now = timeProvider.GetUtcNow();
+            nextDefunctCleanup = now.AddSeconds(runtime.Cluster.Membership.DefunctEntryCleanupIntervalSeconds);
+            nextTableRefresh = now.AddSeconds(runtime.Cluster.Membership.TableRefreshSeconds);
+            nextIAmAlive = now.AddSeconds(runtime.Cluster.Membership.IAmAliveSeconds);
+            await base.StartAsync(cancellationToken).ConfigureAwait(false);
         }
         catch
         {
@@ -95,12 +101,6 @@ internal sealed class MembershipTableHostedService : BackgroundService
             throw;
         }
         ClusterDiagnostics.RecordMembershipLifecycle("active");
-        var now = timeProvider.GetUtcNow();
-        nextDefunctCleanup = now.AddSeconds(runtime.Cluster.Membership.DefunctEntryCleanupIntervalSeconds);
-        nextTableRefresh = now.AddSeconds(runtime.Cluster.Membership.TableRefreshSeconds);
-        nextIAmAlive = now.AddSeconds(runtime.Cluster.Membership.IAmAliveSeconds);
-        nextProbe = now;
-        await base.StartAsync(cancellationToken).ConfigureAwait(false);
         logger.LogInformation(
             "Cluster node active. NodeId={NodeId} Incarnation={Incarnation}",
             local.Node.Value,
@@ -111,8 +111,12 @@ internal sealed class MembershipTableHostedService : BackgroundService
     {
         admissionGate.Fence();
         safetyWindow.Dispose();
-        using var shutdownBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, safetyCancellation.Token);
+        using var shutdownBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, safetyToken);
         await BeginStoppingAsync(shutdownBudget.Token).ConfigureAwait(false);
+        await base.StopAsync(cancellationToken).ConfigureAwait(false);
+        // BackgroundService's stop deadline can expire before ExecuteTask finishes.
+        // Do not report a clean stop or publish Dead while a worker is still running.
+        if (ExecuteTask is { } execution) await execution.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             await ObserveTableOperationAsync("dead", () => manager.MarkDeadAsync(shutdownBudget.Token)).ConfigureAwait(false);
@@ -122,13 +126,11 @@ internal sealed class MembershipTableHostedService : BackgroundService
         {
             logger.LogWarning(exception, "Could not publish graceful cluster shutdown.");
         }
-
-        await base.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 
     internal async ValueTask RefreshDescriptorAsync(CancellationToken cancellationToken = default)
     {
-        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, safetyCancellation.Token);
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, safetyToken);
         var descriptor = CreateDescriptor(includeCapabilities: admissionGate.IsOpen);
         await manager.ActivateAsync(descriptor.Labels, descriptor.ActorHosts, descriptor.StartupActors, budget.Token).ConfigureAwait(false);
         if (!safetyWindow.Check()) throw new ClusterMembershipFencedException("Membership safety window expired during descriptor refresh.");
@@ -151,7 +153,8 @@ internal sealed class MembershipTableHostedService : BackgroundService
 
     private async Task BeginStoppingCoreAsync(CancellationToken cancellationToken)
     {
-        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, safetyCancellation.Token);
+        CancelPeerOperations();
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, safetyToken);
         try
         {
             await ObserveTableOperationAsync("stopping", () => manager.MarkStoppingAsync(budget.Token)).ConfigureAwait(false);
@@ -167,13 +170,58 @@ internal sealed class MembershipTableHostedService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // The renewable deadline cancels this token independently of any awaited operation.
-        using var budget = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, safetyCancellation.Token);
-        stoppingToken = budget.Token;
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, safetyToken);
+        using var peerBudget = CancellationTokenSource.CreateLinkedTokenSource(budget.Token, peerToken);
+        var tableTask = RunWorkerAsync(MaintainTableAsync, budget.Token);
+        var peerTask = RunWorkerAsync(CommunicateWithPeersAsync, peerBudget.Token);
+        try
+        {
+            var completed = await Task.WhenAny(tableTask, peerTask).ConfigureAwait(false);
+            await completed.ConfigureAwait(false);
+            // Stopping withdraws this node before Actor cleanup. Table maintenance
+            // must remain available during that phase, even though probes have ended.
+            if (completed == peerTask && peerToken.IsCancellationRequested && !budget.IsCancellationRequested)
+                await tableTask.ConfigureAwait(false);
+        }
+        finally
+        {
+            try
+            {
+                if (!budget.IsCancellationRequested)
+                {
+                    admissionGate.Fence();
+                    lifetime?.StopApplication();
+                }
+            }
+            finally
+            {
+                try { budget.Cancel(); }
+                finally { await Task.WhenAll(tableTask, peerTask).ConfigureAwait(false); }
+            }
+        }
+    }
+
+    private async Task RunWorkerAsync(Func<CancellationToken, Task> worker, CancellationToken token)
+    {
+        try { await worker(token).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (ClusterMembershipFencedException exception)
+        {
+            logger.LogCritical(exception, "This node incarnation is Dead in the membership table and will stop.");
+            ClusterDiagnostics.RecordMembershipLifecycle("fenced");
+            admissionGate.Fence();
+            try { lifetime?.StopApplication(); }
+            finally { CancelMembershipOperations(); }
+        }
+    }
+
+    private async Task MaintainTableAsync(CancellationToken stoppingToken)
+    {
         var options = runtime.Cluster.Membership;
         while (!stoppingToken.IsCancellationRequested)
         {
             var now = timeProvider.GetUtcNow();
-            var delay = Earliest(nextTableRefresh, nextIAmAlive, nextProbe, nextDefunctCleanup) - now;
+            var delay = Earliest(nextTableRefresh, nextIAmAlive, nextDefunctCleanup) - now;
             if (delay > TimeSpan.Zero)
             {
                 await Task.Delay(delay, timeProvider, stoppingToken).ConfigureAwait(false);
@@ -182,11 +230,9 @@ internal sealed class MembershipTableHostedService : BackgroundService
 
             var refreshDue = now >= nextTableRefresh;
             var iAmAliveDue = now >= nextIAmAlive;
-            var probeDue = now >= nextProbe;
             var cleanupDue = now >= nextDefunctCleanup;
             if (refreshDue) nextTableRefresh = now.AddSeconds(options.TableRefreshSeconds);
             if (iAmAliveDue) nextIAmAlive = now.AddSeconds(options.IAmAliveSeconds);
-            if (probeDue) nextProbe = now.AddSeconds(options.ProbeIntervalSeconds);
             if (cleanupDue) nextDefunctCleanup = now.AddSeconds(options.DefunctEntryCleanupIntervalSeconds);
 
             try
@@ -194,16 +240,16 @@ internal sealed class MembershipTableHostedService : BackgroundService
                 if (refreshDue)
                 {
                     await ObserveTableOperationAsync("refresh", () => manager.RefreshAsync(stoppingToken)).ConfigureAwait(false);
+                    stoppingToken.ThrowIfCancellationRequested();
                     if (!safetyWindow.Renew()) return;
                 }
 
                 if (iAmAliveDue)
                 {
                     await ObserveTableOperationAsync("heartbeat", () => manager.UpdateIAmAliveAsync(stoppingToken)).ConfigureAwait(false);
+                    stoppingToken.ThrowIfCancellationRequested();
                     if (!safetyWindow.Renew()) return;
                 }
-
-                if (probeDue) await ProbeTargetsAsync(options, stoppingToken).ConfigureAwait(false);
 
                 if (cleanupDue && ShouldRunDefunctCleanup(membership.Current, manager.Local))
                 {
@@ -213,18 +259,12 @@ internal sealed class MembershipTableHostedService : BackgroundService
                             TimeSpan.FromSeconds(options.DefunctEntryRetentionSeconds),
                             options.DefunctEntryCleanupBatchSize,
                             stoppingToken)).ConfigureAwait(false);
+                    stoppingToken.ThrowIfCancellationRequested();
                     if (!safetyWindow.Renew()) return;
                     if (removed > 0) logger.LogInformation("Removed {Count} expired defunct membership rows.", removed);
                 }
             }
-            catch (ClusterMembershipFencedException exception)
-            {
-                logger.LogCritical(exception, "This node incarnation is Dead in the membership table and will stop.");
-                ClusterDiagnostics.RecordMembershipLifecycle("fenced");
-                admissionGate.Fence();
-                lifetime?.StopApplication();
-                return;
-            }
+            catch (ClusterMembershipFencedException) { throw; }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 return;
@@ -234,6 +274,26 @@ internal sealed class MembershipTableHostedService : BackgroundService
                 if (!safetyWindow.Check()) return;
                 logger.LogWarning(exception, "Membership refresh failed; continuing with the last committed snapshot.");
             }
+        }
+    }
+
+    private async Task CommunicateWithPeersAsync(CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        await GossipMembershipAsync(token).ConfigureAwait(false);
+        var options = runtime.Cluster.Membership;
+        while (!token.IsCancellationRequested)
+        {
+            try { await ProbeTargetsAsync(options, token).ConfigureAwait(false); }
+            catch (ClusterMembershipFencedException) { throw; }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Membership peer probe failed; retrying on the next cycle.");
+            }
+
+            // Schedule from completion: slow rounds neither overlap nor accumulate.
+            await Task.Delay(TimeSpan.FromSeconds(options.ProbeIntervalSeconds), timeProvider, token).ConfigureAwait(false);
         }
     }
 
@@ -252,13 +312,22 @@ internal sealed class MembershipTableHostedService : BackgroundService
         catch (AggregateException exception) { logger.LogWarning(exception, "Membership cancellation callback failed."); }
     }
 
+    private void CancelPeerOperations()
+    {
+        try { peerCancellation.Cancel(); }
+        catch (ObjectDisposedException) { }
+        catch (AggregateException exception) { logger.LogWarning(exception, "Membership peer cancellation callback failed."); }
+    }
+
     public override void Dispose()
     {
         admissionGate.Fence();
         safetyWindow.Dispose();
         CancelMembershipOperations();
+        CancelPeerOperations();
         base.Dispose();
         safetyCancellation.Dispose();
+        peerCancellation.Dispose();
     }
 
     internal ValueTask RunProbeCycleAsync(
@@ -298,11 +367,14 @@ internal sealed class MembershipTableHostedService : BackgroundService
 
         foreach (var target in MembershipProbeTargetSelector.Select(snapshot, local, options.MonitoredNodes))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var result = await probes.ProbeAsync(local, target, target.ClusterEndpoint, false,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             if (result == MembershipProbeStatus.Failed)
                 result = await TryIndirectProbeAsync(snapshot, local, target, options.IndirectProbes, round, cancellationToken)
                     .ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             if (result == MembershipProbeStatus.Succeeded)
             {
                 failedProbes.Remove(target.Reference);
@@ -319,6 +391,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
                 options.VotesForDeath,
                 TimeSpan.FromSeconds(options.SuspectVoteLifetimeSeconds),
                 cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             if (declaredDead)
             {
                 await GossipMembershipAsync(cancellationToken).ConfigureAwait(false);
@@ -332,13 +405,18 @@ internal sealed class MembershipTableHostedService : BackgroundService
         foreach (var member in snapshot.Members.Where(member =>
                      member.State == ClusterMemberState.Active && member.Reference != manager.Local))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 await probes.GossipAsync(manager.Local, member.ClusterEndpoint, snapshot.View, cancellationToken)
                     .ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception exception)
             {
+                // A transport's own RPC deadline is a failed best-effort gossip,
+                // not cancellation of the membership worker's lifetime.
                 logger.LogDebug(exception, "Membership gossip to {NodeId} failed.", member.Reference.Node.Value);
             }
         }
@@ -364,9 +442,11 @@ internal sealed class MembershipTableHostedService : BackgroundService
         var start = (int)(round % (uint)helpers.Length);
         for (var index = 0; index < Math.Min(helperCount, helpers.Length); index++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var helper = helpers[(start + index) % helpers.Length];
             var reply = await probes.ProbeAsync(local, target, helper.ClusterEndpoint, true,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             if (reply == MembershipProbeStatus.Succeeded) return reply;
             if (reply == MembershipProbeStatus.Failed) result = reply;
         }
@@ -478,12 +558,10 @@ internal sealed class MembershipTableHostedService : BackgroundService
     private static DateTimeOffset Earliest(
         DateTimeOffset first,
         DateTimeOffset second,
-        DateTimeOffset third,
-        DateTimeOffset fourth)
+        DateTimeOffset third)
     {
         var firstPair = first <= second ? first : second;
-        var secondPair = third <= fourth ? third : fourth;
-        return firstPair <= secondPair ? firstPair : secondPair;
+        return firstPair <= third ? firstPair : third;
     }
 
     private static async ValueTask<T> ObserveTableOperationAsync<T>(

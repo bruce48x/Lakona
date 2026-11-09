@@ -4,6 +4,15 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-11-09 — Membership maintenance isolated from slow peers
+
+**Key releases:** `Lakona.Game.Server 0.53.27`.
+
+- Table refresh and heartbeats progress independently of peer probes and startup
+  gossip, preserving healthy nodes while retaining the table-loss safety deadline.
+- Membership owns and joins both loops; Stopping ends peer communication while
+  table maintenance remains available for Actor cleanup.
+
 ## 2026-11-07 — Large RPC messages with bounded delivery queues
 
 **Key releases:** `Lakona.Rpc.Core 0.16.5`, `Lakona.Rpc.Client 0.14.15`, `Lakona.Rpc.Transport.Kcp 0.11.61`,

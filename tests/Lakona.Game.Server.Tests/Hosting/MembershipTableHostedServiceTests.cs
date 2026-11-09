@@ -386,35 +386,228 @@ public sealed class MembershipTableHostedServiceTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task Slow_peer_operations_cannot_extend_table_contact_budget(bool startupGossip)
+    public async Task Slow_peer_operations_cannot_extend_lost_table_contact_budget(bool startupGossip)
     {
         var peer = await CreateActiveClusterAsync(1);
         var time = new MembershipTestTimeProvider();
+        var table = new FailingMembershipTable(peer.Table);
         var membership = new ClusterMembershipState();
         var manager = new MembershipTableManager(new NodeId("joining"), NodeIncarnationId.New(),
-            new NodeEndpoint("tcp://127.0.0.1:21002"), new ClusterBuildTag("TestBuild1"), peer.Table, membership);
+            new NodeEndpoint("tcp://127.0.0.1:21002"), new ClusterBuildTag("TestBuild1"), table, membership);
         var gate = new DistributedWorkAdmissionGate(time);
         var lifetime = new TestApplicationLifetime();
         var probes = new SlowPeerTransport(startupGossip);
         await using var services = new ServiceCollection().BuildServiceProvider();
         using var hosted = new MembershipTableHostedService(CreateRuntime(), manager, membership, probes,
             gate, [], services, NullLogger<MembershipTableHostedService>.Instance, lifetime, time);
-        var starting = hosted.StartAsync(TestContext.Current.CancellationToken);
+        await hosted.StartAsync(TestContext.Current.CancellationToken);
         var operationToken = await probes.Entered.Task.WaitAsync(TestContext.Current.CancellationToken);
-        if (!startupGossip)
-        {
-            await starting;
-            gate.Open();
-        }
+        gate.Open();
+        table.Fail = true;
         time.Advance(TimeSpan.FromSeconds(2));
         Assert.True(lifetime.Stopped.Task.IsCompleted);
         Assert.True(operationToken.IsCancellationRequested);
         Assert.False(gate.IsOpen);
         probes.Resume.TrySetResult();
-        if (startupGossip) await Assert.ThrowsAsync<ClusterMembershipFencedException>(() => starting);
-        else await hosted.ExecuteTask!.WaitAsync(TestContext.Current.CancellationToken);
+        await hosted.ExecuteTask!.WaitAsync(TestContext.Current.CancellationToken);
         Assert.Throws<InvalidOperationException>(gate.Open);
         await hosted.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Slow_peers_do_not_block_table_maintenance_or_accumulate_rounds(bool startupGossip)
+    {
+        var peers = await CreateActiveClusterAsync(3);
+        var time = new MembershipTestTimeProvider();
+        var membership = new ClusterMembershipState();
+        var manager = new MembershipTableManager(new NodeId("joining"), NodeIncarnationId.New(),
+            new NodeEndpoint("tcp://127.0.0.1:21004"), new ClusterBuildTag("TestBuild1"), peers.Table, membership, time);
+        var gate = new DistributedWorkAdmissionGate(time);
+        var lifetime = new TestApplicationLifetime();
+        var probes = new SlowPeerTransport(startupGossip);
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        // Four members and the production defaults: 5s refresh, 30s safety window.
+        using var hosted = new MembershipTableHostedService(new LakonaGameRuntimeOptions(), manager, membership,
+            probes, gate, [], services, NullLogger<MembershipTableHostedService>.Instance, lifetime, time);
+        try
+        {
+            await hosted.StartAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            var peerToken = await probes.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            gate.Open();
+            await time.WaitForDelayAsync(TimeSpan.FromSeconds(5));
+            for (var tick = 0; tick < 21; tick++)
+            {
+                time.Advance(TimeSpan.FromSeconds(5));
+                await time.WaitForDelayAsync(TimeSpan.FromSeconds(5));
+                Assert.True(gate.IsOpen);
+                Assert.False(lifetime.Stopped.Task.IsCompleted);
+            }
+            Assert.Equal(1, probes.BlockedCalls);
+            Assert.False(peerToken.IsCancellationRequested);
+            var snapshot = await peers.Table.ReadOrCreateAsync(TestContext.Current.CancellationToken);
+            Assert.True(snapshot.Entries.Single(e => e.Reference == manager.Local).IAmAliveTime >=
+                DateTimeOffset.UnixEpoch.AddSeconds(90));
+
+            await hosted.BeginStoppingAsync(TestContext.Current.CancellationToken);
+            Assert.True(peerToken.IsCancellationRequested);
+            // Table maintenance remains alive during Actor cleanup, after Stopping.
+            time.Advance(TimeSpan.FromSeconds(5));
+            await time.WaitForDelayAsync(TimeSpan.FromSeconds(5));
+            Assert.False(hosted.ExecuteTask!.IsCompleted);
+            Assert.False(lifetime.Stopped.Task.IsCompleted);
+            probes.Result = MembershipProbeStatus.Failed;
+        }
+        finally
+        {
+            probes.Resume.TrySetResult();
+            await hosted.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        }
+        Assert.True(hosted.ExecuteTask!.IsCompletedSuccessfully);
+        Assert.Equal(1, probes.BlockedCalls);
+        Assert.Equal(0, time.ActiveTimers);
+        var final = await peers.Table.ReadOrCreateAsync(TestContext.Current.CancellationToken);
+        Assert.All(final.Entries.Where(e => e.Reference != manager.Local), e => Assert.Empty(e.SuspectVotes));
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public async Task Stop_joins_a_late_peer_before_publishing_dead(bool startupGossip, bool expireStop)
+    {
+        var peers = await CreateActiveClusterAsync(2, failedProbesBeforeSuspect: 1);
+        var time = new MembershipTestTimeProvider();
+        var membership = new ClusterMembershipState();
+        var manager = new MembershipTableManager(new NodeId("joining"), NodeIncarnationId.New(),
+            new NodeEndpoint("tcp://127.0.0.1:21004"), new ClusterBuildTag("TestBuild1"), peers.Table, membership, time);
+        var probes = new SlowPeerTransport(startupGossip) { Result = MembershipProbeStatus.Failed };
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        using var hosted = new MembershipTableHostedService(peers.Runtime, manager, membership,
+            probes, new DistributedWorkAdmissionGate(time), [], services,
+            NullLogger<MembershipTableHostedService>.Instance, timeProvider: time);
+        try
+        {
+            await hosted.StartAsync(TestContext.Current.CancellationToken);
+            var peerToken = await probes.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            using var stopBudget = new CancellationTokenSource();
+            var stopping = hosted.StopAsync(stopBudget.Token);
+            Assert.True(peerToken.IsCancellationRequested);
+            Assert.False(stopping.IsCompleted);
+            var snapshot = await peers.Table.ReadOrCreateAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(MembershipTableStatus.Stopping, snapshot.Entries.Single(e => e.Reference == manager.Local).Status);
+            if (expireStop)
+            {
+                stopBudget.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => stopping);
+                Assert.False(hosted.ExecuteTask!.IsCompleted);
+                snapshot = await peers.Table.ReadOrCreateAsync(TestContext.Current.CancellationToken);
+                Assert.Equal(MembershipTableStatus.Stopping, snapshot.Entries.Single(e => e.Reference == manager.Local).Status);
+            }
+            probes.Resume.TrySetResult();
+            if (expireStop) await hosted.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            else await stopping.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            Assert.True(hosted.ExecuteTask!.IsCompletedSuccessfully);
+            Assert.Equal(1, probes.BlockedCalls);
+            snapshot = await peers.Table.ReadOrCreateAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(MembershipTableStatus.Dead, snapshot.Entries.Single(e => e.Reference == manager.Local).Status);
+            Assert.All(snapshot.Entries.Where(e => e.Reference != manager.Local), e => Assert.Empty(e.SuspectVotes));
+            Assert.Equal(0, time.ActiveTimers);
+        }
+        finally
+        {
+            probes.Resume.TrySetResult();
+            await hosted.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Gossip_request_timeout_does_not_cancel_the_membership_lifetime(bool canceledRequest)
+    {
+        var peers = await CreateActiveClusterAsync(2);
+        var time = new MembershipTestTimeProvider();
+        var membership = new ClusterMembershipState();
+        var manager = new MembershipTableManager(new NodeId("joining"), NodeIncarnationId.New(),
+            new NodeEndpoint("tcp://127.0.0.1:21004"), new ClusterBuildTag("TestBuild1"), peers.Table, membership, time);
+        var probes = new SlowPeerTransport(false)
+        {
+            GossipError = canceledRequest
+                ? new OperationCanceledException(new CancellationToken(canceled: true))
+                : new TimeoutException("Peer RPC timed out")
+        };
+        var gate = new DistributedWorkAdmissionGate(time);
+        var lifetime = new TestApplicationLifetime();
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        using var hosted = new MembershipTableHostedService(new LakonaGameRuntimeOptions(), manager, membership,
+            probes, gate, [], services, NullLogger<MembershipTableHostedService>.Instance, lifetime, time);
+        try
+        {
+            await hosted.StartAsync(TestContext.Current.CancellationToken);
+            var token = await probes.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            Assert.Equal(2, probes.GossipCalls);
+            Assert.False(token.IsCancellationRequested);
+            gate.Open();
+            await time.WaitForDelayAsync(TimeSpan.FromSeconds(5));
+            time.Advance(TimeSpan.FromSeconds(5));
+            await time.WaitForDelayAsync(TimeSpan.FromSeconds(5));
+            Assert.True(gate.IsOpen);
+            Assert.False(lifetime.Stopped.Task.IsCompleted);
+        }
+        finally
+        {
+            // Cancel first, so releasing the delayed probe cannot begin another round.
+            await hosted.BeginStoppingAsync(CancellationToken.None);
+            probes.Resume.TrySetResult();
+            await hosted.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        }
+        Assert.Equal(0, time.ActiveTimers);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Unexpected_worker_exit_fences_and_cancels_the_other_worker(bool failTableWorker)
+    {
+        var peers = await CreateActiveClusterAsync(1);
+        var time = new MembershipTestTimeProvider();
+        var failure = new InvalidOperationException("Injected scheduling failure");
+        time.DelayFailure = delay => delay == TimeSpan.FromSeconds(failTableWorker ? 5 : 10) ? failure : null;
+        var membership = new ClusterMembershipState();
+        var manager = new MembershipTableManager(new NodeId("joining"), NodeIncarnationId.New(),
+            new NodeEndpoint("tcp://127.0.0.1:21004"), new ClusterBuildTag("TestBuild1"), peers.Table, membership, time);
+        var probes = new SlowPeerTransport(failTableWorker);
+        var gate = new DistributedWorkAdmissionGate(time);
+        var lifetime = new TestApplicationLifetime();
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        using var hosted = new MembershipTableHostedService(new LakonaGameRuntimeOptions(), manager, membership,
+            probes, gate, [], services, NullLogger<MembershipTableHostedService>.Instance, lifetime, time);
+        try
+        {
+            await hosted.StartAsync(TestContext.Current.CancellationToken);
+            var token = await probes.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            if (!failTableWorker) probes.Resume.TrySetResult();
+            await lifetime.Stopped.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            // StopApplication is signaled before cancellation/join; wait for the actual token too.
+            var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var registration = token.Register(() => canceled.TrySetResult());
+            await canceled.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            Assert.False(gate.IsOpen);
+            Assert.Throws<InvalidOperationException>(gate.Open);
+            if (failTableWorker) Assert.False(hosted.ExecuteTask!.IsCompleted);
+            probes.Resume.TrySetResult();
+            var actual = await Assert.ThrowsAsync<InvalidOperationException>(() => hosted.ExecuteTask!);
+            Assert.Same(failure, actual);
+        }
+        finally
+        {
+            probes.Resume.TrySetResult();
+            await Assert.ThrowsAsync<InvalidOperationException>(() => hosted.StopAsync(CancellationToken.None));
+        }
+        Assert.Equal(0, time.ActiveTimers);
     }
 
     [Fact]
@@ -684,25 +877,35 @@ public sealed class MembershipTableHostedServiceTests
     private sealed class SlowPeerTransport(bool startupGossip) : IMembershipProbeTransport
     {
         private bool startupValidated;
+        private int blockedCalls;
+        private int gossipCalls;
+        public int BlockedCalls => Volatile.Read(ref blockedCalls);
+        public int GossipCalls => Volatile.Read(ref gossipCalls);
+        public Exception? GossipError { get; init; }
+        public MembershipProbeStatus Result { get; set; } = MembershipProbeStatus.Succeeded;
         public TaskCompletionSource<CancellationToken> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Resume { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public async ValueTask<MembershipProbeStatus> ProbeAsync(NodeReference source, ClusterMember target,
             NodeEndpoint contact, bool forward, TimeSpan? probeTimeout = null, CancellationToken cancellationToken = default)
         {
-            if (startupValidated) await BlockAsync(cancellationToken);
-            return MembershipProbeStatus.Succeeded;
+            if (!startupValidated) return MembershipProbeStatus.Succeeded;
+            await BlockAsync(cancellationToken);
+            return Result;
         }
 
         public async ValueTask GossipAsync(NodeReference source, NodeEndpoint contact, MembershipViewId version,
             CancellationToken cancellationToken = default)
         {
             startupValidated = true;
+            Interlocked.Increment(ref gossipCalls);
+            if (GossipError is { } error) throw error;
             if (startupGossip) await BlockAsync(cancellationToken);
         }
 
         private async Task BlockAsync(CancellationToken token)
         {
+            Interlocked.Increment(ref blockedCalls);
             Entered.TrySetResult(token);
             await Resume.Task; // Deliberately returns success despite cancellation.
         }

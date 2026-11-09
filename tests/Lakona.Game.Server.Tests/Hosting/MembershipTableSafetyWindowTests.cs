@@ -89,21 +89,35 @@ public sealed class MembershipTableSafetyWindowTests
 
 internal sealed class MembershipTestTimeProvider : TimeProvider
 {
+    private readonly global::System.Threading.Channels.Channel<TimeSpan> delays = global::System.Threading.Channels.Channel.CreateUnbounded<TimeSpan>();
     private readonly List<ManualTimer> timers = [];
     private long timestamp;
     public TimeSpan UtcOffset { get; set; }
     public TaskCompletionSource DelayScheduled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public Func<TimeSpan, Exception?>? DelayFailure { get; set; }
     public override long TimestampFrequency => TimeSpan.TicksPerSecond;
     public override long GetTimestamp() => Interlocked.Read(ref timestamp);
     public override DateTimeOffset GetUtcNow() => DateTimeOffset.UnixEpoch + TimeSpan.FromTicks(GetTimestamp()) + UtcOffset;
     public int ActiveTimers { get { lock (timers) return timers.Count(t => !t.Disposed); } }
 
+    public async Task WaitForDelayAsync(TimeSpan dueTime)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(10));
+        while (await delays.Reader.ReadAsync(deadline.Token) != dueTime) { }
+    }
+
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {
+        if (DelayFailure?.Invoke(dueTime) is { } error) throw error;
         var timer = new ManualTimer(this, callback, state);
         timer.Change(dueTime, period);
         lock (timers) timers.Add(timer);
-        if (dueTime != Timeout.InfiniteTimeSpan) DelayScheduled.TrySetResult();
+        if (dueTime != Timeout.InfiniteTimeSpan)
+        {
+            DelayScheduled.TrySetResult();
+            delays.Writer.TryWrite(dueTime);
+        }
         return timer;
     }
 

@@ -371,12 +371,34 @@ pauses membership changes. Once a node observes that its own exact row is
 `Dead` or absent—or exceeds the table-contact safety window—it closes
 distributed-work admission and stops; this is a terminal fence.
 
-The safety deadline runs independently of the membership loop, starting when
+One Membership service owns two independently progressing, serial asynchronous
+loops: table refresh/heartbeat/defunct cleanup, and peer gossip/probing/suspicion.
+Initial gossip runs in the peer loop after activation; it does not delay the
+start of table maintenance or replace the startup two-way connectivity check.
+Peer rounds never overlap or queue missed ticks. Each completed round is followed
+by `ProbeIntervalSeconds` before the next round starts. Slow probes or gossip can
+delay failure detection, but cannot prevent this node from contacting the table.
+An individual gossip RPC timeout is a best-effort delivery failure, including
+when the transport reports its own deadline through cancellation; only lifecycle
+cancellation stops the peer loop.
+Failure evidence remains owned by the peer loop; concurrent table snapshots are
+published monotonically and suspicion commits retain their conditional checks.
+
+The safety deadline runs independently of both loops, starting when
 activation in the table succeeds (before startup gossip). Successful table
 refresh, heartbeat, or cleanup renews it only while the previous window is
 still valid. Peer probes and gossip do not renew table contact. A pending
 request cannot postpone expiry, and a late successful result cannot reopen
 admission or renew an expired window.
+
+Both loops share the host and safety cancellation budget. Unexpected termination
+of either loop fences admission, requests shutdown, and cancels its sibling;
+the service observes both tasks through completion. Entering `Stopping` cancels
+peer communication without stopping table maintenance during Actor cleanup.
+Final Membership shutdown cancels and joins both loops before publishing `Dead`.
+If its shutdown budget expires before they finish, shutdown reports cancellation
+and does not publish `Dead` as if cleanup had completed. Peer results arriving
+after cancellation cannot start another probe, gossip, or suspicion operation.
 
 Local elapsed time is monotonic; UTC remains the format for persisted table
 timestamps. A deadline timer closes admission before requesting shutdown and
