@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>BusinessLogic.Tests</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
+    <Compile Include="$(TimerBaselineFile)" Link="BaselineTimerScheduler.cs" Condition="'$(TimerBaselineFile)' != ''" />
+  </ItemGroup>
+  <Target Name="RequireBaseline" BeforeTargets="CoreCompile" Condition="!Exists('$(TimerBaselineFile)')">
+    <Error Text="Build through benchmarks/timer-wakeup/run.ps1 to supply the baseline scheduler." />
+  </Target>
+</Project>

@@ -32,6 +32,168 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         TimerCallbackLog.Reset();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Burst_registration_coalesces_redundant_waits(bool concurrent)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.UnixEpoch);
+        await using var fixture = SchedulerFixture.Create(time);
+        await fixture.StartAsync(ct);
+        time.BlockNextTimerCreation();
+        fixture.Add("first", time.GetUtcNow().AddHours(1));
+        try
+        {
+            await time.WaitForTimerCreationAsync(ct);
+            if (concurrent)
+                Parallel.For(0, 10_000, index => fixture.Add($"later-{index}", time.GetUtcNow().AddHours(2)));
+            else
+                for (var index = 0; index < 10_000; index++)
+                    fixture.Add($"later-{index}", time.GetUtcNow().AddHours(2));
+            time.ReleaseTimerCreation();
+            await time.WaitForTimerCreatedAsync(2, ct);
+            // Observe a quiet arming interval after the controlled producer burst.
+            // This is a cost assertion, not a deadline/order assertion for callbacks.
+            await time.WaitForArmingToSettleAsync(ct);
+            Assert.Equal(2, time.TimerCreationCount);
+            Assert.Equal(1, time.ActiveTimerCount);
+            Assert.Empty(TimerCallbackLog.Values);
+            time.Advance(TimeSpan.FromHours(2));
+            await TimerCallbackLog.WaitForCountAsync(10_001, ct);
+            await fixture.StopAsync(ct);
+            Assert.Equal(10_001, TimerCallbackLog.Values.Distinct().Count());
+            Assert.Equal(0, time.ActiveTimerCount);
+        }
+        finally { time.ReleaseTimerCreation(); }
+    }
+
+    [Fact]
+    public async Task Earlier_timer_inserted_during_burst_arming_is_not_lost()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.UnixEpoch);
+        await using var fixture = SchedulerFixture.Create(time);
+        await fixture.StartAsync(ct);
+        time.BlockNextTimerCreation();
+        var later = fixture.Add("later", time.GetUtcNow().AddHours(1));
+        try
+        {
+            await time.WaitForTimerCreationAsync(ct);
+            Parallel.For(0, 1_000, index => fixture.Add($"burst-{index}", time.GetUtcNow().AddHours(2)));
+            fixture.Add("early", time.GetUtcNow().AddSeconds(1));
+            time.ReleaseTimerCreation();
+            await time.WaitForDeadlineAsync(time.GetUtcNow().AddSeconds(1), ct);
+            time.Advance(TimeSpan.FromSeconds(1));
+            await TimerCallbackLog.WaitForValueAsync("early", ct);
+            Assert.Equal(["early"], TimerCallbackLog.Values);
+            Assert.True(fixture.Contains(later));
+        }
+        finally { time.ReleaseTimerCreation(); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Wake_and_expiry_cleanup_preserve_notifications_arriving_during_cancellation(bool expire)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.UnixEpoch);
+        await using var fixture = SchedulerFixture.Create(time);
+        await fixture.StartAsync(ct);
+        var original = fixture.Add("original", time.GetUtcNow().AddSeconds(1));
+        await time.WaitForDeadlineAsync(time.GetUtcNow().AddSeconds(1), ct);
+        time.BlockNextTimerDisposal();
+        try
+        {
+            if (expire) time.Advance(TimeSpan.FromSeconds(1));
+            else fixture.Destroy(original);
+            await time.WaitForTimerDisposalAsync(ct);
+            // The previous wait is being torn down while this notification arrives.
+            fixture.Add("new", time.GetUtcNow().AddMilliseconds(1));
+            time.ReleaseTimerDisposal();
+            await time.WaitForDeadlineAsync(time.GetUtcNow().AddMilliseconds(1), ct);
+            time.Advance(TimeSpan.FromMilliseconds(1));
+            await TimerCallbackLog.WaitForValueAsync("new", ct);
+            await fixture.StopAsync(ct);
+            Assert.Equal(expire ? new[] { "original", "new" } : new[] { "new" }, TimerCallbackLog.Values);
+            Assert.Equal(0, time.ActiveTimerCount);
+            Assert.Empty(fixture.Observer.Failed);
+        }
+        finally { time.ReleaseTimerDisposal(); }
+    }
+
+    [Fact]
+    public async Task Periodic_rearm_survives_a_coalesced_burst_while_callback_is_running()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.UnixEpoch);
+        await using var fixture = SchedulerFixture.Create(time);
+        await fixture.StartAsync(ct);
+        TimerCallbackLog.BlockValue = "periodic";
+        var periodic = fixture.Add("periodic", time.GetUtcNow(), TimeSpan.FromSeconds(1));
+        await TimerCallbackLog.WaitForValueAsync("periodic", ct);
+        time.BlockNextTimerCreation();
+        fixture.Add("later", time.GetUtcNow().AddHours(1));
+        try
+        {
+            await time.WaitForTimerCreationAsync(ct);
+            for (var index = 0; index < 1_000; index++)
+                fixture.Add($"burst-{index}", time.GetUtcNow().AddHours(2));
+            TimerCallbackLog.ReleaseBlocked();
+            time.ReleaseTimerCreation();
+            await time.WaitForDeadlineAsync(time.GetUtcNow().AddSeconds(1), ct);
+            time.Advance(TimeSpan.FromSeconds(1));
+            await TimerCallbackLog.WaitForCountAsync(2, ct);
+            fixture.Destroy(periodic);
+            await fixture.StopAsync(ct);
+            Assert.Equal(["periodic", "periodic"], TimerCallbackLog.Values);
+            Assert.Equal(0, time.ActiveTimerCount);
+        }
+        finally
+        {
+            time.ReleaseTimerCreation();
+            TimerCallbackLog.ReleaseBlocked();
+        }
+    }
+
+    [Fact]
+    public async Task Shutdown_with_pending_burst_drains_running_callback_and_releases_waits()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new ManualTimeProvider(DateTimeOffset.UnixEpoch);
+        await using var fixture = SchedulerFixture.Create(time);
+        await fixture.StartAsync(ct);
+        TimerCallbackLog.BlockValue = "shutdown-burst";
+        var running = fixture.Add("shutdown-burst", time.GetUtcNow());
+        await TimerCallbackLog.WaitForValueAsync("shutdown-burst", ct);
+        time.BlockNextTimerCreation();
+        var later = fixture.Add("later", time.GetUtcNow().AddHours(1));
+        try
+        {
+            await time.WaitForTimerCreationAsync(ct);
+            for (var index = 0; index < 1_000; index++)
+                fixture.Add($"burst-{index}", time.GetUtcNow().AddHours(2));
+            var stop = fixture.StopAsync(ct);
+            Assert.False(stop.IsCompleted);
+            time.ReleaseTimerCreation();
+            Assert.False(stop.IsCompleted);
+            TimerCallbackLog.ReleaseBlocked();
+            await stop.WaitAsync(TimeSpan.FromSeconds(5), ct);
+            Assert.False(fixture.Contains(running));
+            Assert.False(fixture.Contains(later));
+            Assert.Equal(0, time.ActiveTimerCount);
+            time.Advance(TimeSpan.FromHours(3));
+            Assert.Equal(["shutdown-burst"], TimerCallbackLog.Values);
+            await fixture.StopAsync(ct);
+        }
+        finally
+        {
+            time.ReleaseTimerCreation();
+            TimerCallbackLog.ReleaseBlocked();
+        }
+    }
+
     [Fact]
     public async Task Repeated_delay_expiry_and_callback_completion_preserve_wakeups()
     {
@@ -1021,6 +1183,35 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
         private int blockedTimerCreationCount;
         private int timerCreationCount;
         private TaskCompletionSource timersChanged = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int blockNextDisposal;
+        private readonly TaskCompletionSource disposalStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource releaseDisposal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int ActiveTimerCount { get { lock (gate) return timers.Count; } }
+
+        public void BlockNextTimerDisposal() => Interlocked.Exchange(ref blockNextDisposal, 1);
+        public Task WaitForTimerDisposalAsync(CancellationToken ct) => disposalStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        public void ReleaseTimerDisposal() => releaseDisposal.TrySetResult();
+
+        private void BeforeTimerDisposal()
+        {
+            if (Interlocked.Exchange(ref blockNextDisposal, 0) == 0) return;
+            disposalStarted.TrySetResult();
+            releaseDisposal.Task.GetAwaiter().GetResult();
+        }
+
+        public async Task WaitForArmingToSettleAsync(CancellationToken ct)
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(5));
+            int count;
+            do
+            {
+                count = TimerCreationCount;
+                await Task.Delay(50, timeout.Token);
+            } while (count != TimerCreationCount);
+        }
+
 
         public async Task WaitForDeadlineAsync(DateTimeOffset deadline, CancellationToken cancellationToken)
         {
@@ -1242,6 +1433,7 @@ public sealed class LakonaTimerSchedulerTests : IDisposable
 
             public void Dispose()
             {
+                owner.BeforeTimerDisposal();
                 disposed = true;
                 owner.Remove(this);
             }

@@ -142,8 +142,13 @@ changed without new measurements:
   without exception-based repeated release. A pending signal represents current
   protocol/terminal state, not a datagram count. Preserve the wake-up contract
   in [RPC transports](./rpc/transport-contract.md#kcp).
-- Timer callbacks execute outside the timer scheduler lock, and the timer
-  scheduler already has a dedicated performance harness.
+- Timer callbacks execute outside the scheduler lock. Heap changes share one
+  pending wake marker, so a registration burst cannot accumulate one redundant
+  timed wait per change. Cancellation drains both wait branches before rearming;
+  preserve the [timer scheduling contract](actor.md#timers). The
+  [wakeup benchmark](../benchmarks/timer-wakeup/README.md) compares ordinary and
+  gated burst registration against the pinned pre-coalescing scheduler. The
+  existing timer performance suite separately exercises full Hotfix callbacks.
 - Cross-node Hotfix Actor calls retain typed requests until a cached
   MemoryPack codec writes directly into the final RPC envelope buffer. The
   receive and reply paths operate on owned frame slices and direct response

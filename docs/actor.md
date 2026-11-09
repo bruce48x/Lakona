@@ -651,6 +651,15 @@ accepted callbacks rather than silently dropping them. Callback failures are
 reported without retrying that execution; periodic timers continue with their
 next round, while one-shot timers end.
 
+The scheduler coalesces heap-change notifications into one pending wake marker.
+All registrations remain in the priority queue; a marker requests a fresh check
+of that queue, not one callback per notification. A pending marker is consumed
+before creating another timed wait. When a timed wait races a wakeup or shutdown,
+both wait branches are canceled/drained before another wake reader is started.
+Inserting an earlier deadline still interrupts the current wait. Coalescing does
+not change due ordering, periodic cadence, dispatch backpressure, or shutdown's
+wait for running callbacks.
+
 Timers are process-memory resources and do not provide exactly-once business
 side effects. Process loss requires application recovery or a durable
 scheduler. The process-wide capacity and diagnostics are defined in

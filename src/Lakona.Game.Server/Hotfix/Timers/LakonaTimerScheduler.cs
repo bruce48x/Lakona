@@ -24,7 +24,14 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     private readonly object lifecycleGate = new();
     private readonly Dictionary<TimerId, LakonaTimerRegistration> registrations = [];
     private readonly PriorityQueue<LakonaTimerHeapEntry, long> heap = new();
-    private readonly SemaphoreSlim wakeSignal = new(0);
+    // A marker means the heap may have changed, not how many changes occurred.
+    private readonly Channel<byte> wakeSignal = Channel.CreateBounded<byte>(new BoundedChannelOptions(1)
+    {
+        FullMode = BoundedChannelFullMode.Wait,
+        SingleReader = true,
+        SingleWriter = false,
+        AllowSynchronousContinuations = false
+    });
     private readonly Channel<LakonaTimerDispatchWorkItem> dispatches;
     private readonly CancellationTokenSource stopping = new();
     private Task? dispatchTask;
@@ -194,7 +201,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             ClearRegistrations();
             diagnostics.Dispose();
             stopping.Dispose();
-            wakeSignal.Dispose();
+            wakeSignal.Writer.TryComplete();
         }
     }
 
@@ -219,7 +226,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             ClearRegistrations();
             diagnostics.Dispose();
             stopping.Dispose();
-            wakeSignal.Dispose();
+            wakeSignal.Writer.TryComplete();
         }
     }
 
@@ -353,7 +360,7 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
                 var delay = GetDelayUntilNextDue();
                 if (delay is null)
                 {
-                    await wakeSignal.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    await wakeSignal.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
                 }
                 else if (delay == TimeSpan.Zero)
                 {
@@ -379,12 +386,15 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
     {
         while (true)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (wakeSignal.Reader.TryRead(out _)) return;
+
             using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             // Task.Delay limits each wait to about 49 days. Keep the original deadline
             // in the heap and wait in bounded segments so long timers cannot stop the loop.
             var delayTask = Task.Delay(requestedDelay > MaximumDelay ? MaximumDelay : requestedDelay,
                 timeProvider, waitCancellation.Token);
-            var wakeTask = wakeSignal.WaitAsync(waitCancellation.Token);
+            var wakeTask = wakeSignal.Reader.ReadAsync(waitCancellation.Token).AsTask();
             var remainingDelay = GetDelayUntilNextDue();
             if (wakeTask.IsCompletedSuccessfully)
             {
@@ -425,8 +435,8 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
             async ValueTask CancelWaitAsync()
             {
                 await waitCancellation.CancelAsync().ConfigureAwait(false);
-                // Cancellation callbacks can finish before SemaphoreSlim removes its
-                // waiter. Drain both tasks before another wait can consume a signal.
+                // Drain both tasks before another read can consume a signal. The losing
+                // reader must not remain alive and steal a later heap-change marker.
                 try { await Task.WhenAll(delayTask, wakeTask).ConfigureAwait(false); }
                 catch (OperationCanceledException) when (waitCancellation.IsCancellationRequested) { }
             }
@@ -832,16 +842,9 @@ internal sealed class LakonaTimerScheduler : IHostedService, IAsyncDisposable, I
 
     private void Signal()
     {
-        try
-        {
-            wakeSignal.Release();
-        }
-        catch (SemaphoreFullException)
-        {
-        }
-        catch (ObjectDisposedException) when (disposed)
-        {
-        }
+        // A full slot already promises a heap recheck. Completion during disposal
+        // also returns false; neither case needs an exception or a waiting writer.
+        wakeSignal.Writer.TryWrite(0);
     }
 
     private void NotifyObserver(
