@@ -477,6 +477,13 @@ draining responses already received, and transport cleanup follows
 `Disconnected`. The factory retains ownership of evicted clients until cleanup
 finishes so shutdown also cancels and joins clients still draining.
 
+Warm cache hits reuse their existing entry without constructing a candidate,
+connection delegate, or lazy connection task. Entry creation happens only on a
+miss under the factory lifecycle lock. Concurrent callers for the same key share
+one connection attempt; canceling a caller only cancels its wait, while factory
+shutdown cancels and joins the owned attempt. Both exact-route and formation
+contact lookups retain the same state checks and ownership rules.
+
 Connections are cached by exact node incarnation and endpoint. Directory
 handoff may still contact an old incarnation while a newer one is already in
 use, so acquiring either connection does not evict or dispose the other. Each

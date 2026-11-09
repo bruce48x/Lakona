@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>BusinessLogic.Tests</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Lakona.Game.Server/Lakona.Game.Server.csproj" />
+    <Compile Include="$(ClientFactoryBaselineFile)" Link="BaselineClusterClientFactory.cs" Condition="'$(ClientFactoryBaselineFile)' != ''" />
+  </ItemGroup>
+  <Target Name="RequireBaseline" BeforeTargets="CoreCompile" Condition="!Exists('$(ClientFactoryBaselineFile)')">
+    <Error Text="Run benchmarks/cluster-client-cache/run.ps1 to supply the baseline factory." />
+  </Target>
+</Project>

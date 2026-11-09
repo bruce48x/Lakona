@@ -70,7 +70,11 @@ namespace Lakona.Game.Cluster.Rpc
                 lock (_lifecycleGate)
                 {
                     ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-                    selected = _clients.GetOrAdd(key, new ClientEntry(entry => ConnectAsync(endpoint, key, entry)));
+                    if (!_clients.TryGetValue(key, out selected!))
+                    {
+                        selected = CreateEntry(endpoint, key);
+                        _clients[key] = selected;
+                    }
                     _ownedClients.Add(selected);
                     runtimeTask = selected.RuntimeTask;
                 }
@@ -104,6 +108,11 @@ namespace Lakona.Game.Cluster.Rpc
                 }
             }
         }
+
+        // Keep captured state out of the lookup method: even a lambda inside its
+        // miss branch can allocate a display class on the cache-hit path.
+        private ClientEntry CreateEntry(NodeEndpoint endpoint, ClientKey key) =>
+            new ClientEntry(entry => ConnectAsync(endpoint, key, entry));
 
         private async Task<RpcClientRuntime> ConnectAsync(
             NodeEndpoint endpoint,

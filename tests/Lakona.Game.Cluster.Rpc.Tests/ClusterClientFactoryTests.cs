@@ -16,6 +16,94 @@ public sealed class ClusterClientFactoryTests
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(5);
     private const string TestProtocol = "lakona.cluster.test.v1";
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Warm_cache_hits_reuse_the_client_without_allocating(bool contactOnly)
+    {
+        var transportFactory = new RecordingTransportFactory();
+        await using var factory = new ClusterClientFactory(CreateChannel(transportFactory));
+        var target = CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001");
+        ValueTask<IRpcClient> Get() => contactOnly ? factory.GetClientAsync(target.Endpoint) : factory.GetClientAsync(target);
+        var first = await Get();
+        for (var index = 0; index < 1_000; index++) Get().GetAwaiter().GetResult();
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var same = true;
+        for (var index = 0; index < 100_000; index++)
+        {
+            var lookup = Get();
+            same &= lookup.IsCompletedSuccessfully && ReferenceEquals(first, lookup.GetAwaiter().GetResult());
+        }
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(same);
+        Assert.Equal(0, allocated);
+        Assert.Single(transportFactory.Calls);
+        await factory.DisposeAsync();
+        Assert.All(transportFactory.Transports, transport => Assert.Equal(1, transport.DisposeCount));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Pre_canceled_lookup_does_not_connect_or_invalidate_a_cached_client(bool cached)
+    {
+        var transportFactory = new RecordingTransportFactory();
+        await using var factory = new ClusterClientFactory(CreateChannel(transportFactory));
+        var target = CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001");
+        var first = cached ? await factory.GetClientAsync(target) : null;
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => factory.GetClientAsync(target, cancellation.Token).AsTask());
+        Assert.Equal(cached ? 1 : 0, transportFactory.Calls.Count);
+        var next = await factory.GetClientAsync(target, TestContext.Current.CancellationToken);
+        if (cached) Assert.Same(first, next);
+        Assert.Single(transportFactory.Calls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Canceling_waiters_preserves_the_owned_shared_connection(bool otherWaiter)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var transportFactory = new BlockingTransportFactory();
+        await using var factory = new ClusterClientFactory(CreateChannel(transportFactory));
+        var target = CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001");
+        using var cancellation = new CancellationTokenSource();
+        var canceled = factory.GetClientAsync(target, cancellation.Token).AsTask();
+        await transportFactory.Started.Task.WaitAsync(Deadline, ct);
+        var survivor = otherWaiter ? factory.GetClientAsync(target, ct).AsTask() : null;
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => canceled);
+        if (survivor is not null) Assert.False(survivor.IsCompleted);
+        transportFactory.Release.TrySetResult();
+        var reused = await factory.GetClientAsync(target, ct).AsTask().WaitAsync(Deadline, ct);
+        if (survivor is not null) Assert.Same(reused, await survivor.WaitAsync(Deadline, ct));
+        Assert.Equal(1, transportFactory.ConnectCount);
+        await factory.DisposeAsync();
+        Assert.Equal(1, transportFactory.Transport!.DisposeCount);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => factory.GetClientAsync(target, ct).AsTask());
+    }
+
+    [Fact]
+    public async Task Failed_shared_connection_is_removed_and_can_be_retried()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var transportFactory = new BlockingTransportFactory { FailFirstAttempt = true };
+        await using var factory = new ClusterClientFactory(CreateChannel(transportFactory));
+        var target = CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001");
+        var calls = Enumerable.Range(0, 16).Select(_ => factory.GetClientAsync(target, ct).AsTask()).ToArray();
+        await transportFactory.Started.Task.WaitAsync(Deadline, ct);
+        transportFactory.Release.TrySetResult();
+        foreach (var call in calls) await Assert.ThrowsAsync<IOException>(() => call);
+        Assert.Equal(1, transportFactory.ConnectCount);
+        var replacement = await factory.GetClientAsync(target, ct).AsTask().WaitAsync(Deadline, ct);
+        Assert.Same(replacement, await factory.GetClientAsync(target, ct));
+        Assert.Equal(2, transportFactory.ConnectCount);
+        await factory.DisposeAsync();
+        Assert.Equal(1, transportFactory.Transport!.DisposeCount);
+    }
+
     [Fact]
     public async Task GetClientAsync_propagates_the_server_logger_factory_to_outbound_rpc_clients()
     {
@@ -136,18 +224,27 @@ public sealed class ClusterClientFactoryTests
         Assert.Equal(2, transportFactory.Calls.Count);
     }
 
-    [Fact]
-    public async Task Concurrent_cache_misses_share_one_connection_attempt()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Concurrent_cache_misses_share_one_connection_attempt(bool contactOnly)
     {
         var transportFactory = new BlockingTransportFactory();
         await using var factory = new ClusterClientFactory(
             CreateChannel(transportFactory));
         var target = CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001");
 
-        var calls = Enumerable.Range(0, 32)
-            .Select(_ => factory.GetClientAsync(target, TestContext.Current.CancellationToken).AsTask())
-            .ToArray();
-        await transportFactory.Started.Task.WaitAsync(TestContext.Current.CancellationToken);
+        var entered = 0;
+        var allEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = Enumerable.Range(0, 32).Select(_ => Task.Run(async () =>
+        {
+            var pending = contactOnly
+                ? factory.GetClientAsync(target.Endpoint, TestContext.Current.CancellationToken)
+                : factory.GetClientAsync(target, TestContext.Current.CancellationToken);
+            if (Interlocked.Increment(ref entered) == 32) allEntered.TrySetResult();
+            return await pending;
+        })).ToArray();
+        await allEntered.Task.WaitAsync(Deadline, TestContext.Current.CancellationToken);
         transportFactory.Release.SetResult();
         var clients = await Task.WhenAll(calls);
 
@@ -515,16 +612,20 @@ public sealed class ClusterClientFactoryTests
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public int ConnectCount;
+        public bool FailFirstAttempt { get; init; }
+        public IdleTransport? Transport { get; private set; }
 
         public async ValueTask<ITransport> ConnectAsync(
             ClusterEndpoint endpoint,
             CancellationToken cancellationToken = default)
         {
             _ = endpoint;
-            Interlocked.Increment(ref ConnectCount);
+            var attempt = Interlocked.Increment(ref ConnectCount);
             Started.TrySetResult();
             await Release.Task.WaitAsync(cancellationToken);
-            return new IdleTransport();
+            if (FailFirstAttempt && attempt == 1) throw new IOException("Expected connection failure.");
+            Transport = new IdleTransport();
+            return Transport;
         }
 
         public ValueTask<IRpcConnectionAcceptor> ListenAsync(

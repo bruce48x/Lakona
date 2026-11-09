@@ -156,6 +156,14 @@ changed without new measurements:
   `ClusterMessage` payload wrapping. Reintroducing any of those operations on
   this path requires a focused allocation benchmark and an architecture
   decision.
+- Cross-node client-cache hits reuse existing entries without allocating new
+  candidates or captured connection state. Creation stays inside the lifecycle
+  lock on the miss path; retain shared connection attempts, caller-local
+  cancellation, exact-instance eviction, and shutdown ownership described in
+  [Cluster](cluster.md#cluster-rpc-composition). The
+  [cache benchmark](../benchmarks/cluster-client-cache/README.md) compares both
+  exact-route and formation-contact lookups against a pinned baseline, with
+  single-threaded and concurrent hits. It does not measure end-to-end RPC latency.
 - Typed client requests, typed server responses, and typed server
   notifications use the same writer-first rule: `IRpcSerializer` writes the
   business payload directly into the final pooled envelope buffer, and push
