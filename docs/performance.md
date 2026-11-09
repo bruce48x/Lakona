@@ -172,6 +172,20 @@ changed without new measurements:
   throughput claim; any claimed performance gain still requires a focused
   benchmark.
 
+### Session Population Collection
+
+Session population gauges share a one-second, demand-driven snapshot instead
+of scanning the registry separately for each metric. A direct diagnostics call
+still scans immediately. Enumeration allocates no population-sized reference
+array; per-session locks preserve the existing state-read boundary. See
+[Observability](observability.md#instrumentation-scopes) for freshness and
+failure semantics.
+
+The [population benchmark](../benchmarks/session-population/README.md) compares
+direct scans, forced refreshes and cache hits against a pinned baseline. It also
+measures heartbeat and disconnect/rebind operations with and without concurrent
+metric collection. Cache-hit measurements must not stand in for refresh cost.
+
 ### Application HTTP Body Reads
 
 The HTTP body reader rents an 8 KiB scratch buffer and creates accumulation

@@ -755,17 +755,21 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionEndpointBindingReg
 
     public GameSessionDiagnosticsSnapshot GetDiagnosticsSnapshot()
     {
-        var totalSessions = _sessions.Count;
+        var totalSessions = 0;
         var activeSessions = 0;
         var activeConnections = 0;
         var disconnectedSessions = 0;
         var terminatedSessions = 0;
         var resumableSessions = 0;
 
-        foreach (var state in _sessions.Values)
+        // Enumerate without allocating a copy of all session references. This is
+        // a per-session observation, not an atomic snapshot of the whole registry.
+        foreach (var entry in _sessions)
         {
+            var state = entry.Value;
             lock (state.Gate)
             {
+                totalSessions++;
                 if (state.Termination is not null)
                 {
                     terminatedSessions++;

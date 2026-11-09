@@ -48,6 +48,21 @@ Game metric names use `lakona.game.*`; RPC request metrics use
 `lakona.rpc.server.*`. Population gauges intentionally
 avoid actor ids, session ids, timer ids, and other high-cardinality tags.
 
+The six `lakona.game.session` population gauges share a lazily refreshed
+snapshot per telemetry instance. A successful refresh is reused for one second
+from completion, measured with the registered `TimeProvider`'s monotonic clock.
+Concurrent callbacks serialize refreshes; no background sampler runs when the
+gauges are not collected. A failed refresh propagates to the collector and does
+not renew the cache, so the next callback can retry rather than report expired
+data as fresh.
+
+Direct `IGameSessionRegistry.GetDiagnosticsSnapshot()` calls still scan current
+state. The in-memory registry enumerates sessions without copying the reference
+collection and reads each session under its state lock. This is not an atomic
+whole-registry snapshot. Population gauges may lag state changes by the reuse
+window plus scan time; a collection crossing expiry can observe two snapshots.
+Use lifecycle state, not cached metrics, for admission or resume decisions.
+
 The Actor meter emits `lakona.game.actor.activation.active`,
 `lakona.game.actor.activation.metadata`, and
 `lakona.game.actor.activation.released`. Actor Directory removes released
