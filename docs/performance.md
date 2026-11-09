@@ -89,6 +89,33 @@ network-capacity guarantees. The bounded send and receive contracts are unchange
 
 ## Reviewed Patterns Not Currently Listed as Risks
 
+### LoadTesting Latency Summaries
+
+`Lakona.Game.LoadTesting` includes every successful operation in its latency
+distribution, throughout ramp-up and the rest of the run. Failed and canceled
+operations retain separate counts and do not contribute latency samples.
+P50/P95/P99 use nearest ranks in a fixed histogram per operation name: ticks
+below 64 are exact, and larger values use 32 buckets per power of two. A
+percentile reports the bucket's inclusive upper bound, never below the observed
+rank and less than 3.125% above it. Zero and `TimeSpan.MaxValue` are supported;
+negative successful-operation durations are rejected before recording.
+
+The average uses original ticks, rounded down to a tick, with a two-word sum
+that avoids overflow when multiple large durations are recorded. Recording is
+thread-safe and allocates nothing after an operation name is initialized.
+Each name has 1,888 64-bit bucket counters (15,104 bytes of counter storage),
+independent of request count or run duration. Memory still grows with the
+number of distinct operation names; use stable names, not request identifiers.
+Summary creation allocates a fixed-size snapshot per name. Create the final
+summary after all writers finish, as `LoadRunner` does; it is not an atomic
+live-progress snapshot.
+
+The [recording benchmark](../benchmarks/load-recording/README.md) compares the
+real recorder against a pinned pre-fix source revision. It measures recorder
+cost and allocations, independently of RPC transport and application latency.
+
+### Runtime Synchronization
+
 The following synchronization is intentionally narrow and should not be
 changed without new measurements:
 

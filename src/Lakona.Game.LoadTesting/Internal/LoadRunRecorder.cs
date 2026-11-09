@@ -4,7 +4,6 @@ namespace Lakona.Game.LoadTesting.Internal;
 
 public sealed class LoadRunRecorder
 {
-    internal const int MaxLatencySamplesPerOperation = 1024;
     internal const int MaxTrackedErrorMessagesPerOperationAndType = 64;
     private const int MaxErrorSummariesPerOperationAndType = 5;
     private const string UserFailureOperationName = "user";
@@ -33,8 +32,6 @@ public sealed class LoadRunRecorder
 
     public int CompletedUsers => Volatile.Read(ref completedUsers);
 
-    internal int BufferedLatencySampleCount => operations.Values.Sum(static operation => operation.BufferedLatencySampleCount);
-
     public void RecordStartedUser()
     {
         Interlocked.Increment(ref startedUsers);
@@ -47,6 +44,7 @@ public sealed class LoadRunRecorder
 
     public void RecordSucceededOperation(string operationName, TimeSpan elapsed)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(elapsed.Ticks, nameof(elapsed));
         GetOperation(operationName).RecordSucceeded(elapsed);
     }
 
@@ -67,6 +65,10 @@ public sealed class LoadRunRecorder
         RecordError(UserFailureOperationName, exception);
     }
 
+    /// <summary>
+    /// Creates the final summary after recording has finished. Concurrent writers
+    /// are supported, but this method is not an atomic live-progress snapshot.
+    /// </summary>
     public LoadRunSummary CreateSummary(TimeSpan elapsed)
     {
         var operationSnapshots = operations
@@ -113,107 +115,40 @@ public sealed class LoadRunRecorder
 
     private static LoadOperationLatencySummary CreateLatencySummary(OperationSnapshot snapshot)
     {
-        var values = snapshot.LatencySamples;
-        Array.Sort(values);
         return new LoadOperationLatencySummary(
             snapshot.OperationName,
             snapshot.Succeeded,
-            snapshot.Average,
-            Percentile(values, 0.50),
-            Percentile(values, 0.95),
-            Percentile(values, 0.99));
-    }
-
-    private static TimeSpan Percentile(TimeSpan[] sortedValues, double percentile)
-    {
-        if (sortedValues.Length == 0)
-        {
-            return TimeSpan.Zero;
-        }
-
-        var index = (int)Math.Ceiling(percentile * sortedValues.Length) - 1;
-        index = Math.Clamp(index, 0, sortedValues.Length - 1);
-        return sortedValues[index];
+            snapshot.Latency.Average,
+            snapshot.Latency.Percentile(50),
+            snapshot.Latency.Percentile(95),
+            snapshot.Latency.Percentile(99));
     }
 
     private sealed class OperationAggregate
     {
-        private readonly long[] latencySampleTicks = new long[MaxLatencySamplesPerOperation];
-        private readonly int[] latencySampleReady = new int[MaxLatencySamplesPerOperation];
-        private long total;
-        private long succeeded;
-        private long failed;
-        private long canceled;
-        private long succeededTicks;
-        private int latencySampleCount;
+        private readonly LatencyHistogram latency = new();
+        private int failed;
+        private int canceled;
 
-        public int BufferedLatencySampleCount => Volatile.Read(ref latencySampleCount);
+        public void RecordSucceeded(TimeSpan elapsed) => latency.Record(elapsed.Ticks);
 
-        public void RecordSucceeded(TimeSpan elapsed)
-        {
-            Interlocked.Increment(ref total);
-            Interlocked.Increment(ref succeeded);
-            Interlocked.Add(ref succeededTicks, elapsed.Ticks);
-            while (true)
-            {
-                var index = Volatile.Read(ref latencySampleCount);
-                if (index >= latencySampleTicks.Length)
-                {
-                    return;
-                }
+        public void RecordFailed() => Interlocked.Increment(ref failed);
 
-                if (Interlocked.CompareExchange(ref latencySampleCount, index + 1, index) == index)
-                {
-                    latencySampleTicks[index] = elapsed.Ticks;
-                    Volatile.Write(ref latencySampleReady[index], 1);
-                    return;
-                }
-            }
-        }
-
-        public void RecordFailed()
-        {
-            Interlocked.Increment(ref total);
-            Interlocked.Increment(ref failed);
-        }
-
-        public void RecordCanceled()
-        {
-            Interlocked.Increment(ref total);
-            Interlocked.Increment(ref canceled);
-        }
+        public void RecordCanceled() => Interlocked.Increment(ref canceled);
 
         public OperationSnapshot CreateSnapshot(string operationName)
         {
-            var reserved = Math.Min(Volatile.Read(ref latencySampleCount), latencySampleTicks.Length);
-            var samples = new TimeSpan[reserved];
-            var published = 0;
-            for (var index = 0; index < reserved; index++)
-            {
-                if (Volatile.Read(ref latencySampleReady[index]) == 0)
-                {
-                    continue;
-                }
-
-                samples[published++] = TimeSpan.FromTicks(Volatile.Read(ref latencySampleTicks[index]));
-            }
-
-            if (published != samples.Length)
-            {
-                Array.Resize(ref samples, published);
-            }
-
-            var succeededCount = (int)Volatile.Read(ref succeeded);
-            var totalTicks = Volatile.Read(ref succeededTicks);
-            var average = succeededCount == 0 ? TimeSpan.Zero : TimeSpan.FromTicks(totalTicks / succeededCount);
+            var snapshot = latency.CreateSnapshot();
+            var succeededCount = (int)snapshot.Count;
+            var failedCount = Volatile.Read(ref failed);
+            var canceledCount = Volatile.Read(ref canceled);
             return new OperationSnapshot(
                 operationName,
-                (int)Volatile.Read(ref total),
+                succeededCount + failedCount + canceledCount,
                 succeededCount,
-                (int)Volatile.Read(ref failed),
-                (int)Volatile.Read(ref canceled),
-                average,
-                samples);
+                failedCount,
+                canceledCount,
+                snapshot);
         }
     }
 
@@ -262,8 +197,7 @@ public sealed class LoadRunRecorder
         int Succeeded,
         int Failed,
         int Canceled,
-        TimeSpan Average,
-        TimeSpan[] LatencySamples);
+        LatencyHistogram.Snapshot Latency);
 
     private readonly record struct ErrorBucketKey(string OperationName, string ExceptionType);
 }
