@@ -69,15 +69,16 @@ public sealed class WebSocketReceiveLifetimeTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Disposal_waits_for_late_receive_and_preserves_a_completed_frame(bool completesFrame)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Disposal_waits_for_late_receive_and_preserves_a_completed_frame(bool completesFrame, bool bufferedTail)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var ct = deadline.Token;
         var payload = new byte[128 * 1024];
         new Random(42).NextBytes(payload);
-        using var socket = new DelayedFinalChunkSocket(payload, completesFrame);
+        using var socket = new DelayedFinalChunkSocket(payload, completesFrame, bufferedTail);
         var callbacks = 0;
         await using var transport = new WsServerTransport(socket, onDispose: () => Interlocked.Increment(ref callbacks));
         var receiving = transport.ReceiveFrameAsync(ct).AsTask();
@@ -136,10 +137,15 @@ public sealed class WebSocketReceiveLifetimeTests
         public TaskCompletionSource ReleaseFinalRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Aborted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int DisposeCount { get; private set; }
-        public DelayedFinalChunkSocket(byte[] payload, bool completesFrame)
+        public DelayedFinalChunkSocket(byte[] payload, bool completesFrame, bool bufferedTail)
         {
             using var packed = LengthPrefix.Pack(payload);
             _wire = packed.ToArray();
+            if (bufferedTail)
+            {
+                using var tail = LengthPrefix.Pack(new byte[] { 7, 8, 9 });
+                _wire = _wire.Concat(tail.ToArray()).ToArray();
+            }
             if (!completesFrame) BinaryPrimitives.WriteUInt32BigEndian(_wire, (uint)payload.Length + 1);
         }
         public override WebSocketState State => _state;

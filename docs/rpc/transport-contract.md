@@ -194,6 +194,13 @@ recovers an existing Game Session remains a Lakona.Game decision.
 
 ### WebSocket
 
+RPC frame boundaries are independent of WebSocket message and receive boundaries.
+Each receive drains a complete buffered RPC frame before requesting more socket
+input. Coalesced frames therefore progress even when the peer sends nothing else
+or closes afterward; a trailing partial prefix or payload waits for more input.
+Already buffered frames may complete before cancellation is observed, as allowed
+by the transport contract. They do not bypass disposal's receive admission gate.
+
 Client and accepted-server transports share a framing owner which closes receive
 admission when disposal begins. An active receive is aborted and allowed to exit
 before its partial-frame accumulator is cleared or the server's disposal callback
@@ -210,6 +217,9 @@ completion, and an accepted transport invokes its disposal callback only once.
 during an 8 MiB partial transfer, with and without caller cancellation first. A
 controlled socket additionally delays receive completion after abort to verify
 cleanup ordering and the lifetime of a frame which completes during disposal.
+`WebSocketBufferedReceiveTests` verifies coalesced frames, partial prefixes and
+payloads, peer closure, cancellation and repeated disposal on both endpoints. A
+controlled socket also proves buffered complete frames require no further read.
 
 ### Loopback
 

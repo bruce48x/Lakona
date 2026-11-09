@@ -49,6 +49,11 @@ internal sealed class WsTransportFraming
 
             while (true)
             {
+                // One socket read may contain several RPC frames. Deliver buffered
+                // frames before waiting for more input (including the peer's close).
+                if (_accumulator.TryReadFrame(out var payload))
+                    return payload;
+
                 var tmp = ArrayPool<byte>.Shared.Rent(8 * 1024);
                 try
                 {
@@ -57,9 +62,6 @@ internal sealed class WsTransportFraming
                         throw new IOException("WebSocket closed.");
 
                     _accumulator.Append(tmp.AsSpan(0, res.Count));
-
-                    if (_accumulator.TryReadFrame(out var payload))
-                        return payload;
                 }
                 finally
                 {
