@@ -18,7 +18,8 @@ internal sealed class LakonaEndpointRuntimeRegistry
 
     public LakonaEndpointRuntimeRegistry(
         IEnumerable<LakonaEndpointTransportRegistration> transports,
-        IEnumerable<LakonaEndpointSerializerRegistration> endpointSerializers)
+        IEnumerable<LakonaEndpointSerializerRegistration> endpointSerializers,
+        LakonaEndpointSerializerOwner serializerOwner)
     {
         _transports = BuildRegistry(transports, static registration => registration.Name, "endpoint transport");
         _endpointSerializers = BuildRegistry(
@@ -26,8 +27,7 @@ internal sealed class LakonaEndpointRuntimeRegistry
             static registration => registration.Name,
             "endpoint serializer").ToDictionary(
                 static pair => pair.Key,
-                static pair => pair.Value.Factory()
-                    ?? throw new InvalidOperationException($"Endpoint serializer factory '{pair.Key}' returned null."),
+                pair => serializerOwner.Create(pair.Key, pair.Value.Factory),
                 StringComparer.OrdinalIgnoreCase);
     }
 

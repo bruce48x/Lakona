@@ -7,9 +7,13 @@ namespace Lakona.Game.Server.Tests.Testing;
 
 internal sealed class TestNotificationProfiles : IGameSessionNotificationProfileLookup
 {
-    public static ClientNotificationCommandFactory JsonCommands() => new(
-        new TestNotificationProfiles(),
-        new LakonaEndpointRuntimeRegistry([], [new("json", static () => new JsonRpcSerializer())]));
+    public static ClientNotificationCommandFactory JsonCommands()
+    {
+        // This helper's JSON serializer has no disposable resources.
+        using var owner = new LakonaEndpointSerializerOwner();
+        return new(new TestNotificationProfiles(),
+            new LakonaEndpointRuntimeRegistry([], [new("json", static () => new JsonRpcSerializer())], owner));
+    }
 
     public ValueTask<string?> GetLocalAsync(GameSessionKey session, CancellationToken cancellationToken = default)
         => new("json");

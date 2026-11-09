@@ -86,7 +86,8 @@ public sealed class LakonaGameServerBuilder
     /// Registers a client-facing endpoint serializer factory under its configuration name.
     /// </summary>
     /// <param name="name">The wire profile used by <c>Lakona:Endpoints[]:Serializer</c>. Register the same wire options under this name on every node that sends notifications to these clients.</param>
-    /// <param name="factory">Creates the serializer shared by this host's endpoints and notifications for the profile. The serializer must support concurrent calls.</param>
+    /// <param name="factory">Creates the serializer shared by this host's endpoints and notifications for the profile. The serializer must support concurrent calls. Returning an instance transfers its disposal ownership to this host; do not return an instance owned by another container or host.</param>
+    /// <remarks>Aliases returning the same instance share one cleanup. Async host disposal prefers IAsyncDisposable; an async-only serializer requires disposing the host asynchronously.</remarks>
     /// <returns>The same builder for chaining.</returns>
     public LakonaGameServerBuilder RegisterEndpointSerializer(string name, Func<IRpcSerializer> factory)
     {

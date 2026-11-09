@@ -83,7 +83,7 @@ public static class LakonaGameServerServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(options);
         services.TryAddSingleton(options);
         services.TryAddSingleton(new LakonaGameRuntimeOptions());
-        services.TryAddSingleton<LakonaEndpointRuntimeRegistry>();
+        services.AddLakonaEndpointRuntimeRegistry();
         services.TryAddSingleton(provider =>
         {
             var runtimeOptions = provider.GetRequiredService<LakonaGameRuntimeOptions>();

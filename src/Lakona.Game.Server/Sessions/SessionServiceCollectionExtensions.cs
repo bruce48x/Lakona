@@ -34,7 +34,7 @@ public static class SessionServiceCollectionExtensions
         services.TryAddSingleton<IGameSessionHandshakeRecoveryService, GameSessionHandshakeRecoveryService>();
         services.TryAddSingleton<IGameHeartbeatService, GameHeartbeatService>();
         services.TryAddSingleton<IClientNotifications, ClientNotifications>();
-        services.TryAddSingleton<LakonaEndpointRuntimeRegistry>();
+        services.AddLakonaEndpointRuntimeRegistry();
         services.TryAddSingleton<ClientNotificationCommandFactory>();
         services.TryAddSingleton<IClientNotificationRemoteDispatcher, RejectingClientNotificationRemoteDispatcher>();
         services.TryAddSingleton(static provider => new LocalClientNotificationCommandDispatcher(

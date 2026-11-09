@@ -43,7 +43,7 @@ public static class LakonaEndpointRuntimeServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(factory);
-        services.TryAddSingleton<LakonaEndpointRuntimeRegistry>();
+        services.AddLakonaEndpointRuntimeRegistry();
         services.AddSingleton(new LakonaEndpointTransportRegistration(name, factory));
         return services;
     }
@@ -53,7 +53,8 @@ public static class LakonaEndpointRuntimeServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The service collection to update.</param>
     /// <param name="name">The wire profile used by <c>Lakona:Endpoints[]:Serializer</c>. Register the same wire options under this name on every node that sends notifications to these clients.</param>
-    /// <param name="factory">Creates the serializer shared by this host's endpoints and notifications for the profile. The serializer must support concurrent calls.</param>
+    /// <param name="factory">Creates the serializer shared by this host's endpoints and notifications for the profile. The serializer must support concurrent calls. Returning an instance transfers its disposal ownership to this host; do not return an instance owned by another container or host.</param>
+    /// <remarks>Aliases returning the same instance share one cleanup. Async host disposal prefers IAsyncDisposable; an async-only serializer requires disposing the host asynchronously.</remarks>
     /// <returns>The same service collection for chaining.</returns>
     public static IServiceCollection AddLakonaEndpointSerializer(
         this IServiceCollection services,
@@ -63,9 +64,14 @@ public static class LakonaEndpointRuntimeServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(factory);
-        services.TryAddSingleton<LakonaEndpointRuntimeRegistry>();
+        services.AddLakonaEndpointRuntimeRegistry();
         services.AddSingleton(new LakonaEndpointSerializerRegistration(name, factory));
         return services;
     }
 
+    internal static void AddLakonaEndpointRuntimeRegistry(this IServiceCollection services)
+    {
+        services.TryAddSingleton(static _ => new LakonaEndpointSerializerOwner());
+        services.TryAddSingleton<LakonaEndpointRuntimeRegistry>();
+    }
 }

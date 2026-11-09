@@ -20,6 +20,54 @@ namespace Lakona.Game.Server.Tests.Hosting;
 
 public sealed class BootstrapperLifecycleTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Serializer_factory_failure_during_public_build_releases_prior_instances(bool failCleanup)
+    {
+        await using var fixture = new Fixture();
+        var first = new EndpointSerializerLifetimeTests.AsyncSerializer
+        {
+            Failure = failCleanup ? new InvalidOperationException("serializer cleanup failed") : null
+        };
+        var second = new EndpointSerializerLifetimeTests.SyncSerializer();
+        var failure = new InvalidOperationException("serializer factory failed");
+        var error = await Record.ExceptionAsync(() => fixture.BuildAsync(FreePort(), services => services
+            .AddLakonaEndpointSerializer("first", () => first)
+            .AddLakonaEndpointSerializer("alias", () => first)
+            .AddLakonaEndpointSerializer("second", () => second)
+            .AddLakonaEndpointSerializer("broken", () => throw failure)));
+        if (failCleanup)
+        {
+            var errors = Assert.IsType<AggregateException>(error).Flatten().InnerExceptions;
+            Assert.Contains(failure, errors);
+            Assert.Contains(first.Failure!, errors);
+        }
+        else Assert.Same(failure, error);
+        Assert.Equal(1, first.AsyncDisposals);
+        Assert.Equal(1, second.SyncDisposals);
+    }
+
+    [Fact]
+    public async Task Public_host_keeps_serializer_until_shutdown_and_disposes_it_once()
+    {
+        await using var fixture = new Fixture();
+        var serializer = new EndpointSerializerLifetimeTests.AsyncSerializer();
+        var host = await fixture.BuildAsync(FreePort(), services => services
+            .AddLakonaEndpointSerializer("owned", () => serializer)
+            .AddLakonaEndpointSerializer("alias", () => serializer));
+        try
+        {
+            await host.StartAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(0, serializer.AsyncDisposals);
+            var registry = host.Services.GetRequiredService<LakonaEndpointRuntimeRegistry>();
+            Assert.Same(serializer, registry.GetEndpointSerializer("owned"));
+        }
+        finally { await StopAndDisposeAsync(host); }
+        await ((IAsyncDisposable)host).DisposeAsync();
+        Assert.Equal(1, serializer.AsyncDisposals);
+    }
+
     [Fact]
     public async Task Game_host_rejects_rpc_exception_handler_in_App_services()
     {

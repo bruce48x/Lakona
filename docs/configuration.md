@@ -104,6 +104,21 @@ gateway and a worker can both register `inventory-json-v2` with a factory that
 supplies the same `JsonSerializerOptions` and application converters. The
 gateway selects `"Serializer": "inventory-json-v2"` on its client endpoint.
 
+Returning a serializer from the factory transfers its disposal ownership to that
+host. Do not return an instance whose disposal belongs to another container or
+host. Multiple profile names may return the same instance within one host; cleanup
+deduplicates by object reference, not value equality. The host records ownership
+as each factory returns, so a later factory failure or null result does not orphan
+earlier instances: failed host construction disposes them with the container.
+
+Dispose the host asynchronously when a serializer implements only
+`IAsyncDisposable`. Async disposal prefers `DisposeAsync` and falls back to
+`IDisposable.Dispose`; synchronous disposal uses `Dispose` and rejects async-only
+instances with an instruction to use async disposal. Cleanup attempts every owned
+instance even if one throws, then reports the collected errors. Repeated cleanup
+does not invoke an instance twice. `EndpointSerializerLifetimeTests` and the public
+host tests in `BootstrapperLifecycleTests` cover these ownership boundaries.
+
 Deploy all nodes from the same application build. A profile name must identify
 the same payload encoding, converter behavior and options across those nodes
 and the corresponding clients. Give a wire-incompatible configuration a new
