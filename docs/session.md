@@ -605,6 +605,17 @@ on another endpoint. A recovery handshake checks its original ticket again
 under the binding reservation. A successful recovery uses that ticket and
 skips the first-binding notification.
 
+Binding preparation checks the disconnect resume deadline under the same state
+lock as the reservation. At or after that deadline, every binding entry point,
+including business `BindSessionAsync`, rejects the attempt before changing any
+connection mapping or clearing the deadline. Cleanup only reclaims expired
+state; delaying its scan cannot extend recovery eligibility. Custom registries
+must enforce this check at reservation time, not only during a resume lookup.
+A reservation acquired before the deadline can still commit afterwards. If it
+fails or is canceled, rollback restores the original deadline, which may already
+be expired. An unbound session has no disconnect deadline, so delayed first
+binding and retries after failed first establishment remain available.
+
 During preparation, the old connection remains reserved to that Session so its
 disconnect event is still observed and it cannot be rebound to another Session.
 The replacement remains hidden until commit. The previous outbound binding is

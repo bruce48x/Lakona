@@ -2,6 +2,12 @@ using Lakona.Game.Abstractions;
 
 namespace Lakona.Game.Server.Sessions;
 
+/// <summary>Owns session state and connection binding reservations.</summary>
+/// <remarks>
+/// All binding entry points must reject an expired resume window atomically with reservation,
+/// before changing connection mappings. A reservation obtained before expiry may commit later;
+/// rollback preserves the original deadline. First binding has no disconnect deadline.
+/// </remarks>
 public interface IGameSessionRegistry
 {
     ValueTask<GameSessionKey> StartNewSessionAsync(

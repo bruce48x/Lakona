@@ -91,7 +91,7 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionEndpointBindingReg
                     : SessionResumeDecision.StateLost("Session was terminated."));
             }
 
-            if (state.ResumeDeadlineUtc is { } deadline && _timeProvider.GetUtcNow() >= deadline)
+            if (IsResumeWindowExpired(state, _timeProvider.GetUtcNow()))
             {
                 return new ValueTask<SessionResumeDecision>(
                     SessionResumeDecision.StateLost("Session resume window expired."));
@@ -883,12 +883,13 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionEndpointBindingReg
                     : null;
         }
 
-        return state.DisconnectedAt is not null &&
-            state.ResumeDeadlineUtc is { } resumeDeadline &&
-            resumeDeadline <= now
-                ? GameSessionExpirationKind.Disconnected
-                : null;
+        return state.DisconnectedAt is not null && IsResumeWindowExpired(state, now)
+            ? GameSessionExpirationKind.Disconnected
+            : null;
     }
+
+    private static bool IsResumeWindowExpired(SessionState state, DateTimeOffset now) =>
+        state.ResumeDeadlineUtc is { } deadline && now >= deadline;
 
     private bool DisconnectState(SessionState state, string connectionId, DateTimeOffset disconnectedAt)
     {
@@ -950,6 +951,13 @@ public sealed class InMemoryGameSessionRegistry : IGameSessionEndpointBindingReg
             if (state.Termination is not null)
             {
                 throw new InvalidOperationException($"Game session '{session}' is terminated.");
+            }
+
+            // Reserve only while recovery is valid, before changing mappings or
+            // clearing the deadline. Cleanup timing must not make a session resumable.
+            if (IsResumeWindowExpired(state, _timeProvider.GetUtcNow()))
+            {
+                throw new InvalidOperationException($"Game session '{session}' resume window expired.");
             }
 
             if (_connectionToSession.TryGetValue(connectionId, out var boundSession)

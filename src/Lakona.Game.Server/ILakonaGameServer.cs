@@ -52,6 +52,7 @@ public interface ILakonaGameServer
         where TLifecycle : class, IGameSessionLifecycle;
 
     /// <summary>Binds the session to a connection. First binding waits for the client to acknowledge its recovery ticket.</summary>
+    /// <remarks>A disconnected session must still be within its resume window when the binding is reserved.</remarks>
     ValueTask BindSessionAsync(
         GameSessionKey session,
         string connectionId,
@@ -67,8 +68,8 @@ public interface ILakonaGameServer
     /// </param>
     /// <param name="cancellationToken">A token that cancels the disconnect update.</param>
     /// <remarks>
-    /// A disconnected session remains eligible for reconnect/resume until cleanup
-    /// policy expires it or the game explicitly terminates it.
+    /// A disconnected session remains eligible for reconnect/resume until its
+    /// resume deadline or explicit termination, regardless of cleanup timing.
     /// </remarks>
     ValueTask MarkSessionDisconnectedAsync(
         GameSessionKey session,
