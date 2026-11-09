@@ -91,9 +91,10 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken)");
             builder.AppendLine("    {");
+            builder.AppendLine("        cancellationToken.ThrowIfCancellationRequested();");
             builder.AppendLine("        if (_actors.Runtime.GetState(_actorId) != global::Lakona.Game.Server.Actors.ActorState.Dead)");
             builder.AppendLine("        {");
-            builder.AppendLine("            await InvokeLocalTellAsync(method, request, cancellationToken).ConfigureAwait(false);");
+            builder.AppendLine("            await _actors.LocalExact<TActor>(_actorId).PostCoreAsync(method, request, cancellationToken).ConfigureAwait(false);");
             builder.AppendLine("            return;");
             builder.AppendLine("        }");
             builder.AppendLine();

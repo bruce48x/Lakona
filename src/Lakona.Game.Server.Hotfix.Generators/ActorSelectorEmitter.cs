@@ -43,7 +43,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("        return AskAsync<TRequest, TResult>(method, request, cancellationToken);");
             builder.AppendLine("    }");
             builder.AppendLine();
-            builder.AppendLine("    private global::System.Threading.Tasks.ValueTask PostCoreAsync<TRequest>(");
+            builder.AppendLine("    internal global::System.Threading.Tasks.ValueTask PostCoreAsync<TRequest>(");
             builder.AppendLine("        global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod method,");
             builder.AppendLine("        TRequest request,");
             builder.AppendLine("        global::System.Threading.CancellationToken cancellationToken)");

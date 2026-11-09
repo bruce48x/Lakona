@@ -7,6 +7,7 @@ using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Generators;
 using Lakona.Game.Server.Hotfix.Scanning;
+using Lakona.Game.Server.Hosting;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -15,7 +16,7 @@ using Xunit;
 
 namespace Lakona.Game.Server.Hotfix.Tests;
 
-public sealed class HotfixUnloadTests
+public sealed partial class HotfixUnloadTests
 {
     [Fact]
     public void Dispatch_table_version_changes_after_replace()
@@ -55,8 +56,10 @@ public sealed class HotfixUnloadTests
         await ForceFullCollectionAsync(loadContextReference);
     }
 
-    [Fact]
-    public async Task Route_CallAsync_value_task_waits_for_behavior_completion()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Route_CallAsync_value_task_waits_for_behavior_completion(bool remote)
     {
         var loadContextReference = await RunHotfixCallAndUnloadAsync(static async hotfix =>
         {
@@ -69,7 +72,7 @@ public sealed class HotfixUnloadTests
             hotfix.ReleaseGate();
             await call;
             Assert.Equal(-1, await hotfix.ReadLastTickAsync());
-        });
+        }, remote: remote);
 
         await ForceFullCollectionAsync(loadContextReference);
     }
@@ -92,7 +95,8 @@ public sealed class HotfixUnloadTests
 
     private static async Task<WeakReference> RunHotfixCallAndUnloadAsync(
         Func<HotfixUnloadHarness, Task> invokeAsync,
-        bool createActor = true)
+        bool createActor = true,
+        bool remote = false)
     {
         var assemblies = CompileGeneratedHotfixAssemblies();
         var loadContext = new SharedAssemblyCollectibleLoadContext();
@@ -100,7 +104,7 @@ public sealed class HotfixUnloadTests
 
         try
         {
-            await ExecuteHotfixCallAsync(loadContext, assemblies, invokeAsync, createActor);
+            await ExecuteHotfixCallAsync(loadContext, assemblies, invokeAsync, createActor, remote);
         }
         finally
         {
@@ -114,7 +118,8 @@ public sealed class HotfixUnloadTests
         AssemblyLoadContext loadContext,
         GeneratedHotfixAssemblies assemblies,
         Func<HotfixUnloadHarness, Task> invokeAsync,
-        bool createActor)
+        bool createActor,
+        bool remote)
     {
         var appAssembly = loadContext.LoadFromStream(new MemoryStream(assemblies.AppBytes));
         var hotfixAssembly = loadContext.LoadFromStream(new MemoryStream(assemblies.HotfixBytes));
@@ -128,9 +133,12 @@ public sealed class HotfixUnloadTests
             new NodeIncarnationId(Guid.Parse("D2000000-0000-0000-0000-000000000000")));
         var services = new ServiceCollection()
             .AddSingleton(new LocalActorNodeIdentity(localReference.Node))
-            .AddLakonaGameServerActors()
+            .AddLakonaGameServerActors(options => options.MailboxCapacity = 2)
             .AddSingleton<IActorDirectory, UnloadTestActorDirectory>()
-            .AddSingleton<IActorDirectoryCache, InMemoryActorDirectoryCache>();
+            .AddSingleton<IActorDirectoryCache, InMemoryActorDirectoryCache>()
+            .AddSingleton<DistributedWorkAdmissionGate>()
+            .AddSingleton<IDistributedWorkAdmissionGate>(provider => provider.GetRequiredService<DistributedWorkAdmissionGate>())
+            .AddSingleton<IRemoteActorInvoker>(provider => CreateRemoteInvoker(provider, localReference));
         foreach (var moduleType in table.ModuleTypes)
         {
             services.AddSingleton(moduleType);
@@ -149,7 +157,11 @@ public sealed class HotfixUnloadTests
                 ownsRuntimeResources: false,
                 onRetired: null)));
         await using var provider = services.BuildServiceProvider();
+        await using var caller = remote
+            ? new ServiceCollection().AddLakonaGameServerActors().BuildServiceProvider()
+            : null;
         provider.GetRequiredService<LocalActorNodeIdentity>().Observe(localReference);
+        provider.GetRequiredService<DistributedWorkAdmissionGate>().Open();
 
         table.ValidateModuleActivation(provider);
         HotfixDispatch.Replace(table);
@@ -158,7 +170,7 @@ public sealed class HotfixUnloadTests
         var actorCreated = false;
         try
         {
-            harness = CreateHarness(appAssembly, hotfixAssembly, provider);
+            harness = CreateHarness(appAssembly, hotfixAssembly, provider, caller?.GetRequiredService<IActorRuntime>());
             if (createActor)
             {
                 await CreateActorAsync(
@@ -173,7 +185,9 @@ public sealed class HotfixUnloadTests
         }
         finally
         {
-            if (actorCreated && harness is not null)
+            harness?.ReleaseGate();
+            if (actorCreated && harness is not null &&
+                provider.GetRequiredService<IActorRuntime>().GetState(ActorId.From($"room/{harness.RoomId}")) != ActorState.Dead)
             {
                 await DestroyActorAsync(
                     provider.GetRequiredService<ActorActivationCatalog>(),
@@ -189,7 +203,8 @@ public sealed class HotfixUnloadTests
     private static HotfixUnloadHarness CreateHarness(
         Assembly appAssembly,
         Assembly hotfixAssembly,
-        ServiceProvider provider)
+        ServiceProvider provider,
+        IActorRuntime? routingRuntime = null)
     {
         var exportsType = hotfixAssembly.GetType("HotfixUnload.HotfixUnloadExports", throwOnError: true)!;
         var actorType = appAssembly.GetType("HotfixUnload.RoomActor", throwOnError: true)!;
@@ -198,7 +213,7 @@ public sealed class HotfixUnloadTests
             .Invoke(
                 null,
                 [
-                    provider.GetRequiredService<IActorRuntime>(),
+                    routingRuntime ?? provider.GetRequiredService<IActorRuntime>(),
                     provider,
                     provider.GetRequiredService<RemoteActorOptions>(),
                     ThrowingActorPlacementService.Instance
@@ -214,7 +229,8 @@ public sealed class HotfixUnloadTests
                 "Lakona.Game.Server.Hotfix.GeneratedHotfixActorSelectorExtensions",
                 throwOnError: true)!,
             hotfixAssembly.GetType("HotfixUnload.RoomBehaviorGate", throwOnError: true)!,
-            provider.GetRequiredService<IActorRuntime>());
+            provider.GetRequiredService<IActorRuntime>(),
+            provider);
     }
 
     private static GeneratedHotfixAssemblies CompileGeneratedHotfixAssemblies()
@@ -266,6 +282,11 @@ public sealed class HotfixUnloadTests
                     RoomActor self,
                     int request)
                 {
+                    if (request == -2)
+                    {
+                        self.LastTick = request;
+                        throw new InvalidOperationException("tick failed");
+                    }
                     if (request == -1)
                     {
                         RoomBehaviorGate.GateEntered.TrySetResult();
@@ -273,6 +294,7 @@ public sealed class HotfixUnloadTests
                     }
 
                     self.LastTick = request;
+                    RoomBehaviorGate.LastCompletedTick = request;
                     return default;
                 }
 
@@ -280,11 +302,14 @@ public sealed class HotfixUnloadTests
                 {
                     await RoomBehaviorGate.ReleaseGate.Task.WaitAsync(cancellationToken);
                     self.LastTick = -1;
+                    RoomBehaviorGate.LastCompletedTick = -1;
                 }
             }
 
             internal static class RoomBehaviorGate
             {
+                internal static int LastCompletedTick { get; set; }
+
                 internal static TaskCompletionSource GateEntered { get; private set; } = CreateCompletionSource();
 
                 internal static TaskCompletionSource ReleaseGate { get; private set; } = CreateCompletionSource();
@@ -545,7 +570,8 @@ public sealed class HotfixUnloadTests
         object runTickAsync,
         Type selectorExtensionsType,
         Type gateType,
-        IActorRuntime runtime)
+        IActorRuntime runtime,
+        ServiceProvider provider)
     {
         public Type ActorType { get; } = actorType;
 
@@ -556,6 +582,27 @@ public sealed class HotfixUnloadTests
         public object RunTickAsync { get; } = runTickAsync;
 
         private Type GateType { get; } = gateType;
+
+        public DistributedWorkAdmissionGate Admission => provider.GetRequiredService<DistributedWorkAdmissionGate>();
+
+        public int LastCompletedTick => (int)GateType.GetProperty("LastCompletedTick", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
+
+        public Task PostRouteAsync(int request) => PostRouteAsync(request, TestContext.Current.CancellationToken);
+
+        public Task PostRouteAsync(int request, CancellationToken cancellationToken) =>
+            PostAsync("Route", RunTickAsync, request, cancellationToken);
+
+        public Task DestroyAsync() => DestroyActorAsync(provider.GetRequiredService<ActorActivationCatalog>(),
+            ActorType, ActorId.From($"room/{RoomId}"), TestContext.Current.CancellationToken);
+
+        public async Task InActorAsync(Func<Task> action)
+        {
+            await runtime.AskAsync(ActorType, ActorId.From($"room/{RoomId}"), async (_, _) =>
+            {
+                await action();
+                return null;
+            }, TestContext.Current.CancellationToken);
+        }
 
         public async Task<int> CallRouteAsync(object method, int request)
         {
@@ -584,9 +631,11 @@ public sealed class HotfixUnloadTests
             return ((ValueTask)callAsync.Invoke(null, [route, method, request, CancellationToken.None])!).AsTask();
         }
 
-        public async Task PostLocalAsync(object method, int request)
+        public Task PostLocalAsync(object method, int request) => PostAsync("Local", method, request, TestContext.Current.CancellationToken);
+
+        private async Task PostAsync(string selector, object method, int request, CancellationToken cancellationToken)
         {
-            var local = CreateSelector("Local");
+            var local = CreateSelector(selector);
             var postAsync = selectorExtensionsType
                 .GetMethods(BindingFlags.Static | BindingFlags.Public)
                 .Single(candidate =>
@@ -597,11 +646,12 @@ public sealed class HotfixUnloadTests
             ValueTask call;
             try
             {
-                call = (ValueTask)postAsync.Invoke(null, [local, method, request, CancellationToken.None])!;
+                call = (ValueTask)postAsync.Invoke(null, [local, method, request, cancellationToken])!;
             }
-            catch (TargetInvocationException exception) when (exception.InnerException is ActorCallException actorCallException)
+            catch (TargetInvocationException exception) when (exception.InnerException is not null)
             {
-                throw actorCallException;
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+                throw;
             }
 
             await call.ConfigureAwait(false);

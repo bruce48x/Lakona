@@ -4,10 +4,10 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-11-09 — Reliable Membership recovery and Hotfix rollback
+## 2026-11-09 — Reliable Membership recovery and Actor/Hotfix execution
 
-**Key releases:** `Lakona.Game.Server 0.53.30`, `Lakona.Game.Clustering.Postgres 0.1.100`,
-`Lakona.Game.Clustering.MySql 0.1.100`, and `Lakona.Game.Clustering.Redis 0.1.100`.
+**Key releases:** `Lakona.Game.Server 0.53.32`, `Lakona.Game.Clustering.Postgres 0.1.102`,
+`Lakona.Game.Clustering.MySql 0.1.102`, and `Lakona.Game.Clustering.Redis 0.1.102`.
 
 - Table refresh and heartbeats progress independently of peer probes and startup
   gossip, retaining the table-loss safety deadline and table maintenance during
@@ -16,8 +16,10 @@ date and package versions of important releases are retained.
   and reject stale death proposals. Join retries retain their original generation,
   preventing older startups from displacing newer same-named processes.
 - Repeated Hotfix activation preserves the previous distinct version for rollback
-  and avoids republishing an already loaded version, while retaining recovery
-  when the version pointer and running generation disagree.
+  while retaining recovery when the version pointer and running generation
+  disagree. Actor posts preserve tracing without inheriting wait dependencies;
+  rebuilt local Route posts complete on acceptance, matching remote routes.
+  Callers that require execution completion must use `CallAsync`.
 
 ## 2026-11-07 — Large RPC messages with bounded delivery queues
 

@@ -189,8 +189,21 @@ await actors
 ```
 
 `CallAsync` waits for the Behavior reply and surfaces a typed call failure.
-`PostAsync` is acceptance-only: it completes when the local mailbox or remote
-transport accepts ownership of the work.
+`PostAsync` is acceptance-only: it completes when the target mailbox accepts
+ownership of the work. A remote route waits for the receiving node's acceptance
+reply, not for the Behavior to finish. Local and remote routes both report
+admission failures, including mailbox backpressure, to the caller. Subsequent
+Behavior failures belong to execution-side diagnostics; use `CallAsync` when
+the caller needs completion or failure, even for a method without a return value.
+
+Game.Server 0.53.32 aligns the local `Route.PostAsync` fast path with this
+contract. Rebuild the application's Hotfix assembly to regenerate that path.
+Code that relied on local Route posts finishing the Behavior before returning,
+or catching its exception, must use `CallAsync`. Self-posts are queued for a
+later turn rather than executed inline. Cancellation before acceptance can
+prevent admission; after acceptance it cannot withdraw the queued work. A
+remote timeout or cancellation before the acceptance reply arrives may leave
+the outcome unknown, so it is not evidence that retrying cannot duplicate work.
 
 For local posts, the caller owns the distributed-work admission token until
 the mailbox accepts the message. Rejection or an exception before acceptance
