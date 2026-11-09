@@ -132,6 +132,19 @@ own lease while the parent call is active and dispose it in that task.
 A copied execution context cannot acquire another lease on the retired
 generation once its owning scope has ended.
 
+Ambient runtime lookup skips released nested scopes and resolves the nearest
+still-live ancestor, including when another Task disposes a child lease or scopes
+exit out of order. Nested lease acquisition rechecks ancestors if the selected
+parent exits concurrently, before falling back to the published generation.
+Runtime snapshots, services, dispatch tables and timer-scope entry use this same
+runtime resolution. This does not grant timer execution permission to a task
+escaping a completed timer callback: its captured timer execution scope remains
+inactive. These rules do not revive an expired lease or extend retirement beyond
+the existing lease reference count.
+`HotfixRuntimeSnapshotLeaseTests` verifies cross-Task disposal with and without
+execution-context flow, nested and concurrent release during reload, consistent
+generation selection, and exactly-once service cleanup and load-context unloading.
+
 Lifecycle modules declare `[HotfixLifecycle]` and implement stable lifecycle
 interfaces directly. Contract methods themselves accept
 `HotfixLifecycleCall<TRequest>`. The runtime resolves the generation-owned

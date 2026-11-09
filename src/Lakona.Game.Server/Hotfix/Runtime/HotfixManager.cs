@@ -71,11 +71,12 @@ public sealed class HotfixManager
 
     HotfixRuntimeSnapshotLease IHotfixRuntimeAccessor.AcquireCurrent()
     {
-        var parent = HotfixDispatchRuntimeScope.Current;
-        if (parent is not null && parent.TryGetSnapshot(out var pinned) &&
-            pinned.TryAcquireLease(parent) is { } nested)
+        for (var parent = HotfixDispatchRuntimeScope.Current; parent is not null; parent = parent.Previous)
         {
-            return nested;
+            // A selected parent can exit before lease admission. Continue through
+            // the inherited chain before falling back to the published generation.
+            if (parent.TryGetSnapshot(out var pinned) && pinned.TryAcquireLease(parent) is { } nested)
+                return nested;
         }
 
         while (true)
@@ -93,10 +94,7 @@ public sealed class HotfixManager
 
     private HotfixRuntimeSnapshot ResolveCurrentRuntime()
     {
-        var context = HotfixDispatchRuntimeScope.Current;
-        return context is not null && context.TryGetSnapshot(out var scoped)
-            ? scoped
-            : Volatile.Read(ref _publication).Runtime;
+        return HotfixDispatchRuntimeScope.CurrentSnapshot ?? Volatile.Read(ref _publication).Runtime;
     }
 
     public async ValueTask<HotfixReloadResult> ValidateAsync(CancellationToken cancellationToken = default)

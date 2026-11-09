@@ -10,34 +10,39 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
 
     private HotfixDispatchRuntimeScope(HotfixRuntimeSnapshotLease lease, ILakonaTimerBackend? timerBackend)
     {
-        var previous = CurrentContext.Value;
-        _context = new HotfixDispatchRuntimeContext(lease, timerBackend,
-            previous is { IsActive: true } ? previous : null);
+        _context = new HotfixDispatchRuntimeContext(lease, timerBackend, Current);
         CurrentContext.Value = _context;
     }
 
-    internal static HotfixDispatchRuntimeContext? Current => CurrentContext.Value;
+    internal static HotfixDispatchRuntimeContext? Current => ResolveCurrent(out _);
 
-    internal static IServiceProvider? CurrentServices
+    internal static HotfixRuntimeSnapshot? CurrentSnapshot
     {
         get
         {
-            var context = Current;
-            return context is not null && context.TryGetServices(out var services)
-                ? services
-                : null;
+            ResolveCurrent(out var snapshot);
+            return snapshot;
         }
     }
 
-    internal static HotfixDispatchTable? CurrentTable
+    internal static IServiceProvider? CurrentServices => CurrentSnapshot?.Services;
+
+    internal static HotfixDispatchTable? CurrentTable => CurrentSnapshot?.DispatchTable;
+
+    private static HotfixDispatchRuntimeContext? ResolveCurrent(out HotfixRuntimeSnapshot? snapshot)
     {
-        get
+        // AsyncLocal values are copied between execution contexts, but each frame's
+        // lifetime is shared. Another Task may have released one or more top frames.
+        for (var context = CurrentContext.Value; context is not null; context = context.Previous)
         {
-            var context = Current;
-            return context is not null && context.TryGetSnapshot(out var snapshot)
-                ? snapshot.DispatchTable
-                : null;
+            if (context.TryGetSnapshot(out var active))
+            {
+                snapshot = active;
+                return context;
+            }
         }
+        snapshot = null;
+        return null;
     }
 
     internal static HotfixDispatchRuntimeScope? TryEnter(HotfixRuntimeSnapshotLease lease)
@@ -68,8 +73,8 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
 
     internal static IDisposable? EnterTimerScope()
     {
-        var context = Current;
-        return context is not { TimerBackend: { } timerBackend } || !context.TryGetSnapshot(out _)
+        var context = ResolveCurrent(out _);
+        return context is not { TimerBackend: { } timerBackend }
             ? null
             : LakonaTimerRuntime.Enter(timerBackend, context.Lease);
     }
@@ -81,12 +86,7 @@ internal sealed class HotfixDispatchRuntimeScope : IDisposable
             return;
         }
 
-        var previous = _context.Previous;
-        while (previous is { IsActive: false })
-        {
-            previous = previous.Previous;
-        }
-        CurrentContext.Value = previous;
+        CurrentContext.Value = Current;
     }
 }
 

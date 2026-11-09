@@ -6,12 +6,132 @@ using Microsoft.Extensions.DependencyInjection;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
+using Lakona.Game.Server.Hotfix.Timers;
 using Xunit;
 
 namespace Lakona.Game.Server.Hotfix.Tests;
 
 public sealed class HotfixRuntimeSnapshotLeaseTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Cross_task_disposal_restores_parent_generation_and_preserves_new_child_ancestry(bool middleFirst, bool suppressFlow)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var compiled = await CompiledHotfixFixture.CreateAsync(ct);
+        var source = new SwitchableAssemblySource(compiled.FirstHotfixAssemblyPath);
+        using var root = new ServiceCollection().AddSingleton<ILakonaTimerBackend, TestTimerBackend>().BuildServiceProvider();
+        await using var manager = new HotfixManager(source, [typeof(IGenerationMarker).Assembly.GetName().Name!], rootServices: root);
+        var runtime = (IHotfixRuntimeAccessor)manager;
+        Assert.True((await manager.ReloadAsync(ct)).Succeeded);
+        using var parent = runtime.AcquireCurrent();
+        var old = parent.Snapshot;
+        var resource = old.Services.GetRequiredService<TrackingDisposable>();
+        var unloaded = 0;
+        old.LoadContext!.Unloading += _ => Interlocked.Increment(ref unloaded);
+        using var middle = runtime.AcquireCurrent();
+        using var child = runtime.AcquireCurrent();
+        void ReleaseChildren()
+        {
+            if (middleFirst) { middle.Dispose(); child.Dispose(); }
+            else { child.Dispose(); middle.Dispose(); }
+        }
+        Task release;
+        if (suppressFlow)
+        {
+            using (ExecutionContext.SuppressFlow()) release = Task.Run(ReleaseChildren, ct);
+        }
+        else release = Task.Run(ReleaseChildren, ct);
+        await release;
+        source.AssemblyPath = compiled.SecondHotfixAssemblyPath;
+        Assert.True((await manager.ReloadAsync(ct)).Succeeded);
+
+        Assert.Same(old, runtime.Current);
+        Assert.Same(old.Services, ((IHotfixServiceProviderAccessor)manager).Current);
+        Assert.Same(old.DispatchTable, HotfixDispatchRuntimeScope.CurrentTable);
+        using (var timerScope = HotfixDispatchRuntimeScope.EnterTimerScope())
+        {
+            Assert.NotNull(timerScope);
+            Assert.Same(parent, LakonaTimerExecutionScope.GetActiveContext().RuntimeContext);
+        }
+        using (var next = runtime.AcquireCurrent())
+        {
+            Assert.Same(old, next.Snapshot);
+        }
+        // Creating a child above stale frames must retain the live parent chain.
+        using var sibling = runtime.AcquireCurrent();
+        await Task.Run(sibling.Dispose, ct);
+        Assert.Same(old, runtime.Current);
+        Assert.Equal(0, resource.DisposeCount);
+        Assert.Equal(0, unloaded);
+        await Task.WhenAll(Task.Run(parent.Dispose, ct), Task.Run(parent.Dispose, ct));
+        Assert.Empty(await old.RetirementCompletion.WaitAsync(TimeSpan.FromSeconds(5), ct));
+        Assert.Equal(1, resource.DisposeCount);
+        Assert.Equal(1, unloaded);
+        using var fresh = runtime.AcquireCurrent();
+        Assert.Equal("two", fresh.Services.GetRequiredService<IGenerationMarker>().Generation);
+    }
+
+    [Fact]
+    public async Task Concurrent_release_and_reload_keep_live_parent_pinned_and_retire_once()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var compiled = await CompiledHotfixFixture.CreateAsync(ct);
+        var source = new SwitchableAssemblySource(compiled.FirstHotfixAssemblyPath);
+        await using var manager = new HotfixManager(source, [typeof(IGenerationMarker).Assembly.GetName().Name!]);
+        var runtime = (IHotfixRuntimeAccessor)manager;
+        Assert.True((await manager.ReloadAsync(ct)).Succeeded);
+        using var parent = runtime.AcquireCurrent();
+        var old = parent.Snapshot;
+        var resource = old.Services.GetRequiredService<TrackingDisposable>();
+        using var child = runtime.AcquireCurrent();
+        var captured = ExecutionContext.Capture()!;
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        source.AssemblyPath = compiled.SecondHotfixAssemblyPath;
+        var releases = Enumerable.Range(0, 4).Select(_ => Task.Run(async () =>
+        {
+            await start.Task.WaitAsync(ct);
+            child.Dispose();
+        }, ct)).ToArray();
+        var reload = Task.Run(async () =>
+        {
+            await start.Task.WaitAsync(ct);
+            return await manager.ReloadAsync(ct);
+        }, ct);
+        start.SetResult();
+        for (var index = 0; index < 100; index++)
+        {
+            using var nested = runtime.AcquireCurrent();
+            Assert.Same(old, nested.Snapshot);
+            Assert.Same(old.Services, ((IHotfixServiceProviderAccessor)manager).Current);
+        }
+        await Task.WhenAll(releases);
+        Assert.True((await reload).Succeeded);
+        Assert.Same(old, runtime.Current);
+        Assert.Equal(0, resource.DisposeCount);
+        await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Task.Run(parent.Dispose, ct)));
+        Assert.Empty(await old.RetirementCompletion.WaitAsync(TimeSpan.FromSeconds(5), ct));
+        Assert.Equal(1, resource.DisposeCount);
+        // An escaped execution context must not resurrect the retired generation.
+        ExecutionContext.Run(captured, _ =>
+        {
+            using var fresh = runtime.AcquireCurrent();
+            Assert.Equal("two", fresh.Services.GetRequiredService<IGenerationMarker>().Generation);
+            Assert.Same(fresh.Snapshot, runtime.Current);
+        }, null);
+    }
+
+    private sealed class TestTimerBackend : ILakonaTimerBackend
+    {
+        public TimerId CreateTimer<TActor, TBehavior, TArgs>(TActor actor,
+            Func<TBehavior, ActorTimerCallback<TActor, TArgs>> selector, TimeSpan dueTime, TimeSpan? period, TArgs args)
+            where TActor : Actors.Actor where TBehavior : class => throw new NotSupportedException();
+        public void DestroyTimer(Actors.Actor actor, TimerId timerId) => throw new NotSupportedException();
+    }
+
     [Fact]
     public void Runtime_snapshot_exposes_no_public_retirement_control()
     {
@@ -246,11 +366,13 @@ public sealed class HotfixRuntimeSnapshotLeaseTests
 
     public sealed class TrackingDisposable : IDisposable
     {
-        public bool Disposed { get; private set; }
+        private int _disposeCount;
+        public int DisposeCount => Volatile.Read(ref _disposeCount);
+        public bool Disposed => DisposeCount != 0;
 
         public void Dispose()
         {
-            Disposed = true;
+            Interlocked.Increment(ref _disposeCount);
         }
     }
 
