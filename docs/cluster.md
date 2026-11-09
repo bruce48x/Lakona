@@ -401,6 +401,9 @@ distributed-work admission and stops; this is a terminal fence.
 
 One Membership service owns two independently progressing, serial asynchronous
 loops: table refresh/heartbeat/defunct cleanup, and peer gossip/probing/suspicion.
+If shutdown cancels the queued background task before either loop starts, there
+are no workers to join; graceful shutdown can still publish `Dead`. Cancellation
+of the caller's stop deadline and failures from started workers remain observable.
 Initial gossip runs in the peer loop after activation; it does not delay the
 start of table maintenance or replace the startup two-way connectivity check.
 Peer rounds never overlap or queue missed ticks. Each completed round is followed

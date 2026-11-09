@@ -4,18 +4,20 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-11-09 — Membership maintenance and recovery race safety
+## 2026-11-09 — Reliable Membership recovery and Hotfix rollback
 
-**Key releases:** `Lakona.Game.Server 0.53.29`, `Lakona.Game.Clustering.Postgres 0.1.99`,
-`Lakona.Game.Clustering.MySql 0.1.99`, and `Lakona.Game.Clustering.Redis 0.1.99`.
+**Key releases:** `Lakona.Game.Server 0.53.30`, `Lakona.Game.Clustering.Postgres 0.1.100`,
+`Lakona.Game.Clustering.MySql 0.1.100`, and `Lakona.Game.Clustering.Redis 0.1.100`.
 
 - Table refresh and heartbeats progress independently of peer probes and startup
   gossip, retaining the table-loss safety deadline and table maintenance during
   Actor shutdown; Membership owns and joins both loops.
 - All Membership providers preserve current heartbeats during structural updates
-  and reject stale death proposals when a heartbeat commits first.
-- Join retries retain their original generation, so older startups cannot
-  displace newer same-named processes; uncertain allocation ends that startup.
+  and reject stale death proposals. Join retries retain their original generation,
+  preventing older startups from displacing newer same-named processes.
+- Repeated Hotfix activation preserves the previous distinct version for rollback
+  and avoids republishing an already loaded version, while retaining recovery
+  when the version pointer and running generation disagree.
 
 ## 2026-11-07 — Large RPC messages with bounded delivery queues
 

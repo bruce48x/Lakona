@@ -133,6 +133,16 @@ public sealed class HotfixAdminController
                 "Build the hotfix against this server's stable release, or deploy the matching full server package.");
         }
 
+        var changesVersion = !StringComparer.Ordinal.Equals(oldCurrent, version);
+        if (!changesVersion && StringComparer.Ordinal.Equals(_manager.Current.Version, version))
+        {
+            // A retry confirms the published version without consuming its rollback target.
+            // Keep package/precondition checks above; explicit reload remains a separate operation.
+            cancellationToken.ThrowIfCancellationRequested();
+            Volatile.Write(ref _lastOperationFailure, null);
+            return await GetStatusAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         var validationSource = new CurrentDirectoryHotfixAssemblySource(
             _store.VersionDirectory(version),
             manifest.Assembly);
@@ -144,8 +154,11 @@ public sealed class HotfixAdminController
 
         try
         {
-            await _store.WritePointerAsync("previous.txt", oldCurrent, cancellationToken).ConfigureAwait(false);
-            await _store.WritePointerAsync("current.txt", version, cancellationToken).ConfigureAwait(false);
+            if (changesVersion)
+            {
+                await _store.WritePointerAsync("previous.txt", oldCurrent, cancellationToken).ConfigureAwait(false);
+                await _store.WritePointerAsync("current.txt", version, cancellationToken).ConfigureAwait(false);
+            }
 
             var result = await _manager.ReloadAsync(cancellationToken).ConfigureAwait(false);
             if (!result.Succeeded)
@@ -157,8 +170,11 @@ public sealed class HotfixAdminController
         }
         catch
         {
-            await _store.WritePointerAsync("current.txt", oldCurrent, CancellationToken.None).ConfigureAwait(false);
-            await _store.WritePointerAsync("previous.txt", oldPrevious, CancellationToken.None).ConfigureAwait(false);
+            if (changesVersion)
+            {
+                await _store.WritePointerAsync("current.txt", oldCurrent, CancellationToken.None).ConfigureAwait(false);
+                await _store.WritePointerAsync("previous.txt", oldPrevious, CancellationToken.None).ConfigureAwait(false);
+            }
             throw;
         }
 

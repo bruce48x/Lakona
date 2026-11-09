@@ -25,6 +25,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
     private readonly TimeProvider timeProvider;
     private readonly Dictionary<NodeReference, int> failedProbes = [];
     private uint probeRound;
+    private volatile bool executionStarted;
     private readonly object shutdownGate = new();
     private Task? beginStoppingTask;
     private readonly MembershipTableSafetyWindow safetyWindow;
@@ -119,7 +120,15 @@ internal sealed class MembershipTableHostedService : BackgroundService
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
         // BackgroundService's stop deadline can expire before ExecuteTask finishes.
         // Do not report a clean stop or publish Dead while a worker is still running.
-        if (ExecuteTask is { } execution) await execution.WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (ExecuteTask is { } execution)
+        {
+            try { await execution.WaitAsync(cancellationToken).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (execution.IsCanceled && !executionStarted && !cancellationToken.IsCancellationRequested)
+            {
+                // BackgroundService may cancel its queued task before ExecuteAsync
+                // starts. No worker owns resources in that case, so shutdown can finish.
+            }
+        }
         try
         {
             await ObserveTableOperationAsync("dead", () => manager.MarkDeadAsync(shutdownBudget.Token)).ConfigureAwait(false);
@@ -172,6 +181,7 @@ internal sealed class MembershipTableHostedService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        executionStarted = true;
         // The renewable deadline cancels this token independently of any awaited operation.
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, safetyToken);
         using var peerBudget = CancellationTokenSource.CreateLinkedTokenSource(budget.Token, peerToken);

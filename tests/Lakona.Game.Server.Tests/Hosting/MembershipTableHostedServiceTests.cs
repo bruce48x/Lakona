@@ -17,6 +17,46 @@ public sealed class MembershipTableHostedServiceTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task Stop_handles_cancellation_before_background_execution_starts(bool expiredStopDeadline)
+    {
+        using var startup = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var table = new InMemoryMembershipTable();
+        var state = new ClusterMembershipState();
+        var manager = new MembershipTableManager(new NodeId("worker"), NodeIncarnationId.New(),
+            new NodeEndpoint("tcp://127.0.0.1:21001"), new ClusterBuildTag("TestBuild1"), table, state);
+        using var services = new ServiceCollection().BuildServiceProvider();
+        using var hosted = new MembershipTableHostedService(new LakonaGameRuntimeOptions(), manager,
+            state, new SingleNodeProbeTransport(), new DistributedWorkAdmissionGate(), [], services,
+            NullLogger<MembershipTableHostedService>.Instance,
+            timeProvider: new CancelOnSafetyStartTimeProvider(startup));
+
+        // Cancel at the safety-window start, immediately before BackgroundService
+        // schedules ExecuteAsync. Its task is canceled without running any worker.
+        await hosted.StartAsync(startup.Token);
+        Assert.True(hosted.ExecuteTask!.IsCanceled);
+        if (expiredStopDeadline)
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => hosted.StopAsync(startup.Token));
+            Assert.NotEqual(MembershipTableStatus.Dead,
+                Assert.Single((await table.ReadOrCreateAsync(TestContext.Current.CancellationToken)).Entries).Status);
+        }
+        await hosted.StopAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(MembershipTableStatus.Dead,
+            Assert.Single((await table.ReadOrCreateAsync(TestContext.Current.CancellationToken)).Entries).Status);
+    }
+
+    private sealed class CancelOnSafetyStartTimeProvider(CancellationTokenSource startup) : TimeProvider
+    {
+        public override long GetTimestamp()
+        {
+            startup.Cancel();
+            return base.GetTimestamp();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task Allocation_failure_ends_startup_without_retrying(bool committed)
     {
         var inner = new InMemoryMembershipTable();
@@ -644,13 +684,17 @@ public sealed class MembershipTableHostedServiceTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Unexpected_worker_exit_fences_and_cancels_the_other_worker(bool failTableWorker)
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public async Task Unexpected_worker_exit_fences_and_cancels_the_other_worker(bool failTableWorker, bool cancellationException)
     {
         var peers = await CreateActiveClusterAsync(1);
         var time = new MembershipTestTimeProvider();
-        var failure = new InvalidOperationException("Injected scheduling failure");
+        Exception failure = cancellationException
+            ? new OperationCanceledException("Injected scheduling failure")
+            : new InvalidOperationException("Injected scheduling failure");
         time.DelayFailure = delay => delay == TimeSpan.FromSeconds(failTableWorker ? 5 : 10) ? failure : null;
         var membership = new ClusterMembershipState();
         var manager = new MembershipTableManager(new NodeId("joining"), NodeIncarnationId.New(),
@@ -675,13 +719,13 @@ public sealed class MembershipTableHostedServiceTests
             Assert.Throws<InvalidOperationException>(gate.Open);
             if (failTableWorker) Assert.False(hosted.ExecuteTask!.IsCompleted);
             probes.Resume.TrySetResult();
-            var actual = await Assert.ThrowsAsync<InvalidOperationException>(() => hosted.ExecuteTask!);
+            var actual = await Record.ExceptionAsync(() => hosted.ExecuteTask!);
             Assert.Same(failure, actual);
         }
         finally
         {
             probes.Resume.TrySetResult();
-            await Assert.ThrowsAsync<InvalidOperationException>(() => hosted.StopAsync(CancellationToken.None));
+            Assert.Same(failure, await Record.ExceptionAsync(() => hosted.StopAsync(CancellationToken.None)));
         }
         Assert.Equal(0, time.ActiveTimers);
     }

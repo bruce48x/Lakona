@@ -215,6 +215,21 @@ Activate, status, and rollback use the running node's loopback-only HTTP admin
 endpoint. V1 deliberately has no remote upload, public management endpoint, or
 built-in cluster rollout command.
 
+Activation changes `previous.txt` only when selecting a different version.
+After the expected-current-version check, package checksums and BuildTag checks,
+an activation whose target matches both `current.txt` and the published runtime
+version returns success without validation loading, republishing a generation,
+or changing either pointer. Repeated activation therefore preserves the last
+different version for rollback, whether or not the request repeats an OperationId.
+Use the explicit reload operation when the current version must be loaded again.
+
+If `current.txt` already selects the target but the runtime has a different
+version, activation still validates and loads that target, preserving the existing
+rollback pointer. Failed or canceled activation before publication restores any
+pointers it changed. Cancellation while returning status after successful
+publication leaves the published version and its rollback target intact; a repeat
+activation confirms that version without advancing the rollback pointer.
+
 Expected activation, rollback, and reload failures return HTTP 400 with an
 `error` message and a structured `diagnostic`. Its `code`, `stage`
 (`request`, `package`, `validation`, or `reload`), `candidateVersion`, `message`,
