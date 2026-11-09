@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Server.Observability;
+using Lakona.Rpc.Server;
 using Xunit;
 
 namespace Lakona.Rpc.Tests;
@@ -27,11 +28,11 @@ public sealed class RpcServerTelemetryTests
             measurements.Enqueue(new(instrument.Name, value, tags.ToArray())));
         listener.Start();
 
-        RpcServerTelemetry.RecordRequestStarted(10, 20);
-        RpcServerTelemetry.RecordRequestQueueDuration(10, 20, TimeSpan.FromMilliseconds(5));
+        var route = new RpcMethodDescriptor(10, 20, null, null);
+        RpcServerTelemetry.RecordRequestStarted(route);
+        RpcServerTelemetry.RecordRequestQueueDuration(route, TimeSpan.FromMilliseconds(5));
         RpcServerTelemetry.RecordRequestOutcome(
-            10,
-            20,
+            route,
             RpcServerTelemetry.ResponseOutcome,
             RpcStatus.Ok,
             TimeSpan.FromMilliseconds(25));

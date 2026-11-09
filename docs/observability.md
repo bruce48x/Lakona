@@ -119,9 +119,23 @@ request accepted by a Session and exactly one `request.outcome` counter plus
 bounded `lakona.rpc.request.outcome` values are `response`, `canceled`,
 `connection_closed`, and `failure`; `lakona.rpc.response.status_code` is
 present when a response status is known. Requests that enter the Session
-concurrency budget also emit `request.queue.duration`. All RPC request metrics
-carry only numeric service and method ids plus these bounded outcome/status
-attributes; request and connection ids remain in structured logs.
+concurrency budget also emit `request.queue.duration`.
+
+Route classification is captured once at Session admission and reused for all
+four metrics, including overload, cancellation and disconnect outcomes. Registered
+routes retain numeric `lakona.rpc.service.id` and `lakona.rpc.method.id` tags.
+Unregistered service/method pairs instead carry `lakona.rpc.route=unknown` and
+omit both numeric tags, so arbitrary wire ids cannot create new route categories.
+Late registration does not change the category of an already admitted request;
+dispatch still uses the current registry. A registered handler returning `NotFound`
+retains its registered identity. Outcome/status tags remain independent of route
+classification. All request metrics retain `rpc.system=lakona`.
+
+Original service, method, request and connection ids remain in structured request
+logs. Requests interrupted before dispatch, including cancellation while waiting
+for concurrency, retain these ids in a Trace-level interruption log. Metric labels
+are bounded by registered routes and fixed unknown/outcome/status categories;
+exporter storage and retention settings determine their actual memory footprint.
 
 ## OpenTelemetry Setup
 

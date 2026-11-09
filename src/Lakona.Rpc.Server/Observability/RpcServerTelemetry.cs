@@ -35,27 +35,25 @@ internal static class RpcServerTelemetry
         unit: "{request}",
         description: "Terminal outcomes for RPC requests accepted by the Session.");
 
-    internal static void RecordRequestStarted(int serviceId, int methodId)
+    internal static void RecordRequestStarted(RpcMethodDescriptor? route)
     {
-        RequestStarted.Add(1, RouteTags(serviceId, methodId));
+        RequestStarted.Add(1, RouteTags(route));
     }
 
     internal static void RecordRequestQueueDuration(
-        int serviceId,
-        int methodId,
+        RpcMethodDescriptor? route,
         TimeSpan elapsed)
     {
-        RequestQueueDuration.Record(elapsed.TotalSeconds, RouteTags(serviceId, methodId));
+        RequestQueueDuration.Record(elapsed.TotalSeconds, RouteTags(route));
     }
 
     internal static void RecordRequestOutcome(
-        int serviceId,
-        int methodId,
+        RpcMethodDescriptor? route,
         string outcome,
         RpcStatus? status,
         TimeSpan elapsed)
     {
-        var tags = RouteTags(serviceId, methodId);
+        var tags = RouteTags(route);
         tags.Add("lakona.rpc.request.outcome", outcome);
         if (status is { } value)
         {
@@ -66,13 +64,18 @@ internal static class RpcServerTelemetry
         RequestDuration.Record(elapsed.TotalSeconds, tags);
     }
 
-    private static TagList RouteTags(int serviceId, int methodId)
+    private static TagList RouteTags(RpcMethodDescriptor? route)
     {
-        return new TagList
+        var tags = new TagList { { "rpc.system", "lakona" } };
+        if (route is null)
         {
-            { "rpc.system", "lakona" },
-            { "lakona.rpc.service.id", serviceId },
-            { "lakona.rpc.method.id", methodId }
-        };
+            tags.Add("lakona.rpc.route", "unknown");
+        }
+        else
+        {
+            tags.Add("lakona.rpc.service.id", route.ServiceId);
+            tags.Add("lakona.rpc.method.id", route.MethodId);
+        }
+        return tags;
     }
 }

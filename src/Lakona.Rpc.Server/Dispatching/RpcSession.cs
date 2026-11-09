@@ -27,6 +27,7 @@ namespace Lakona.Rpc.Server
         private readonly System.Collections.Concurrent.ConcurrentDictionary<int, Lazy<object>> _scopedServices = new();
         private readonly RpcConnectionChannel _connection;
         private readonly ServerRequestDispatcher _requestDispatcher;
+        private readonly RpcServiceRegistry _registry;
         private readonly ITransport _transport;
         private readonly IRpcSerializer _serializer;
         private readonly RpcKeepAliveOptions _keepAlive;
@@ -96,6 +97,7 @@ namespace Lakona.Rpc.Server
             }
             _connection = new RpcConnectionChannel(_transport, _keepAlive);
             _requestDispatcher = new ServerRequestDispatcher(registry, requestGates, _connection, _requestLogger);
+            _registry = registry;
             ServiceExceptionHandler = serviceExceptionHandler;
             OpenServiceScope = openServiceScope;
             ConnectionId = connectionId ?? throw new ArgumentNullException(nameof(connectionId));
@@ -362,8 +364,8 @@ namespace Lakona.Rpc.Server
             }
         }
 
-        private readonly Channel<(RpcRequestFrame Request, long StartedAt)> _requests =
-            Channel.CreateUnbounded<(RpcRequestFrame, long)>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
+        private readonly Channel<(RpcRequestFrame Request, long StartedAt, RpcMethodDescriptor? MetricRoute)> _requests =
+            Channel.CreateUnbounded<(RpcRequestFrame, long, RpcMethodDescriptor?)>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
 
         private async Task LoopAsync(CancellationTokenSource? serverCts)
         {
@@ -488,7 +490,10 @@ namespace Lakona.Rpc.Server
         private ValueTask EnqueueRequestProcessingAsync(RpcRequestFrame req, CancellationToken ct)
         {
             var startedAt = Stopwatch.GetTimestamp();
-            RpcServerTelemetry.RecordRequestStarted(req.ServiceId, req.MethodId);
+            // Classify once at admission. Unknown wire IDs never become metric
+            // labels, even if registration changes while this request is queued.
+            _registry.TryGetDescriptor(req.ServiceId, req.MethodId, out var metricRoute);
+            RpcServerTelemetry.RecordRequestStarted(metricRoute);
             if (!_requestBudget.Wait(0))
             {
                 _requestLogger.LogWarning(
@@ -500,18 +505,15 @@ namespace Lakona.Rpc.Server
                     ConnectionId,
                     "RPC server is overloaded; request queue is full.");
                 var requestId = req.RequestId;
-                var serviceId = req.ServiceId;
-                var methodId = req.MethodId;
                 req.Dispose();
                 return SendOverloadedResponseAsync(
                     requestId,
-                    serviceId,
-                    methodId,
+                    metricRoute,
                     startedAt,
                     ct);
             }
 
-            if (!_requests.Writer.TryWrite((req, startedAt)))
+            if (!_requests.Writer.TryWrite((req, startedAt, metricRoute)))
             {
                 req.Dispose();
                 _requestBudget.Release();
@@ -524,7 +526,7 @@ namespace Lakona.Rpc.Server
             await foreach (var item in _requests.Reader.ReadAllAsync().ConfigureAwait(false))
             {
                 var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-                var task = ProcessRequestAsync(item.Request, item.StartedAt, ct, entered);
+                var task = ProcessRequestAsync(item.Request, item.StartedAt, item.MetricRoute, ct, entered);
                 _inflightRequests.Track(task);
                 await entered.Task.ConfigureAwait(false);
             }
@@ -533,6 +535,7 @@ namespace Lakona.Rpc.Server
         private async Task ProcessRequestAsync(
             RpcRequestFrame req,
             long startedAt,
+            RpcMethodDescriptor? metricRoute,
             CancellationToken ct,
             TaskCompletionSource<bool> entered)
         {
@@ -544,8 +547,7 @@ namespace Lakona.Rpc.Server
                 await _requestConcurrencyGate.WaitAsync(ct).ConfigureAwait(false);
                 enteredConcurrencyGate = true;
                 RpcServerTelemetry.RecordRequestQueueDuration(
-                    req.ServiceId,
-                    req.MethodId,
+                    metricRoute,
                     Stopwatch.GetElapsedTime(startedAt));
 
                 status = await _requestDispatcher.DispatchAsync(this, req, ct, startedAt, () => entered.TrySetResult(true)).ConfigureAwait(false);
@@ -553,14 +555,18 @@ namespace Lakona.Rpc.Server
             }
             catch (Exception error)
             {
+                // A request canceled while queued has not reached the dispatch
+                // logger. Keep its wire identity available without metric labels.
+                _requestLogger.LogTrace(
+                    "RPC request interrupted {RequestId} service {ServiceId} method {MethodId} in connection {ConnectionId}.",
+                    req.RequestId, req.ServiceId, req.MethodId, ConnectionId);
                 outcome = await HandleUnansweredRequestAsync(req.RequestId, error, ct).ConfigureAwait(false);
             }
             finally
             {
                 entered.TrySetResult(true);
                 RpcServerTelemetry.RecordRequestOutcome(
-                    req.ServiceId,
-                    req.MethodId,
+                    metricRoute,
                     outcome,
                     status,
                     Stopwatch.GetElapsedTime(startedAt));
@@ -574,8 +580,7 @@ namespace Lakona.Rpc.Server
 
         private async ValueTask SendOverloadedResponseAsync(
             uint requestId,
-            int serviceId,
-            int methodId,
+            RpcMethodDescriptor? metricRoute,
             long startedAt,
             CancellationToken ct)
         {
@@ -592,8 +597,7 @@ namespace Lakona.Rpc.Server
             finally
             {
                 RpcServerTelemetry.RecordRequestOutcome(
-                    serviceId,
-                    methodId,
+                    metricRoute,
                     outcome,
                     RpcStatus.Overloaded,
                     Stopwatch.GetElapsedTime(startedAt));

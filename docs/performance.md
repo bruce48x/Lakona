@@ -172,6 +172,17 @@ changed without new measurements:
   throughput claim; any claimed performance gain still requires a focused
   benchmark.
 
+### RPC Route Metrics
+
+RPC request metrics resolve a registered descriptor once at admission and retain
+that classification through completion. Unknown wire ids share a fixed metric
+category without a separate whitelist or per-request cache. See
+[Observability](observability.md#instrumentation-scopes) for the label contract.
+The [route-metrics benchmark](../benchmarks/rpc-route-metrics/README.md) compares
+recording cost and real 32-byte loopback requests against a pinned pre-fix runtime,
+both with and without metric listeners. Loopback measurements include dispatch
+and framing, but do not represent network latency or exporter cost.
+
 ### Session Population Collection
 
 Session population gauges share a one-second, demand-driven snapshot instead
