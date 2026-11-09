@@ -67,6 +67,9 @@ internal sealed class MembershipTableHostedService : BackgroundService
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
+        // An allocation may have committed even when its response was lost.
+        // End this startup on failure instead of issuing a newer generation.
+        await ObserveTableOperationAsync("join", () => manager.PrepareJoinAsync(cancellationToken)).ConfigureAwait(false);
         var local = await RetryAsync(
             token => ObserveTableOperationAsync("join", () => manager.JoinAsync(token)),
             "join membership",

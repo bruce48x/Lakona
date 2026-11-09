@@ -41,7 +41,7 @@ flowchart LR
 | `BuildTag` | Exact application compatibility identity shared by every node in one cluster, such as `Release1`. |
 | `ClusterIncarnationId` | Random fencing identity created when an environment first creates its Membership metadata. |
 | `NodeIncarnationId` | Random identity for one process lifetime. It changes on every restart. |
-| Membership generation | Monotonic number allocated by the shared table for one join attempt. It orders competing incarnations without comparing machine clocks. |
+| Membership generation | Monotonic number allocated once for a process incarnation and reused across join retries. It orders competing incarnations without comparing machine clocks. |
 | `NodeReference` | Exact cluster, node id, and process-incarnation identity. |
 | `MembershipViewId` | Monotonically increasing version of the committed table. |
 | `IAmAliveTime` | Low-frequency evidence that one process can still reach the table. It is not the failure detector. |
@@ -143,6 +143,20 @@ requiring operators to clear membership rows.
 Running two live processes intentionally configured with the same `NodeId` is
 an operator error. The newer process wins; the displaced process stops instead
 of allowing two owners for one logical slot.
+
+Newer means a higher storage-allocated generation, not a later wall-clock
+startup time. Generation allocation is attempted once per process incarnation,
+outside the startup retry loop. A failed or canceled allocation ends that startup,
+including when storage committed but the response was lost. A fresh process
+incarnation may start again; unused generation numbers are harmless gaps.
+
+After allocation succeeds, read failures and join CAS conflicts retry with the
+same cluster incarnation and generation. Lost insert/replace responses are
+reconciled by reading the exact local row. Join completes only after confirming
+that row is still `Joining` with the allocated generation in the same cluster.
+A changed cluster, a local row that is Dead or otherwise invalid, a missing
+confirmed write, or a newer same-named incarnation fences the join. Fencing is
+terminal for that manager even if the evidence is subsequently cleaned up.
 
 ## Membership Table
 

@@ -4,17 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-11-09 — Membership maintenance and heartbeat race safety
+## 2026-11-09 — Membership maintenance and recovery race safety
 
-**Key releases:** `Lakona.Game.Server 0.53.28`, `Lakona.Game.Clustering.Postgres 0.1.98`,
-`Lakona.Game.Clustering.MySql 0.1.98`, and `Lakona.Game.Clustering.Redis 0.1.98`.
+**Key releases:** `Lakona.Game.Server 0.53.29`, `Lakona.Game.Clustering.Postgres 0.1.99`,
+`Lakona.Game.Clustering.MySql 0.1.99`, and `Lakona.Game.Clustering.Redis 0.1.99`.
 
 - Table refresh and heartbeats progress independently of peer probes and startup
-  gossip, preserving healthy nodes while retaining the table-loss safety deadline.
-- Membership owns and joins both loops; Stopping ends peer communication while
-  table maintenance remains available for Actor cleanup.
+  gossip, retaining the table-loss safety deadline and table maintenance during
+  Actor shutdown; Membership owns and joins both loops.
 - All Membership providers preserve current heartbeats during structural updates
   and reject stale death proposals when a heartbeat commits first.
+- Join retries retain their original generation, so older startups cannot
+  displace newer same-named processes; uncertain allocation ends that startup.
 
 ## 2026-11-07 — Large RPC messages with bounded delivery queues
 

@@ -10,6 +10,10 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
     private readonly ClusterMembershipState membership;
     private readonly TimeProvider timeProvider;
     private readonly DateTimeOffset startedAt;
+    private readonly object generationGate = new();
+    private Task<MembershipTableGeneration>? generationTask;
+    private bool joinCommitted;
+    private ClusterMembershipFencedException? joinFailure;
     private NodeReference? local;
 
     public MembershipTableManager(
@@ -33,63 +37,80 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
 
     public NodeReference Local => local ?? throw new InvalidOperationException("The local node has not joined membership.");
 
+    // Allocation is attempted once, including failures with an unknown commit outcome.
+    // The host calls this outside its retry loop; direct JoinAsync callers share it.
+    internal ValueTask<MembershipTableGeneration> PrepareJoinAsync(CancellationToken cancellationToken)
+    {
+        lock (generationGate)
+        {
+            generationTask ??= AllocateOnceAsync(cancellationToken);
+            return new ValueTask<MembershipTableGeneration>(generationTask);
+        }
+    }
+
+    private async Task<MembershipTableGeneration> AllocateOnceAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var generation = await table.AllocateGenerationAsync(buildTag.Value, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        return generation;
+    }
+
     public async ValueTask<NodeReference> JoinAsync(CancellationToken cancellationToken = default)
     {
         if (local is not null) throw new InvalidOperationException("The local node has already joined membership.");
-        var generation = await table.AllocateGenerationAsync(buildTag.Value, cancellationToken).ConfigureAwait(false);
+        if (joinFailure is not null) throw joinFailure;
+        try
+        {
+            return await JoinCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (ClusterMembershipFencedException exception)
+        {
+            joinFailure = exception;
+            throw;
+        }
+    }
+
+    private async ValueTask<NodeReference> JoinCoreAsync(CancellationToken cancellationToken)
+    {
+        var generation = await PrepareJoinAsync(cancellationToken).ConfigureAwait(false);
+        var reference = new NodeReference(generation.Cluster, nodeId, nodeIncarnation);
         var conflicts = 0;
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var snapshot = await ReadExactAsync(cancellationToken).ConfigureAwait(false);
-            var existing = snapshot.Entries.SingleOrDefault(entry =>
-                entry.Reference.Node == nodeId && entry.Status != MembershipTableStatus.Dead);
-            if (existing?.Reference.Incarnation == nodeIncarnation
-                && existing.Status == MembershipTableStatus.Joining)
-            {
-                local = existing.Reference;
-                membership.Initialize(new MembershipTableSnapshotProjection(snapshot));
-                return existing.Reference;
-            }
-
-            if (existing is not null)
-            {
-                if (existing.Generation >= generation.Value)
-                {
-                    throw new ClusterMembershipFencedException(
-                        $"Node id '{nodeId.Value}' already has a newer live incarnation.");
-                }
-
-                var replacement = new MembershipTableEntry(
-                    new NodeReference(snapshot.Cluster, nodeId, nodeIncarnation),
-                    MembershipTableStatus.Joining,
-                    endpoint,
-                    version: 1,
-                    iAmAliveTime: startedAt,
-                    startTime: startedAt,
-                    generation: generation.Value);
-                if (await table.TryReplaceAsync(
-                    existing.Reference,
-                    existing.Version,
-                    replacement,
-                    snapshot.Version,
-                    cancellationToken).ConfigureAwait(false))
-                {
-                    var replacementSnapshot = await ReadExactAsync(cancellationToken).ConfigureAwait(false);
-                    local = replacement.Reference;
-                    membership.Initialize(new MembershipTableSnapshotProjection(replacementSnapshot));
-                    return replacement.Reference;
-                }
-
-                await DelayAfterConflictAsync(++conflicts, cancellationToken).ConfigureAwait(false);
-                continue;
-            }
-
-            var reference = new NodeReference(snapshot.Cluster, nodeId, nodeIncarnation);
+            cancellationToken.ThrowIfCancellationRequested();
             if (snapshot.Cluster != generation.Cluster)
             {
                 throw new ClusterMembershipFencedException("The membership cluster incarnation changed while this node was joining.");
             }
+
+            var own = snapshot.Entries.SingleOrDefault(entry => entry.Reference == reference);
+            if (own is not null)
+            {
+                if (own.Status != MembershipTableStatus.Joining || own.Generation != generation.Value)
+                {
+                    throw new ClusterMembershipFencedException("The joining node incarnation is no longer valid in the membership table.");
+                }
+
+                membership.Initialize(new MembershipTableSnapshotProjection(snapshot));
+                local = reference;
+                return reference;
+            }
+
+            if (joinCommitted)
+            {
+                throw new ClusterMembershipFencedException("The committed joining node incarnation is missing from the membership table.");
+            }
+
+            if (snapshot.Entries.Any(entry => entry.Reference.Node == nodeId && entry.Generation >= generation.Value))
+            {
+                throw new ClusterMembershipFencedException($"Node id '{nodeId.Value}' already has a newer incarnation.");
+            }
+
+            var existing = snapshot.Entries.SingleOrDefault(entry =>
+                entry.Reference.Node == nodeId && entry.Status != MembershipTableStatus.Dead);
             var joining = new MembershipTableEntry(
                 reference,
                 MembershipTableStatus.Joining,
@@ -98,16 +119,14 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
                 iAmAliveTime: startedAt,
                 startTime: startedAt,
                 generation: generation.Value);
-            if (!await table.TryInsertAsync(joining, snapshot.Version, cancellationToken).ConfigureAwait(false))
+            joinCommitted = existing is null
+                ? await table.TryInsertAsync(joining, snapshot.Version, cancellationToken).ConfigureAwait(false)
+                : await table.TryReplaceAsync(existing.Reference, existing.Version, joining, snapshot.Version, cancellationToken).ConfigureAwait(false);
+            if (!joinCommitted)
             {
                 await DelayAfterConflictAsync(++conflicts, cancellationToken).ConfigureAwait(false);
-                continue;
             }
-
-            var committed = await ReadExactAsync(cancellationToken).ConfigureAwait(false);
-            local = reference;
-            membership.Initialize(new MembershipTableSnapshotProjection(committed));
-            return reference;
+            // Confirm through the same checks, including retries after a lost response.
         }
     }
 

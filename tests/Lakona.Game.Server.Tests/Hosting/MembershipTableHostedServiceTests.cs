@@ -14,6 +14,82 @@ namespace Lakona.Game.Server.Hosting;
 
 public sealed class MembershipTableHostedServiceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Allocation_failure_ends_startup_without_retrying(bool committed)
+    {
+        var inner = new InMemoryMembershipTable();
+        var failure = new IOException("Allocation response unavailable.");
+        var table = new FailingMembershipTable(inner);
+        if (committed) table.AfterAllocate = () => throw failure;
+        else table.AllocationError = failure;
+        var state = new ClusterMembershipState();
+        var manager = new MembershipTableManager(new NodeId("worker"), NodeIncarnationId.New(),
+            new NodeEndpoint("tcp://127.0.0.1:21001"), new ClusterBuildTag("TestBuild1"), table, state);
+        var probes = new RecordingProbeTransport((_, _, _) => true);
+        using var services = new ServiceCollection().BuildServiceProvider();
+        using var hosted = new MembershipTableHostedService(new LakonaGameRuntimeOptions(), manager,
+            state, probes, new DistributedWorkAdmissionGate(), [], services,
+            NullLogger<MembershipTableHostedService>.Instance);
+
+        Assert.Same(failure, await Assert.ThrowsAsync<IOException>(() => hosted.StartAsync(TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken)));
+        Assert.Equal(1, table.AllocateAttempts);
+        Assert.Empty(probes.Calls);
+        Assert.Empty((await inner.ReadOrCreateAsync(TestContext.Current.CancellationToken)).Entries);
+        Assert.Throws<InvalidOperationException>(() => manager.Local);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Startup_read_retry_keeps_its_generation_and_respects_a_newer_process(bool replaced)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var inner = new InMemoryMembershipTable();
+        var table = new FailingMembershipTable(inner);
+        var state = new ClusterMembershipState();
+        var manager = new MembershipTableManager(new NodeId("worker"), NodeIncarnationId.New(),
+            new NodeEndpoint("tcp://127.0.0.1:21001"), new ClusterBuildTag("TestBuild1"), table, state);
+        NodeReference? successor = null;
+        table.BeforeRead = async token =>
+        {
+            table.BeforeRead = null;
+            if (replaced)
+            {
+                var newer = new MembershipTableManager(new NodeId("worker"), NodeIncarnationId.New(),
+                    new NodeEndpoint("tcp://127.0.0.1:21001"), new ClusterBuildTag("TestBuild1"),
+                    inner, new ClusterMembershipState());
+                successor = await newer.JoinAsync(token);
+                await newer.ActivateAsync(null, [], [], token);
+            }
+            throw new IOException("Read failed after generation allocation.");
+        };
+        using var services = new ServiceCollection().BuildServiceProvider();
+        using var hosted = new MembershipTableHostedService(new LakonaGameRuntimeOptions(), manager,
+            state, new SingleNodeProbeTransport(), new DistributedWorkAdmissionGate(), [], services,
+            NullLogger<MembershipTableHostedService>.Instance);
+        try
+        {
+            if (replaced)
+                await Assert.ThrowsAsync<ClusterMembershipFencedException>(() => hosted.StartAsync(ct)
+                    .WaitAsync(TimeSpan.FromSeconds(10), ct));
+            else await hosted.StartAsync(ct).WaitAsync(TimeSpan.FromSeconds(10), ct);
+
+            Assert.Equal(1, table.AllocateAttempts);
+            var current = Assert.Single((await inner.ReadOrCreateAsync(ct)).Entries);
+            Assert.Equal(replaced ? successor : manager.Local, current.Reference);
+            Assert.Equal(replaced ? 2 : 1, current.Generation);
+            Assert.Equal(MembershipTableStatus.Active, current.Status);
+            if (replaced) Assert.Throws<InvalidOperationException>(() => state.Current);
+        }
+        finally
+        {
+            if (!replaced) await hosted.StopAsync(CancellationToken.None);
+        }
+    }
+
     [Fact]
     public async Task Real_refused_direct_probes_reach_death_threshold_in_two_node_cluster()
     {
@@ -806,11 +882,20 @@ public sealed class MembershipTableHostedServiceTests
     {
         public bool Fail { get; set; }
         public Func<CancellationToken, ValueTask>? BeforeRead { get; set; }
+        public Exception? AllocationError { get; set; }
+        public Action? AfterAllocate { get; set; }
+        public int AllocateAttempts { get; private set; }
 
-        public ValueTask<MembershipTableGeneration> AllocateGenerationAsync(
+        public async ValueTask<MembershipTableGeneration> AllocateGenerationAsync(
             string buildTag,
-            CancellationToken cancellationToken = default) =>
-            Invoke(() => inner.AllocateGenerationAsync(buildTag, cancellationToken));
+            CancellationToken cancellationToken = default)
+        {
+            AllocateAttempts++;
+            if (AllocationError is not null) throw AllocationError;
+            var result = await Invoke(() => inner.AllocateGenerationAsync(buildTag, cancellationToken));
+            AfterAllocate?.Invoke();
+            return result;
+        }
 
         public async ValueTask<MembershipTableSnapshot> ReadOrCreateAsync(CancellationToken cancellationToken = default)
         {
