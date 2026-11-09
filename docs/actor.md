@@ -200,6 +200,15 @@ Returning from `PostAsync` does not release an accepted message's token:
 shutdown must still wait for that work to finish. Cancellation between the
 initial check and mailbox admission follows the same pre-acceptance cleanup.
 
+Local acceptance-only posts start a new wait-dependency chain when their turn
+runs. A sender that has finished its turn can therefore receive a call back
+from the posted work, including after multiple posts or a self-post. The
+originating trace context is retained independently. Calls that wait for a
+reply still propagate the wait chain and reject a circular dependency such
+as A waiting for B while B calls A. Business code must not keep the sender's
+turn waiting for posted work through a separate completion signal: that
+application-defined dependency is outside the runtime's call-chain tracking.
+
 The method selector must be a direct static lambda in the form
 `static behavior => behavior.MethodAsync`. This keeps Go to Definition pointed
 at the implementation and binds method identity without retaining an old

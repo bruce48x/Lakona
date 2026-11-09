@@ -76,7 +76,9 @@ internal sealed class ActorMailbox
             return ActorTellResult.ActorUnavailable;
         }
 
-        ActorMailboxEntry entry = CreateEntry(work, response: null);
+        // Acceptance-only posts do not keep the sender waiting for this turn.
+        // Preserve tracing separately, but start a new wait-dependency chain.
+        ActorMailboxEntry entry = CreateEntry(work, response: null, Array.Empty<ActorId>());
         if (TryWrite(entry, allowStopping: false))
         {
             return ActorTellResult.Accepted;
@@ -223,12 +225,12 @@ internal sealed class ActorMailbox
     private ActorMailboxEntry CreateEntry(
         ActorWorkItem work,
         TaskCompletionSource<object?>? response,
-        IReadOnlyList<ActorId>? callChain = null)
+        IReadOnlyList<ActorId> callChain)
     {
         return new ActorMailboxEntry(
             work,
             response,
-            callChain ?? GetActiveCallContext()?.CallChain ?? Array.Empty<ActorId>(),
+            callChain,
             Activity.Current?.Context ?? default);
     }
 
