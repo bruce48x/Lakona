@@ -216,6 +216,12 @@ collections and buffers are request-owned copies with no link back to
 `HttpContext`; they are not a deep immutability or hostile-code boundary, and
 Hotfix handlers must treat them as read-only.
 
+Request-body reads use a small pooled scratch buffer and allocate accumulation
+storage only after receiving bytes. Empty reads return a shared empty array.
+The actual byte count remains bounded even without `Content-Length`; accepted
+raw bodies are detached copies, so returning the scratch buffer on completion,
+cancellation or failure cannot change bytes retained by a handler.
+
 The listener id is stable-host binding and validation metadata. It is not
 exposed to product behavior, which must not branch on listener names. Different
 product semantics belong in different HTTP service contracts.

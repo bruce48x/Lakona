@@ -172,6 +172,19 @@ changed without new measurements:
   throughput claim; any claimed performance gain still requires a focused
   benchmark.
 
+### Application HTTP Body Reads
+
+The HTTP body reader rents an 8 KiB scratch buffer and creates accumulation
+storage only after its first nonempty read. The final body remains request-owned;
+pooling does not change raw-byte lifetime or actual-size validation. See
+[Application HTTP](http.md#hotfix-owns-product-behavior) for the ownership contract.
+
+The [body-reader benchmark](../benchmarks/http-body-reader/README.md) compares
+the actual reader method with a pinned pre-fix revision, covering empty, small,
+and larger bodies with known or unknown lengths and segmented reads. It measures
+warmed allocation and buffering cost; it does not measure HTTP network latency
+or retained process memory.
+
 ### Client Notification Queue
 
 The client notification receive queue is intentionally unbounded. A slow

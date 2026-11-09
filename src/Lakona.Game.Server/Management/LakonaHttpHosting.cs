@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Net;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Health;
@@ -226,10 +227,11 @@ internal static class LakonaHttpHosting
         }
     }
 
-    private static async Task<byte[]?> ReadBodyAsync(
+    internal static async Task<byte[]?> ReadBodyAsync(
         HttpContext context,
         int maximumBodyBytes,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ArrayPool<byte>? bufferPool = null)
     {
         if (context.Request.ContentLength > maximumBodyBytes)
         {
@@ -243,26 +245,39 @@ internal static class LakonaHttpHosting
             sizeFeature.MaxRequestBodySize = maximumBodyBytes;
         }
 
-        await using var body = new MemoryStream(
-            context.Request.ContentLength is > 0 and <= int.MaxValue
-                ? (int)Math.Min(context.Request.ContentLength.Value, 81920)
-                : 0);
-        var buffer = new byte[Math.Min(81920, maximumBodyBytes)];
-        while (true)
+        bufferPool ??= ArrayPool<byte>.Shared;
+        var bufferSize = Math.Min(8192, maximumBodyBytes);
+        var buffer = bufferPool.Rent(bufferSize);
+        MemoryStream? body = null;
+        try
         {
-            var read = await context.Request.Body.ReadAsync(buffer, cancellationToken);
-            if (read == 0)
+            while (true)
             {
-                return body.ToArray();
-            }
+                var read = await context.Request.Body.ReadAsync(
+                    buffer.AsMemory(0, bufferSize), cancellationToken);
+                if (read == 0)
+                {
+                    // The returned snapshot must not retain the pooled scratch buffer.
+                    return body?.ToArray() ?? Array.Empty<byte>();
+                }
 
-            if (body.Length + read > maximumBodyBytes)
-            {
-                context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
-                return null;
-            }
+                if ((body?.Length ?? 0) + read > maximumBodyBytes)
+                {
+                    context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+                    return null;
+                }
 
-            await body.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                body ??= new MemoryStream(Math.Max(read,
+                    context.Request.ContentLength is > 0 and <= int.MaxValue
+                        ? (int)Math.Min(context.Request.ContentLength.Value, 81920)
+                        : 0));
+                await body.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            }
+        }
+        finally
+        {
+            body?.Dispose();
+            bufferPool.Return(buffer);
         }
     }
 

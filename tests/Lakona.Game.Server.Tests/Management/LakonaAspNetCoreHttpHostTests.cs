@@ -449,8 +449,12 @@ public sealed class LakonaAspNetCoreHttpHostTests
         }
     }
 
-    [Fact]
-    public async Task Request_body_limit_rejects_before_hotfix_dispatch()
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Request_body_limit_checks_known_and_unknown_lengths(bool unknownLength, bool oversized)
     {
         var port = GetFreePort();
         var runtime = new LakonaGameRuntimeOptions
@@ -465,7 +469,9 @@ public sealed class LakonaAspNetCoreHttpHostTests
                         Host = "127.0.0.1",
                         Port = port,
                         Services = ["payment-webhooks"],
-                        MaximumBodyBytes = 3
+                        // Leave room for Kestrel's chunk framing accounting. Exact decoded
+                        // boundaries are exercised by LakonaHttpBodyReaderTests.
+                        MaximumBodyBytes = 32
                     }
                 ]
             }
@@ -488,13 +494,18 @@ public sealed class LakonaAspNetCoreHttpHostTests
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            using var content = new BodyContent(oversized ? new string('x', 33) : "pay", unknownLength);
             using var response = await http.PostAsync(
                 $"http://127.0.0.1:{port}/payments",
-                new StringContent("four"),
+                content,
                 TestContext.Current.CancellationToken);
 
-            Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
-            Assert.Equal(0, accessor.AcquireCount);
+            Assert.Equal(oversized ? HttpStatusCode.RequestEntityTooLarge : HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(oversized ? 0 : 1, accessor.AcquireCount);
+            if (!oversized)
+            {
+                Assert.Equal("OperationsContract:pay", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            }
         }
         finally
         {
@@ -761,6 +772,17 @@ public sealed class LakonaAspNetCoreHttpHostTests
             throw new InvalidOperationException("The request deadline was not observed.");
         }
 
+    }
+
+    private sealed class BodyContent(string body, bool unknownLength)
+        : ByteArrayContent(System.Text.Encoding.UTF8.GetBytes(body))
+    {
+        protected override bool TryComputeLength(out long length)
+        {
+            if (!unknownLength) return base.TryComputeLength(out length);
+            length = 0;
+            return false;
+        }
     }
 
     private static int GetFreePort()
