@@ -308,8 +308,14 @@ waits for the outstanding Ping send to finish before releasing its frame.
 
 Host cancellation or failure starts a cooperative Session drain under one host-wide
 shutdown deadline. `RpcServerHostBuilder.UseShutdownTimeout` configures that
-deadline; the default is 15 seconds. If active Sessions do not finish in time,
-the host aborts their transports and throws `RpcServerShutdownTimeoutException`
+deadline; the default is 15 seconds. The listener's stop token is separate from
+the host-owned Session cancellation source: external cancellation stops admission,
+then both normal and fault exits cancel Sessions asynchronously under that deadline.
+The deadline starts before cancellation callbacks run and covers both their
+completion and the connection-task drain, even if no active Sessions remain.
+Callback failures do not skip draining; they surface after cleanup, or are logged
+when preserving an earlier host failure. If cleanup does not finish in time,
+the host aborts active Session transports and throws `RpcServerShutdownTimeoutException`
 instead of reporting a clean stop. Managed code cannot forcibly terminate an
 uncooperative handler, so scoped Session state is not disposed concurrently
 with that handler; late completion performs normal exactly-once cleanup. The
@@ -317,6 +323,13 @@ forced transport-abort join uses the same configured duration as its maximum
 cleanup window, so a transport that also refuses disposal cannot restore an
 unbounded wait. The application composition root treats the timeout as terminal
 and owns any final process-termination policy.
+
+After a timeout, the host continues observing cancellation and connection cleanup,
+including late callback exceptions. Their owner disposes the Session cancellation
+source only after both finish. Session services, admission leases and transports
+retain their existing exactly-once cleanup ownership. `RpcServerCancellationTests`
+covers blocked and throwing callbacks, external cancellation and listener failure,
+multiple Sessions sharing the deadline, and callbacks outliving Session drain.
 
 When the host has already failed, it preserves the original exception after
 cleanup and logs any additional shutdown failure, including a drain timeout.
