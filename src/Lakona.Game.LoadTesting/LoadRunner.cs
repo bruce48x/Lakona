@@ -12,6 +12,7 @@ public sealed class LoadRunner
     {
         ArgumentNullException.ThrowIfNull(scenario);
         ArgumentNullException.ThrowIfNull(options);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var recorder = new LoadRunRecorder(scenario.Name, options.Users);
         var timestamp = Stopwatch.GetTimestamp();
@@ -20,13 +21,32 @@ public sealed class LoadRunner
         plannedRun.CancelAfter(options.RampUp + options.Duration);
 
         var tasks = new List<Task>(options.Users);
-        for (var userIndex = 0; userIndex < options.Users; userIndex++)
+        try
         {
-            await DelayForUserStartAsync(userIndex, options, cancellationToken).ConfigureAwait(false);
-            tasks.Add(RunUserAsync(userIndex, scenario, recorder, plannedRun.Token));
+            for (var userIndex = 0; userIndex < options.Users; userIndex++)
+            {
+                plannedRun.Token.ThrowIfCancellationRequested();
+                await DelayForUserStartAsync(userIndex, options, plannedRun.Token).ConfigureAwait(false);
+                plannedRun.Token.ThrowIfCancellationRequested();
+                tasks.Add(RunUserAsync(userIndex, scenario, recorder, plannedRun.Token));
+            }
+        }
+        catch (OperationCanceledException) when (plannedRun.IsCancellationRequested)
+        {
+            // Planned expiry returns a summary; caller cancellation is propagated after draining.
+        }
+        catch
+        {
+            await plannedRun.CancelAsync().ConfigureAwait(false);
+            throw;
+        }
+        finally
+        {
+            // Scenario tasks own their cleanup. Never abandon them with a canceled wait token.
+            await Task.WhenAll(tasks).ConfigureAwait(false);
         }
 
-        await Task.WhenAll(tasks).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         return recorder.CreateSummary(Stopwatch.GetElapsedTime(timestamp));
     }
 

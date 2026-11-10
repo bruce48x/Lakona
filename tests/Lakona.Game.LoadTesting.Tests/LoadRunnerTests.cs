@@ -7,6 +7,123 @@ namespace Lakona.Game.LoadTesting.Tests;
 public sealed class LoadRunnerTests
 {
     [Fact]
+    public async Task RunAsync_PrecancelledRunStartsNoUsers()
+    {
+        using var cancel = new CancellationTokenSource();
+        cancel.Cancel();
+        var scenario = new RecordingScenario();
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new LoadRunner().RunAsync(
+            scenario, new LoadRunOptions(3, TimeSpan.Zero, TimeSpan.FromMinutes(1)), cancel.Token).AsTask());
+        Assert.Equal(cancel.Token, error.CancellationToken);
+        Assert.Empty(scenario.UserNames);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RunAsync_ExternalCancellationDrainsAllStartedUsers(bool duringRampUp)
+    {
+        using var cancel = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var scenario = new CleanupScenario(duringRampUp ? 1 : 3);
+        var run = new LoadRunner().RunAsync(scenario,
+            new LoadRunOptions(3, duringRampUp ? TimeSpan.FromMinutes(1) : TimeSpan.Zero, TimeSpan.FromMinutes(1)),
+            cancel.Token).AsTask();
+        try
+        {
+            await scenario.AllStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
+            cancel.Cancel();
+            await scenario.AllCleaning.Task.WaitAsync(TestContext.Current.CancellationToken);
+            Assert.False(run.IsCompleted);
+            Assert.Equal(0, scenario.Cleaned);
+        }
+        finally
+        {
+            cancel.Cancel();
+            scenario.ReleaseCleanup.TrySetResult();
+        }
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+        Assert.Equal(cancel.Token, error.CancellationToken);
+        Assert.Equal(duringRampUp ? 1 : 3, scenario.Started);
+        Assert.Equal(scenario.Started, scenario.Cleaned);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RunAsync_CancellationBetweenStartsDoesNotLaunchAnotherUser(bool rampUp)
+    {
+        using var cancel = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var scenario = new CleanupScenario(1, onStart: cancel.Cancel);
+        var run = new LoadRunner().RunAsync(scenario,
+            new LoadRunOptions(3, rampUp ? TimeSpan.FromMinutes(1) : TimeSpan.Zero, TimeSpan.FromMinutes(1)),
+            cancel.Token).AsTask();
+        try
+        {
+            await scenario.AllCleaning.Task.WaitAsync(TestContext.Current.CancellationToken);
+            Assert.False(run.IsCompleted);
+            Assert.Equal(1, scenario.Started);
+        }
+        finally { scenario.ReleaseCleanup.TrySetResult(); }
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+        Assert.Equal(cancel.Token, error.CancellationToken);
+        Assert.Equal(1, scenario.Cleaned);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RunAsync_PlannedEndWaitsForCleanupAndKeepsUserFailuresInSummary(bool failUser)
+    {
+        var scenario = new CleanupScenario(3, failUser: failUser);
+        var run = new LoadRunner().RunAsync(scenario,
+            new LoadRunOptions(3, TimeSpan.Zero, TimeSpan.FromMilliseconds(200)),
+            TestContext.Current.CancellationToken).AsTask();
+        try
+        {
+            await scenario.AllStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
+            await scenario.AllCleaning.Task.WaitAsync(TestContext.Current.CancellationToken);
+            Assert.False(run.IsCompleted);
+        }
+        finally { scenario.ReleaseCleanup.TrySetResult(); }
+        var summary = await run;
+        Assert.Equal(3, summary.StartedUsers);
+        Assert.Equal(3, summary.CompletedUsers);
+        Assert.Equal(3, scenario.Cleaned);
+        Assert.Equal(failUser ? 1 : 0, summary.FailedUsers);
+        Assert.Equal(0, summary.FailedOperations);
+        if (failUser) Assert.Equal("user failed", Assert.Single(summary.Errors).Message);
+        else Assert.Empty(summary.Errors);
+    }
+
+    private sealed class CleanupScenario(int expectedUsers, Action? onStart = null, bool failUser = false) : ILoadScenario
+    {
+        public string Name => "controlled-cleanup";
+        public TaskCompletionSource AllStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource AllCleaning { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseCleanup { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int Started;
+        public int Cleaned;
+        private int cleaning;
+
+        public async ValueTask RunUserAsync(LoadUserContext context, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref Started) == expectedUsers) AllStarted.TrySetResult();
+            try
+            {
+                onStart?.Invoke();
+                if (failUser && context.UserIndex == 0) throw new InvalidOperationException("user failed");
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+            finally
+            {
+                if (Interlocked.Increment(ref cleaning) == expectedUsers) AllCleaning.TrySetResult();
+                await ReleaseCleanup.Task;
+                Interlocked.Increment(ref Cleaned);
+            }
+        }
+    }
+
+    [Fact]
     public async Task RunAsync_StartsConfiguredUsersAndCompletes()
     {
         var scenario = new RecordingScenario();

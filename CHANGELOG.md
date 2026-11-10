@@ -4,9 +4,10 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-11-10 — Hotfix extension cleanup and runnable Compose projects
+## 2026-11-10 — Hotfix cleanup, runnable Compose and load-run lifecycle
 
-**Key releases:** `Lakona.Game.Server 0.54.0`, `Lakona.Tool 0.43.107`, and `Lakona.Hub 0.17.121`.
+**Key releases:** `Lakona.Game.Server 0.54.0`, `Lakona.Game.LoadTesting 0.1.4`,
+`Lakona.Tool 0.43.109`, and `Lakona.Hub 0.17.123`.
 
 - Removed the unused candidate rollback interfaces and their legacy Actor
   machinery. Consumers referencing those interfaces must migrate to
@@ -17,6 +18,10 @@ date and package versions of important releases are retained.
   the selected TCP or UDP business port, and accept container-external clients
   while keeping management private. The unified E2E entry can verify real login
   and push against these images with local or published packages.
+- Load runs wait for every started user and its cleanup before completing.
+  External cancellation now consistently throws cancellation after draining,
+  including after ramp-up; callers relying on a partial summary must handle
+  cancellation. Normal duration expiry still returns the final summary.
 
 ## 2026-11-09 — Reliable Membership recovery and Actor/Hotfix execution
 

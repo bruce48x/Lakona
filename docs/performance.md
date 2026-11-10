@@ -91,6 +91,20 @@ network-capacity guarantees. The bounded send and receive contracts are unchange
 
 ### LoadTesting Latency Summaries
 
+`LoadRunner.RunAsync` owns every virtual user it starts. Before each start it
+checks the run's cancellation token, including when ramp-up is zero. Planned
+expiry stops scheduling, cancels active users and returns a summary after all
+started users finish. Caller cancellation follows the same drain path, then
+throws `OperationCanceledException` carrying the caller's token, regardless of
+whether cancellation happened before startup, during ramp-up or after startup.
+Scheduling failures also cancel and drain started users before propagating.
+Individual scenario failures retain the existing failure statistics and do not
+stop other users. Scenario tasks must await their own resource cleanup and
+cooperate with cancellation; the runner does not impose a cleanup timeout or
+return while started tasks are still running. From LoadTesting 0.1.4, callers
+that previously received a partial summary after external cancellation must
+handle cancellation instead. Normal duration expiry still returns a summary.
+
 `Lakona.Game.LoadTesting` includes every successful operation in its latency
 distribution, throughout ramp-up and the rest of the run. Failed and canceled
 operations retain separate counts and do not contribute latency samples.
