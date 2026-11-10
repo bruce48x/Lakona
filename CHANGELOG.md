@@ -4,15 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-11-10 — One Hotfix publication extension contract
+## 2026-11-10 — Hotfix extension cleanup and runnable Compose projects
 
-**Key releases:** `Lakona.Game.Server 0.54.0`.
+**Key releases:** `Lakona.Game.Server 0.54.0`, `Lakona.Tool 0.43.107`, and `Lakona.Hub 0.17.121`.
 
 - Removed the unused candidate rollback interfaces and their legacy Actor
   machinery. Consumers referencing those interfaces must migrate to
   `IHotfixRuntimePublicationParticipant` and rebuild; this is a source and
   binary breaking change. Current publication transactions and Startup Actor
   rollback retain their existing behavior.
+- Generated local Compose images include App and Hotfix dependencies, publish
+  the selected TCP or UDP business port, and accept container-external clients
+  while keeping management private. The unified E2E entry can verify real login
+  and push against these images with local or published packages.
 
 ## 2026-11-09 — Reliable Membership recovery and Actor/Hotfix execution
 

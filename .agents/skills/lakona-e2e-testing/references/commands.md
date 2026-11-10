@@ -45,6 +45,22 @@ provider runtime contracts:
 .\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed LocalFeed -KeepScaffolds
 ```
 
+### Compose container verification
+
+```powershell
+pwsh -NoProfile -File .agents/skills/lakona-e2e-testing/scripts/run-e2e.ps1 -Feed LocalFeed -Compose -Engine godot -Transport all -Serializer memorypack -FindAvailablePort -KeepScaffolds
+```
+
+`-Compose` builds the generated Dockerfile from a clean scaffold and starts the
+generated Compose service, then runs the same login/push client outside the
+container. It requires a Linux Docker engine with Compose and `LocalFeed` or
+`NuGetOrg`; source references outside the Docker context are not supported.
+LocalFeed copies packages into the build context with a relative NuGet source.
+The generated port variable changes both listener and published port for isolation;
+all runtime settings come from the generated files. Each case owns a unique Compose project;
+logs are retained and its containers, networks, volumes and local image are
+removed after runtime verification. Cleanup failure fails the case.
+
 ### NuGetOrg (post-publish)
 
 ```powershell
@@ -126,6 +142,7 @@ verification client does not replace those checks or exercise interactive UI.
 | `-Serializer` | `all`, `json`, `memorypack` | `memorypack` | RPC serializer |
 | `-MembershipProvider` | `all`, `memory`, `postgres`, `redis`, `mysql` | `memory` | Generated Membership Adapter; external values require `-SkipRuntime` |
 | `-SkipRuntime` | switch | off | Skip runtime E2E verification (scaffold + build only) |
+| `-Compose` | switch | off | Build/run generated Compose instead of a host process; package feeds only |
 | `-Port` | integer | `20000` | Base server port; matrix cases use consecutive ports |
 | `-FindAvailablePort` | switch | off | Starting at `-Port`, select the first complete free business, cluster, and management port range |
 | `-WorkDir` | path | `.tmp/lakona-e2e` | Output directory for scaffolds, logs, and reports |

@@ -236,6 +236,13 @@ lakona-tool new --name MyGame --deploy-profile compose
 lakona-tool new --name MyGame --topology split-directory
 ```
 
+The Compose profile is a single-node local development deployment. Its image
+publishes both App and Hotfix, and its business port uses UDP for KCP or TCP for
+TCP/WebSocket. Compose binds the business listener to all container interfaces
+and publishes it on host loopback; management HTTP stays private. Local dotnet
+configuration remains loopback-only. See the generated `ops/CLUSTER_OPERATIONS.md`
+for startup commands, host-port overrides and external Membership configuration.
+
 The default command remains:
 
 ```bash

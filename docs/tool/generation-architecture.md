@@ -75,6 +75,12 @@ These invariants are regression boundaries:
 - No production code references `Lakona.Tool.RpcStarter`.
 - No production code has `Starter*` model names for the generation pipeline.
 - No generated user file contains forbidden starter branding.
+- Compose images publish App and Hotfix with their runtime dependencies from
+  clean source; host bin/obj output cannot supply missing deployment artifacts.
+  Compose maps the selected transport protocol and overrides only the business
+  listener, without exposing management HTTP or changing local-run defaults.
+  One port variable sets both listener and published port, because KCP handshake
+  responses carry the listener port.
 - Runtime package boundaries remain visible in generated projects.
 - Generated RPC glue remains source-generator output, never committed files.
 - The complete public Skill Pack is emitted under `.agents/skills/` by

@@ -37,6 +37,8 @@ param(
 
     [switch]$SkipRuntime,
 
+    [switch]$Compose,
+
     [switch]$KeepScaffolds,
 
     [switch]$FindAvailablePort,
@@ -48,6 +50,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 $runRuntime = -not $SkipRuntime
+
+if ($Compose -and $Feed -eq "ProjectReference") {
+    throw "Compose requires -Feed LocalFeed or NuGetOrg so the Docker build context is self-contained."
+}
 
 if ($runRuntime -and $MembershipProvider -ne "memory") {
     throw "Runtime verification currently supports -MembershipProvider memory only. Use -SkipRuntime to validate external-provider scaffolding and builds; provider runtime contracts run in Daily Validation."
@@ -875,6 +881,7 @@ foreach ($engineValue in $engines) {
                 Serializer = $serializerValue
                 MembershipProvider = $membershipProviderValue
                 Feed = $Feed
+                ServerHost = if ($Compose) { "Compose" } else { "Process" }
                 Port = $casePort
                 Scaffold = "FAIL"
                 Build = "FAIL"
@@ -886,6 +893,8 @@ foreach ($engineValue in $engines) {
             }
 
             $serverProc = $null
+            $composeArgs = $null
+            $composeStarted = $false
 
             try {
                 if (Test-Path $projectDir) {
@@ -923,7 +932,7 @@ foreach ($engineValue in $engines) {
                             "--serializer", $serializerValue,
                             "--membership-provider", $membershipProviderValue,
                             "--nugetforunity-source", "embedded",
-                            "--deploy-profile", "none",
+                            "--deploy-profile", $(if ($Compose) { "compose" } else { "none" }),
                             "--output", $scaffoldRootRelative)
                 } while ($scaffoldResult.ExitCode -ne 0 -and $scaffoldAttempt -lt $scaffoldMaxAttempts)
 
@@ -944,8 +953,14 @@ foreach ($engineValue in $engines) {
                             -RepoRoot $repoRoot
                     }
                     "LocalFeed" {
+                        $serverFeed = $feedDir
+                        if ($Compose) {
+                            # A relative source works both on the host and inside /src.
+                            Copy-Item -LiteralPath $feedDir -Destination (Join-Path $projectDir ".e2e-feed") -Recurse
+                            $serverFeed = ".e2e-feed"
+                        }
                         Write-NuGetConfig -Path (Join-Path $projectDir "NuGet.config") `
-                            -FeedDir $feedDir -IncludeNuGetOrg $true
+                            -FeedDir $serverFeed -IncludeNuGetOrg $true
                         Write-Host "  NuGet.config written for local feed" -ForegroundColor DarkGray
                     }
                     "NuGetOrg" {
@@ -954,7 +969,15 @@ foreach ($engineValue in $engines) {
                     }
                 }
 
-                Set-GeneratedServerPort $projectDir $casePort $clusterPort $managementPort
+                if ($Compose) {
+                    $composeEnv = Join-Path $projectDir ".env.e2e"
+                    Set-Content -LiteralPath $composeEnv -Value "LAKONA_CLIENT_PORT=$casePort"
+                    $composeName = "lakona-e2e-$([Guid]::NewGuid().ToString('N').Substring(0, 12))"
+                    $composeArgs = @("compose", "--project-name", $composeName, "--env-file", $composeEnv,
+                        "-f", (Join-Path $projectDir "docker-compose.cluster.yml"))
+                } else {
+                    Set-GeneratedServerPort $projectDir $casePort $clusterPort $managementPort
+                }
 
                 # Verify scaffold output
                 $serverSln = Join-Path $projectDir "Server/Server.slnx"
@@ -966,10 +989,15 @@ foreach ($engineValue in $engines) {
 
                 # ── 3c. Build server ────────────────────────────────────
                 Write-Host "  Building server..." -ForegroundColor Yellow
-                $buildResult = Invoke-LoggedNativeCommand `
-                    -LogPath "$caseLogPrefix.server-build.log" `
-                    -FilePath "dotnet" `
-                    -ArgumentList @("build", $serverSln, "--nologo", "-v", "q")
+                if ($Compose) {
+                    $buildResult = Invoke-LoggedNativeCommand -LogPath "$caseLogPrefix.server-build.log" `
+                        -FilePath "docker" -ArgumentList ($composeArgs + @("build"))
+                } else {
+                    $buildResult = Invoke-LoggedNativeCommand `
+                        -LogPath "$caseLogPrefix.server-build.log" `
+                        -FilePath "dotnet" `
+                        -ArgumentList @("build", $serverSln, "--nologo", "-v", "q")
+                }
                 if ($buildResult.ExitCode -ne 0) {
                     $result.Error = "Generated server build failed."
                     $result.ErrorDetail = $buildResult.Tail
@@ -1032,17 +1060,26 @@ foreach ($engineValue in $engines) {
                 $serverErr = Join-Path $projectDir "server-err.txt"
                 $serverProject = Join-Path $projectDir "Server/App/Server.App.csproj"
 
-                $serverProc = Start-Process -FilePath "dotnet" `
+                if ($Compose) {
+                    $composeStarted = $true
+                    $startResult = Invoke-LoggedNativeCommand -LogPath "$caseLogPrefix.compose-up.log" `
+                        -FilePath "docker" -ArgumentList ($composeArgs + @("up", "-d", "--no-build"))
+                    if ($startResult.ExitCode -ne 0) { throw "Compose startup failed: $($startResult.Tail)" }
+                } else {
+                    $serverProc = Start-Process -FilePath "dotnet" `
                     -ArgumentList "run", "--project", $serverProject, "--no-build" `
                     -NoNewWindow `
                     -PassThru `
                     -RedirectStandardOutput $serverOut `
                     -RedirectStandardError $serverErr
+                }
 
                 $ready = $false
                 for ($i = 0; $i -lt 30; $i++) {
                     Start-Sleep -Seconds 1
-                    if ($serverProc.HasExited) {
+                    if ($Compose) {
+                        & docker @composeArgs logs --no-color server 2>&1 | Set-Content -LiteralPath $serverOut
+                    } elseif ($serverProc.HasExited) {
                         break
                     }
 
@@ -1087,6 +1124,19 @@ foreach ($engineValue in $engines) {
                 $results.Add([pscustomobject]$result)
             } finally {
                 Stop-ProcessTree $serverProc
+                if ($null -ne $composeArgs) {
+                    if ($composeStarted) {
+                        & docker @composeArgs logs --no-color server 2>&1 | Set-Content -LiteralPath $serverOut
+                    }
+                    $cleanup = Invoke-LoggedNativeCommand -LogPath "$caseLogPrefix.compose-down.log" `
+                        -FilePath "docker" -ArgumentList ($composeArgs + @("down", "--rmi", "local", "--volumes"))
+                    if ($cleanup.ExitCode -ne 0) {
+                        foreach ($record in $results | Where-Object ProjectDir -eq $projectDir) {
+                            $record.Runtime = "FAIL"
+                            $record.Error = "Compose cleanup failed: $($cleanup.Tail)"
+                        }
+                    }
+                }
             }
           }
         }
@@ -1109,6 +1159,7 @@ $report.Add("# Lakona E2E Report ($Feed)")
 $report.Add("")
 $report.Add("- Generated at: $([DateTimeOffset]::UtcNow.ToString("u"))")
 $report.Add("- Feed mode: $Feed")
+$report.Add("- Server host: $(if ($Compose) { 'Compose' } else { 'Process' })")
 $report.Add("- Membership provider selection: $MembershipProvider")
 $report.Add("- Runtime verification: $runRuntime")
 $report.Add("- Work directory: $workRoot")

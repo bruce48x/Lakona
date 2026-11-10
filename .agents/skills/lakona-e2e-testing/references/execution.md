@@ -21,6 +21,14 @@ dependency selection, the verification-client contract, readiness checks, report
 generation and cleanup of the server process it started. The current game
 contract lives in `Shared.Contracts.Game`.
 
+With `-Compose`, the generated Dockerfile supplies the server build and the
+generated Compose file supplies runtime settings and protocol-specific port
+publication. LocalFeed packages are copied into the context; host bin/obj files
+are excluded by the generated .dockerignore. The client remains outside the
+container. Readiness still requires Lakona's final startup message. Each case
+uses a unique project name and captures logs before bringing down only its own
+Compose resources; a failed cleanup is reported as failure.
+
 The pre-push hook enables `-FindAvailablePort`, so unrelated local servers do
 not block validation merely because they already use the preferred range.
 
