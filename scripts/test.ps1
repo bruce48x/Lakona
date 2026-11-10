@@ -44,4 +44,17 @@ foreach ($project in $projects) {
     }
 }
 
+# Debug uses heap-allocated async state machines. Verify the optimized cache-hit
+# allocation contract as well, on the same push/CI path rather than skipping it.
+if ($Configuration -eq "Debug") {
+    $allocationProject = Join-Path $testsRoot "Lakona.Game.Cluster.Rpc.Tests/Lakona.Game.Cluster.Rpc.Tests.csproj"
+    $releaseArtifacts = Join-Path $repositoryRootPath "artifacts/test/release"
+    & dotnet test $allocationProject --artifacts-path $releaseArtifacts -c Release `
+        --filter "FullyQualifiedName~ClusterClientFactoryTests.Warm_cache_hits_reuse_the_client" `
+        --logger "console;verbosity=minimal" --logger "trx" `
+        --results-directory (Join-Path $releaseArtifacts "results/cache-allocation") `
+        --blame-hang-timeout 5m --blame-hang-dump-type none
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
 exit 0

@@ -19,24 +19,38 @@ public sealed class ClusterClientFactoryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Warm_cache_hits_reuse_the_client_without_allocating(bool contactOnly)
+    public async Task Warm_cache_hits_reuse_the_client(bool contactOnly)
     {
         var transportFactory = new RecordingTransportFactory();
         await using var factory = new ClusterClientFactory(CreateChannel(transportFactory));
         var target = CreateTarget("tcp://127.0.0.1:20010", "bbbbbbbb-0000-0000-0000-000000000001");
-        ValueTask<IRpcClient> Get() => contactOnly ? factory.GetClientAsync(target.Endpoint) : factory.GetClientAsync(target);
+        var ct = TestContext.Current.CancellationToken;
+        ValueTask<IRpcClient> Get() => contactOnly ? factory.GetClientAsync(target.Endpoint, ct) : factory.GetClientAsync(target, ct);
         var first = await Get();
-        for (var index = 0; index < 1_000; index++) Get().GetAwaiter().GetResult();
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        var same = true;
-        for (var index = 0; index < 100_000; index++)
+        // Measure on a dedicated thread, without the runner's synchronization context
+        // or unrelated continuations contributing to the thread allocation counter.
+        var (same, allocated) = await Task.Factory.StartNew(() =>
         {
-            var lookup = Get();
-            same &= lookup.IsCompletedSuccessfully && ReferenceEquals(first, lookup.GetAwaiter().GetResult());
-        }
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            for (var index = 0; index < 10_000; index++) ReadCompleted();
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var same = true;
+            for (var index = 0; index < 100_000; index++) same &= ReferenceEquals(first, ReadCompleted());
+            return (same, GC.GetAllocatedBytesForCurrentThread() - before);
+
+            IRpcClient ReadCompleted()
+            {
+                var lookup = Get();
+                if (!lookup.IsCompletedSuccessfully)
+                    throw new InvalidOperationException("A warm cache hit must complete synchronously.");
+                return lookup.GetAwaiter().GetResult();
+            }
+        }, ct, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         Assert.True(same);
+#if !DEBUG
+        // Debug async state machines are heap objects; the push/CI entry point
+        // also runs this test in Release to enforce the shipping allocation contract.
         Assert.Equal(0, allocated);
+#endif
         Assert.Single(transportFactory.Calls);
         await factory.DisposeAsync();
         Assert.All(transportFactory.Transports, transport => Assert.Equal(1, transport.DisposeCount));

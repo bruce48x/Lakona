@@ -61,6 +61,12 @@ Five minutes without test progress aborts the test host, so stalled tests can
 be identified before the CI job timeout. Real dependency-packaging tests also
 cancel their build and run operations after three minutes per case.
 
+The default Debug run additionally executes the cluster client cache-hit tests
+in Release. Client reuse is checked in both configurations; the zero-allocation
+contract applies to optimized code, because Debug async state machines are heap
+objects. Allocation measurements run on a dedicated thread, outside the test
+runner's synchronization context.
+
 | Area | Required coverage when changed |
 | --- | --- |
 | Actor messaging | Dispatch, responses, timeout, response validation, dead letters |
