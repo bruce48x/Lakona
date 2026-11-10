@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+if ! command -v docker >/dev/null 2>&1; then
+  apt-get update
+  apt-get install -y docker.io
+fi
+systemctl enable --now docker
+
+PRIVATE_IPV4="$(curl -fsS --connect-timeout 3 http://100.100.100.200/latest/meta-data/private-ipv4)"
+test -n "$PRIVATE_IPV4"
+endpoint_args=()
+%{ if public_endpoint ~}
+PUBLIC_IPV4="$(curl -fsS --connect-timeout 3 http://100.100.100.200/latest/meta-data/eipv4 || true)"
+if [ -z "$PUBLIC_IPV4" ]; then
+  PUBLIC_IPV4="$(curl -fsS --connect-timeout 3 http://100.100.100.200/latest/meta-data/public-ipv4)"
+fi
+test -n "$PUBLIC_IPV4"
+endpoint_args=(-e "Lakona__Endpoints__0__AdvertisedHost=$PUBLIC_IPV4")
+%{ endif ~}
+
+install -d -m 700 /opt/agar
+printf '%s' '${config_base64}' | base64 -d > /opt/agar/appsettings.json
+# The parent directory is root-only; the image's non-root user reads this bind mount.
+chmod 644 /opt/agar/appsettings.json
+SERVER_IMAGE="$(printf '%s' '${server_image_base64}' | base64 -d)"
+docker pull "$SERVER_IMAGE"
+docker rm -f agar-server || true
+docker run -d \
+  --name agar-server \
+  --restart unless-stopped \
+  --network host \
+  --mount type=bind,src=/opt/agar/appsettings.json,dst=/app/appsettings.json,readonly \
+  -e "Lakona__Cluster__Endpoint=tcp://$PRIVATE_IPV4:21001" \
+  "$${endpoint_args[@]}" \
+  "$SERVER_IMAGE"

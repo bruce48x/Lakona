@@ -23,13 +23,13 @@ variable "vswitch_cidr" {
 }
 
 variable "data_instance_type" {
-  description = "ECS instance type for PostgreSQL and Redis."
+  description = "ECS instance type for PostgreSQL, Redis and the data-role server."
   type        = string
   default     = "ecs.c8a.large"
 }
 
-variable "silo_instance_type" {
-  description = "ECS instance type for Silo nodes."
+variable "battle_instance_type" {
+  description = "ECS instance type for battle-role nodes."
   type        = string
   default     = "ecs.c8a.large"
 }
@@ -40,20 +40,28 @@ variable "gateway_instance_type" {
   default     = "ecs.c8a.large"
 }
 
-variable "silo_count" {
-  description = "Number of Silo ECS instances."
+variable "battle_count" {
+  description = "Number of battle ECS instances."
   type        = number
   default     = 2
+  validation {
+    condition     = var.battle_count >= 1 && floor(var.battle_count) == var.battle_count
+    error_message = "battle_count must be a positive integer."
+  }
 }
 
 variable "gateway_count" {
   description = "Number of gateway ECS instances."
   type        = number
   default     = 2
+  validation {
+    condition     = var.gateway_count >= 1 && floor(var.gateway_count) == var.gateway_count
+    error_message = "gateway_count must be a positive integer."
+  }
 }
 
 variable "image_id" {
-  description = "ECS image id. Use a Debian/Ubuntu image that can install Docker, or a custom image with Docker preinstalled."
+  description = "ECS image id. Use Ubuntu 24.04 with curl, docker.io and docker-compose-v2 available, or an image with curl, Docker and Compose v2 preinstalled."
   type        = string
 }
 
@@ -86,13 +94,8 @@ variable "ssh_public_key" {
   default     = ""
 }
 
-variable "gateway_image" {
-  description = "Docker image for samples/Game.Unity.Agar Server/Dockerfile gateway target. Must include the current distributed routing and persistence changes."
-  type        = string
-}
-
-variable "silo_image" {
-  description = "Docker image for samples/Game.Unity.Agar Server/Dockerfile state target. Must include the current distributed routing and persistence changes."
+variable "server_image" {
+  description = "One image built from the gateway target, shared by data, gateway and battle roles. Must be pullable by the ECS nodes."
   type        = string
 }
 

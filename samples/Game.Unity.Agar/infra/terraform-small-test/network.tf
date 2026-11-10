@@ -1,5 +1,5 @@
 data "alicloud_zones" "default" {
-  available_instance_type = var.silo_instance_type
+  available_instance_type = var.battle_instance_type
 }
 
 resource "alicloud_vpc" "default" {
@@ -75,28 +75,28 @@ resource "alicloud_security_group_rule" "redis" {
   description       = "Redis from VPC"
 }
 
-resource "alicloud_security_group_rule" "state_service" {
+resource "alicloud_security_group_rule" "cluster_app" {
   security_group_id = alicloud_security_group.app.id
   type              = "ingress"
   ip_protocol       = "tcp"
   nic_type          = "intranet"
   policy            = "accept"
-  port_range        = "11111/11111"
+  port_range        = "21001/21001"
   priority          = 1
   cidr_ip           = var.vpc_cidr
-  description       = "State service from VPC"
+  description       = "Lakona cluster RPC from VPC"
 }
 
-resource "alicloud_security_group_rule" "state_gateway" {
-  security_group_id = alicloud_security_group.app.id
+resource "alicloud_security_group_rule" "cluster_data" {
+  security_group_id = alicloud_security_group.data.id
   type              = "ingress"
   ip_protocol       = "tcp"
   nic_type          = "intranet"
   policy            = "accept"
-  port_range        = "30000/30000"
+  port_range        = "21001/21001"
   priority          = 1
   cidr_ip           = var.vpc_cidr
-  description       = "State gateway from VPC"
+  description       = "Lakona data-role cluster RPC from VPC"
 }
 
 resource "alicloud_security_group_rule" "control_plane" {

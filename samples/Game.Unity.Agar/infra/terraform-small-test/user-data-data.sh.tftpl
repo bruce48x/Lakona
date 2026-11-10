@@ -5,12 +5,19 @@ export DEBIAN_FRONTEND=noninteractive
 
 if ! command -v docker >/dev/null 2>&1; then
   apt-get update
-  apt-get install -y docker.io docker-compose-plugin
+  apt-get install -y docker.io
+fi
+
+if ! docker compose version >/dev/null 2>&1; then
+  apt-get update
+  apt-get install -y docker-compose-v2
 fi
 
 systemctl enable --now docker
 
+install -d -m 700 /opt/agar
 mkdir -p /opt/agar/postgres/init
+umask 077
 
 cat > /opt/agar/postgres/init/001-agar-users.sql <<'SQL'
 ${user_storage_sql}
@@ -28,10 +35,10 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql
       - /opt/agar/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -47,7 +54,7 @@ services:
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -57,4 +64,7 @@ volumes:
   redis-data:
 YAML
 
-docker compose -f /opt/agar/docker-compose.yml up -d
+chmod 644 /opt/agar/postgres/init/001-agar-users.sql
+docker compose -f /opt/agar/docker-compose.yml up -d --wait --wait-timeout 180
+
+${node_bootstrap}

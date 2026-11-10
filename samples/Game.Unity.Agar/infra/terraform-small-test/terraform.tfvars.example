@@ -3,20 +3,18 @@
 #   ALICLOUD_SECRET_KEY
 #   ALICLOUD_REGION
 
-image_id          = "replace-with-debian-or-ubuntu-image-id"
-ssh_allowed_cidr  = "replace-with-your-public-ip/32"
-key_pair_name     = "replace-with-existing-key-pair"
-silo_count        = 2
-gateway_count        = 2
-data_instance_type = "ecs.c8a.large"
-silo_instance_type = "ecs.c8a.large"
+image_id              = "replace-with-ubuntu-24-04-or-preconfigured-image-id"
+ssh_allowed_cidr      = "replace-with-your-public-ip/32"
+key_pair_name         = "replace-with-existing-key-pair"
+battle_count          = 2
+gateway_count         = 2
+data_instance_type    = "ecs.c8a.large"
+battle_instance_type  = "ecs.c8a.large"
 gateway_instance_type = "ecs.c8a.large"
 
-# Build and push these from the repository root:
-#   docker build -f samples/Game.Unity.Agar/Server/Dockerfile --target gateway -t registry.example.com/lakona/agar-gateway:small-test .
-#   docker build -f samples/Game.Unity.Agar/Server/Dockerfile --target silo -t registry.example.com/lakona/agar-silo:small-test .
-gateway_image = "registry.example.com/lakona/agar-gateway:small-test"
-silo_image = "registry.example.com/lakona/agar-silo:small-test"
+# Build and push one image from the repository root for all three roles:
+#   docker build -f samples/Game.Unity.Agar/Server/Dockerfile --target gateway -t registry.example.com/lakona/agar-server:small-test .
+server_image = "registry.example.com/lakona/agar-server:small-test"
 
 postgres_password = "replace-with-strong-postgres-password"
 redis_password    = "replace-with-strong-redis-password"
