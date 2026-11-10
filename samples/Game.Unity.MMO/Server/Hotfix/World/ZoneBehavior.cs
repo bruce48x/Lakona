@@ -93,17 +93,20 @@ public sealed partial class ZoneBehavior
         if (!self.Entities.TryGetValue(request.CharacterId, out var character) ||
             character.IsMonster || !character.HasSession ||
             character.Session != request.Session ||
-            request.Command.Sequence <= character.LastCommandSequence)
+            request.Command.Sequence <= character.LastCommandSequence ||
+            !float.IsFinite(request.Command.MoveX) || !float.IsFinite(request.Command.MoveY))
         {
             return default;
         }
 
         character.LastCommandSequence = request.Command.Sequence;
-        var length = MathF.Sqrt(request.Command.MoveX * request.Command.MoveX + request.Command.MoveY * request.Command.MoveY);
+        // Widen before multiplying: even finite float components can overflow float squares.
+        var length = Math.Sqrt((double)request.Command.MoveX * request.Command.MoveX +
+                               (double)request.Command.MoveY * request.Command.MoveY);
         if (length > 1f)
         {
-            character.MoveX = request.Command.MoveX / length;
-            character.MoveY = request.Command.MoveY / length;
+            character.MoveX = (float)(request.Command.MoveX / length);
+            character.MoveY = (float)(request.Command.MoveY / length);
         }
         else
         {
@@ -198,8 +201,14 @@ public sealed partial class ZoneBehavior
         if (string.IsNullOrWhiteSpace(targetId) ||
             !self.Entities.TryGetValue(targetId, out var target) ||
             !target.Alive ||
-            self.ServerTick < attacker.NextAttackTick ||
-            DistanceSquared(attacker, target) > WorldProtocol.AttackRange * WorldProtocol.AttackRange)
+            self.ServerTick < attacker.NextAttackTick)
+        {
+            return;
+        }
+
+        var distanceSquared = DistanceSquared(attacker, target);
+        if (!float.IsFinite(distanceSquared) ||
+            distanceSquared > WorldProtocol.AttackRange * WorldProtocol.AttackRange)
         {
             return;
         }

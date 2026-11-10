@@ -16,6 +16,13 @@ An Entity is a Character or Monster simulated by a Zone. An Entity is not an Act
 
 A Command is sequenced client intent: movement direction and an optional attack target. The Zone validates ownership and sequence, then applies it on a later server tick.
 
+Both movement components must be finite. An invalid component rejects the whole
+Command before changing the accepted sequence, movement, facing or attack intent;
+a later valid Command can still use that sequence. Finite directions longer than
+one are normalized using double-precision intermediate arithmetic, including
+extreme float values. Player attacks require a finite squared distance within
+the configured range; invalid distances cause no damage or cooldown advancement.
+
 ## Interest Set
 
 An Interest Set is the bounded set of Entities relevant to one observing Character. Each World Snapshot contains only that Character and nearby Entities.
