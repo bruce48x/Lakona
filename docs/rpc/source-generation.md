@@ -24,6 +24,12 @@ including qualification inside generic arguments. Built-in type keywords such as
 `string` and `int` remain valid C# keywords rather than receiving a `global::`
 prefix. Payload serialization support remains the selected serializer's concern.
 
+Notification methods may use any legal name for their optional trailing
+`CancellationToken` parameter. Both `void` and `ValueTask` proxies forward
+that exact token to the send operation; no particular parameter name is
+required. Generated parameter declarations and references escape C# keywords
+consistently, and notification parameters may share names with proxy members.
+
 Generated service calls return runtime ValueTasks directly. Void methods use
 `RpcVoidTask.FromResult` to discard RpcVoid without adding an async task layer
 which could reorder response continuations. See

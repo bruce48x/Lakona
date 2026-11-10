@@ -109,7 +109,7 @@ public sealed partial class LakonaRpcSourceGenerator
             bool isCancellationToken)
         {
             TypeName = typeName;
-            Name = name;
+            Name = Naming.EscapeIdentifier(name);
             IsCancellationToken = isCancellationToken;
         }
 

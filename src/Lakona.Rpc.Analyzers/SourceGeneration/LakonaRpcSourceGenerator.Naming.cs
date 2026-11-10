@@ -28,6 +28,12 @@ public sealed partial class LakonaRpcSourceGenerator
         public static string GetParameterSignature(IReadOnlyList<RpcParameterModel> parameters) =>
             string.Join(", ", parameters.Select(static parameter => parameter.TypeName + " " + parameter.Name));
 
+        public static string EscapeIdentifier(string name) =>
+            SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ||
+            SyntaxFacts.GetContextualKeywordKind(name) != SyntaxKind.None
+                ? "@" + name
+                : name;
+
         public static string GetFacadeServicePropertyName(string interfaceName)
         {
             var name = GetServiceTypeName(interfaceName);

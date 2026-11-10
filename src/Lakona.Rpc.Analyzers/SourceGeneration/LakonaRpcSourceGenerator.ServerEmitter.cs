@@ -93,19 +93,19 @@ public sealed partial class LakonaRpcSourceGenerator
             writer.Line();
             foreach (var method in service.NotificationMethods)
             {
+                var serviceId = $"global::{generatedNamespace}.{Naming.GetNotificationProxyTypeName(service.NotificationContractInterfaceName!)}.ServiceId";
+                var cancellationArgument = method.AcceptsCancellationToken
+                    ? $", cancellationToken: {method.Parameters[1].Name}"
+                    : string.Empty;
                 if (method.ReturnsValueTask)
                     writer.OpenBlock($"public ValueTask {method.Name}({Naming.GetParameterSignature(method.Parameters)})");
                 else
                     writer.OpenBlock($"public void {method.Name}({Naming.GetParameterSignature(method.Parameters)})");
 
                 if (method.ReturnsValueTask)
-                    writer.Line(method.AcceptsCancellationToken
-                        ? $"return _notifications.SendAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue}, cancellationToken: cancellationToken);"
-                        : $"return _notifications.SendAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue});");
+                    writer.Line($"return this._notifications.SendAsync<{method.PayloadType}>({serviceId}, {method.MethodId}, {method.PayloadValue}{cancellationArgument});");
                 else
-                    writer.Line(method.AcceptsCancellationToken
-                        ? $"_notifications.SendAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue}, cancellationToken: cancellationToken).AsTask().GetAwaiter().GetResult();"
-                        : $"_notifications.SendAsync<{method.PayloadType}>(ServiceId, {method.MethodId}, {method.PayloadValue}).AsTask().GetAwaiter().GetResult();");
+                    writer.Line($"this._notifications.SendAsync<{method.PayloadType}>({serviceId}, {method.MethodId}, {method.PayloadValue}{cancellationArgument}).AsTask().GetAwaiter().GetResult();");
                 writer.CloseBlock();
                 writer.Line();
             }

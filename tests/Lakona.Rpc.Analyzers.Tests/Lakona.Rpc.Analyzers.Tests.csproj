@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\Lakona.Rpc.Client\Lakona.Rpc.Client.csproj" />
     <ProjectReference Include="..\..\src\Lakona.Rpc.Core\Lakona.Rpc.Core.csproj" />
     <ProjectReference Include="..\..\src\Lakona.Rpc.Server\Lakona.Rpc.Server.csproj" />
+    <ProjectReference Include="../../src/Lakona.Rpc.Serializer.Json/Lakona.Rpc.Serializer.Json.csproj" />
   </ItemGroup>
 
 </Project>

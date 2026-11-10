@@ -348,8 +348,8 @@ public sealed class LakonaRpcSourceGeneratorTests
         var proxy = GetGeneratedSource(runResult, "LakonaGameSessionCallbackProxy.g.cs");
         Assert.Contains("private const int ServiceId = 5;", proxy);
         Assert.Contains(acceptsCancellationToken
-            ? "return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(ServiceId, 9, notice, cancellationToken: cancellationToken);"
-            : "return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(ServiceId, 9, notice);", proxy);
+            ? "return this._notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(global::Server.Generated.LakonaGameSessionCallbackProxy.ServiceId, 9, notice, cancellationToken: cancellationToken);"
+            : "return this._notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(global::Server.Generated.LakonaGameSessionCallbackProxy.ServiceId, 9, notice);", proxy);
         Assert.Contains("return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(serviceId, methodId, (global::Lakona.Game.Abstractions.SessionTerminationNotice)(object)payload!, metadata, cancellationToken);", proxy);
         Assert.Contains("ValueTask IRpcNotificationDispatchTarget.DispatchEncodedNotificationAsync(", proxy);
         Assert.Contains("return _notifications.SendRawAsync(serviceId, methodId, payload, metadata, cancellationToken);", proxy);
@@ -582,8 +582,8 @@ public sealed class LakonaRpcSourceGeneratorTests
 
         var proxy = GetGeneratedSource(runResult, "PingNotificationsProxy.g.cs");
         Assert.Contains("private const int ServiceId = 1;", proxy);
-        Assert.Contains("SendAsync<global::Game.Contracts.NotifyRequest>(ServiceId, 1, request", proxy);
-        Assert.Contains("SendAsync<global::Game.Contracts.NotifyRequest>(ServiceId, 2, request", proxy);
+        Assert.Contains("SendAsync<global::Game.Contracts.NotifyRequest>(global::Server.Generated.PingNotificationsProxy.ServiceId, 1, request", proxy);
+        Assert.Contains("SendAsync<global::Game.Contracts.NotifyRequest>(global::Server.Generated.PingNotificationsProxy.ServiceId, 2, request", proxy);
 
         var serviceBinder = GetGeneratedSource(runResult, "PingServiceBinder.g.cs");
         Assert.Contains("Func<global::Game.Contracts.IPingNotifications, global::Game.Contracts.IPingService>", serviceBinder);
