@@ -302,7 +302,9 @@ internal sealed partial class ActorActivationCatalog :
 
         return result is TResult typedResult
             ? typedResult
-            : throw new InvalidOperationException($"Actor call returned an invalid result for '{typeof(TResult).FullName}'.");
+            : result is null && default(TResult) is null
+                ? default!
+                : throw new InvalidOperationException($"Actor call returned an invalid result for '{typeof(TResult).FullName}'.");
     }
 
     public async ValueTask<object?> AskAsync(

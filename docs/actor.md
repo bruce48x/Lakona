@@ -236,6 +236,13 @@ process-local and not the recommended daily business API. Framework code that
 already holds a canonical `ActorId` may use generated
 `LocalExact<TActor>(actorId)`; this performs neither route lookup nor creation.
 
+Local `IActorRuntime.AskAsync<TActor, TResult>` and remote reply conversion
+accept a successful `null` reply for reference types and `Nullable<T>`.
+Non-null replies must match the requested type; `null` cannot represent a
+non-nullable value type. Nullable reference annotations (`string` versus
+`string?`) are compile-time checks, not distinct runtime reply types.
+Handler failures and cancellation remain failures, not successful null replies.
+
 ## Actor Turns And Hotfix Generations
 
 One accepted call, post, lifecycle hook, or timer callback executes as one

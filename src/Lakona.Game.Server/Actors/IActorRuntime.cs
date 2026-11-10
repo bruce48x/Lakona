@@ -80,7 +80,7 @@ public interface IActorRuntime
     /// <param name="id">The target actor id.</param>
     /// <param name="message">The delegate executed inside the actor turn.</param>
     /// <param name="cancellationToken">A token that cancels enqueueing or waiting for the reply.</param>
-    /// <returns>The actor call reply.</returns>
+    /// <returns>The actor call reply, including null for reference types and nullable value types.</returns>
     ValueTask<TResult> AskAsync<TActor, TResult>(
         ActorId id,
         Func<TActor, CancellationToken, ValueTask<TResult>> message,
