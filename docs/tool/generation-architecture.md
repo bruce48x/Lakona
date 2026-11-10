@@ -234,6 +234,11 @@ project before writing the target. An adapter may hand it the detected editor
 executable, which is tried first but stays a hint: a probed incompatible editor
 is rejected rather than accepted from its installation directory name, so
 restoration never runs a binary whose version differs from the recorded one.
+Version probing runs in its own minimal temporary project, with both the process
+working directory and `-projectPath` pointing there. It never uses the caller's
+directory as an editor project. Each concurrent probe owns its directory; on
+exit, timeout or cancellation, it joins the editor and output readers before
+cleanup. Failed cleanup does not replace a detected version or caller cancellation.
 The bootstrap contains only the resolved editor version, NuGetForUnity,
 `packages.config`, and NuGet configuration. Creation fails without publishing
 the target when the editor is unavailable, cannot start, times out, or produces

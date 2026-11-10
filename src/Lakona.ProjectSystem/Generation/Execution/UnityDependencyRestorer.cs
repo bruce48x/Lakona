@@ -391,67 +391,91 @@ internal static partial class UnityEditorLocator
             ? OperatingSystem.IsWindows() ? "Tuanjie.exe" : "Tuanjie"
             : OperatingSystem.IsWindows() ? "Unity.exe" : "Unity";
 
-    private static async Task<UnityEditorInstallation?> ProbeAsync(
+    internal static async Task<UnityEditorInstallation?> ProbeAsync(
         string executablePath,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<ProcessStartInfo, Process?>? startEditor = null,
+        TimeSpan? probeTimeout = null)
     {
-        var startInfo = new ProcessStartInfo(executablePath)
-        {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-        foreach (var argument in new[] { "-batchmode", "-nographics", "-quit", "-logFile", "-" })
-        {
-            startInfo.ArgumentList.Add(argument);
-        }
-
-        Process? process;
+        cancellationToken.ThrowIfCancellationRequested();
+        executablePath = Path.GetFullPath(executablePath);
+        var projectRoot = Path.Combine(Path.GetTempPath(), "Lakona.ProjectSystem.Probe", Guid.NewGuid().ToString("N"));
+        var safeToDelete = true;
         try
         {
-            process = Process.Start(startInfo);
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
-        {
-            return null;
-        }
+            Directory.CreateDirectory(Path.Combine(projectRoot, "Assets"));
+            Directory.CreateDirectory(Path.Combine(projectRoot, "ProjectSettings"));
+            var startInfo = new ProcessStartInfo(executablePath)
+            {
+                WorkingDirectory = projectRoot,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            foreach (var argument in new[] { "-batchmode", "-nographics", "-quit", "-projectPath", projectRoot, "-logFile", "-" })
+            {
+                startInfo.ArgumentList.Add(argument);
+            }
 
-        if (process is null)
-        {
-            return null;
-        }
-
-        using (process)
-        using (var timeout = new CancellationTokenSource(ProbeTimeout))
-        using (var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token))
-        {
-            var outputTask = process.StandardOutput.ReadToEndAsync(linked.Token);
-            var errorTask = process.StandardError.ReadToEndAsync(linked.Token);
+            Process? process;
             try
             {
-                await process.WaitForExitAsync(linked.Token).ConfigureAwait(false);
-                var output = await outputTask.ConfigureAwait(false);
-                var error = await errorTask.ConfigureAwait(false);
-                return ParseInstallation(executablePath, output + Environment.NewLine + error);
+                cancellationToken.ThrowIfCancellationRequested();
+                process = (startEditor ?? Process.Start)(startInfo);
             }
-            catch (OperationCanceledException) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
             {
-                if (!process.HasExited)
-                {
-                    process.Kill(entireProcessTree: true);
-                }
-
                 return null;
             }
-            catch (OperationCanceledException)
-            {
-                if (!process.HasExited)
-                {
-                    process.Kill(entireProcessTree: true);
-                }
+            if (process is null) return null;
 
-                throw;
+            safeToDelete = false;
+            using (process)
+            using (var timeout = new CancellationTokenSource(probeTimeout ?? ProbeTimeout))
+            using (var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token))
+            {
+                var outputTask = process.StandardOutput.ReadToEndAsync(linked.Token);
+                var errorTask = process.StandardError.ReadToEndAsync(linked.Token);
+                var reads = Task.WhenAll(outputTask, errorTask);
+                try
+                {
+                    await process.WaitForExitAsync(linked.Token).ConfigureAwait(false);
+                    var output = await reads.ConfigureAwait(false);
+                    return ParseInstallation(executablePath, string.Join(Environment.NewLine, output));
+                }
+                catch (OperationCanceledException)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return null;
+                }
+                finally
+                {
+                    try
+                    {
+                        await UnityDependencyRestorer.StopEditorAsync(process, projectRoot).ConfigureAwait(false);
+                        safeToDelete = true;
+                    }
+                    finally
+                    {
+                        linked.Cancel();
+                        // Join both redirected readers, including the interrupted path.
+                        try { await reads.ConfigureAwait(false); }
+                        catch (Exception ex) when (ex is OperationCanceledException or IOException) { }
+                    }
+                }
+            }
+        }
+        finally
+        {
+            // If stopping failed, retain the directory rather than deleting a live project.
+            if (safeToDelete && Directory.Exists(projectRoot))
+            {
+                try { Directory.Delete(projectRoot, recursive: true); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Trace.TraceWarning("Could not remove editor probe project '{0}': {1}", projectRoot, ex.Message);
+                }
             }
         }
     }
@@ -484,8 +508,8 @@ internal static partial class UnityEditorLocator
     }
 
     [GeneratedRegex(
-        @"Unity(?: Editor)? version:\s*(?<version>\d+\.\d+\.\d+[a-z]\d+(?:[a-z]\d+)*)(?:\s+\((?<revision>[0-9a-f]{12})\))?",
-        RegexOptions.IgnoreCase)]
+        @"(?:Unity(?: Editor)? version:\s*|^Built from '[^'\r\n]+' branch; Version is ')(?<version>\d+\.\d+\.\d+[a-z]\d+(?:[a-z]\d+)*)(?:\s+\((?<revision>[0-9a-f]{12})\))?",
+        RegexOptions.IgnoreCase | RegexOptions.Multiline)]
     private static partial Regex EditorVersionPattern();
 
     [GeneratedRegex(@"^\d+\.\d+\.\d+[a-z]\d+(?:[a-z]\d+)*$", RegexOptions.IgnoreCase)]
