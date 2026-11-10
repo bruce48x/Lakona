@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Formats.Tar;
 using System.IO.Compression;
@@ -409,6 +410,7 @@ internal sealed class HubSdkCommandRunner : IHubSdkCommandRunner
         string arguments,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         try
         {
             var startInfo = new ProcessStartInfo(executablePath)
@@ -419,7 +421,19 @@ internal sealed class HubSdkCommandRunner : IHubSdkCommandRunner
                 CreateNoWindow = true
             };
             startInfo.ArgumentList.Add(arguments);
-            using var process = processFactory.Start(startInfo);
+            IHubSdkProcess? startedProcess;
+            try
+            {
+                startedProcess = processFactory.Start(startInfo);
+            }
+            catch (Win32Exception ex) when (
+                ex.NativeErrorCode == 2 || // ENOENT / ERROR_FILE_NOT_FOUND
+                OperatingSystem.IsWindows() && ex.NativeErrorCode == 3) // ERROR_PATH_NOT_FOUND
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return new HubSdkCommandResult(-1, "", ex.Message);
+            }
+            using var process = startedProcess;
             if (process is null)
             {
                 return new HubSdkCommandResult(-1, "", "Could not start dotnet.");

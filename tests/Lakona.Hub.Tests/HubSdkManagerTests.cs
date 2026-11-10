@@ -142,9 +142,8 @@ public sealed class HubSdkManagerTests : IDisposable
     public async Task CommandRunner_CancellationTerminatesChildProcess()
     {
         var process = new StubSdkProcess();
-        var runner = new HubSdkCommandRunner(new StubSdkProcessFactory(process));
         using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        var runner = new HubSdkCommandRunner(new StubSdkProcessFactory(process, cancellation.Cancel));
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             runner.RunAsync("dotnet", "--version", cancellation.Token));
@@ -256,9 +255,13 @@ public sealed class HubSdkManagerTests : IDisposable
         }
     }
 
-    private sealed class StubSdkProcessFactory(IHubSdkProcess process) : IHubSdkProcessFactory
+    private sealed class StubSdkProcessFactory(IHubSdkProcess process, Action onStart) : IHubSdkProcessFactory
     {
-        public IHubSdkProcess? Start(ProcessStartInfo startInfo) => process;
+        public IHubSdkProcess? Start(ProcessStartInfo startInfo)
+        {
+            onStart();
+            return process;
+        }
     }
 
     private sealed class StubSdkProcess : IHubSdkProcess

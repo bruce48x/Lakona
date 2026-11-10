@@ -34,7 +34,9 @@ distinct:
 
 At startup, the SDK manager first checks the Hub-managed SDK, then compatible
 stable .NET 10 SDKs available through the system `dotnet` command and standard
-platform installation locations. If neither exists, Hub explains the source
+platform installation locations. A missing executable skips only that candidate;
+cancellation stops discovery, and other native process-start errors remain errors.
+If neither exists, Hub explains the source
 and destination and waits for explicit consent
 before downloading the pinned SDK from Microsoft's official release service.
 The archive is SHA-512 verified, extracted to a temporary directory, version
