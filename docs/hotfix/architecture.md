@@ -38,6 +38,30 @@ scope. The candidate becomes current only after every activation succeeds; a
 failed activation rolls back candidate-created actors without exposing the
 candidate to ordinary requests.
 
+Publication extensions register `IHotfixRuntimePublicationParticipant` with the
+stable host. Its validation and preparation phases precede candidate component
+startup; the returned `IHotfixRuntimePublicationTransaction` then activates,
+commits after publication, or rolls back on failure. Transactions are disposed
+after completion. Startup Actors participate through this same transaction
+contract, with their own rollback bookkeeping.
+
+### Upgrading to Game.Server 0.54.0
+
+The unused `IHotfixCandidateRollbackParticipant`,
+`IHotfixCandidateRollbackHandle`, and `IHotfixCandidateRollbackActivationHandle`
+interfaces have been removed, together with their legacy scope and default
+Actor participant. The current publication pipeline never invoked that legacy
+extension point. No obsolete declarations or compatibility adapter remain.
+
+This is a source and binary breaking change for consumers referencing those
+types. Remove their old registrations, move any intended publication effects
+to `IHotfixRuntimePublicationParticipant` and its transaction lifecycle, and
+rebuild the affected App and Hotfix assemblies against 0.54.0. Repository
+samples and tests contain no such consumers. Existing users of the current
+publication contract and standard Startup Actors need no migration.
+
+### Publication completion and cleanup
+
 After a candidate becomes current, participant commit and disposal are
 post-publication cleanup and cannot safely roll back the visible generation.
 If that cleanup fails, the reload result and current snapshot report

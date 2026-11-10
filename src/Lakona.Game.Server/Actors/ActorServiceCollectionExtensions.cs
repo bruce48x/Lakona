@@ -46,13 +46,11 @@ public static class ActorServiceCollectionExtensions
         services.TryAddSingleton<IActorLifecycleDispatcher, NoopActorLifecycleDispatcher>();
         services.TryAddSingleton<IActorHostClient, ActorHostClient>();
         services.TryAddSingleton<IStartupActorInvoker, StartupActorInvoker>();
-        services.TryAddSingleton<ActorActivationRollbackRecorder>();
         services.TryAddSingleton<ActorCompensationLifetime>();
         services.TryAddSingleton(provider => new ActorActivationCatalog(
             provider,
             provider.GetRequiredService<ActorRuntimeOptions>(),
             provider.GetRequiredService<LocalActorNodeIdentity>(),
-            provider.GetRequiredService<ActorActivationRollbackRecorder>(),
             provider.GetService<IActorDirectoryCache>(),
             provider.GetRequiredService<IActorLifecycleDispatcher>(),
             provider.GetService<Microsoft.Extensions.Logging.ILogger<ActorActivationCatalog>>(),

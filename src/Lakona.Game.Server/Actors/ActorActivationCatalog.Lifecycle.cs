@@ -18,7 +18,6 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
 {
     private readonly IActorDirectoryCache? _directoryCache;
     private readonly LocalActorNodeIdentity _localNode;
-    private readonly ActorActivationRollbackRecorder _rollbackRecorder;
     private readonly ActorCompensationLifetime _compensationLifetime;
     private readonly IActorLifecycleDispatcher _lifecycleDispatcher;
     private readonly ActivationOperationLocks _operationLocks = new();
@@ -30,7 +29,6 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
         IServiceProvider services,
         ActorRuntimeOptions options,
         LocalActorNodeIdentity localNode,
-        ActorActivationRollbackRecorder rollbackRecorder,
         IActorDirectoryCache? directoryCache = null,
         IActorLifecycleDispatcher? lifecycleDispatcher = null,
         ILogger<ActorActivationCatalog>? logger = null,
@@ -51,7 +49,6 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
         _diagnostics = new ActorRuntimeDiagnosticsPublisher(options);
         _directoryCache = directoryCache;
         _localNode = localNode ?? throw new ArgumentNullException(nameof(localNode));
-        _rollbackRecorder = rollbackRecorder ?? throw new ArgumentNullException(nameof(rollbackRecorder));
         _compensationLifetime = compensationLifetime ?? new ActorCompensationLifetime();
         _lifecycleDispatcher = lifecycleDispatcher ?? new NoopActorLifecycleDispatcher();
         _logger = logger;
@@ -256,8 +253,6 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
                 : static (_, _) => default,
             nameof(DestroyAsync),
             cancellationToken).ConfigureAwait(false);
-
-        _rollbackRecorder.RecordDestroyed(actorType, actorId);
     }
 
     // The caller holds the per-Actor operation lock. Keep the Catalog entry as
@@ -599,11 +594,6 @@ internal sealed partial class ActorActivationCatalog : IActorPlacementService, I
                         actorType,
                         createResult.ExistingActorType ?? typeof(IActor),
                         strict ? nameof(CreateAsync) : nameof(EnsureAsync));
-            }
-
-            if (localCreated)
-            {
-                _rollbackRecorder.RecordCreated(actorType, actorId);
             }
         }
         catch (Exception failure)

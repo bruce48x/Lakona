@@ -4,6 +4,16 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-11-10 — One Hotfix publication extension contract
+
+**Key releases:** `Lakona.Game.Server 0.54.0`.
+
+- Removed the unused candidate rollback interfaces and their legacy Actor
+  machinery. Consumers referencing those interfaces must migrate to
+  `IHotfixRuntimePublicationParticipant` and rebuild; this is a source and
+  binary breaking change. Current publication transactions and Startup Actor
+  rollback retain their existing behavior.
+
 ## 2026-11-09 — Reliable Membership recovery and Actor/Hotfix execution
 
 **Key releases:** `Lakona.Game.Server 0.53.32`, `Lakona.Game.Clustering.Postgres 0.1.102`,
