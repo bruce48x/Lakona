@@ -71,10 +71,22 @@ namespace Lakona.Game.Server.Hotfix.Generators
                 ? attribute.ConstructorArguments[0].Value as string ?? ""
                 : "";
             var methods = serviceType.GetMembers()
+                .SelectMany(static member => member switch
+                {
+                    IMethodSymbol method => new[] { method },
+                    IPropertySymbol property => new[] { property.GetMethod, property.SetMethod },
+                    IEventSymbol @event => new[] { @event.AddMethod, @event.RemoveMethod, @event.RaiseMethod },
+                    _ => System.Array.Empty<IMethodSymbol>()
+                })
                 .OfType<IMethodSymbol>()
                 .Where(static method =>
-                    method.MethodKind == MethodKind.Ordinary
-                    && !IsDisposalMethod(method))
+                    // Explicit endpoint declarations must be validated even on
+                    // non-public methods, accessors or disposal methods.
+                    method.GetAttributes().Any(static attribute =>
+                        attribute.AttributeClass?.ToDisplayString() == HttpEndpointAttributeName)
+                    || (method.MethodKind == MethodKind.Ordinary
+                        && method.DeclaredAccessibility == Accessibility.Public
+                        && !IsDisposalMethod(method)))
                 .Select(CreateHttpEndpointInfo)
                 .ToArray();
             service = new HotfixHttpServiceInfo(serviceType, name, methods);
@@ -120,7 +132,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
                     && !service.Type.IsGenericType
                     && service.Type.ContainingType is null
                     && !string.IsNullOrWhiteSpace(service.Name)
-                    && service.Endpoints.Length > 0;
+                    && service.Endpoints.Any(IsValidHttpEndpointMethod);
                 if (!validServiceShape)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
@@ -180,6 +192,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
         private static bool IsValidHttpEndpointMethod(HotfixHttpEndpointInfo endpoint)
         {
             return endpoint.HasValidAttribute
+                && endpoint.Method.MethodKind == MethodKind.Ordinary
                 && endpoint.Method.DeclaredAccessibility == Accessibility.Public
                 && !endpoint.Method.IsStatic
                 && !endpoint.Method.IsGenericMethod

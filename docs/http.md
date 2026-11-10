@@ -164,8 +164,17 @@ and requires exact handler parameter and return types; matching a full type
 name from another assembly does not establish an HTTP contract.
 
 An HTTP handler is a public instance method that takes `LakonaHttpCall` and
-returns exactly `ValueTask<LakonaHttpResponse>`. Application HTTP has no
-user-authored numeric method id. Its protocol identity is the service name,
+returns exactly `ValueTask<LakonaHttpResponse>`. Compiler validation and runtime
+scanning use the same discovery rules: unannotated non-public helpers are ignored;
+public ordinary methods must declare `[LakonaHttpEndpoint]`. Unannotated property
+and event accessors and the existing parameterless `void Dispose()` /
+`ValueTask DisposeAsync()` cleanup methods do not declare endpoints. Any explicitly annotated
+method is validated, including non-public, static, generic, accessor and cleanup
+methods; invalid declarations are rejected rather than silently ignored. A service
+must contain at least one valid endpoint. Adding internal helpers does not change
+its route manifest.
+
+Application HTTP has no user-authored numeric method id. Its protocol identity is the service name,
 HTTP method, and route pattern. The stable host assigns deterministic internal
 endpoint slots when the initial Hotfix generation loads; those slots are
 runtime implementation details and never appear in application source,

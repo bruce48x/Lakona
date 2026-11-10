@@ -277,16 +277,19 @@ public static class HotfixBehaviorScanner
 
         var routeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var methods = serviceType.GetMethods(
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly);
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly);
         var handlerCount = 0;
         foreach (var method in methods)
         {
-            if (IsDisposalMethod(method))
+            var attribute = method.GetCustomAttribute<LakonaHttpEndpointAttribute>();
+            // Match compiler discovery: unannotated non-public helpers and
+            // special/disposal methods are implementation details. Explicit
+            // declarations always reach shape validation.
+            if (attribute is null && (!method.IsPublic || method.IsSpecialName || IsDisposalMethod(method)))
             {
                 continue;
             }
 
-            var attribute = method.GetCustomAttribute<LakonaHttpEndpointAttribute>();
             if (attribute is null)
             {
                 diagnostics.Add(
@@ -296,7 +299,9 @@ public static class HotfixBehaviorScanner
 
             var httpMethod = attribute.Method;
             var routePattern = attribute.RoutePattern;
-            if (method.IsStatic
+            if (!method.IsPublic
+                || method.IsSpecialName
+                || method.IsStatic
                 || method.IsGenericMethod
                 || method.ContainsGenericParameters
                 || string.IsNullOrWhiteSpace(httpMethod)
