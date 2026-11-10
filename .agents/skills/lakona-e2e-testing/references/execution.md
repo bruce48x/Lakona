@@ -10,10 +10,16 @@
 5. **Build Server**: Builds the generated server solution
 6. **Generate E2E client**: Creates a temporary `.csproj` and `Program.cs` that uses `LakonaGameClient` with source-generated RPC stubs
 7. **Start server**, wait for readiness
-8. **Run E2E client**: Calls `LoginAsync` and verifies the response
+8. **Run E2E client**: Calls `LoginAsync`, verifies success/player identity in the
+   returned world, then verifies a server-pushed world with a later tick
 9. **Report**: Writes Markdown report and JSON summary to `$WorkDir`
 
 The E2E client uses `LakonaGameClient` with an `IGameCallback` and source-generated `client.Api.Shared.Game.LoginAsync()` — this tests the full generated game client stack that end users experience.
+
+Generic scaffold/build/RPC matrix runs use this unified entry point. It owns
+dependency selection, the verification-client contract, readiness checks, report
+generation and cleanup of the server process it started. The current game
+contract lives in `Shared.Contracts.Game`.
 
 The pre-push hook enables `-FindAvailablePort`, so unrelated local servers do
 not block validation merely because they already use the preferred range.

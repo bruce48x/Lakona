@@ -73,6 +73,49 @@ unpublished runtime changes.
 .\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed ProjectReference -Engine all -Transport all -Serializer all
 ```
 
+### Matrix Coverage And Common Tasks
+
+Choose the feed independently from the combination count. The default is one
+Godot + WebSocket + MemoryPack case. Unity and Godot across three transports and
+two serializers make **12 cases**. Run those explicitly, preserving both reports:
+
+```powershell
+$e2e = '.agents/skills/lakona-e2e-testing/scripts/run-e2e.ps1'
+foreach ($engine in 'unity', 'godot') {
+    pwsh -NoProfile -File $e2e -Feed ProjectReference -Engine $engine `
+        -Transport all -Serializer all -MembershipProvider memory `
+        -FindAvailablePort -WorkDir ".tmp/lakona-e2e-$engine"
+    if ($LASTEXITCODE -ne 0) { throw "$engine E2E failed; inspect its report." }
+}
+```
+
+`-Engine all -Transport all -Serializer all` also includes Tuanjie and therefore
+runs **18 cases** with in-memory Membership. It does not include Console clients.
+Record which combinations actually ran; one smoke pass does not establish a
+complete matrix pass. Add `-KeepScaffolds` when retaining generated projects.
+
+| Task | Unified entry point option or behavior |
+| --- | --- |
+| Validate current source | `-Feed ProjectReference` |
+| Pack and validate local NuGet packages | `-Feed LocalFeed` |
+| Validate published packages | `-Feed NuGetOrg`, using a published version baseline |
+| Select combinations | `-Engine`, `-Transport`, `-Serializer`; select all dimensions explicitly for a full matrix |
+| Scaffold and build only | `-SkipRuntime`; runtime is reported as skipped |
+| Verify login and server push | Omit `-SkipRuntime`; the generated client checks both |
+| Keep generated projects | `-KeepScaffolds`; failures retain their diagnostic artifacts |
+| Preserve separate runs | Give each run a distinct `-WorkDir`; reports are `report.md` and `summary.json`, with per-phase logs |
+| Handle occupied ports | `-Port` selects the preferred base; `-FindAvailablePort` finds a free business/cluster/management range without stopping unrelated processes |
+| Propagate failure | A failed case produces a nonzero exit code; inspect the failed phase in its report |
+
+When converting an existing command, replace `-DependencyMode NuGetFeed` with
+`-Feed LocalFeed`, `-DependencyMode ProjectReference` with `-Feed ProjectReference`,
+and `-Quick` with `-SkipRuntime`. Use explicit matrix dimensions rather than
+assuming the default invocation covers every combination.
+
+Daily Validation's `scripts/game/ci/verify-lakona-tool-godot.ps1` retains its
+separate real Godot-engine and PostgreSQL Membership checks. The unified RPC
+verification client does not replace those checks or exercise interactive UI.
+
 ### Parameter Reference
 
 | Parameter | Values | Default | Description |
