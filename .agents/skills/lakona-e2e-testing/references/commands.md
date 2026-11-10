@@ -55,6 +55,14 @@ provider runtime contracts:
 .\.agents\skills\lakona-e2e-testing\scripts\run-e2e.ps1 -Feed NuGetOrg -Engine all -Transport all -Serializer all
 ```
 
+This mode still builds the checkout's Tool to scaffold projects. Use a checkout
+whose generated package versions have been published. When validating a wrapper
+fix while runtime releases remain local, run the fixed wrapper in an isolated
+checkout of the matching published release and record that commit. Keep the
+generated dependency versions intact; do not substitute latest versions to make
+restore pass. Such a run verifies the wrapper against published packages, not
+unpublished runtime changes.
+
 ### ProjectReference (dev feedback)
 
 ```powershell

@@ -22,7 +22,7 @@ not block validation merely because they already use the preferred range.
 
 | Aspect | ProjectReference mode | LocalFeed / NuGetOrg mode |
 |--------|----------------------|---------------------------|
-| Dependency style | `<ProjectReference>` to local source | `<PackageReference>` with version from feed/csproj |
+| Dependency style | `<ProjectReference>` to local source | `<PackageReference>` with exact version from the local feed or generated client manifest |
 | RPC analyzer | Direct ProjectReference with `OutputItemType="Analyzer"` because MSBuild project analyzers are not transitive | Carried transitively inside the `Lakona.Rpc.Core` package |
 | Hotfix assets | Direct reference to the internal Generators analyzer because package analyzer bundling does not apply to ProjectReference; authoring abstractions belong to Game.Server | The `Lakona.Game.Server` package contains the authoring API and bundled compiler analyzer |
 | NuGet.config | None needed | Written to E2E client dir |
@@ -30,3 +30,12 @@ not block validation merely because they already use the preferred range.
 
 `Lakona.Game.Server.Hotfix.Abstractions` is a namespace in Game.Server, not a
 separate project, assembly, or package.
+
+For NuGetOrg, the verification client takes Game.Client, transport and serializer
+versions from `Client/Client.csproj` for Godot or `Client/Assets/packages.config`
+for Unity/Tuanjie. Server.App is not a source for client dependency versions.
+SDK `Version` attributes and child elements are supported, with or without XML
+namespaces. Missing packages, missing/empty versions and conflicting declarations
+fail with the package ID and manifest path. Identical repeated versions are
+accepted; MSBuild expressions, floating versions and ranges are not resolved.
+There is no fallback to repository versions, server dependencies or latest packages.

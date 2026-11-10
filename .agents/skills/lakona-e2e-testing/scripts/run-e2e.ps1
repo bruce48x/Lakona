@@ -215,28 +215,62 @@ function Get-LocalPackageVersion {
     return $name.Substring($prefix.Length)
 }
 
-function Get-PackageVersionFromCsproj {
+function Get-ClientPackageVersion {
     param(
-        [string]$CsprojPath,
+        [string]$ProjectDir,
+        [Parameter(Mandatory)]
+        [ValidateSet("godot", "unity", "tuanjie")]
+        [string]$Engine,
         [string]$PackageId
     )
 
-    [xml]$xml = Get-Content -LiteralPath $CsprojPath -Raw
-    $ns = @{ msbuild = "http://schemas.microsoft.com/developer/msbuild/2003" }
-
-    $ref = $xml.SelectSingleNode(
-        "//msbuild:PackageReference[@Include='$PackageId']",
-        $ns
-    )
-
-    if ($ref) {
-        $version = $ref.GetAttribute("Version")
-        if ($version) {
-            return $version
-        }
+    $isSdk = $Engine -eq "godot"
+    $relativePath = if ($isSdk) { "Client/Client.csproj" } else { "Client/Assets/packages.config" }
+    $manifestPath = Join-Path $ProjectDir $relativePath
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        throw "Client dependency file missing for package '$PackageId': $manifestPath"
+    }
+    [xml]$xml = Get-Content -LiteralPath $manifestPath -Raw
+    # Match the actual client manifest, with or without an XML namespace. Do not
+    # evaluate MSBuild properties or fall back to server/repository/latest versions.
+    $xpath = if ($isSdk) {
+        "/*[local-name()='Project']/*[local-name()='ItemGroup']/*[local-name()='PackageReference']"
+    } else {
+        "/*[local-name()='packages']/*[local-name()='package']"
+    }
+    $idAttribute = if ($isSdk) { "Include" } else { "id" }
+    $versionAttribute = if ($isSdk) { "Version" } else { "version" }
+    $references = @($xml.SelectNodes($xpath) | Where-Object { $_.GetAttribute($idAttribute) -ieq $PackageId })
+    if ($references.Count -eq 0) {
+        throw "Client package '$PackageId' missing from $manifestPath"
     }
 
-    throw "Could not find PackageReference for $PackageId in $CsprojPath"
+    $versions = @(foreach ($reference in $references) {
+        $values = @(
+            if ($reference.HasAttribute($versionAttribute)) { $reference.GetAttribute($versionAttribute) }
+            if ($isSdk) {
+                foreach ($node in $reference.SelectNodes("*[local-name()='Version']")) { $node.InnerText }
+            }
+        )
+        if ($values.Count -eq 0) {
+            throw "Client package '$PackageId' has no version in $manifestPath"
+        }
+        foreach ($value in $values) {
+            if ([string]::IsNullOrWhiteSpace($value)) {
+                throw "Client package '$PackageId' has an empty version in $manifestPath"
+            }
+            $literal = $value.Trim()
+            if ($literal -match '\$\(|[*\[\](),\s]') {
+                throw "Client package '$PackageId' needs a literal version in $manifestPath; found '$literal'"
+            }
+            $literal
+        }
+    })
+    $versions = @($versions | Sort-Object -Unique)
+    if ($versions.Count -ne 1) {
+        throw "Client package '$PackageId' has conflicting versions in ${manifestPath}: $($versions -join ', ')"
+    }
+    return $versions[0]
 }
 
 function Write-NuGetConfig {
@@ -402,6 +436,9 @@ function Stop-ProcessTree {
 function New-E2EClient {
     param(
         [string]$ProjectDir,
+        [Parameter(Mandatory)]
+        [ValidateSet("godot", "unity", "tuanjie")]
+        [string]$Engine,
         [string]$Transport,
         [string]$Serializer,
         [int]$Port,
@@ -450,11 +487,10 @@ function New-E2EClient {
             $transportVersion = Get-LocalPackageVersion -FeedDir $FeedDir -PackageId $transportPkg
             $serializerVersion = Get-LocalPackageVersion -FeedDir $FeedDir -PackageId $serializerPkg
         } else {
-            # NuGetOrg: read versions from scaffolded Server.App.csproj
-            $serverCsproj = Join-Path $ProjectDir "Server/App/Server.App.csproj"
-            $gameClientVersion = Get-PackageVersionFromCsproj -CsprojPath $serverCsproj -PackageId "Lakona.Game.Client"
-            $transportVersion = Get-PackageVersionFromCsproj -CsprojPath $serverCsproj -PackageId $transportPkg
-            $serializerVersion = Get-PackageVersionFromCsproj -CsprojPath $serverCsproj -PackageId $serializerPkg
+            # NuGetOrg: verify exactly the dependencies generated for the client.
+            $gameClientVersion = Get-ClientPackageVersion -ProjectDir $ProjectDir -Engine $Engine -PackageId "Lakona.Game.Client"
+            $transportVersion = Get-ClientPackageVersion -ProjectDir $ProjectDir -Engine $Engine -PackageId $transportPkg
+            $serializerVersion = Get-ClientPackageVersion -ProjectDir $ProjectDir -Engine $Engine -PackageId $serializerPkg
         }
 
         $csprojContent += @"
@@ -970,6 +1006,7 @@ foreach ($engineValue in $engines) {
 
                 # Generate E2E verification client
                 $e2eDir = New-E2EClient -ProjectDir $projectDir `
+                    -Engine $engineValue `
                     -Transport $transportValue `
                     -Serializer $serializerValue `
                     -Port $casePort `
