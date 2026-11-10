@@ -300,3 +300,12 @@ to business code. Request validation and failure classification follow the
   version coupling.
 - Changes to stable extension APIs must receive focused tests for affected
   behavior and compatibility, regardless of the release version number.
+
+To regenerate the XML-comment API reference, build Rpc.Core, Rpc.Client and
+Rpc.Server, then run `pwsh -NoProfile -File scripts/rpc/generate-api-reference.ps1`
+from the repository root (or invoke that script by absolute path elsewhere).
+`-Configuration` and `-Framework` select the normal `bin/<configuration>/<framework>`
+XML inputs, defaulting to `Release` and `net10.0`. The script locates the repository
+relative to its own file. Its default output is `blog/content/reference/api.md`;
+relative `-OutputPath` values are repository-relative and absolute paths are used
+directly. Missing XML input fails before any output file is written.

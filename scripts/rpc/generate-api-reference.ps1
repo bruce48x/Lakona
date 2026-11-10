@@ -1,3 +1,4 @@
+#Requires -Version 7.0
 param(
     [string]$Configuration = "Release",
     [string]$Framework = "net10.0",
@@ -6,7 +7,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$root = Split-Path -Parent $PSScriptRoot
+$root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "../..")).Path
+if (!(Test-Path -LiteralPath (Join-Path $root "CONTRIBUTING.md") -PathType Leaf)) {
+    throw "Expected repository root containing CONTRIBUTING.md two levels above the script: $root"
+}
 $projects = @(
     @{
         Name = "Lakona.Rpc.Core"
@@ -99,15 +103,15 @@ $lines.Add("title: API Reference")
 $lines.Add("date: 2026-05-11T00:00:00+08:00")
 $lines.Add("---")
 $lines.Add("")
-$lines.Add("This page is generated from C# XML documentation comments. Update the source comments first, then rerun ``scripts/generate-api-reference.ps1``.")
+$lines.Add("This page is generated from C# XML documentation comments. Update the source comments first, then rerun ``scripts/rpc/generate-api-reference.ps1``.")
 $lines.Add("")
 
 foreach ($project in $projects) {
-    if (!(Test-Path $project.Xml)) {
+    if (!(Test-Path -LiteralPath $project.Xml -PathType Leaf)) {
         throw "Missing XML documentation file: $($project.Xml). Build the project first."
     }
 
-    [xml]$doc = Get-Content -Raw $project.Xml
+    [xml]$doc = Get-Content -LiteralPath $project.Xml -Raw
     $members = @($doc.doc.members.member) | Sort-Object { $_.name }
 
     $lines.Add("## $($project.Name)")
@@ -177,11 +181,12 @@ foreach ($project in $projects) {
     }
 }
 
-$outFullPath = Join-Path $root $OutputPath
+# Relative outputs belong to the repository; absolute outputs remain absolute.
+$outFullPath = [System.IO.Path]::GetFullPath($OutputPath, $root)
 $outDir = Split-Path -Parent $outFullPath
-if (!(Test-Path $outDir)) {
+if (!(Test-Path -LiteralPath $outDir -PathType Container)) {
     New-Item -ItemType Directory -Path $outDir | Out-Null
 }
 
-Set-Content -Path $outFullPath -Value ($lines -join "`n") -Encoding utf8
-Write-Host "Generated $OutputPath"
+Set-Content -LiteralPath $outFullPath -Value ($lines -join "`n") -Encoding utf8
+Write-Host "Generated $outFullPath"
