@@ -125,13 +125,12 @@
           <span class="na">[HotfixBehaviorOf(typeof(RoomActor))]</span><br>
           <span class="k">public sealed partial class</span> <span class="nc">RoomBehavior</span><br>
           {<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">public async</span> <span class="nc">ValueTask&lt;RoomSettlementResult&gt;</span> <span class="nf">CreateAsync</span>(<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">public</span> <span class="nc">ValueTask</span> <span class="nf">CreateAsync</span>(<br>
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="nc">RoomActor</span> self,<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="nc">RoomCreateRequest</span> request,<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="nc">CancellationToken</span> cancellationToken = <span class="k">default</span>)<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="nc">RoomCreateRequest</span> request)<br>
           &nbsp;&nbsp;&nbsp;&nbsp;{<br>
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.State = <span class="k">new</span> <span class="nc">RoomState</span> { RoomId = request.RoomId };<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;...<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">return default</span>;<br>
           &nbsp;&nbsp;&nbsp;&nbsp;}<br>
           }
         </div>
