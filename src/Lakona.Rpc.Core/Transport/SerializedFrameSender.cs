@@ -51,15 +51,20 @@ internal sealed class SerializedFrameSender : IDisposable
     private void CancelQueued(object? state)
     {
         var node = (LinkedListNode<SendWork>)state!;
+        SendWork work;
         lock (_gate)
         {
             // Dequeuing or disposal already claimed completion if the node was detached.
             if (node.List is null) return;
+            work = node.Value;
             _queue.Remove(node);
-            _pendingBytes -= node.Value.Frame.Length;
+            _pendingBytes -= work.Frame.Length;
             _pendingFrames--;
+            // The cancellation registration can outlive task completion while its
+            // async waiter unwinds. It must not keep the canceled payload alive.
+            node.Value = default;
         }
-        node.Value.Completion.TrySetCanceled(node.Value.Cancellation);
+        work.Completion.TrySetCanceled(work.Cancellation);
     }
 
     private static async ValueTask WaitForSendAsync(Task completion, CancellationTokenRegistration registration)
