@@ -11,6 +11,7 @@ COPY Directory.Build.props ./
 COPY src/ src/
 COPY samples/Game.Unity.Agar/Shared/Shared.csproj samples/Game.Unity.Agar/Shared/
 COPY samples/Game.Unity.Agar/Shared/Directory.Build.props samples/Game.Unity.Agar/Shared/
+COPY samples/Game.Unity.Agar/Server/BuildTag.props samples/Game.Unity.Agar/Server/
 COPY samples/Game.Unity.Agar/Server/App/Server.App.csproj samples/Game.Unity.Agar/Server/App/
 COPY samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj samples/Game.Unity.Agar/Server/Hotfix/
 

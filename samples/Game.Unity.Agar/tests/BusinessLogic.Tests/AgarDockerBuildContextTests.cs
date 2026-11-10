@@ -16,6 +16,15 @@ public sealed class AgarDockerBuildContextTests
         Assert.Contains("!src/", dockerignore, StringComparison.Ordinal);
         Assert.Contains("!src/**", dockerignore, StringComparison.Ordinal);
         Assert.DoesNotContain("!src/Lakona.", dockerignore, StringComparison.Ordinal);
+
+        // Project evaluation needs the imported BuildTag before either restore,
+        // not merely in the later full Server source copy.
+        var buildTagCopy = dockerfile.IndexOf(
+            "COPY samples/Game.Unity.Agar/Server/BuildTag.props samples/Game.Unity.Agar/Server/",
+            StringComparison.Ordinal);
+        var firstRestore = dockerfile.IndexOf("RUN dotnet restore ", StringComparison.Ordinal);
+        Assert.True(buildTagCopy >= 0 && firstRestore > buildTagCopy,
+            "Copy the shared BuildTag.props before the first project restore.");
     }
 
     [Fact]
