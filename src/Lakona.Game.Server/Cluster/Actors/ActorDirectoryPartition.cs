@@ -106,11 +106,14 @@ internal sealed class ActorDirectoryPartition
         TaskCompletionSource completion;
         lock (gate)
         {
+            // The worker may already have picked up the prepared view before its
+            // Start notification arrives. Only newer pending work supersedes it.
+            if (pendingTransition is null) return;
             // Cancellation callbacks may need the partition gate. CancelAsync signals
             // cancellation immediately without running those callbacks under this lock.
             if (activeTransition is { } active)
                 active.CancellationCompletion ??= active.Cancellation.CancelAsync();
-            if (workerRunning || pendingTransition is null) return;
+            if (workerRunning) return;
             workerRunning = true;
             completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
             transitionTail = completion.Task;

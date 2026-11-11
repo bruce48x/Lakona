@@ -728,6 +728,11 @@ Graceful shutdown reverses the safety boundary:
    reverse recorded activation order, then clean up and retire the generations;
 6. dispose root-owned State and stable resources with the host provider.
 
+The first drain includes accepted Actor work that is still queued or executing,
+even when a post has returned or the caller has canceled or timed out its wait.
+The Actor callback releases admission only after execution finishes or fails;
+only work rejected before acceptance releases it on the submitting path.
+
 Once all configured RPC listeners are listening, a terminal failure in any one
 of them closes distributed-work admission and requests host shutdown.
 Standard Game client endpoints reject new business RPCs on existing connections

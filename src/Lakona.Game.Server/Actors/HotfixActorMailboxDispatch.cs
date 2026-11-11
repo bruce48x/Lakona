@@ -11,7 +11,7 @@ namespace Lakona.Game.Server.Actors;
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public static class HotfixActorMailboxDispatch
 {
-    public static ValueTask TellAsync<TActor, TRequest>(
+    public static async ValueTask TellAsync<TActor, TRequest>(
         IActorRuntime runtime,
         ActorId actorId,
         IHotfixRuntimeAccessor runtimeAccessor,
@@ -21,15 +21,24 @@ public static class HotfixActorMailboxDispatch
         CancellationToken cancellationToken)
         where TActor : class, IActor
     {
-        return ExecuteAdmittedAsync(admissionGate, () => runtime.TellAsync<TActor>(
-            actorId,
-            (actor, executionToken) => HotfixDispatch.InvokeActorAsync(
-                runtimeAccessor,
-                methodId,
-                actor,
-                request,
-                executionToken),
-            cancellationToken));
+        if (admissionGate is null)
+        {
+            await runtime.TellAsync<TActor>(actorId,
+                (actor, ct) => HotfixDispatch.InvokeActorAsync(runtimeAccessor, methodId, actor, request, ct),
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        var catalog = RequireAdmissionRuntime(runtime);
+        var admission = Enter(admissionGate);
+        try
+        {
+            await catalog.TellAsync<TActor>(actorId, async (actor, ct) =>
+            {
+                try { await HotfixDispatch.InvokeActorAsync(runtimeAccessor, methodId, actor, request, ct).ConfigureAwait(false); }
+                finally { admission.Complete(); }
+            }, cancellationToken, admission.Accept).ConfigureAwait(false);
+        }
+        finally { admission.CompleteIfRejected(); }
     }
 
     public static ActorTellResult TryTell<TActor, TRequest>(
@@ -80,7 +89,7 @@ public static class HotfixActorMailboxDispatch
         }
     }
 
-    public static ValueTask<TResult> AskAsync<TActor, TRequest, TResult>(
+    public static async ValueTask<TResult> AskAsync<TActor, TRequest, TResult>(
         IActorRuntime runtime,
         ActorId actorId,
         IHotfixRuntimeAccessor runtimeAccessor,
@@ -90,42 +99,35 @@ public static class HotfixActorMailboxDispatch
         CancellationToken cancellationToken)
         where TActor : class, IActor
     {
-        return ExecuteAdmittedAsync(admissionGate, () => runtime.AskAsync<TActor, TResult>(
-            actorId,
-            (actor, executionToken) => HotfixDispatch.InvokeActorAsync<TResult>(
-                runtimeAccessor,
-                methodId,
-                actor,
-                request,
-                executionToken),
-            cancellationToken));
+        if (admissionGate is null)
+        {
+            return await runtime.AskAsync<TActor, TResult>(actorId,
+                (actor, ct) => HotfixDispatch.InvokeActorAsync<TResult>(runtimeAccessor, methodId, actor, request, ct),
+                cancellationToken).ConfigureAwait(false);
+        }
+        var catalog = RequireAdmissionRuntime(runtime);
+        var admission = Enter(admissionGate);
+        try
+        {
+            return await catalog.AskAsync<TActor, TResult>(actorId, async (actor, ct) =>
+            {
+                try { return await HotfixDispatch.InvokeActorAsync<TResult>(runtimeAccessor, methodId, actor, request, ct).ConfigureAwait(false); }
+                finally { admission.Complete(); }
+            }, cancellationToken, admission.Accept).ConfigureAwait(false);
+        }
+        finally { admission.CompleteIfRejected(); }
     }
 
-    private static async ValueTask ExecuteAdmittedAsync(
-        IDistributedWorkAdmissionGate? gate,
-        Func<ValueTask> operation)
+    private static ActorActivationCatalog RequireAdmissionRuntime(IActorRuntime runtime) =>
+        runtime as ActorActivationCatalog ?? throw new NotSupportedException(
+            "Distributed Actor calls require the framework runtime's mailbox acceptance tracking.");
+
+    private static ActorWorkAdmission Enter(IDistributedWorkAdmissionGate gate)
     {
-        DistributedWorkAdmission admission = default;
-        if (gate is not null && !gate.TryEnter(out admission))
+        if (!gate.TryEnter(out var admission))
         {
             throw ActorNotFoundException.BeforeDispatch(default, typeof(IActor).FullName!, "admission", "Distributed Actor admission is closed.");
         }
-
-        try { await operation().ConfigureAwait(false); }
-        finally { if (admission.IsAdmitted) gate!.Exit(admission); }
-    }
-
-    private static async ValueTask<TResult> ExecuteAdmittedAsync<TResult>(
-        IDistributedWorkAdmissionGate? gate,
-        Func<ValueTask<TResult>> operation)
-    {
-        DistributedWorkAdmission admission = default;
-        if (gate is not null && !gate.TryEnter(out admission))
-        {
-            throw ActorNotFoundException.BeforeDispatch(default, typeof(IActor).FullName!, "admission", "Distributed Actor admission is closed.");
-        }
-
-        try { return await operation().ConfigureAwait(false); }
-        finally { if (admission.IsAdmitted) gate!.Exit(admission); }
+        return new ActorWorkAdmission(gate, admission);
     }
 }

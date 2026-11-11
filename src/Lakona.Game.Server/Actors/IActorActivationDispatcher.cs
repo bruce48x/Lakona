@@ -14,5 +14,6 @@ internal interface IActorActivationDispatcher
         ActorId actorId,
         ActorActivationId activationId,
         Func<IActor, CancellationToken, ValueTask<object?>> message,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        Action? onAccepted = null);
 }

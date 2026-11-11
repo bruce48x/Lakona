@@ -80,17 +80,15 @@ internal sealed class HotfixActorClusterHandler
             return;
         }
 
+        var workAdmission = new ActorWorkAdmission(admissionGate, admission);
         try
         {
-            await HandleActorRpcCoreAsync(wireRequest, tell, response, cancellationToken)
+            await HandleActorRpcCoreAsync(wireRequest, tell, response, cancellationToken, workAdmission)
                 .ConfigureAwait(false);
         }
         finally
         {
-            if (admission.IsAdmitted)
-            {
-                admissionGate!.Exit(admission);
-            }
+            workAdmission.CompleteIfRejected();
         }
     }
 
@@ -98,7 +96,8 @@ internal sealed class HotfixActorClusterHandler
         ClusterActorWireRequest wireRequest,
         bool tell,
         IBufferWriter<byte> response,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ActorWorkAdmission admission)
     {
         var header = wireRequest.Header;
         ClusterInvocationLifetime lifetime;
@@ -125,7 +124,8 @@ internal sealed class HotfixActorClusterHandler
                     wireRequest,
                     tell,
                     response,
-                    lifetime.Token)
+                    lifetime.Token,
+                    admission)
                 .ConfigureAwait(false);
         }
     }
@@ -134,7 +134,8 @@ internal sealed class HotfixActorClusterHandler
         ClusterActorWireRequest wireRequest,
         bool tell,
         IBufferWriter<byte> response,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ActorWorkAdmission admission)
     {
         var header = wireRequest.Header;
 
@@ -245,7 +246,8 @@ internal sealed class HotfixActorClusterHandler
                         }
                         finally
                         {
-                            state.DisposeLease();
+                            try { state.DisposeLease(); }
+                            finally { admission.Complete(); }
                         }
                     },
                     CancellationToken.None);
@@ -261,6 +263,7 @@ internal sealed class HotfixActorClusterHandler
             {
                 state.DisposeLease();
             }
+            else admission.Accept();
 
             ClusterActorWireCodec.WriteReply(response, MapTellStatus(accepted));
             return;
@@ -277,19 +280,24 @@ internal sealed class HotfixActorClusterHandler
                         wireRequest.TargetProof.ActivationId,
                         async (actor, ct) =>
                         {
-                            // Acquire inside the turn: the caller can stop waiting
-                            // while accepted work is still queued or running.
-                            using var executionLease = accessor.AcquireCurrent();
-                            using var dispatchScope = executionLease.EnterDispatchScope();
-                            return await executionLease.Snapshot.DispatchTable!.InvokeActorAsync(
-                                    header.MethodId,
-                                    actor,
-                                    request,
-                                    descriptor.ResultType,
-                                    ct)
-                                .ConfigureAwait(false);
+                            try
+                            {
+                                // Acquire inside the turn: the caller can stop waiting
+                                // while accepted work is still queued or running.
+                                using var executionLease = accessor.AcquireCurrent();
+                                using var dispatchScope = executionLease.EnterDispatchScope();
+                                return await executionLease.Snapshot.DispatchTable!.InvokeActorAsync(
+                                        header.MethodId,
+                                        actor,
+                                        request,
+                                        descriptor.ResultType,
+                                        ct)
+                                    .ConfigureAwait(false);
+                            }
+                            finally { admission.Complete(); }
                         },
-                        cancellationToken)
+                        cancellationToken,
+                        admission.Accept)
                     .ConfigureAwait(false);
             }
             catch (ActorCallException exception)

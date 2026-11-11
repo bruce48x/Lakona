@@ -15,6 +15,55 @@ namespace Lakona.Game.Server.Tests.Cluster.Actors;
 public sealed class DistributedActorDirectoryTests
 {
     [Fact]
+    public async Task Late_start_notification_does_not_cancel_the_transition_already_running()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var nodeA = Reference("node-a", 1);
+        var nodeB = Reference("node-b", 2);
+        var before = Snapshot(4, Active(nodeA), Joining(nodeB));
+        var after = Snapshot(5, Active(nodeA), Active(nodeB));
+        var actor = FindMovedActor(nodeB, before, after);
+        var beforeRing = new ActorDirectoryRing(before);
+        var afterRing = new ActorDirectoryRing(after);
+        var network = new DirectoryNetwork
+        {
+            PartitionSnapshotTargetIndex = beforeRing.GetOwner(actor).Index,
+            PartitionSnapshotTargetActor = actor,
+            PausePartitionSnapshotResponses = true
+        };
+        var membershipA = new MutableMembership(before);
+        var membershipB = new MutableMembership(before);
+        using var directoryA = Directory(nodeA, membershipA, network, after);
+        using var directoryB = Directory(nodeB, membershipB, network, after);
+        network.Register(nodeA, directoryA);
+        network.Register(nodeB, directoryB);
+        await directoryA.EnsureViewAsync(before.View, ct);
+        await directoryB.EnsureViewAsync(before.View, ct);
+        var activation = ActorActivationId.New();
+        Assert.True((await directoryA.AcquireAsync(actor, nodeA, activation, ct)).Acquired);
+        membershipA.Current = after;
+        membershipB.Current = after;
+        var partition = new ActorDirectoryPartition(afterRing.GetOwner(actor), directoryB);
+        var transition = partition.PrepareTransition(beforeRing, afterRing);
+        try
+        {
+            transition.Start();
+            await network.WaitForPartitionSnapshotResponseAsync(ct);
+            // A worker can pick up a prepared transition before its installer
+            // delivers Start. The notification must not cancel that same work.
+            transition.Start();
+            network.ReleasePartitionSnapshotResponses();
+            Assert.True(await transition.Completion.Task.WaitAsync(TimeSpan.FromSeconds(5), ct));
+            Assert.Equal(activation, (await partition.LookupAsync(actor, after.View, ct)).Record!.ActivationId);
+        }
+        finally
+        {
+            network.ReleasePartitionSnapshotResponses();
+            await partition.TransitionCompletion.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        }
+    }
+
+    [Fact]
     public async Task Release_already_routed_to_a_partition_refreshes_when_the_ring_becomes_empty()
     {
         var node = Reference("node-a", 1);

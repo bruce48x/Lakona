@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-11-11 — Actor dispatch consistency and bounded lifecycle cleanup
 
-**Key releases:** `Lakona.Game.Server 0.54.4`, `Lakona.Tool 0.43.113`, and
-`Lakona.Hub 0.17.127`.
+**Key releases:** `Lakona.Game.Server 0.54.5`, `Lakona.Tool 0.43.116`, and
+`Lakona.Hub 0.17.130`.
 
 - Generated Actor method IDs now match runtime lookup for array requests and
   results, multidimensional arrays, and nested generic types. Rebuild Hotfix
@@ -20,6 +20,8 @@ date and package versions of important releases are retained.
   cleanup. Actor Directory coalesces pending Membership views, rejects superseded
   transfer results and joins transition workers at shutdown, bounding retained
   work while preserving exact activation ownership and fail-closed recovery.
+  Shutdown also retains admission for accepted Actor work until execution ends,
+  including posts and calls whose callers have canceled or timed out.
 
 ## 2026-11-10 — Hotfix cleanup, runnable Compose and load-run lifecycle
 

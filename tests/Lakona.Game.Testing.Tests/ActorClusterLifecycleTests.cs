@@ -43,6 +43,9 @@ public sealed class ActorClusterLifecycleTests
         var control = cluster.Node("battle-1").Services.GetRequiredService<CounterControl>();
         gate.Enabled = true;
         var first = actors.Place<CounterActor>(id).EnsureAsync(new CounterStartArgs { Value = 42, Wait = true, Fail = fail }, ct).AsTask();
+        // Network replies can arrive out of invocation order. Make the call with
+        // the held start hook own the first captured absent lookup explicitly.
+        await gate.FirstRead.Task.WaitAsync(ct);
         var second = actors.Place<CounterActor>(id).EnsureAsync(new CounterStartArgs { Value = 77 }, ct).AsTask();
         try
         {
@@ -71,6 +74,7 @@ public sealed class ActorClusterLifecycleTests
     {
         public bool Enabled;
         public int Reads;
+        public TaskCompletionSource FirstRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource BothRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseSecond { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
@@ -85,6 +89,7 @@ public sealed class ActorClusterLifecycleTests
             if (read > 2) return record;
             Assert.Null(record);
             // Both callers observe absence before either can start activation.
+            if (read == 1) gate.FirstRead.TrySetResult();
             if (read == 2) gate.BothRead.TrySetResult();
             await gate.BothRead.Task.WaitAsync(ct);
             // Hold the captured response until the first activation has completed.

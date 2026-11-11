@@ -5,7 +5,8 @@ namespace Lakona.Game.Server.Actors.Internal;
 internal sealed record ActorWorkItem(
     Func<IActor, object, CancellationToken, ValueTask<object?>> Callback,
     object State,
-    CancellationToken CancellationToken)
+    CancellationToken CancellationToken,
+    Action? OnAccepted = null)
 {
     internal Lakona.Rpc.Server.RpcResponsePublicationScope? Publications { get; } =
         Lakona.Rpc.Server.RpcResponsePublicationScope.Capture();

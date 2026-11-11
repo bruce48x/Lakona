@@ -11,6 +11,228 @@ public sealed class HotfixActorMailboxDispatchTests
 {
     private static readonly ActorId Id = new("admission/post");
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public async Task Accepted_call_keeps_admission_after_wait_ends(bool tell, bool queued, bool timeout)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var fixture = new CallFixture(tell, timeout ? TimeSpan.FromMilliseconds(100) : TimeSpan.FromSeconds(10));
+        await fixture.Catalog.CreateAsync<TestActor>(Id, ct);
+        var blockingEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var blockingRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var caller = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var gate = new RecordingGate();
+        var control = new CallControl();
+        try
+        {
+            if (queued)
+            {
+                Assert.Equal(ActorTellResult.Accepted, fixture.Catalog.TryTell<TestActor>(Id, async (_, _) =>
+                {
+                    blockingEntered.TrySetResult();
+                    await blockingRelease.Task;
+                }, ct));
+                await blockingEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+            }
+            var call = fixture.Call(control, gate, caller.Token);
+            if (!queued) await control.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+            if (timeout) await Assert.ThrowsAsync<TimeoutException>(() => call.WaitAsync(TimeSpan.FromSeconds(5), ct));
+            else
+            {
+                caller.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
+            }
+            var drain = gate.Inner.CloseAndDrainAsync(TimeSpan.FromSeconds(5), ct).AsTask();
+            Assert.False(drain.IsCompleted);
+            Assert.Equal(0, gate.Exits);
+            blockingRelease.TrySetResult();
+            await control.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+            Assert.False(drain.IsCompleted);
+            control.Release.TrySetResult();
+            Assert.True(await drain);
+            Assert.True(control.Completed);
+            Assert.Equal(1, gate.Exits);
+        }
+        finally
+        {
+            blockingRelease.TrySetResult();
+            control.Release.TrySetResult();
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Call_rejection_or_business_failure_releases_exactly_once(bool tell, bool accepted)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var fixture = new CallFixture(tell, TimeSpan.FromSeconds(5));
+        var control = new CallControl { Fail = true };
+        control.Release.TrySetResult();
+        if (accepted) await fixture.Catalog.CreateAsync<TestActor>(Id, ct);
+        var gate = new RecordingGate();
+        if (accepted) await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Call(control, gate, ct));
+        else await Assert.ThrowsAsync<ActorNotFoundException>(() => fixture.Call(control, gate, ct));
+        Assert.True(await gate.Inner.CloseAndDrainAsync(TimeSpan.FromSeconds(5), ct));
+        Assert.Equal(1, gate.Exits);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Call_canceled_before_acceptance_releases_admission(bool tell)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var fixture = new CallFixture(tell, TimeSpan.FromSeconds(5));
+        await fixture.Catalog.CreateAsync<TestActor>(Id, ct);
+        using var caller = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var gate = new RecordingGate(caller.Cancel);
+        var control = new CallControl();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => fixture.Call(control, gate, caller.Token));
+        Assert.True(await gate.Inner.CloseAndDrainAsync(TimeSpan.FromSeconds(5), ct));
+        Assert.False(control.Entered.Task.IsCompleted);
+        Assert.Equal(1, gate.Exits);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Full_mailbox_releases_unaccepted_call_on_cancel_or_timeout(bool tell, bool timeout)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var fixture = new CallFixture(tell, timeout ? TimeSpan.FromMilliseconds(100) : TimeSpan.FromSeconds(10), capacity: 1);
+        await fixture.Catalog.CreateAsync<TestActor>(Id, ct);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var control = new CallControl();
+        using var caller = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        try
+        {
+            Assert.Equal(ActorTellResult.Accepted, fixture.Catalog.TryTell<TestActor>(Id, async (_, _) =>
+            {
+                entered.TrySetResult();
+                await release.Task;
+            }, ct));
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+            // The executing turn retains the mailbox's only capacity slot.
+            var gate = new RecordingGate();
+            var call = fixture.Call(control, gate, caller.Token);
+            if (timeout) await Assert.ThrowsAsync<TimeoutException>(() => call.WaitAsync(TimeSpan.FromSeconds(5), ct));
+            else
+            {
+                caller.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
+            }
+            Assert.True(await gate.Inner.CloseAndDrainAsync(TimeSpan.FromSeconds(5), ct));
+            Assert.False(control.Entered.Task.IsCompleted);
+            Assert.Equal(1, gate.Exits);
+        }
+        finally
+        {
+            release.TrySetResult();
+            control.Release.TrySetResult();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Self_call_releases_admission_after_inline_completion(bool tell)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var fixture = new CallFixture(tell, TimeSpan.FromSeconds(5));
+        await fixture.Catalog.CreateAsync<TestActor>(Id, ct);
+        var gate = new RecordingGate();
+        var control = new CallControl();
+        control.Release.TrySetResult();
+        await fixture.Catalog.TellAsync<TestActor>(Id, async (_, _) => await fixture.Call(control, gate, ct), ct);
+        Assert.True(control.Completed);
+        Assert.True(await gate.Inner.CloseAndDrainAsync(TimeSpan.FromSeconds(5), ct));
+        Assert.Equal(1, gate.Exits);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Custom_runtime_cannot_claim_distributed_admission_without_acceptance_tracking(bool tell)
+    {
+        var gate = new RecordingGate();
+        var runtime = new PostRuntime();
+        var ct = TestContext.Current.CancellationToken;
+        var error = await Assert.ThrowsAsync<NotSupportedException>(() => tell
+            ? HotfixActorMailboxDispatch.TellAsync<TestActor, bool>(runtime, Id, null!, 1, false, gate, ct).AsTask()
+            : HotfixActorMailboxDispatch.AskAsync<TestActor, bool, int>(runtime, Id, null!, 1, false, gate, ct).AsTask());
+        Assert.Contains("mailbox acceptance tracking", error.Message);
+        Assert.Equal(0, gate.Exits);
+        Assert.True(await gate.Inner.CloseAndDrainAsync(TimeSpan.FromSeconds(5), ct));
+    }
+
+    public sealed class CallControl
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool Fail, Completed;
+    }
+
+    public sealed class CallBehavior
+    {
+        public async ValueTask<int> AskAsync(TestActor actor, CallControl control)
+        {
+            control.Entered.TrySetResult();
+            await control.Release.Task;
+            control.Completed = true;
+            if (control.Fail) throw new InvalidOperationException("Business failure");
+            return 7;
+        }
+        public async ValueTask TellAsync(TestActor actor, CallControl control) => await AskAsync(actor, control);
+    }
+
+    private sealed class CallFixture : IAsyncDisposable
+    {
+        private readonly bool tell;
+        private readonly ServiceProvider services;
+        private readonly HotfixDispatchTable table;
+        private readonly HotfixActorMethodDescriptor descriptor;
+        private readonly Accessor accessor;
+        public ActorActivationCatalog Catalog { get; }
+        public CallFixture(bool tell, TimeSpan timeout, int capacity = 4096)
+        {
+            this.tell = tell;
+            services = new ServiceCollection().AddLakonaGameServerActors(options =>
+            {
+                options.CallTimeout = timeout;
+                options.MailboxCapacity = capacity;
+            }).BuildServiceProvider();
+            Catalog = services.GetRequiredService<ActorActivationCatalog>();
+            var method = tell ? nameof(CallBehavior.TellAsync) : nameof(CallBehavior.AskAsync);
+            descriptor = new HotfixActorMethodDescriptor("admission/" + method, typeof(CallBehavior), typeof(TestActor),
+                method, typeof(CallControl), tell ? null : typeof(int), typeof(CallBehavior).GetMethod(method)!);
+            table = new HotfixDispatchTable(1, [], [], [descriptor]);
+            table.ValidateModuleActivation(services);
+            accessor = new Accessor(new HotfixRuntimeSnapshot(new HotfixServiceInvoker(table), services, table,
+                services, typeof(CallBehavior).Assembly, null, "test", null, ownsRuntimeResources: false, onRetired: null));
+        }
+        public Task Call(CallControl control, IDistributedWorkAdmissionGate gate, CancellationToken ct) => tell
+            ? HotfixActorMailboxDispatch.TellAsync<TestActor, CallControl>(Catalog, Id, accessor, descriptor.MethodId, control, gate, ct).AsTask()
+            : HotfixActorMailboxDispatch.AskAsync<TestActor, CallControl, int>(Catalog, Id, accessor, descriptor.MethodId, control, gate, ct).AsTask();
+        public async ValueTask DisposeAsync()
+        {
+            await services.DisposeAsync();
+            await table.DisposeAsync();
+        }
+    }
+
     [Fact]
     public async Task Cancellation_after_admission_releases_token_without_enqueueing()
     {
@@ -109,7 +331,8 @@ public sealed class HotfixActorMailboxDispatchTests
     private sealed class RecordingGate(Action? admitted = null) : IDistributedWorkAdmissionGate
     {
         public DistributedWorkAdmissionGate Inner { get; } = OpenGate();
-        public int Exits { get; private set; }
+        private int exits;
+        public int Exits => Volatile.Read(ref exits);
         public bool IsOpen => Inner.IsOpen;
         public bool TryEnter(out DistributedWorkAdmission admission)
         {
@@ -117,7 +340,7 @@ public sealed class HotfixActorMailboxDispatchTests
             admitted?.Invoke();
             return true;
         }
-        public void Exit(DistributedWorkAdmission admission) { Inner.Exit(admission); Exits++; }
+        public void Exit(DistributedWorkAdmission admission) { Interlocked.Increment(ref exits); Inner.Exit(admission); }
         private static DistributedWorkAdmissionGate OpenGate() { var gate = new DistributedWorkAdmissionGate(); gate.Open(); return gate; }
     }
     private sealed class PostRuntime : IActorRuntime

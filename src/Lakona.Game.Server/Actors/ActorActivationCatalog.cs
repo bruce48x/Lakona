@@ -238,10 +238,18 @@ internal sealed partial class ActorActivationCatalog :
             actorType);
     }
 
-    public async ValueTask TellAsync<TActor>(
+    public ValueTask TellAsync<TActor>(
         ActorId id,
         Func<TActor, CancellationToken, ValueTask> message,
         CancellationToken cancellationToken = default)
+        where TActor : class, IActor
+        => TellAsync(id, message, cancellationToken, onAccepted: null);
+
+    internal async ValueTask TellAsync<TActor>(
+        ActorId id,
+        Func<TActor, CancellationToken, ValueTask> message,
+        CancellationToken cancellationToken,
+        Action? onAccepted)
         where TActor : class, IActor
     {
         ArgumentNullException.ThrowIfNull(message);
@@ -255,7 +263,7 @@ internal sealed partial class ActorActivationCatalog :
                 return null;
             },
             message,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken, onAccepted).ConfigureAwait(false);
     }
 
     public ActorTellResult TryTell<TActor>(
@@ -282,10 +290,18 @@ internal sealed partial class ActorActivationCatalog :
             cancellationToken);
     }
 
-    public async ValueTask<TResult> AskAsync<TActor, TResult>(
+    public ValueTask<TResult> AskAsync<TActor, TResult>(
         ActorId id,
         Func<TActor, CancellationToken, ValueTask<TResult>> message,
         CancellationToken cancellationToken = default)
+        where TActor : class, IActor
+        => AskAsync(id, message, cancellationToken, onAccepted: null);
+
+    internal async ValueTask<TResult> AskAsync<TActor, TResult>(
+        ActorId id,
+        Func<TActor, CancellationToken, ValueTask<TResult>> message,
+        CancellationToken cancellationToken,
+        Action? onAccepted)
         where TActor : class, IActor
     {
         ArgumentNullException.ThrowIfNull(message);
@@ -298,7 +314,7 @@ internal sealed partial class ActorActivationCatalog :
                 return await callback((TActor)actor, ct).ConfigureAwait(false);
             },
             message,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken, onAccepted).ConfigureAwait(false);
 
         return result is TResult typedResult
             ? typedResult
@@ -332,7 +348,8 @@ internal sealed partial class ActorActivationCatalog :
         ActorId id,
         ActorActivationId activationId,
         Func<IActor, CancellationToken, ValueTask<object?>> message,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action? onAccepted)
     {
         ArgumentNullException.ThrowIfNull(actorType);
         ArgumentNullException.ThrowIfNull(message);
@@ -349,7 +366,7 @@ internal sealed partial class ActorActivationCatalog :
                 return await callback(actor, ct).ConfigureAwait(false);
             },
             message,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken, onAccepted).ConfigureAwait(false);
     }
 
     ActorTellResult IActorActivationDispatcher.TryTellExact(
@@ -864,16 +881,18 @@ internal sealed partial class ActorActivationCatalog :
         public async ValueTask<object?> InvokeAsync(
             Func<IActor, object, CancellationToken, ValueTask<object?>> callback,
             object state,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            Action? onAccepted = null)
         {
             if (CurrentTurn.Value is { IsActive: true } turn &&
                 ReferenceEquals(turn.Cell, this))
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                onAccepted?.Invoke();
                 return await callback(Actor, state, CancellationToken.None).ConfigureAwait(false);
             }
 
-            ActorWorkItem work = new(callback, state, CancellationToken.None);
+            ActorWorkItem work = new(callback, state, CancellationToken.None, onAccepted);
             return await _mailbox.CallAsync(
                 work,
                 _runtimeOptions.CallTimeout,

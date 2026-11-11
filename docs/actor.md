@@ -214,13 +214,18 @@ prevent admission; after acceptance it cannot withdraw the queued work. A
 remote timeout or cancellation before the acceptance reply arrives may leave
 the outcome unknown, so it is not evidence that retrying cannot duplicate work.
 
-For local posts, the caller owns the distributed-work admission token until
-the mailbox accepts the message. Rejection or an exception before acceptance
+For local and remote Actor calls and posts, the caller owns the distributed-work
+admission token until the mailbox accepts the message. Rejection or an exception before acceptance
 releases that token on the calling path. After acceptance, the execution
 callback releases it in `finally`, whether the Behavior succeeds or fails.
-Returning from `PostAsync` does not release an accepted message's token:
-shutdown must still wait for that work to finish. Cancellation between the
-initial check and mailbox admission follows the same pre-acceptance cleanup.
+Returning from `PostAsync`, or canceling or timing out a call's result wait,
+does not release an accepted message's token: shutdown must still wait for
+queued and executing work to finish. Cancellation between the initial check
+and mailbox admission follows the same pre-acceptance cleanup.
+The generated local call path uses the framework Actor runtime's internal
+mailbox acceptance notification. A custom `IActorRuntime` cannot replace that
+runtime when a distributed-work admission gate is supplied; it is rejected
+before dispatch rather than reporting an unverified drain.
 
 Local acceptance-only posts start a new wait-dependency chain when their turn
 runs. A sender that has finished its turn can therefore receive a call back

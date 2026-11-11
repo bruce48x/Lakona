@@ -386,6 +386,7 @@ internal sealed class ActorMailbox
         IncrementQueued();
         if (_channel.Writer.TryWrite(entry))
         {
+            entry.Work.OnAccepted?.Invoke();
             RecordAccepted(entry);
             return;
         }
@@ -412,6 +413,7 @@ internal sealed class ActorMailbox
         IncrementQueued();
         if (_channel.Writer.TryWrite(entry))
         {
+            entry.Work.OnAccepted?.Invoke();
             RecordAccepted(entry);
             return true;
         }

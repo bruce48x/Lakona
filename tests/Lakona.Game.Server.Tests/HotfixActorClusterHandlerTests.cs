@@ -6,6 +6,7 @@ using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Tests.Actors;
 using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Dispatch;
+using Lakona.Game.Server.Hosting;
 using Lakona.Game.Server.Tests.Testing;
 using Lakona.Rpc.Core;
 using Lakona.Rpc.Client;
@@ -80,10 +81,13 @@ public sealed partial class HotfixActorClusterHandlerTests
             AskCompleted = completed
         };
         var time = new ManualDeadlineTimeProvider();
+        var gate = new DistributedWorkAdmissionGate();
+        gate.Open();
         await using var fixture = CreateFixture(
             runtime,
             CreateSnapshot(CreatePingDescriptor()),
-            timeProvider: time);
+            timeProvider: time,
+            admissionGate: gate);
         var invocation = CreateInvocation<PingRequest, PingReply>(
             CreatePingDescriptor().MethodId,
             new PingRequest { Value = "expires" });
@@ -103,8 +107,11 @@ public sealed partial class HotfixActorClusterHandlerTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
         Assert.Null(runtime.Actor.LastPing);
+        var drain = gate.CloseAndDrainAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken).AsTask();
+        Assert.False(drain.IsCompleted);
         release.TrySetResult();
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        Assert.True(await drain);
         Assert.Equal("expires", runtime.Actor.LastPing);
     }
 
@@ -119,7 +126,9 @@ public sealed partial class HotfixActorClusterHandlerTests
         runtime.Actor.PingRelease = release.Task;
         var descriptor = CreatePingDescriptor();
         var snapshot = CreateSnapshot(descriptor);
-        await using var fixture = CreateFixture(runtime, snapshot);
+        var gate = new DistributedWorkAdmissionGate();
+        gate.Open();
+        await using var fixture = CreateFixture(runtime, snapshot, admissionGate: gate);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var invocation = CreateInvocation<PingRequest, PingReply>(descriptor.MethodId, new PingRequest { Value = "held" });
         var call = InvokeAsync(fixture.Handler, invocation, tell: false, cancellation.Token).AsTask();
@@ -130,10 +139,13 @@ public sealed partial class HotfixActorClusterHandlerTests
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
             var retirement = snapshot.RetireAsync().AsTask();
             Assert.False(retirement.IsCompleted);
+            var drain = gate.CloseAndDrainAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken).AsTask();
+            Assert.False(drain.IsCompleted);
             release.TrySetResult();
             await completed.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
             await retirement.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
             Assert.Equal("held", runtime.Actor.LastPing);
+            Assert.True(await drain);
         }
         finally
         {
@@ -724,7 +736,9 @@ public sealed partial class HotfixActorClusterHandlerTests
     {
         var runtime = new RecordingActorRuntime { TellResult = tellResult };
         var descriptor = CreateNotifyDescriptor();
-        await using var fixture = CreateFixture(runtime, CreateSnapshot(descriptor));
+        var gate = new DistributedWorkAdmissionGate();
+        gate.Open();
+        await using var fixture = CreateFixture(runtime, CreateSnapshot(descriptor), admissionGate: gate);
         var invocation = CreateInvocation(
             descriptor.MethodId,
             new NotifyRequest { Value = "notice" });
@@ -739,6 +753,7 @@ public sealed partial class HotfixActorClusterHandlerTests
         Assert.Equal(expectedStatus, reply.Status);
         Assert.Equal(RemoteActorRetrySafety.Indeterminate, reply.RetrySafety);
         Assert.Null(runtime.Actor.LastNotification);
+        Assert.True(await gate.CloseAndDrainAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -754,7 +769,9 @@ public sealed partial class HotfixActorClusterHandlerTests
         };
         var descriptor = CreateNotifyDescriptor();
         var snapshot = CreateSnapshot(descriptor, () => retired.TrySetResult());
-        await using var fixture = CreateFixture(runtime, snapshot);
+        var gate = new DistributedWorkAdmissionGate();
+        gate.Open();
+        await using var fixture = CreateFixture(runtime, snapshot, admissionGate: gate);
         var invocation = CreateInvocation(
             descriptor.MethodId,
             new NotifyRequest { Value = "notice" });
@@ -770,20 +787,25 @@ public sealed partial class HotfixActorClusterHandlerTests
 
         Assert.Equal(RemoteActorStatus.Accepted, reply.Status);
         Assert.False(retirement.IsCompleted);
+        var drain = gate.CloseAndDrainAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken).AsTask();
+        Assert.False(drain.IsCompleted);
 
         release.TrySetResult();
         await retirement.WaitAsync(TestContext.Current.CancellationToken);
         await retired.Task.WaitAsync(TestContext.Current.CancellationToken);
         Assert.Equal("notice", runtime.Actor.LastNotification);
+        Assert.True(await drain);
     }
 
     [Fact]
     public async Task Actor_rpc_maps_behavior_failure_without_exposing_a_partial_reply()
     {
         var descriptor = CreateThrowDescriptor();
+        var gate = new DistributedWorkAdmissionGate();
+        gate.Open();
         await using var fixture = CreateFixture(
             new RecordingActorRuntime(),
-            CreateSnapshot(descriptor));
+            CreateSnapshot(descriptor), admissionGate: gate);
         var invocation = CreateInvocation<PingRequest, PingReply>(
             descriptor.MethodId,
             new PingRequest { Value = "boom" });
@@ -797,6 +819,7 @@ public sealed partial class HotfixActorClusterHandlerTests
 
         Assert.Equal(RemoteActorStatus.NodeUnavailable, reply.Status);
         Assert.True(reply.Body.IsEmpty);
+        Assert.True(await gate.CloseAndDrainAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
     }
 
     private static HandlerFixture CreateFixture(
@@ -805,7 +828,8 @@ public sealed partial class HotfixActorClusterHandlerTests
         ClusterMemberState localState = ClusterMemberState.Active,
         bool includeDirectoryCache = true,
         TimeProvider? timeProvider = null,
-        IClusterMembership? membership = null)
+        IClusterMembership? membership = null,
+        IDistributedWorkAdmissionGate? admissionGate = null)
     {
         var location = CreateLocation();
         var effectiveMembership = membership ?? new ImmediateTestClusterMembership(
@@ -826,6 +850,7 @@ public sealed partial class HotfixActorClusterHandlerTests
         var serviceCollection = new ServiceCollection()
             .AddSingleton(effectiveTimeProvider)
             .AddSingleton<IHotfixRuntimeAccessor>(new FixedRuntimeAccessor(snapshot));
+        if (admissionGate is not null) serviceCollection.AddSingleton(admissionGate);
         if (includeDirectoryCache)
         {
             serviceCollection.AddSingleton<IActorDirectoryCache>(cache);
@@ -1150,8 +1175,9 @@ public sealed partial class HotfixActorClusterHandlerTests
             ActorId actorId,
             ActorActivationId activationId,
             Func<IActor, CancellationToken, ValueTask<object?>> message,
-            CancellationToken cancellationToken = default) =>
-            AskAsync(actorType, actorId, message, cancellationToken);
+            CancellationToken cancellationToken = default,
+            Action? onAccepted = null) =>
+            AskAsync(actorType, actorId, message, cancellationToken, onAccepted);
 
         public Type? LastActorType { get; private set; }
 
@@ -1230,9 +1256,11 @@ public sealed partial class HotfixActorClusterHandlerTests
             Type actorType,
             ActorId id,
             Func<IActor, CancellationToken, ValueTask<object?>> message,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            Action? onAccepted = null)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            onAccepted?.Invoke();
             return await RunAskAsync(actorType, id, message, CancellationToken.None)
                 .AsTask().WaitAsync(cancellationToken);
         }
