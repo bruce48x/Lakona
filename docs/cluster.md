@@ -252,6 +252,13 @@ transition atomically with Lua. No schema deployment step or DDL permission is
 needed. The configured key must contain a Redis Cluster hash tag, such as the
 default `lakona:{membership}:table`, so every field remains in one slot.
 
+The Redis Membership Table owns its lazily created connection from the start
+of the connection attempt. Canceling an operation ends only that caller's wait;
+other operations reuse the same pending attempt. Disposal rejects new work,
+waits for an in-flight connection attempt and closes any connection it returns.
+The connection attempt's configured timeout can therefore affect disposal
+latency. Failed attempts may be retried while the table remains active.
+
 Membership is control-plane data, not a disposable cache. A production Redis
 deployment must use persistence and high availability appropriate to the
 environment, must not evict the Membership key, and must restrict access to

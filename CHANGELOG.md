@@ -6,8 +6,8 @@ date and package versions of important releases are retained.
 
 ## 2026-11-11 — Actor dispatch consistency and bounded lifecycle cleanup
 
-**Key releases:** `Lakona.Game.Server 0.54.6`, `Lakona.Tool 0.43.117`, and
-`Lakona.Hub 0.17.131`.
+**Key releases:** `Lakona.Game.Server 0.54.6`, `Lakona.Game.Clustering.Redis 0.1.123`,
+`Lakona.Tool 0.43.118`, and `Lakona.Hub 0.17.132`.
 
 - Generated Actor method IDs now match runtime lookup for array requests and
   results, multidimensional arrays, and nested generic types. Rebuild Hotfix
@@ -24,6 +24,8 @@ date and package versions of important releases are retained.
   including posts and calls whose callers have canceled or timed out.
   Membership rejects excess joins before writing member records, preserving
   existing nodes' refresh and normal incarnation replacement at capacity.
+  Redis Membership retains canceled connection attempts and closes their late
+  results before disposal completes.
 
 ## 2026-11-10 — Hotfix cleanup, runnable Compose and load-run lifecycle
 

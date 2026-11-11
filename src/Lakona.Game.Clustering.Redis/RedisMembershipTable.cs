@@ -148,25 +148,32 @@ internal sealed class RedisMembershipTable : IMembershipTable, IAsyncDisposable
         """;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private IConnectionMultiplexer? connection;
+    private Task<IConnectionMultiplexer>? connection;
     private IDatabase? database;
-    private readonly string? connectionString;
-    private readonly SemaphoreSlim connectionGate = new(1, 1);
+    private readonly Func<Task<IConnectionMultiplexer>> connect;
+    private readonly object connectionGate = new();
+    private Task? disposal;
     private readonly RedisKey key;
 
     public RedisMembershipTable(IConnectionMultiplexer connection, string key)
+        : this(() => Task.FromResult(connection), key)
     {
-        this.connection = connection ?? throw new ArgumentNullException(nameof(connection));
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        this.key = key;
+        ArgumentNullException.ThrowIfNull(connection);
+        this.connection = Task.FromResult(connection);
         database = connection.GetDatabase();
     }
 
     public RedisMembershipTable(string connectionString, string key)
+        : this(async () => await ConnectionMultiplexer.ConnectAsync(connectionString).ConfigureAwait(false), key)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+    }
+
+    internal RedisMembershipTable(Func<Task<IConnectionMultiplexer>> connect, string key)
+    {
+        ArgumentNullException.ThrowIfNull(connect);
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        this.connectionString = connectionString;
+        this.connect = connect;
         this.key = key;
     }
 
@@ -338,19 +345,28 @@ internal sealed class RedisMembershipTable : IMembershipTable, IAsyncDisposable
 
     private async ValueTask<IDatabase> GetDatabaseAsync(CancellationToken cancellationToken)
     {
-        if (database is not null) return database;
-        await connectionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
+        cancellationToken.ThrowIfCancellationRequested();
+        Task<IConnectionMultiplexer> connecting;
+        lock (connectionGate)
         {
+            ObjectDisposedException.ThrowIf(disposal is not null, this);
             if (database is not null) return database;
-            connection = await ConnectionMultiplexer.ConnectAsync(connectionString!)
-                .WaitAsync(cancellationToken).ConfigureAwait(false);
-            database = connection.GetDatabase();
-            return database;
+            if (connection is { IsCompleted: true, IsCompletedSuccessfully: false })
+            {
+                // Observe a failed attempt even when all of its callers canceled.
+                _ = connection.Exception;
+                connection = null;
+            }
+            connecting = connection ??= connect();
         }
-        finally
+
+        // Cancel only this caller's wait. The table still owns the attempt and
+        // either reuses its result or disposes it during shutdown.
+        var connected = await connecting.WaitAsync(cancellationToken).ConfigureAwait(false);
+        lock (connectionGate)
         {
-            connectionGate.Release();
+            ObjectDisposedException.ThrowIf(disposal is not null, this);
+            return database ??= connected.GetDatabase();
         }
     }
 
@@ -423,10 +439,46 @@ internal sealed class RedisMembershipTable : IMembershipTable, IAsyncDisposable
             generation);
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (connection is not null) await connection.DisposeAsync().ConfigureAwait(false);
-        connectionGate.Dispose();
+        TaskCompletionSource completion;
+        Task<IConnectionMultiplexer>? connecting;
+        lock (connectionGate)
+        {
+            if (disposal is not null) return new ValueTask(disposal);
+            completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            disposal = completion.Task;
+            connecting = connection;
+            database = null;
+        }
+
+        // Publish the closed state before running any external cleanup, and let
+        // concurrent disposers join the same completion.
+        _ = DisposeConnectionAsync(connecting, completion);
+        return new ValueTask(completion.Task);
+    }
+
+    private static async Task DisposeConnectionAsync(
+        Task<IConnectionMultiplexer>? connecting,
+        TaskCompletionSource completion)
+    {
+        try
+        {
+            if (connecting is not null)
+            {
+                IConnectionMultiplexer connected;
+                try { connected = await connecting.ConfigureAwait(false); }
+                catch
+                {
+                    // A failed connection has no returned resource to dispose.
+                    completion.TrySetResult();
+                    return;
+                }
+                await connected.DisposeAsync().ConfigureAwait(false);
+            }
+            completion.TrySetResult();
+        }
+        catch (Exception exception) { completion.TrySetException(exception); }
     }
 
     private sealed class EntryPayload

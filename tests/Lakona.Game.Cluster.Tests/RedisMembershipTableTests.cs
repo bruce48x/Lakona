@@ -12,6 +12,30 @@ public sealed class RedisMembershipTableTests : MembershipTableContractTests
     private string? key;
 
     [Fact]
+    public async Task LazyConnectionSupportsMembershipOperationsAndRejectsUseAfterDisposal()
+    {
+        var connectionString = MembershipIntegrationTestEnvironment.RequireConnectionString(
+            ConnectionEnvironmentVariable);
+        await using var cleanup = await ConnectionMultiplexer.ConnectAsync(connectionString);
+        var tableKey = $"lakona:{{membership-test}}:{Guid.NewGuid():N}";
+        await using var table = new RedisMembershipTable(connectionString, tableKey);
+        try
+        {
+            var generation = await table.AllocateGenerationAsync("Release1", TestContext.Current.CancellationToken);
+            var snapshot = await table.ReadOrCreateAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(generation.Cluster, snapshot.Cluster);
+            Assert.Equal("Release1", snapshot.BuildTag);
+            await table.DisposeAsync();
+            await Assert.ThrowsAsync<ObjectDisposedException>(() =>
+                table.ReadOrCreateAsync(TestContext.Current.CancellationToken).AsTask());
+        }
+        finally
+        {
+            await cleanup.GetDatabase().KeyDeleteAsync(tableKey);
+        }
+    }
+
+    [Fact]
     public async Task MembershipKeyNeverExpires()
     {
         var table = await CreateTableAsync();
