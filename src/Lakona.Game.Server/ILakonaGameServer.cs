@@ -145,12 +145,14 @@ public interface ILakonaGameServer
     /// <param name="reason">The machine-readable termination reason sent to the client.</param>
     /// <param name="message">Optional human-readable diagnostic text for logs or client UI.</param>
     /// <param name="options">Termination behavior such as notify timeout and resume-state retention.</param>
-    /// <param name="cancellationToken">A token that cancels the termination operation before notification begins.</param>
+    /// <param name="cancellationToken">A token that cancels the termination operation before the terminal state is committed.</param>
     /// <remarks>
     /// Termination is final for the current session. Depending on
     /// <see cref="SessionTerminationOptions.KeepTerminalStateForResume"/>, later
     /// resume attempts can receive a terminated decision instead of a generic
-    /// state-lost result.
+    /// state-lost result. The connection is closed before termination lifecycle
+    /// handlers run, so slow cleanup cannot delay connection close. This method
+    /// still awaits those handlers before completing.
     /// </remarks>
     ValueTask TerminateSessionAsync(
         GameSessionKey session,

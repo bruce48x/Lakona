@@ -1147,6 +1147,90 @@ public sealed class LakonaGameServerTests
         Assert.Equal("connection-a", entry.Properties["ConnectionId"]);
     }
 
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(0, true)]
+    [InlineData(25, false)]
+    [InlineData(25, true)]
+    public async Task Termination_closes_connection_before_waiting_for_inflight_push_cleanup(
+        int notifyTimeoutMilliseconds, bool acknowledgeWhileSending)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var services = new ServiceCollection().AddTestEndpointRuntimes();
+        services.AddSingleton<IGameSessionEstablishedNotifier, NoopGameSessionEstablishedNotifier>();
+        services.AddLakonaGameServerReliablePush(options =>
+        {
+            options.MaxPendingBytesPerSession = 1024;
+            options.MaxPendingBytesPerProcess = 1024;
+        });
+        services.AddLakonaGameServer();
+        services.UseReadySingleNodeMembership();
+        await using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<ILakonaGameServer>();
+        var session = await server.StartSessionAsync("player-a", "connection-a", ct);
+        var states = provider.GetRequiredService<GameHandshakeConnectionStateRegistry>();
+        using var pendingHandshakes = new SemaphoreSlim(0, 1);
+        await using var lease = states.RegisterPending("connection-a", TimeSpan.FromMinutes(1),
+            pendingHandshakes, provider.GetRequiredService<ILoggerFactory>().CreateLogger("termination-test"));
+        Assert.True(states.MarkComplete("connection-a"));
+        using var sendCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct, lease.SessionCancellation);
+        var sendEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sendCanceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseSend = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var rpcSession = TestRpcSession.Create(new ConfigurableSendTransport(async token =>
+        {
+            sendEntered.TrySetResult();
+            try { await WaitUntilCanceledAsync(token); }
+            finally
+            {
+                sendCanceled.TrySetResult();
+                await releaseSend.Task;
+            }
+        }), new JsonRpcSerializer(), ownsTransport: true, connectionId: "connection-a");
+        var notifications = new RpcNotificationChannel(rpcSession);
+        provider.GetRequiredService<GameFrameworkConnectionRegistry>().Set("connection-a", notifications);
+        var outbox = provider.GetRequiredService<IReliablePushOutbox>();
+        var payload = new byte[700];
+        var publishing = outbox.PublishAsync(session, "blocked", payload,
+            _ => notifications.SendRawAsync(1, 1, payload, cancellationToken: sendCancellation.Token),
+            ct, retainedBytes: payload.Length).AsTask();
+        Task? terminating = null;
+        try
+        {
+            await sendEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+            if (acknowledgeWhileSending) await outbox.AckAsync(session, 1, ct);
+            terminating = server.TerminateSessionAsync(session, SessionTerminationReason.Policy,
+                options: new SessionTerminationOptions
+                { NotifyTimeout = TimeSpan.FromMilliseconds(notifyTimeoutMilliseconds) },
+                cancellationToken: ct).AsTask();
+
+            await sendCanceled.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+            Assert.True(lease.SessionCancellation.IsCancellationRequested);
+            Assert.Equal(SessionResumeStatus.Terminated,
+                (await provider.GetRequiredService<IGameSessionRegistry>().TryResumeAsync(session, ct)).Status);
+            Assert.False(terminating.IsCompleted);
+            // Even an ACK cannot release payload memory still owned by the blocked send.
+            await Assert.ThrowsAsync<ReliablePushContinuityLostException>(() =>
+                outbox.PublishAsync("overflow", "blocked", new byte[200], _ => default,
+                    ct, retainedBytes: 200).AsTask());
+        }
+        finally
+        {
+            sendCancellation.Cancel();
+            releaseSend.TrySetResult();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                publishing.WaitAsync(TimeSpan.FromSeconds(5), ct));
+            if (terminating is not null) await terminating.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        }
+
+        Assert.Equal(0, outbox.GetLastSequence(session));
+        var replayed = new List<ReliablePushRecord>();
+        await outbox.ReplayPendingAsync(session, record => { replayed.Add(record); return default; },
+            cancellationToken: ct);
+        Assert.Empty(replayed);
+        await outbox.PublishAsync("next-session", "fits", payload, _ => default, ct, retainedBytes: payload.Length);
+    }
+
     [Fact]
     public async Task TerminateSessionPublishesLifecycleHookWithLiveCallbackAndContainsHandlerFailures()
     {

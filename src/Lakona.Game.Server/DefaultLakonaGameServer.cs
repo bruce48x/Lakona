@@ -232,29 +232,36 @@ internal sealed class DefaultLakonaGameServer : ILakonaGameServer
         var connectionId = terminatedBinding?.ConnectionId;
         var notifications = connectionId is null ? null : _connections.Get(connectionId);
 
-        await PublishSessionTerminatedAsync(
-            session,
-            notice,
-            options.KeepTerminalStateForResume,
-            CancellationToken.None).ConfigureAwait(false);
-
-        if (connectionId is null)
+        try
         {
-            return;
+            if (connectionId is not null && notifications is not null)
+            {
+                await TryNotifySessionTerminatedAsync(
+                        notifications,
+                        notice,
+                        connectionId,
+                        options.NotifyTimeout,
+                        CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
         }
-
-        if (notifications is not null)
+        finally
         {
-            await TryNotifySessionTerminatedAsync(
-                    notifications,
+            try
+            {
+                // Outbox cleanup may wait for a send that only connection close can unblock.
+                if (connectionId is not null) _connectionStates.TryClose(connectionId);
+            }
+            finally
+            {
+                await PublishSessionTerminatedAsync(
+                    session,
                     notice,
-                    connectionId,
-                    options.NotifyTimeout,
+                    options.KeepTerminalStateForResume,
                     CancellationToken.None)
-                .ConfigureAwait(false);
+                    .ConfigureAwait(false);
+            }
         }
-
-        _connectionStates.TryClose(connectionId);
     }
 
     private async ValueTask<GameSessionBindResult> PrepareSessionBindingAsync(

@@ -832,9 +832,14 @@ Recommended flow:
    deadline.
 
 The caller cancellation token applies only before the terminal registry commit.
-After that commit, lifecycle publication, best-effort notification, and
-connection close run under framework-owned cleanup cancellation so caller
+After that commit, best-effort notification, connection close, and lifecycle
+publication run under framework-owned cleanup cancellation so caller
 cancellation cannot leave a terminal Session attached to an open connection.
+The captured connection is closed before termination lifecycle handlers run;
+outbox cleanup waiting for an in-flight send cannot delay the close that unblocks
+it. `TerminateSessionAsync` still awaits the handlers and their cleanup before
+returning. `NotifyTimeout` bounds the notification attempt, not arbitrary
+business lifecycle cleanup.
 Connection close is idempotent when termination, disconnect, timeout, and host
 shutdown race.
 
