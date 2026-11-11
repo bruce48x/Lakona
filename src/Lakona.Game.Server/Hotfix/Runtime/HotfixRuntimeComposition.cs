@@ -22,6 +22,9 @@ internal static class HotfixRuntimeComposition
         var localActorLifecycles = roleCatalog is null
             ? scan.ActorLifecycles
             : scan.ActorLifecycles.Where(lifecycle => roleCatalog.IsLocal(lifecycle.ActorType)).ToArray();
+        var localTimerMethods = roleCatalog is null
+            ? scan.TimerMethods
+            : scan.TimerMethods.Where(method => roleCatalog.IsLocal(method.ActorType)).ToArray();
         var localBehaviorTypes = localActorMethods
             .Select(static method => method.BehaviorType)
             .Concat(localActorLifecycles.Select(static lifecycle => lifecycle.BehaviorType))
@@ -36,7 +39,7 @@ internal static class HotfixRuntimeComposition
             scan.Services,
             localActorMethods,
             localActorLifecycles,
-            scan.TimerMethods,
+            localTimerMethods,
             localHttpEndpoints,
             scan.Lifecycles);
     }

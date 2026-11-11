@@ -4,15 +4,18 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-11-11 — Actor generated dispatch identity consistency
+## 2026-11-11 — Actor dispatch identity and role consistency
 
-**Key releases:** `Lakona.Game.Server 0.54.1`, `Lakona.Tool 0.43.110`, and
-`Lakona.Hub 0.17.124`.
+**Key releases:** `Lakona.Game.Server 0.54.2`, `Lakona.Tool 0.43.111`, and
+`Lakona.Hub 0.17.125`.
 
 - Generated Actor method IDs now match runtime lookup for array requests and
   results, multidimensional arrays, and nested generic types. Rebuild Hotfix
   with the updated bundled compiler; the runtime identity and hash rules remain
   unchanged.
+- Actor timer callbacks now follow the owning Actor's node role during initial
+  load and reload, preventing unrelated nodes from activating remote Behaviors
+  and failing on their role-specific component dependencies.
 
 ## 2026-11-10 — Hotfix cleanup, runnable Compose and load-run lifecycle
 

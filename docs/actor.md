@@ -601,6 +601,11 @@ or `[ActorStop]`. Registrations retain serialized arguments and method
 identity, never a Hotfix delegate. The callback acquires the current generation
 when its mailbox turn begins.
 
+Timer callbacks follow their owning Actor's `NodeRole`, using the same local
+role filter as ordinary methods and lifecycle hooks. Initial load and reload
+exclude non-local callbacks before Behavior activation and dependency checks;
+local Behaviors still require all their component dependencies to be enabled.
+
 Use the overload without arguments when the callback only needs Actor state.
 `TimerTick` exposes `TimerId` for cancellation. These registrations carry no
 business payload and skip argument serialization and reconstruction. Existing

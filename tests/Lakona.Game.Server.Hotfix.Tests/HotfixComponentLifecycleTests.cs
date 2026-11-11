@@ -1,6 +1,10 @@
 using System.Reflection;
+using Lakona.Game.Server.Actors;
 using Lakona.Game.Server.Hotfix.Abstractions;
+using Lakona.Game.Server.Hotfix.Dispatch;
 using Lakona.Game.Server.Hotfix.Loading;
+using Lakona.Game.Server.Hotfix.Scanning;
+using Lakona.Game.Server.Hotfix.Timers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +16,12 @@ using Xunit;
 [assembly: AssemblyMetadata("LakonaProjectRole", "ServerApp")]
 
 namespace Lakona.Game.Server.Hotfix.Tests;
+
+[NodeRole("data")]
+public sealed class RoleFilteredTimerActor : Actor<string>
+{
+    public int Value;
+}
 
 [ComponentState]
 public sealed class ComponentProbeState : IDisposable
@@ -297,6 +307,67 @@ public sealed class HotfixComponentLifecycleTests
         Assert.Contains("disabled", failure.ErrorMessage);
     }
 
+    [Theory]
+    [InlineData("gateway", false, false)]
+    [InlineData("gateway", true, false)]
+    [InlineData("data", false, true)]
+    [InlineData("data", true, true)]
+    [InlineData("gateway,data", true, true)]
+    [InlineData(null, false, true)]
+    public async Task Actor_timer_role_filter_applies_on_initial_load_and_reload(
+        string? roles, bool otherActorEntries, bool local)
+    {
+        using var fixture = new Fixture(roles: roles?.Split(','));
+        var actor = new RoleFilteredTimerActor();
+        for (var version = 1; version <= 2; version++)
+        {
+            fixture.WriteActorTimer(version, otherActorEntries);
+            var result = await fixture.Manager.ReloadAsync(TestContext.Current.CancellationToken);
+            Assert.True(result.Succeeded, result.ErrorMessage);
+            Assert.Equal(version, result.Current.DispatchTableVersion);
+            var snapshot = ((IHotfixRuntimeAccessor)fixture.Manager).Current;
+            var scan = HotfixBehaviorScanner.Scan(snapshot.MainAssembly!);
+            Assert.True(scan.Succeeded, string.Join(Environment.NewLine, scan.Diagnostics));
+            var timer = Assert.Single(scan.TimerMethods);
+            var table = snapshot.DispatchTable!;
+            Assert.Equal(local, table.TryResolveTimerMethod(timer.MethodId, out _));
+            Assert.All(scan.ActorMethods, method =>
+                Assert.Equal(local, table.TryResolveActorMethod(method.MethodId, out _)));
+            Assert.Equal(local && otherActorEntries,
+                table.TryResolveActorLifecycle(typeof(RoleFilteredTimerActor), out _));
+            if (local)
+            {
+                await table.InvokeTimerAsync(timer.MethodId, new TimerTick(default), actor);
+                Assert.Equal(version, actor.Value);
+            }
+            else
+            {
+                Assert.Empty(table.MethodKeys);
+                Assert.Empty(table.ModuleTypes);
+                await Assert.ThrowsAsync<HotfixMethodNotLoadedException>(() =>
+                    table.InvokeTimerAsync(timer.MethodId, new TimerTick(default), actor).AsTask());
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Local_actor_timer_with_disabled_component_is_rejected_without_replacing_current()
+    {
+        using var fixture = new Fixture(roles: ["data"]);
+        fixture.WriteActorTimer(1);
+        var initial = await fixture.Manager.ReloadAsync(TestContext.Current.CancellationToken);
+        Assert.True(initial.Succeeded, initial.ErrorMessage);
+        var previous = ((IHotfixRuntimeAccessor)fixture.Manager).Current;
+
+        fixture.WriteActorTimer(2, componentRole: "storage");
+        var failure = await fixture.Manager.ReloadAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(failure.Succeeded);
+        Assert.Contains("must inject an enabled concrete component", failure.ErrorMessage);
+        Assert.Contains("DataComponent", failure.ErrorMessage);
+        Assert.Same(previous, ((IHotfixRuntimeAccessor)fixture.Manager).Current);
+    }
+
     [Fact]
     public async Task Diamond_order_includes_hookless_intermediate_and_reverses_actual_activation()
     {
@@ -487,6 +558,27 @@ public sealed class HotfixComponentLifecycleTests
                 """;
             if (extra) source += "[HotfixComponent] public sealed class C { }";
             Compile(source, "services.AddSingleton<A>();" + (second ? "services.AddSingleton<B>();" : "") + (extra ? "services.AddSingleton<C>();" : ""));
+        }
+
+        public void WriteActorTimer(int version, bool otherActorEntries = false, string componentRole = "data")
+        {
+            Compile($$"""
+                [HotfixComponent, NodeRole("{{componentRole}}")]
+                public sealed class DataComponent { public int Value => {{version}}; }
+                [HotfixBehaviorOf(typeof(RoleFilteredTimerActor))]
+                public sealed class DataBehavior(DataComponent component)
+                {
+                    [ActorTimer]
+                    public ValueTask TickAsync(RoleFilteredTimerActor self,
+                        Lakona.Game.Server.Hotfix.Timers.TimerTick tick)
+                    { self.Value = component.Value; return default; }
+                    {{(otherActorEntries ? """
+                    public ValueTask<int> ReadAsync(RoleFilteredTimerActor self, int request) => new(self.Value);
+                    [ActorStart] public ValueTask StartAsync(RoleFilteredTimerActor self, ActorStartCall call) => default;
+                    [ActorStop] public ValueTask StopAsync(RoleFilteredTimerActor self, ActorStopCall call) => default;
+                    """ : "")}}
+                }
+                """, "services.AddSingleton<DataComponent>();");
         }
 
         public void Compile(string declarations, string registrations)
