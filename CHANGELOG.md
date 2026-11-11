@@ -4,10 +4,10 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-11-11 — Actor dispatch consistency and session termination progress
+## 2026-11-11 — Actor dispatch consistency and bounded lifecycle cleanup
 
-**Key releases:** `Lakona.Game.Server 0.54.3`, `Lakona.Tool 0.43.112`, and
-`Lakona.Hub 0.17.126`.
+**Key releases:** `Lakona.Game.Server 0.54.4`, `Lakona.Tool 0.43.113`, and
+`Lakona.Hub 0.17.127`.
 
 - Generated Actor method IDs now match runtime lookup for array requests and
   results, multidimensional arrays, and nested generic types. Rebuild Hotfix
@@ -17,8 +17,9 @@ date and package versions of important releases are retained.
   load and reload, preventing unrelated nodes from activating remote Behaviors
   and failing on their role-specific component dependencies.
 - Session termination closes the captured connection before awaiting lifecycle
-  cleanup, allowing blocked reliable sends to unwind while preserving cleanup
-  completion and payload byte accounting.
+  cleanup. Actor Directory coalesces pending Membership views, rejects superseded
+  transfer results and joins transition workers at shutdown, bounding retained
+  work while preserving exact activation ownership and fail-closed recovery.
 
 ## 2026-11-10 — Hotfix cleanup, runnable Compose and load-run lifecycle
 

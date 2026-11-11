@@ -28,6 +28,7 @@ internal sealed class DistributedActorDirectory :
     private readonly IClusterMembershipRefresher? membershipRefresher;
     private readonly ILogger<DistributedActorDirectory>? logger;
     private readonly CancellationTokenSource stopping = new();
+    private readonly CancellationToken stoppingToken;
     private int disposed;
     private NodeReference? localReference;
     private ActorDirectoryPartition[]? partitions;
@@ -49,9 +50,13 @@ internal sealed class DistributedActorDirectory :
         this.activationCatalog = activationCatalog ?? EmptyActorActivationSnapshotSource.Instance;
         this.membershipRefresher = membershipRefresher;
         this.logger = logger;
+        stoppingToken = stopping.Token;
     }
 
-    internal CancellationToken StoppingToken => stopping.Token;
+    internal CancellationToken StoppingToken => stoppingToken;
+
+    internal void LogCancellationFailure(Exception exception) =>
+        logger?.LogWarning(exception, "Actor Directory transition cancellation callback failed.");
 
     ActorActivationPopulation IActorActivationPopulationSource.ObserveActivationPopulation()
     {
@@ -112,6 +117,8 @@ internal sealed class DistributedActorDirectory :
         MembershipViewId requiredView,
         CancellationToken cancellationToken)
     {
+        if (stoppingToken.IsCancellationRequested)
+            throw new ActorDirectoryUnavailableException("Actor Directory is stopping.");
         while (membership.Current.View.CompareTo(requiredView) < 0)
         {
             if (membershipRefresher is not null)
@@ -124,6 +131,8 @@ internal sealed class DistributedActorDirectory :
         await installGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            if (stoppingToken.IsCancellationRequested)
+                throw new ActorDirectoryUnavailableException("Actor Directory is stopping.");
             var target = membership.Current;
             ActorDirectoryRing? previous;
             lock (viewGate)
@@ -328,6 +337,8 @@ internal sealed class DistributedActorDirectory :
         ActorDirectoryPartitionSnapshotRequest request,
         CancellationToken cancellationToken)
     {
+        if (stoppingToken.IsCancellationRequested)
+            return new ActorDirectorySnapshotReply { Available = false, View = CurrentView.Value };
         await EnsureViewAsync(new MembershipViewId(request.View), cancellationToken).ConfigureAwait(false);
         if ((uint)request.PartitionIndex >= ActorDirectoryRing.DefaultPartitionsPerNode)
             return new ActorDirectorySnapshotReply { Available = false, View = CurrentView.Value };
@@ -344,6 +355,8 @@ internal sealed class DistributedActorDirectory :
         ActorDirectoryActivationSnapshotRequest request,
         CancellationToken cancellationToken)
     {
+        if (stoppingToken.IsCancellationRequested)
+            return new ActorDirectorySnapshotReply { Available = false, View = CurrentView.Value };
         await EnsureViewAsync(new MembershipViewId(request.View), cancellationToken).ConfigureAwait(false);
         var snapshot = membership.Current;
         if (snapshot.View.Value < request.View || localReference is null
@@ -459,8 +472,17 @@ internal sealed class DistributedActorDirectory :
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        await stopping.CancelAsync().ConfigureAwait(false);
+        await stopping.CancelAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
+        Task[] transitions;
+        await installGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            lock (viewGate)
+                transitions = partitions?.Select(partition => partition.TransitionCompletion).ToArray() ?? [];
+        }
+        finally { installGate.Release(); }
+        await Task.WhenAll(transitions).WaitAsync(cancellationToken).ConfigureAwait(false);
         lock (activationSnapshotGate) activationSnapshots.Clear();
     }
 
@@ -471,7 +493,8 @@ internal sealed class DistributedActorDirectory :
         stopping.Cancel();
         lock (activationSnapshotGate) activationSnapshots.Clear();
         stopping.Dispose();
-        installGate.Dispose();
+        // The semaphore has no native handle. Leave it to GC so callers unwinding
+        // after cancellation can still release it, including after a timed-out stop.
         base.Dispose();
     }
 

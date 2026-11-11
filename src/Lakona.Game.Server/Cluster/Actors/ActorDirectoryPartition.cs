@@ -24,7 +24,11 @@ internal sealed class ActorDirectoryPartition
     private readonly List<RangeLock> rangeLocks = [];
     private readonly List<RetainedSnapshot> retainedSnapshots = [];
     private readonly Dictionary<MembershipViewId, Task> snapshotReadiness = [];
-    private Task<bool> transitionTail = Task.FromResult(true);
+    private Task transitionTail = Task.CompletedTask;
+    private PreparedTransition? activeTransition;
+    private PreparedTransition? pendingTransition;
+    private bool workerRunning;
+    private bool previousSucceeded = true;
     private ActorDirectoryRing? currentRing;
     private ActorDirectoryRange currentRange = ActorDirectoryRange.Empty;
     private Exception? currentFailure;
@@ -54,12 +58,18 @@ internal sealed class ActorDirectoryPartition
             var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var releaseReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var retainedReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            var predecessor = transitionTail;
-            transitionTail = completion.Task;
-
+            var predecessorSucceeded = activeTransition?.Completion.Task.IsCompletedSuccessfully == true
+                ? activeTransition.Completion.Task.Result : previousSucceeded;
+            var recover = !predecessorSucceeded
+                || activeTransition?.Completion.Task.IsCompleted == false || pendingTransition is not null;
+            if (pendingTransition is { } superseded)
+            {
+                CompleteTransition(superseded, false);
+                superseded.Cancellation.Dispose();
+            }
             var transition = new PreparedTransition(
                 this,
-                predecessor,
+                recover,
                 previous,
                 current,
                 removed,
@@ -67,6 +77,7 @@ internal sealed class ActorDirectoryPartition
                 completion,
                 releaseReady,
                 retainedReady);
+            pendingTransition = transition;
             if (previous is not null
                 && current.View.Value == previous.View.Value + 1
                 && removed.Count != 0)
@@ -82,6 +93,66 @@ internal sealed class ActorDirectoryPartition
             currentRange = newRange;
             PruneSnapshotPartners(current);
             return transition;
+        }
+    }
+
+    internal Task TransitionCompletion
+    {
+        get { lock (gate) return transitionTail; }
+    }
+
+    private void StartTransitions()
+    {
+        TaskCompletionSource completion;
+        lock (gate)
+        {
+            // Cancellation callbacks may need the partition gate. CancelAsync signals
+            // cancellation immediately without running those callbacks under this lock.
+            if (activeTransition is { } active)
+                active.CancellationCompletion ??= active.Cancellation.CancelAsync();
+            if (workerRunning || pendingTransition is null) return;
+            workerRunning = true;
+            completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            transitionTail = completion.Task;
+        }
+        _ = RunTransitionsAsync(completion);
+    }
+
+    private async Task RunTransitionsAsync(TaskCompletionSource completion)
+    {
+        while (true)
+        {
+            PreparedTransition transition;
+            lock (gate)
+            {
+                if (pendingTransition is null)
+                {
+                    workerRunning = false;
+                    completion.TrySetResult();
+                    return;
+                }
+                transition = pendingTransition;
+                pendingTransition = null;
+                activeTransition = transition;
+            }
+
+            await RunTransitionAsync(transition).ConfigureAwait(false);
+            Task? cancellation;
+            lock (gate)
+            {
+                cancellation = transition.CancellationCompletion;
+                activeTransition = null;
+                previousSucceeded = transition.Completion.Task.Result;
+            }
+            try
+            {
+                if (cancellation is not null) await cancellation.ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                owner.LogCancellationFailure(exception);
+            }
+            finally { transition.Cancellation.Dispose(); }
         }
     }
 
@@ -279,9 +350,21 @@ internal sealed class ActorDirectoryPartition
         using var activity = ClusterDiagnostics.StartActivity("cluster.actor_directory.transition");
         try
         {
-            var predecessorSucceeded = await transition.Predecessor.ConfigureAwait(false);
+            transition.Cancellation.Token.ThrowIfCancellationRequested();
+            var predecessorSucceeded = !transition.Recover;
             if (predecessorSucceeded) ReleaseRetainedRanges(transition);
 
+            // Coalescing can skip several intermediate owners. Remove all records
+            // outside the latest range, not only the last view's delta.
+            if (!predecessorSucceeded)
+            {
+                lock (gate)
+                {
+                    EnsureCurrent(transition.Current, transition.Cancellation.Token);
+                    foreach (var actor in records.Keys.Where(actor => !currentRange.Contains(actor)).ToArray())
+                        records.Remove(actor);
+                }
+            }
             foreach (var range in transition.Removed)
                 ReleaseRange(transition, range, predecessorSucceeded);
             transition.ReleaseReady.TrySetResult();
@@ -295,9 +378,9 @@ internal sealed class ActorDirectoryPartition
                     var recovered = await owner.RecoverRangeAsync(
                             transition.Current,
                             ownedRange,
-                            owner.StoppingToken)
+                            transition.Cancellation.Token)
                         .ConfigureAwait(false);
-                    ApplyRange(transition.Current, ownedRange, recovered);
+                    ApplyRange(transition.Current, ownedRange, recovered, transition.Cancellation.Token);
                 }
 
                 foreach (var range in transition.Added)
@@ -307,7 +390,7 @@ internal sealed class ActorDirectoryPartition
                             transition.Current,
                             Id,
                             range,
-                            owner.StoppingToken)
+                            transition.Cancellation.Token)
                         .ConfigureAwait(false);
                 }
             }
@@ -324,7 +407,7 @@ internal sealed class ActorDirectoryPartition
                                 transition.Previous!,
                                 transition.Current,
                                 range,
-                                owner.StoppingToken)
+                                transition.Cancellation.Token)
                             .ConfigureAwait(false);
                     }
                     else
@@ -333,23 +416,24 @@ internal sealed class ActorDirectoryPartition
                         incoming = await owner.RecoverRangeAsync(
                                 transition.Current,
                                 range,
-                                owner.StoppingToken)
+                                transition.Cancellation.Token)
                             .ConfigureAwait(false);
                     }
 
-                    ApplyRange(transition.Current, range, incoming);
+                    ApplyRange(transition.Current, range, incoming, transition.Cancellation.Token);
                     await owner.AcknowledgeRangeAsync(
                             transition.Previous,
                             transition.Current,
                             Id,
                             range,
-                            owner.StoppingToken)
+                            transition.Cancellation.Token)
                         .ConfigureAwait(false);
                 }
             }
 
             lock (gate)
             {
+                EnsureCurrent(transition.Current, transition.Cancellation.Token);
                 if (currentRing?.View == transition.Current.View)
                 {
                     currentFailure = null;
@@ -364,7 +448,7 @@ internal sealed class ActorDirectoryPartition
                 Stopwatch.GetElapsedTime(started));
             succeeded = true;
         }
-        catch (OperationCanceledException exception) when (owner.StoppingToken.IsCancellationRequested)
+        catch (OperationCanceledException exception)
         {
             activity?.SetTag("lakona.game.cluster.outcome", "cancelled");
             activity?.SetTag("lakona.game.cluster.actor_directory.mode", mode);
@@ -401,15 +485,16 @@ internal sealed class ActorDirectoryPartition
         }
         finally
         {
-            transition.ReleaseReady.TrySetResult();
-            ReleaseRetainedRanges(transition);
-            lock (gate)
-            {
-                rangeLocks.RemoveAll(value => ReferenceEquals(value.Completion, transition.Completion.Task));
-            }
-
-            transition.Completion.TrySetResult(succeeded);
+            lock (gate) CompleteTransition(transition, succeeded);
         }
+    }
+
+    private void CompleteTransition(PreparedTransition transition, bool succeeded)
+    {
+        transition.ReleaseReady.TrySetResult();
+        ReleaseRetainedRanges(transition);
+        rangeLocks.RemoveAll(value => ReferenceEquals(value.Completion, transition.Completion.Task));
+        transition.Completion.TrySetResult(succeeded);
     }
 
     private void ReleaseRetainedRanges(PreparedTransition transition)
@@ -429,6 +514,7 @@ internal sealed class ActorDirectoryPartition
     {
         lock (gate)
         {
+            EnsureCurrent(transition.Current, transition.Cancellation.Token);
             var removed = records.Values.Where(record => range.Contains(record.ActorId)).ToArray();
             foreach (var record in removed) records.Remove(record.ActorId);
 
@@ -467,10 +553,12 @@ internal sealed class ActorDirectoryPartition
     private void ApplyRange(
         ActorDirectoryRing ring,
         ActorDirectoryRange range,
-        IReadOnlyList<ActorDirectoryRecord> incoming)
+        IReadOnlyList<ActorDirectoryRecord> incoming,
+        CancellationToken cancellationToken)
     {
         lock (gate)
         {
+            EnsureCurrent(ring, cancellationToken);
             foreach (var record in incoming)
             {
                 if (!range.Contains(record.ActorId) || ring.GetOwner(record.ActorId) != Id) continue;
@@ -485,6 +573,13 @@ internal sealed class ActorDirectoryPartition
                 records[record.ActorId] = record;
             }
         }
+    }
+
+    private void EnsureCurrent(ActorDirectoryRing ring, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!ReferenceEquals(ring, currentRing))
+            throw new OperationCanceledException("Actor Directory transition was superseded.");
     }
 
     private void PruneSnapshotPartners(ActorDirectoryRing ring)
@@ -547,7 +642,7 @@ internal sealed class ActorDirectoryPartition
     {
         internal PreparedTransition(
             ActorDirectoryPartition partition,
-            Task<bool> predecessor,
+            bool recover,
             ActorDirectoryRing? previous,
             ActorDirectoryRing current,
             IReadOnlyList<ActorDirectoryRange> removed,
@@ -557,7 +652,8 @@ internal sealed class ActorDirectoryPartition
             TaskCompletionSource retainedReady)
         {
             Partition = partition;
-            Predecessor = predecessor;
+            Recover = recover;
+            Cancellation = CancellationTokenSource.CreateLinkedTokenSource(partition.owner.StoppingToken);
             Previous = previous;
             Current = current;
             Removed = removed;
@@ -568,7 +664,9 @@ internal sealed class ActorDirectoryPartition
         }
 
         internal ActorDirectoryPartition Partition { get; }
-        internal Task<bool> Predecessor { get; }
+        internal bool Recover { get; }
+        internal CancellationTokenSource Cancellation { get; }
+        internal Task? CancellationCompletion { get; set; }
         internal ActorDirectoryRing? Previous { get; }
         internal ActorDirectoryRing Current { get; }
         internal IReadOnlyList<ActorDirectoryRange> Removed { get; }
@@ -577,7 +675,7 @@ internal sealed class ActorDirectoryPartition
         internal TaskCompletionSource ReleaseReady { get; }
         internal TaskCompletionSource RetainedReady { get; }
 
-        internal void Start() => _ = Partition.RunTransitionAsync(this);
+        internal void Start() => Partition.StartTransitions();
     }
 
     private sealed record RangeLock(

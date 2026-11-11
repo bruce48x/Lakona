@@ -572,9 +572,9 @@ consecutive views, the previous owner freezes the moved records and hands that
 snapshot directly to the new owner. The receiver applies the records before it
 acknowledges the snapshot.
 
-A transport failure while reading that snapshot is retried while the exact
-previous owner remains `Active`. It is not interpreted as an empty range. If
-the previous owner leaves Membership before transfer succeeds, the receiver
+A transport failure while reading that snapshot is retried while the transition
+is current and the exact previous owner remains `Active`. It is not interpreted
+as an empty range. If the previous owner leaves Membership before transfer succeeds, the receiver
 switches to activation-catalog recovery and remains fail-closed on conflicts.
 
 Both snapshot paths reject stale Membership views. Partition handoff also
@@ -599,13 +599,25 @@ nodes. Two different live claims for the same Actor are treated as a
 conflict and the range remains unavailable. The directory never guesses that a
 failed recovery means “Actor not found.”
 
-Partition transitions are ordered locally and carry their success status into
-the next Membership view. After a failed transition, a node does not advertise
-the incomplete range as a valid empty snapshot. Its next transition rebuilds
-every range it still owns from surviving activation catalogs; ranges moving
-away are reported unavailable so their new owners perform the same recovery.
-This prevents rapid Membership changes from turning one interrupted handoff
-into a chain of apparently successful empty handoffs.
+Each partition owns one transition worker and at most one pending target view.
+A newer view replaces the pending target and cancels an obsolete in-flight
+transition; the worker waits for that transition to exit before starting the
+latest target. Superseded results cannot modify the current view. Pending views
+do not accumulate task chains or range locks, including when ring ownership is
+unchanged. A superseded or failed transition makes the latest target recover
+its entire owned range from surviving activation catalogs. Necessary handoff
+snapshots remain subject to the existing acknowledgement and retention rules.
+
+An incomplete range is never advertised as a valid empty snapshot. Ranges
+moving away after a failed or superseded transition are reported unavailable
+so their new owners also recover from activation catalogs. This prevents rapid
+Membership changes from turning an interrupted handoff into apparently
+successful empty handoffs.
+
+Directory shutdown rejects new view installation, cancels transition work and
+waits for every partition worker before reporting completion. An expired host
+shutdown deadline reports cancellation; it does not report unfinished work as a
+successful stop. Cancellation alone does not release a range as usable.
 
 Every mutation is conditional on `NodeReference + ActorActivationId`. A delayed
 release from an old activation cannot delete its replacement, and a process

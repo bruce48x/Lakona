@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Collections;
+using System.Reflection;
 using Lakona.Game.Cluster;
 using Lakona.Game.Cluster.Actors;
 using Lakona.Game.Cluster.Membership;
@@ -859,7 +861,7 @@ public sealed class DistributedActorDirectoryTests
     }
 
     [Fact]
-    public async Task New_membership_view_waits_for_an_inflight_range_transfer_without_losing_activation()
+    public async Task New_membership_view_supersedes_an_inflight_transfer_without_losing_activation()
     {
         var nodeA = Reference("node-a", 1);
         var nodeB = Reference("node-b", 2);
@@ -876,7 +878,8 @@ public sealed class DistributedActorDirectoryTests
         };
         var membershipA = new MutableMembership(before);
         var membershipB = new MutableMembership(before);
-        var directoryA = Directory(nodeA, membershipA, network, middle);
+        var registryA = new TestActorActivationSnapshotSource();
+        var directoryA = Directory(nodeA, membershipA, network, middle, registryA);
         var directoryB = Directory(nodeB, membershipB, network, middle);
         network.Register(nodeA, directoryA);
         network.Register(nodeB, directoryB);
@@ -894,6 +897,7 @@ public sealed class DistributedActorDirectoryTests
 
             membershipA.Current = middle;
             membershipB.Current = middle;
+            registryA.Set(new ActorDirectoryRecord(actor, nodeA, activation, DateTimeOffset.UtcNow));
             var resolveDuringTransfer = directoryB.ResolveAsync(
                 actor,
                 TestContext.Current.CancellationToken).AsTask();
@@ -918,6 +922,124 @@ public sealed class DistributedActorDirectoryTests
             directoryA.Dispose();
         }
     }
+
+    [Theory]
+    [InlineData("recover")]
+    [InlineData("recover-unchanged")]
+    [InlineData("stop")]
+    [InlineData("stop-deadline")]
+    public async Task View_churn_keeps_work_bounded_and_joins_a_canceled_transfer(string outcome)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var nodeA = Reference("node-a", 1);
+        var nodeB = Reference("node-b", 2);
+        var before = Snapshot(4, Active(nodeA), Joining(nodeB));
+        var after = Snapshot(5, Active(nodeA), Active(nodeB));
+        var actor = FindMovedActor(nodeB, before, after);
+        var source = new ActorDirectoryRing(before).GetOwner(actor);
+        var network = new DirectoryNetwork
+        {
+            PartitionSnapshotTargetIndex = source.Index,
+            PartitionSnapshotTargetActor = actor,
+            PausePartitionSnapshotResponses = true,
+            HoldCanceledPartitionSnapshotResponse = true
+        };
+        var membershipA = new MutableMembership(before);
+        var membershipB = new MutableMembership(before);
+        var catalogA = new TestActorActivationSnapshotSource();
+        using var directoryA = Directory(nodeA, membershipA, network, after, catalogA);
+        using var directoryB = Directory(nodeB, membershipB, network, after);
+        network.Register(nodeA, directoryA);
+        network.Register(nodeB, directoryB);
+        Task<ActorDirectoryRecord?>? resolving = null;
+        Task? stopping = null;
+        try
+        {
+            await directoryA.EnsureViewAsync(before.View, ct);
+            await directoryB.EnsureViewAsync(before.View, ct);
+            var oldActivation = ActorActivationId.New();
+            Assert.True((await directoryA.AcquireAsync(actor, nodeA, oldActivation, ct)).Acquired);
+            membershipA.Current = after;
+            membershipB.Current = after;
+            resolving = directoryB.ResolveAsync(actor, ct).AsTask();
+            await network.WaitForPartitionSnapshotResponseAsync(ct);
+
+            // The held response contains the old claim. Only the latest recovery
+            // catalog knows the replacement; a late apply must not resurrect it.
+            var replacement = ActorActivationId.New();
+            catalogA.Set(new ActorDirectoryRecord(actor, nodeA, replacement, DateTimeOffset.UtcNow));
+            for (var view = 6; view <= 1005; view++)
+            {
+                var target = Snapshot(view, Active(nodeA),
+                    outcome != "recover-unchanged" && view % 2 == 0 ? Joining(nodeB) : Active(nodeB));
+                membershipA.Current = target;
+                membershipB.Current = target;
+                await directoryB.EnsureViewAsync(target.View, ct);
+                Assert.InRange(CountRangeLocks(directoryB), 0, ActorDirectoryRing.DefaultPartitionsPerNode * 12);
+            }
+            await network.WaitForPartitionSnapshotCancellationAsync(ct);
+            var workers = PartitionWorkers(directoryB);
+            Assert.Contains(workers, task => !task.IsCompleted);
+            Assert.False(resolving.IsCompleted);
+
+            if (outcome.StartsWith("stop", StringComparison.Ordinal))
+            {
+                using var stopDeadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                stopping = directoryB.StopAsync(stopDeadline.Token);
+                Assert.False(stopping.IsCompleted);
+                if (outcome == "stop-deadline")
+                {
+                    stopDeadline.Cancel();
+                    await Assert.ThrowsAnyAsync<OperationCanceledException>(() => stopping);
+                    Assert.Contains(workers, task => !task.IsCompleted);
+                    stopping = directoryB.StopAsync(ct);
+                }
+            }
+
+            network.ReleasePartitionSnapshotResponses();
+            if (stopping is not null)
+            {
+                await stopping.WaitAsync(TimeSpan.FromSeconds(10), ct);
+                Assert.IsType<ActorDirectoryUnavailableException>(await Record.ExceptionAsync(() => resolving));
+                Assert.All(PartitionWorkers(directoryB), task => Assert.True(task.IsCompleted));
+                Assert.Equal(0, CountRangeLocks(directoryB));
+                await Assert.ThrowsAsync<ActorDirectoryUnavailableException>(() =>
+                    directoryB.EnsureViewAsync(membershipB.Current.View, ct).AsTask());
+            }
+            else
+            {
+                Assert.Equal(replacement, (await resolving.WaitAsync(TimeSpan.FromSeconds(10), ct))!.ActivationId);
+                var contender = await directoryB.AcquireAsync(actor, nodeB, ActorActivationId.New(), ct);
+                Assert.False(contender.Acquired);
+                Assert.Equal(replacement, contender.Record.ActivationId);
+                Assert.False(await directoryB.ReleaseAsync(actor, oldActivation, ct));
+                await directoryB.StopAsync(ct);
+                Assert.All(PartitionWorkers(directoryB), task => Assert.True(task.IsCompleted));
+                Assert.Equal(0, CountRangeLocks(directoryB));
+            }
+        }
+        finally
+        {
+            network.ReleasePartitionSnapshotResponses();
+            await directoryB.StopAsync(ct);
+            await directoryA.StopAsync(ct);
+            if (resolving is not null) _ = await Record.ExceptionAsync(() => resolving);
+            if (stopping is not null) _ = await Record.ExceptionAsync(() => stopping);
+        }
+    }
+
+    // Inspect retained work, not allocation totals: completed transitions may
+    // allocate, but an unavailable peer must not retain a history-sized backlog.
+    private static ActorDirectoryPartition[] Partitions(DistributedActorDirectory directory) =>
+        (ActorDirectoryPartition[])typeof(DistributedActorDirectory)
+            .GetField("partitions", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(directory)!;
+
+    private static int CountRangeLocks(DistributedActorDirectory directory) => Partitions(directory).Sum(partition =>
+        ((ICollection)typeof(ActorDirectoryPartition)
+            .GetField("rangeLocks", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(partition)!).Count);
+
+    private static Task[] PartitionWorkers(DistributedActorDirectory directory) =>
+        Partitions(directory).Select(partition => partition.TransitionCompletion).ToArray();
 
     [Fact]
     public async Task Receiver_exit_during_handoff_does_not_lose_a_surviving_activation()
@@ -1976,6 +2098,8 @@ public sealed class DistributedActorDirectoryTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource releasePartitionSnapshotResponses =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource partitionSnapshotCancellationObserved =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource activationSnapshotResponseObserved =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource releaseActivationSnapshotResponses =
@@ -2004,6 +2128,7 @@ public sealed class DistributedActorDirectoryTests
         public int? PartitionSnapshotTargetOffset { get; init; }
 
         public bool PausePartitionSnapshotResponses { get; init; }
+        public bool HoldCanceledPartitionSnapshotResponse { get; init; }
 
         public int? ReplayFirstPartitionSnapshotPageAtOffset { get; init; }
 
@@ -2042,6 +2167,9 @@ public sealed class DistributedActorDirectoryTests
         public void ReleasePartitionSnapshotResponses() =>
             releasePartitionSnapshotResponses.TrySetResult();
 
+        public Task WaitForPartitionSnapshotCancellationAsync(CancellationToken cancellationToken) =>
+            partitionSnapshotCancellationObserved.Task.WaitAsync(cancellationToken);
+
         public void PauseActivationSnapshotResponses() =>
             Volatile.Write(ref pauseActivationSnapshotResponses, 1);
 
@@ -2057,7 +2185,12 @@ public sealed class DistributedActorDirectoryTests
         {
             if (!PausePartitionSnapshotResponses || !MatchesPartitionSnapshot(request)) return;
             partitionSnapshotResponseObserved.TrySetResult();
-            await releasePartitionSnapshotResponses.Task.WaitAsync(cancellationToken);
+            try { await releasePartitionSnapshotResponses.Task.WaitAsync(cancellationToken); }
+            catch (OperationCanceledException) when (HoldCanceledPartitionSnapshotResponse)
+            {
+                partitionSnapshotCancellationObserved.TrySetResult();
+                await releasePartitionSnapshotResponses.Task;
+            }
         }
 
         public ActorDirectorySnapshotReply ReplayPartitionSnapshotPageIfRequested(
