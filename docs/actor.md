@@ -95,6 +95,15 @@ changes. Use `[ActorIgnore]` for public composition helpers that must not enter
 generation or remote dispatch. The attributes are mutually exclusive, and an
 explicit method name must not be empty.
 
+Generated method keys and IDs must match the runtime's reflected type identities.
+Array identities preserve their rank and use the element type's assembly; nested
+generic identities include all enclosing type arguments, from outermost to
+innermost. This applies to both request and result types. The generator and
+runtime use the same existing method-key and hash format. Rebuild Hotfix with
+the compiler bundled in Game.Server 0.54.1 or later to correct previously
+unresolvable generated IDs for arrays and nested generic types. This identity
+contract does not imply that every such type is supported by the wire serializer.
+
 Behavior methods mutate only their target Actor's state. Calls to another
 Actor go through generated selectors so routing and placement intent remain
 explicit. Actor state must not store transport callbacks, session callback

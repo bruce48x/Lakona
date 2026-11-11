@@ -33,7 +33,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         internal static string GetRuntimeTypeIdentity(ITypeSymbol type)
         {
-            var assemblyName = type.ContainingAssembly?.Identity.Name ?? string.Empty;
+            var assemblyName = GetRuntimeAssembly(type)?.Identity.Name ?? string.Empty;
             return GetRuntimeTypeFullName(type) + ", " + assemblyName;
         }
 
@@ -41,22 +41,26 @@ namespace Lakona.Game.Server.Hotfix.Generators
         {
             if (type is IArrayTypeSymbol arrayType)
             {
-                return GetRuntimeTypeFullName(arrayType.ElementType) + "[]";
+                var suffix = arrayType.IsSZArray ? "[]" :
+                    arrayType.Rank == 1 ? "[*]" : "[" + new string(',', arrayType.Rank - 1) + "]";
+                return GetRuntimeTypeFullName(arrayType.ElementType) + suffix;
             }
 
             if (type is INamedTypeSymbol namedType)
             {
-                var containingTypes = new Stack<string>();
+                var containingTypes = new Stack<INamedTypeSymbol>();
                 for (INamedTypeSymbol? current = namedType; current != null; current = current.ContainingType)
                 {
-                    containingTypes.Push(current.MetadataName);
+                    containingTypes.Push(current);
                 }
 
-                var typeName = string.Join("+", containingTypes);
-                if (namedType.IsGenericType && namedType.TypeArguments.Length > 0)
+                var typeName = string.Join("+", containingTypes.Select(static type => type.MetadataName));
+                // Reflection includes enclosing generic arguments, even for a non-generic leaf.
+                var arguments = containingTypes.SelectMany(static type => type.TypeArguments).ToArray();
+                if (arguments.Length > 0)
                 {
                     typeName += "[[" +
-                        string.Join("],[", namedType.TypeArguments.Select(GetRuntimeAssemblyQualifiedTypeIdentity)) +
+                        string.Join("],[", arguments.Select(GetRuntimeAssemblyQualifiedTypeIdentity)) +
                         "]]";
                 }
 
@@ -72,10 +76,18 @@ namespace Lakona.Game.Server.Hotfix.Generators
 
         private static string GetRuntimeAssemblyQualifiedTypeIdentity(ITypeSymbol type)
         {
-            var assemblyDisplayName = type.ContainingAssembly?.Identity.GetDisplayName();
+            var assemblyDisplayName = GetRuntimeAssembly(type)?.Identity.GetDisplayName();
             return string.IsNullOrEmpty(assemblyDisplayName)
                 ? GetRuntimeTypeFullName(type)
                 : GetRuntimeTypeFullName(type) + ", " + assemblyDisplayName;
+        }
+
+        private static IAssemblySymbol? GetRuntimeAssembly(ITypeSymbol type)
+        {
+            // Array symbols have no declaring assembly; Type.Assembly uses the element's assembly.
+            while (type is IArrayTypeSymbol arrayType)
+                type = arrayType.ElementType;
+            return type.ContainingAssembly;
         }
 
         internal static IEnumerable<INamedTypeSymbol> EnumerateTypes(INamespaceSymbol namespaceSymbol)
