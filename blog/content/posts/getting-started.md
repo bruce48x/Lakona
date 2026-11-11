@@ -35,7 +35,7 @@ server, accept a player name, and show the first game scene.
   <div class="journey-step">
     <span class="step-number">1</span>
     <h3>Prepare</h3>
-    <p>Have Hub, Unity, and a server IDE ready.</p>
+    <p>Have Hub, Unity, a system .NET 10 SDK, and a server IDE ready.</p>
   </div>
   <div class="journey-step">
     <span class="step-number">2</span>
@@ -68,10 +68,22 @@ server, accept a player name, and show the first game scene.
   </div>
 </div>
 
+For the build and run steps in this tutorial, install a system .NET 10 SDK
+and make sure `dotnet` is available on your terminal's `PATH`. A runtime-only
+installation is insufficient. Open a new terminal after installation and run:
+
+```text
+dotnet --list-sdks
+```
+
+The output must include a `10.0.xxx` SDK. Configure your server IDE to use the
+system .NET 10 SDK as well.
+
 You will also need an IDE for the server, such as Rider, Visual Studio, or
 Visual Studio Code. Lakona Hub can detect these applications and use the one
-you select in Settings. If no compatible .NET 10 SDK is available, Hub can
-manage a private copy from the Runtime settings.
+you select in Settings. Hub can manage a private SDK from the Runtime settings
+for its own project operations; that does not satisfy this tutorial's system
+SDK prerequisite.
 
 ## 1. Open and prepare Lakona Hub
 
@@ -87,6 +99,8 @@ Open **Settings** in Lakona Hub before creating the project:
 
 Lakona Hub does not change your system PATH when it manages its private .NET
 SDK. The SDK is used by Hub's project operations and can be managed from Hub.
+Installing it does not make `dotnet` available in an ordinary terminal or
+configure your server IDE to use it.
 
 ## 2. Create a project in Lakona Hub
 
@@ -152,7 +166,8 @@ does not start the server yet.
 
 Lakona Hub manages the project and opens the right tools. It does not build,
 start, stop, or supervise the server process. Start the server from the IDE
-Hub opened, or from a second terminal in the <code>MyGame/</code> folder:
+Hub opened, or from a second terminal in the <code>MyGame/</code> folder.
+Both paths here use the system .NET 10 SDK prepared above:
 
 <div class="command-card">
   <div class="command-label">Build the generated server once</div>
@@ -173,12 +188,16 @@ From another terminal, you can check it with:
 
 <div class="command-card">
   <div class="command-label">Check that the server is ready</div>
-  <pre><code>curl http://127.0.0.1:20080/_lakona/health/ready</code></pre>
+  <pre><code>curl --fail-with-body --include http://127.0.0.1:20080/_lakona/health/ready</code></pre>
 </div>
 
-A JSON response means the local server is listening. If the check cannot
-connect, look at the terminal running <code>dotnet run</code> and make sure it
-is still open.
+Continue when the response is HTTP 200 with JSON <code>"status": "ready"</code>.
+HTTP 503 with <code>"status": "not_ready"</code> means the server is not ready;
+the command exits with an error and keeps the JSON diagnostics visible. Check
+those diagnostics and the server logs before starting the client. If the check
+cannot connect, look at the terminal running <code>dotnet run</code> and make
+sure it is still open. In Windows PowerShell, use <code>curl.exe</code> to invoke
+curl rather than the PowerShell alias.
 
 ## 5. Run the Unity client
 

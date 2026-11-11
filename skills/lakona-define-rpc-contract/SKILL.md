@@ -20,7 +20,7 @@ Define the wire contract in the project's Shared assembly without leaking server
 5. Read [references/contract-shapes.md](references/contract-shapes.md) before assigning IDs or defining DTO fields.
 6. Add or update the named ID constants, service interface, notification interface when needed, and serializer-compatible DTOs in Shared.
 7. Keep each RPC method to exactly one request DTO parameter. Preserve the required `ValueTask` or `ValueTask<T>` return shape.
-8. Keep notification methods synchronous `void` methods with exactly one DTO parameter, and connect the notification contract to its service explicitly.
+8. Prefer `void` notification methods with one DTO parameter for new contracts, following project conventions. Preserve valid existing signatures and connect the notification contract to its service explicitly; see the supported shapes in the reference.
 9. Update an existing contract in place. Do not leave duplicate interfaces, parallel ID registries, handwritten generated output, or compatibility aliases without an explicit requirement.
 10. Build the actual Shared and server application projects so analyzers and source generators execute. Build the affected client when its generated API or serializer compatibility changes, then run focused contract or integration tests.
 

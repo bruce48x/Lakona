@@ -75,11 +75,15 @@ point triggers startup rollback.
 Run readiness validation through the health route on the management HTTP listener:
 
 ```bash
-curl http://127.0.0.1:20080/_lakona/health/ready
+curl --fail-with-body --include http://127.0.0.1:20080/_lakona/health/ready
 ```
 
-The endpoint returns JSON and uses HTTP 200 when ready or HTTP 503 when any
-guardrail diagnostic is fatal.
+The endpoint returns JSON and uses HTTP 200 with `"status": "ready"` when ready,
+or HTTP 503 with `"status": "not_ready"` when any guardrail diagnostic is fatal.
+Treat only HTTP 200 as a successful readiness check. `--include` shows the HTTP
+status; `--fail-with-body` makes HTTP 503 fail the command while preserving the
+JSON diagnostics for investigation. In Windows PowerShell, invoke `curl.exe`
+to avoid the PowerShell alias.
 
 ## Diagnostic IDs
 

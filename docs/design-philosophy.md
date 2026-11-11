@@ -198,8 +198,9 @@ contract.
 
 ### Node Is The Deployment Unit
 
-A node is one OS process. Actor and Module types declare their role in code;
-each process selects the roles it serves through `Lakona:Node:Roles`. One
+A node is one OS process. Each Actor declares its role in code; HotfixComponent
+types may declare a role, and unmarked components run on every node. Each
+process selects the roles it serves through `Lakona:Node:Roles`. One
 development process can select all application roles, while production nodes
 can select different role sets. See
 [Node Roles And Actor Hosting](./configuration.md#node-roles-and-actor-hosting).

@@ -91,8 +91,11 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
           ComponentState; keep State data-only, with basic initialization and mechanical
           disposal. Framework services, generated ActorAccess and third-party clients
           remain valid dependencies. Move ordinary State methods into Hotfix.
-          Every class here must declare a Hotfix role; keep data types in
-          `Server/App/` or `Shared/`.
+          Ordinary non-static classes here must declare a Hotfix role. Business
+          exceptions deriving from `System.Exception` need no role or component
+          registration. Pure static policy classes may remain here without static
+          fields (except constants), auto-properties, or events. Keep data types
+          in `Server/App/` or `Shared/`.
         - Edit `Client/` for the selected client UI and client-side session flow.
 
         ## Agent Skills

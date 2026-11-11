@@ -15,6 +15,15 @@ The script builds and launches the real `samples/Game.Godot.Chat` server, compil
 
 When validating hotfix watcher behavior, run the same script with `-VerifyHotfixWatcher`. That mode edits `samples/Game.Godot.Chat/Server/Hotfix/Chat/ChatService.cs`, rebuilds `Server.Hotfix`, relies on the generated `reload.signal`, sends another real RPC message, and verifies that the running server logs the new `SendAsync` token before restoring the source file.
 
+## Authorization Boundary
+
+For verification-only or review-only requests, run the requested checks and
+report failures with proposed fixes; do not implement permanent repairs.
+Explicitly requested watcher verification may use the temporary source edit
+described above and must restore it afterward. For implementation or repair
+requests, fix and rerun within the existing authorized scope; ask only when
+the next action requires a material decision or exceeds that scope.
+
 ## Command
 
 From the repository root:
@@ -39,7 +48,7 @@ Useful options:
    - `samples/Game.Godot.Chat/_artifacts/e2e/server.out.log`
    - `samples/Game.Godot.Chat/_artifacts/e2e/server.err.log`
    - `samples/Game.Godot.Chat/_artifacts/e2e/client.out.log`
-4. Fix the narrow failing layer and rerun the same script.
+4. For verification-only requests, report the failing layer and proposed fix. When repair is authorized, fix that layer within scope and rerun the same script.
 5. Also run `pwsh -NoProfile -File tests/Scripts/test-game-godot-chat-e2e-script.ps1` after editing the script itself.
 
 ## Expected Coverage
@@ -64,7 +73,7 @@ With `-VerifyHotfixWatcher`, the run must additionally verify:
 
 ## Common Failures
 
-- Port busy: rerun with `-Port`, or stop the process occupying `127.0.0.1:20000`.
+- Port busy: prefer rerunning with a free `-Port`. Before stopping a conflicting process, verify its identity and ownership; stop it only if this verification run started it or the user has authorized stopping it. Do not stop an unrelated process merely to free the port.
 - Server exits early: read `server.err.log`; hotfix loading and DI failures usually appear there.
 - Client build fails: check generated RPC client properties and project references in the harness project.
 - Login succeeds but push times out: inspect chat bind/session callback wiring before changing transport code.

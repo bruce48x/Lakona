@@ -23,13 +23,13 @@ client enters a lightweight `agar.io`-style arena.
 Generate binders and build the server:
 
 ```powershell
-pwsh -NoProfile -File .\scripts\sample.ps1 -Sample Godot.MixedTransport
+pwsh -NoProfile -File .\scripts\rpc\sample.ps1 -Sample Rpc.Godot.MixedTransport
 ```
 
 Run the server:
 
 ```powershell
-pwsh -NoProfile -File .\scripts\sample.ps1 -Sample Godot.MixedTransport -Run
+pwsh -NoProfile -File .\scripts\rpc\sample.ps1 -Sample Rpc.Godot.MixedTransport -Run
 ```
 
 Default ports:
@@ -37,4 +37,4 @@ Default ports:
 - TCP login: `20000`
 - KCP battle: `20001`
 
-Open `samples/Godot.MixedTransport/Client` in Godot 4.6 Mono, build once, then run `Main.tscn`.
+Open `samples/Rpc.Godot.MixedTransport/Client` in Godot 4.6 Mono, build once, then run `Main.tscn`.

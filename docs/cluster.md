@@ -689,9 +689,14 @@ Do not switch to all-to-all probing to reduce detection time.
 
 ## Startup And Shutdown
 
-Startup order:
+Before node startup, host Build runs role-filtered `ComponentConfigureServices`
+and initializes root-owned resource factories. Component lifecycle and ownership
+are defined in [Hotfix Components](./hotfix/components.md).
 
-1. start role-selected application modules and load the initial Hotfix;
+Node startup order:
+
+1. load and validate the initial Hotfix, starting role-selected components
+   inside its activation;
 2. bind node-to-node RPC, verify the exact cluster BuildTag, and join the
    Membership Table as `Joining`;
 3. verify two-way connectivity and run recovery participants;
@@ -712,7 +717,9 @@ Graceful shutdown reverses the safety boundary:
    retire every remaining local activation while Actor Directory and cluster
    transport are still available;
 4. stop Actor Directory, publish `Dead`, and stop the node-to-node listener;
-5. retire Hotfix and stop application modules in reverse order.
+5. wait for Hotfix generation leases, run the latest component Stop hooks in
+   reverse recorded activation order, then clean up and retire the generations;
+6. dispose root-owned State and stable resources with the host provider.
 
 Once all configured RPC listeners are listening, a terminal failure in any one
 of them closes distributed-work admission and requests host shutdown.

@@ -1,18 +1,8 @@
 # Game.Unity.Agar 生产上线门槛
 
-本文只记录 `samples/Game.Unity.Agar` 尚未关闭的生产上线门槛。当前玩法、客户端和服务端边界分别以 [`topics/gameplay-rules.md`](topics/gameplay-rules.md)、[`topics/client-architecture.md`](topics/client-architecture.md) 和 [`topics/server-architecture.md`](topics/server-architecture.md) 为准；已经落地的实现不在这里重复维护。
-
-## 上线范围
-
-首个生产版本定位为轻量小球吞噬对战：
-
-- 单机模式可完全离线游玩。
-- 联机模式包含账号或游客登录、匹配、实时对局、结算、胜利积分和周榜。
-- 联机采用 20Hz 确定性帧同步；服务端排序并转发输入帧，客户端执行完整战斗模拟。
-- 服务端以单节点或 `data-1`、`gateway-1`、`battle-1` 三节点拓扑运行，并使用 PostgreSQL 和 Redis。
-- 玩家界面只展示玩家可理解的信息，不暴露 endpoint、tick、内部状态或调试入口。
-
-分裂、吐质量、病毒、组队、任务、商店、观战、回放和长期历史榜单不属于首发范围。
+本文只记录 `samples/Game.Unity.Agar` 尚未关闭的生产上线门槛。
+样例职责与限制见[设计与边界](GAMEPLAY_DESIGN.md)，运行和测试入口见
+[README](../README.md)；已经落地的实现不在这里重复维护。
 
 ## 当前生产阻塞项
 
@@ -43,6 +33,7 @@
 
 - 生产环境通过部署平台 secret 或环境变量注入数据库、Redis、token 和公网 endpoint 配置，不使用开发默认凭据。
 - PostgreSQL 初始 schema 和后续升级使用版本化迁移流程；普通应用启动不承担生产 schema 升级。
+- 从未记录结算操作 ID 的数据库升级时，先处理旧版在途结算并建立结算表，统一切换 data 节点后恢复结算；无法追溯的历史奖励不能补出幂等记录。初始表结构见 [SQL](../infra/postgres/init/001-agar-users.sql)。
 - 建立 PostgreSQL 备份、恢复演练和数据保留策略。
 - 明确周榜旧周期 Redis key 的保留和清理规则，以及 Redis 不可用时的产品行为。
 - 当前周重置只覆盖上一周期 Redis 索引中的玩家；如果产品要求“所有历史用户积分归零”，必须补充全量用户目录或调整产品语义。
@@ -65,23 +56,8 @@
 
 ## 验证门槛
 
-从仓库根目录运行自动化验证：
-
-```powershell
-dotnet build samples/Game.Unity.Agar/Shared/Shared.csproj -f net10.0
-dotnet build samples/Game.Unity.Agar/Server/App/Server.App.csproj
-dotnet build samples/Game.Unity.Agar/Server/Hotfix/Server.Hotfix.csproj
-dotnet test samples/Game.Unity.Agar/tests/BusinessLogic.Tests/BusinessLogic.Tests.csproj
-pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1
-```
-
-三节点脚本的完整生命周期场景使用：
-
-```powershell
-pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 `
-  -TestFilter "SampleClient.Gameplay.Tests.DotArenaTwentyClientLifecyclePlayModeTests.TwentyClientsCompleteMatchBattleSettlementAndLeaderboard" `
-  -TimeoutSeconds 600
-```
+业务测试和三节点验证命令见 [README](../README.md#验证入口)。
+完整生命周期场景的参数见[三节点验证 skill](../../../.agents/skills/agar-three-node-e2e/SKILL.md#useful-options)。
 
 上线候选还必须满足：
 
@@ -91,10 +67,4 @@ pwsh -NoProfile -File scripts/game/ci/test-agar-three-node.ps1 `
 - 20 客户端两房间生命周期、结算、胜利积分和排行榜核对通过。
 - 发布包、视觉、配置、许可、备份恢复和回滚演练通过。
 
-## 当前非目标
-
-- 权威服务器战斗模拟、预测回滚或服务端状态校正。
-- 房间运行时自动迁移到另一 battle 节点。
-- 无限时长帧历史、观战或通用回放系统。
-- 任务、商店、复杂皮肤养成或长期历史战绩。
-- 未经容量验证的自动扩缩容和跨区域部署。
+未经容量与故障验证，不将样例拓扑视为支持自动扩缩容或跨区域生产部署。

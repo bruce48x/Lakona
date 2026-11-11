@@ -228,12 +228,11 @@ Do not introduce:
 --cluster false
 ```
 
-Topology and deployment choices are expressed as generation-time intent, not
-as default runtime JSON complexity. Examples:
+Select deployment support and Membership storage at generation time. Examples:
 
 ```bash
 lakona-tool new --name MyGame --deploy-profile compose
-lakona-tool new --name MyGame --topology split-directory
+lakona-tool new --name MyGame --membership-provider postgres
 ```
 
 The Compose profile is a single-node local development deployment. Its image
@@ -242,6 +241,10 @@ TCP/WebSocket. Compose binds the business listener to all container interfaces
 and publishes it on host loopback; management HTTP stays private. Local dotnet
 configuration remains loopback-only. See the generated `ops/CLUSTER_OPERATIONS.md`
 for startup commands, host-port overrides and external Membership configuration.
+
+Selecting an external Membership provider adds its storage integration; it does
+not generate a split-node topology. Configure each deployed node's roles and
+endpoints as described in [Cluster](../cluster.md).
 
 The default command remains:
 
@@ -310,10 +313,12 @@ completion output reports the Git status clearly.
 
 ## Contract
 
-A new user should be able to run:
+A new user should be able to run the following from the directory where they
+keep their projects:
 
 ```bash
 lakona-tool new --name MyGame
+cd MyGame
 dotnet build Server/Server.slnx
 dotnet run --project Server/App/Server.App.csproj
 curl http://127.0.0.1:20080/_lakona/health/ready

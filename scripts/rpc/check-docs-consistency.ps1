@@ -1,17 +1,12 @@
 param(
-    [switch]$Quiet
+    [switch]$Quiet,
+    [string]$RepositoryRoot = (Join-Path $PSScriptRoot '../..')
 )
 
 $ErrorActionPreference = "Stop"
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "../..")
-$markdownTargets = @(
-    "README.md",
-    "CONTRIBUTING.md",
-    "blog",
-    "docs",
-    "src"
-)
+$repoRoot = (Resolve-Path $RepositoryRoot).Path
+. (Join-Path $PSScriptRoot 'docs-consistency-rules.ps1')
 
 $forbiddenSnippets = @(
     @{
@@ -37,7 +32,9 @@ $forbiddenSnippets = @(
         Allow = {
             param($relativePath, $line)
             ($relativePath -eq "CONTRIBUTING.md" -and $line.Trim() -eq "- ``ValueTask.FromResult(...)``") -or
-            ($relativePath -eq "docs/contributing/engineering.md" -and $line.Contains("Do not use ``ValueTask.CompletedTask`` or ``ValueTask.FromResult(...)``"))
+                ($relativePath -eq "docs/contributing/engineering.md" -and $line.Contains("Do not use ``ValueTask.CompletedTask`` or ``ValueTask.FromResult(...)``")) -or
+                ($relativePath -eq 'skills/lakona-implement-service/SKILL.md' -and $line.Contains('`ValueTask.CompletedTask` or `ValueTask.FromResult(...)` in Lakona projects')) -or
+                ($relativePath -eq '.agents/skills/lakona-architecture-review/references/standards-checklist.md' -and $line.Contains('with no `ValueTask.CompletedTask` or `ValueTask.FromResult(...)`'))
         }
     },
     @{
@@ -58,11 +55,11 @@ $forbiddenSnippets = @(
     },
     @{
         Pattern = "SQL-backed node"
-        Reason = "cluster membership and activation state use the replicated in-process control plane"
+        Reason = "Membership uses a shared Membership Table; Actor Directory state remains in memory"
     },
     @{
         Pattern = "process-local route directory"
-        Reason = "single-node and multi-node deployments use the same replicated control plane"
+        Reason = "distributed routing uses the Membership Table and in-memory Actor Directory"
     },
     @{
         Pattern = "reference this package as a private build dependency"
@@ -88,20 +85,21 @@ $requiredSnippets = @(
     }
 )
 
-$files = foreach ($target in $markdownTargets) {
-    $path = Join-Path $repoRoot $target
-    if (Test-Path $path -PathType Leaf) {
-        Get-Item $path
-    } elseif (Test-Path $path -PathType Container) {
-        Get-ChildItem $path -Recurse -File -Filter "*.md"
-    }
-}
+$paths = & git -c core.quotePath=false -C $repoRoot ls-files --cached --others --exclude-standard -- '*.md'
+if ($LASTEXITCODE -ne 0) { throw 'Could not inventory maintained documentation.' }
+$files = @($paths | Sort-Object -Unique | Where-Object {
+    $_ -notmatch '(^|/)(Packages|Library|Temp|bin|obj|node_modules|\.godot|\.tmp|artifacts|\.nuget)(/|$)' -and
+    (Test-Path -LiteralPath (Join-Path $repoRoot $_) -PathType Leaf)
+} | ForEach-Object { Get-Item -LiteralPath (Join-Path $repoRoot $_) })
 
 $failures = New-Object System.Collections.Generic.List[string]
 
 foreach ($file in $files) {
     $relativePath = [System.IO.Path]::GetRelativePath($repoRoot, $file.FullName).Replace("\", "/")
-    $lines = Get-Content -LiteralPath $file.FullName
+    $lines = @(Get-Content -LiteralPath $file.FullName)
+    $parts = Get-DocumentationParts ($lines -join "`n")
+    foreach ($failure in (Test-DocumentationLinks $file.FullName $repoRoot $parts.Text)) { $failures.Add($failure) }
+    foreach ($failure in (Test-DocumentationExamples $file.FullName $repoRoot $parts.Blocks)) { $failures.Add($failure) }
 
     for ($i = 0; $i -lt $lines.Count; $i++) {
         foreach ($snippet in $forbiddenSnippets) {
@@ -128,28 +126,7 @@ foreach ($required in $requiredSnippets) {
 }
 
 $changelogPath = Join-Path $repoRoot "CHANGELOG.md"
-$changelogLines = Get-Content -LiteralPath $changelogPath
-$changelogDates = @{}
-for ($i = 0; $i -lt $changelogLines.Count; $i++) {
-    $line = $changelogLines[$i]
-    if ($line.StartsWith("## ") -and $line -notmatch '^## \d{4}-\d{2}-\d{2} — \S') {
-        $failures.Add(("CHANGELOG.md:{0}: milestone headings must use '## YYYY-MM-DD — Title'" -f ($i + 1)))
-    }
-
-    if ($line -match '^## (?<date>\d{4}-\d{2}-\d{2}) — \S') {
-        $date = $Matches.date
-        if ($changelogDates.ContainsKey($date)) {
-            $failures.Add(("CHANGELOG.md:{0}: date {1} already has a milestone at line {2}; combine same-day work" -f ($i + 1), $date, $changelogDates[$date]))
-        }
-        else {
-            $changelogDates[$date] = $i + 1
-        }
-    }
-
-    if ($line.StartsWith("**Key releases:**") -and $line -notmatch '`[^`]+ \d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?`') {
-        $failures.Add(("CHANGELOG.md:{0}: Key releases must include a package ID and semantic version in backticks" -f ($i + 1)))
-    }
-}
+foreach ($failure in (Test-DocumentationChangelog (Get-Content -LiteralPath $changelogPath -Raw))) { $failures.Add($failure) }
 
 if ($failures.Count -gt 0) {
     Write-Error ("Documentation consistency check failed:`n" + ($failures -join "`n"))
@@ -157,5 +134,5 @@ if ($failures.Count -gt 0) {
 }
 
 if (-not $Quiet) {
-    Write-Host "Documentation consistency check passed."
+    Write-Host "Documentation consistency check passed ($($files.Count) maintained Markdown files)."
 }

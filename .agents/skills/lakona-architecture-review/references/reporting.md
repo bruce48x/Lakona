@@ -40,6 +40,9 @@ Use this structure:
 - Changes made by review: None
 - Pre-existing worktree changes:
 - Standards baseline commit:
+- Standards comparison mode: Baseline delta | Initial full-tree | Explicit range
+- Standards target commit and worktree coverage:
+- Standards next baseline commit and covered scope (complete reports only):
 
 ## Executive Summary
 ## Coverage Ledger

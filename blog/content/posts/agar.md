@@ -79,13 +79,18 @@ Start a single-node environment for the quickest first run:
 
 The script builds the Agar images, starts PostgreSQL, Redis, and the game
 server, then waits for the server to report ready. When it finishes, the
-client-facing endpoints are:
+local endpoints use these default addresses:
 
 | Endpoint | Address | Purpose |
 | --- | --- | --- |
 | Gateway | <code>ws://127.0.0.1:20000/ws</code> | Login, matchmaking, and normal RPC calls |
 | Battle | <code>udp://127.0.0.1:20001</code> | Realtime battle traffic |
-| Operations | <code>http://127.0.0.1:21000</code> | Local operations and readiness checks |
+| Operations | <code>http://127.0.0.1:21000</code> | Agar application HTTP operations |
+| Readiness | <code>http://127.0.0.1:20080/_lakona/health/ready</code> | Framework management probe; HTTP 200 means ready |
+
+Application operations and framework management use separate HTTP listeners.
+The <code>/_lakona/**</code> routes are served by the management listener, not
+the operations listener on port <code>21000</code>.
 
 Once the single-node game works, start the default three-node topology:
 
@@ -98,6 +103,11 @@ This starts <code>data-1</code>, <code>gateway-1</code>, and
 <code>battle-1</code>, alongside PostgreSQL and Redis. The client still uses
 the same gateway and battle ports, but the application responsibilities are
 now separated across three Lakona nodes.
+
+With the default port mappings, each node has its own readiness URL at
+<code>http://127.0.0.1:&lt;port&gt;/_lakona/health/ready</code>: gateway uses
+<code>20080</code>, data uses <code>20081</code>, and battle uses
+<code>20082</code>. The start script checks all three before reporting success.
 
 Inspect or stop the environment with the same script:
 

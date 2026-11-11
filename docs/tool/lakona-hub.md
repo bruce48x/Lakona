@@ -44,6 +44,14 @@ validated, and atomically activated in Hub's per-user application-data
 directory. Hub does not modify the user's system `PATH`, require administrator
 access, or install a global SDK.
 
+The [first-project tutorial](../../blog/content/posts/getting-started.md) builds
+and runs the server from an IDE or an ordinary terminal. That path also requires
+a system .NET 10 SDK: `dotnet` must be on the terminal's `PATH`, and
+`dotnet --list-sdks` must include a `10.0.xxx` SDK. The server IDE must use a
+compatible system SDK as well. Installing only the Hub-managed SDK or a .NET
+runtime does not satisfy this prerequisite; Hub does not configure the IDE to
+use its private SDK.
+
 ## Module Shape
 
 ```txt

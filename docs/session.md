@@ -426,9 +426,12 @@ notifications. Generated business RPC contracts must use positive service ids
 outside that reserved range.
 
 Business RPC before a completed handshake is rejected with a structured
-`HandshakeRequired` failure. `ClientHello` carries only `ProtocolVersion = 1`.
-`ServerHello` returns the selected protocol version plus server-owned
-reliable-push and heartbeat policies. Endpoint transport, endpoint serializer,
+`HandshakeRequired` failure. The framework handshake negotiates the protocol
+and server-owned delivery, heartbeat, and recovery policies. During recovery,
+the generated Game client presents an opaque resume ticket, and the server
+reports whether the existing session can resume.
+
+Endpoint transport, endpoint serializer,
 server node identity, server time, runtime, platform, game-version, build, and
 capability metadata are application concerns and are not part of the default
 framework handshake unless they gain concrete framework behavior.
@@ -574,7 +577,7 @@ sequenceDiagram
     E->>S: Validate endpoint identity, ticket, and deadline
     alt Continuity is valid
         S-->>E: Prepare rebind to new connection generation
-        E-->>C: Session identity, generation, and ticket
+        E-->>C: Recovery accepted
         C->>E: Reserved establishment acknowledgement
         E->>S: Commit active binding
         C->>E: Next framework heartbeat confirms active session
@@ -591,7 +594,7 @@ sequenceDiagram
 
 Session establishment uses a reserved framework notification followed by a
 reserved acknowledgement. Both first-binding paths wait for the client to apply
-the Session id, generation, and opaque ticket before committing the binding.
+the session identity and opaque resume ticket before committing the binding.
 The registry keeps the reserved connection hidden from session lookups while the
 acknowledgement is pending. It commits the reliable-push policy and serializer
 profile with the first binding. A candidate disconnect before the first commit
@@ -688,7 +691,7 @@ instances or references, hotfix-defined class instances, mutable collections,
 durable player data, or room membership authority.
 
 Each session item container is created empty with its `GameSessionKey`. Items
-are preserved across disconnect and resume for the same generation. Items are
+are preserved across disconnect and resume for the same Game Session. Items are
 cleared or inaccessible after termination, including terminal-state retention,
 and removed when a disconnected session expires.
 
@@ -725,9 +728,8 @@ generations, current room, match ticket, seat, and online state.
 
 Business actors must not store callback objects, `RpcSession`, transport
 objects, endpoint names, or framework callback binding containers. Framework
-lifecycle requests carry stable data such as owner key, session id, generation,
-connection id, and callback contract type names so hotfix lifecycle code can
-update business state without holding transport objects.
+lifecycle requests identify the affected session and connection so Hotfix
+lifecycle code can update business state without holding transport objects.
 
 When business code groups several framework sessions, each session remains
 independent. If losing one should affect another, the business actor applies
@@ -757,13 +759,18 @@ flowchart LR
 
 | Role | Responsibility | Has business state | Failure impact |
 | --- | --- | :---: | --- |
-| Gate | Maintain client connections and forward messages. No business logic. | No | Client reconnects to another Gate; Agent can remain unchanged. |
+| Gate | Maintain client connections and forward messages. No business logic. | No | Process loss invalidates its Game Sessions; Agent business state may survive. |
 | Watchdog | Authenticate, create or bind Agent, then exit the call chain. | Transient | Affects only new or resuming connections. |
 | Agent | One-to-one player service. Holds session-facing state. | Yes | Affects only that player. |
 
-The key point is that Gate is stateless. Public internet traffic can hit cheap
-Gate nodes while player state lives behind Agents or actors. For low-latency
-games, the realtime channel shown above is a separate connection and session.
+Gate keeps framework session and reliable-push state in process while business
+state lives behind Agents or actors. Resuming the same Game Session requires
+the original Gate owner to survive. Reconnecting to another Gate returns
+`StateLost`; the application must authenticate and establish a new Game Session,
+then refresh business state from its authority. See
+[Reliable Push And Resume](#reliable-push-and-resume) for the recovery contract.
+For low-latency games, the realtime channel shown above is a separate connection
+and session.
 
 The two channels shown above use independent RPC sessions. Losing one does not
 directly change the other unless user business code links them and applies that
@@ -1017,8 +1024,9 @@ Only newly received sequences enter the queue.
 Receive admission waits for framework session initialization when an earlier
 session-establishment notification is still initializing the client. It does not
 wait for business handlers. Cursor persistence and ACK work use a separate path;
-stale connection cancellation and session generations prevent late confirmation
-from reviving an old connection's acknowledgement state.
+stale connection cancellation and current-session and connection-generation
+checks prevent late confirmation from reviving an old connection's
+acknowledgement state.
 
 The client never waits for a reliable-push acknowledgement from inside the
 notification callback on the same RPC Session; doing so could deadlock replay
@@ -1152,9 +1160,8 @@ after bursts of rejected notifications to different sessions.
 
 Every rejected notification increments
 `lakona.game.notification.backpressure` on the `Lakona.Game.Session` meter.
-The bounded reason is `session_capacity`, `process_capacity`, or `pending_bytes`;
-session, owner, callback, and gateway identities are deliberately excluded
-from metric tags.
+Reason tags and their low-cardinality contract are defined in
+[Observability](observability.md#instrumentation-scopes).
 
 Batching changes only transport framing. It never deduplicates, overwrites, or
 coalesces an accepted notification. Whether a newer state update supersedes an

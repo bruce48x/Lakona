@@ -231,15 +231,38 @@ open without replying.
 Source-scan tests that read `src/**` must be updated when source files move or
 are renamed.
 
-For solution runs that exceed local tool timeouts, execute test projects
-sequentially with the same isolated artifacts root used by `scripts/test.ps1`:
+## Documentation Consistency
+
+Run `pwsh -NoProfile -File scripts/rpc/check-docs-consistency.ps1` for maintained
+Markdown changes. It inventories tracked and non-ignored untracked Markdown,
+including sample READMEs and public/private skills, excluding embedded packages
+and generated caches.
+
+The guard checks explicit relative Markdown links and reference definitions,
+local heading/HTML anchors, literal repository script paths and `-Sample`
+values in fenced examples, identical code blocks of at least eight non-empty
+lines within one document, and changelog milestone/release format. It also
+checks selected retired APIs and required authority links. Its regression
+fixtures run through the repository guard suite.
+
+Public skill packaging, metadata, and bundled-reference constraints remain in
+`SkillPublicationRepositoryTests`. Neither guard compiles documentation examples,
+checks remote URLs, detects all forms of duplicated code, or establishes that
+prose matches runtime behavior; retain source-based semantic review and relevant
+build/runtime verification for those claims.
+
+## Repository Test Entry Point
+
+When repository-wide validation is required by the selected scope or stage
+gate, run the unified entry point from the repository root:
 
 ```powershell
-$repositoryRoot = git rev-parse --show-toplevel
-$artifactsPath = Join-Path $repositoryRoot 'artifacts/test'
-$projects = Get-ChildItem tests -Recurse -Filter '*.csproj' | Sort-Object FullName
-foreach ($project in $projects) {
-  dotnet test $project.FullName --artifacts-path $artifactsPath
-  if ($LASTEXITCODE -ne 0) { throw "Tests failed: $($project.FullName)" }
-}
+pwsh -NoProfile -File scripts/test.ps1
 ```
+
+The script already runs projects sequentially, isolates outputs by configuration,
+records TRX results, detects hung tests, and includes the Release allocation
+check in the default Debug run. Keep these behaviors in
+[`scripts/test.ps1`](../../scripts/test.ps1), rather than copying its loop into
+manual commands. For long runs, use the execution environment's persistent
+process/session support and monitor completion without restarting the suite.

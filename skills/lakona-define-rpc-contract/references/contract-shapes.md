@@ -65,7 +65,18 @@ public interface IStageNotifications
 }
 ```
 
-An RPC method has exactly one request DTO and returns `ValueTask` or `ValueTask<T>`. A notification has exactly one DTO parameter and returns `void`. Use an explicit empty request DTO rather than omitting the request.
+An RPC method has exactly one request DTO and returns `ValueTask` or
+`ValueTask<T>`. Use an explicit empty request DTO rather than omitting the request.
+
+RPC notifications return `void` or non-generic `ValueTask` and take one DTO
+payload, optionally followed by a `CancellationToken`. Prefer the simple `void`
+shape above for new contracts when it fits project conventions; preserve valid
+existing signatures.
+
+Game publication through `IClientNotifications.ForSession<TCallback>` uses
+generated extensions returning synchronous `ClientNotificationStatus` for local
+admission. This remains separate from the RPC notification contract's return
+type and does not require rewriting that contract to `void`.
 
 ## DTO Shape And Evolution
 

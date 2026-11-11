@@ -52,12 +52,19 @@ The bootstrap order remains:
 
 ```text
 configure the stable root graph
-  -> start application modules
-  -> load and validate the initial Hotfix generation
-  -> bind Kestrel, RPC, and cluster listeners
-  -> publish cluster Ready
+  -> run role-filtered ComponentConfigureServices before root Build
+  -> build the root provider and initialize stable resource factories
+  -> load and validate the initial Hotfix generation, then start components
+  -> start RPC listeners, join Membership, recover Directory and start Startup Actors
+  -> complete HTTP listener startup
+  -> open distributed admission and publish complete Actor descriptors
   -> mark the process Ready
 ```
+
+Component Start runs inside initial Hotfix activation, before listener startup.
+On shutdown, Actor work drains before the latest generation runs component Stop
+in reverse recorded activation order; generation cleanup follows, and root-owned
+resources are disposed last. See [Hotfix Components](./hotfix/components.md).
 
 Listener bind failure fails startup. Shutdown marks the process NotReady and
 closes business admission before Kestrel stops accepting application requests
@@ -135,7 +142,10 @@ initial Hotfix HTTP manifest
   -> ASP.NET response adapter
 ```
 
-Author the route and product behavior together in `Server.Hotfix`:
+Author the route and product behavior together in `Server.Hotfix`. The following
+declaration-only sketch is intentionally incomplete: it does not compile and
+must not be deployed. Implement signature verification against `RawBody`,
+idempotency, and durable acceptance before building or exposing this route:
 
 ```csharp
 using Lakona.Game.Server.Hotfix.Abstractions;
@@ -147,12 +157,8 @@ public sealed class PaymentWebhookService
     [LakonaHttpEndpoint("POST", "/payments/notify")]
     public ValueTask<LakonaHttpResponse> NotifyAsync(LakonaHttpCall call)
     {
-        ReadOnlyMemory<byte> exactBody = call.Request.RawBody;
-
-        // Verify the signature, apply idempotency policy, and route durable
-        // state changes through call.Actors here.
-        return new ValueTask<LakonaHttpResponse>(
-            LakonaHttpResponse.Text("accepted"));
+        // Intentionally omitted: verification, idempotency, and durable acceptance.
+        // Return success only after the required acceptance path completes.
     }
 }
 ```

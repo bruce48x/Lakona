@@ -44,6 +44,7 @@ public sealed class E2eScriptRepositoryTests
     [InlineData("test-lakona-e2e-script.ps1", "Lakona scaffold E2E script contract: PASS")]
     [InlineData("test-e2e-client-dependencies.ps1", "E2E client dependency contract: PASS")]
     [InlineData("test-agar-three-node-script.ps1", "Agar three-node script contract: PASS")]
+    [InlineData("test-docs-consistency.ps1", "Documentation consistency contract: PASS")]
     public async Task E2e_script_contracts(string scriptName, string successMarker)
     {
         var repositoryRoot = GitChangeSetReader.FindRepositoryRoot();

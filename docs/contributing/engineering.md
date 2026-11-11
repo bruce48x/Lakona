@@ -72,6 +72,10 @@ blog/        Hugo article sources
   Replace duplicated configuration, lifecycle contracts, and complete tutorials
   with links to the relevant `docs/**`, public Skills, or runnable samples.
   Use absolute repository URLs for links in READMEs shipped inside NuGet packages.
+- Keep sample READMEs focused on purpose, running, and validation. Sample design
+  notes retain distinct boundaries, decisions, and limitations; link framework
+  authorities and use source/tests for parameter values, field and class inventories,
+  and exact behavior. Keep environment-specific deployment instructions near their configuration.
 - Use `docs/plans/**` only for temporary active plans, reviews, and
   handoffs. Move durable rules to an authority document, then delete completed
   artifacts.

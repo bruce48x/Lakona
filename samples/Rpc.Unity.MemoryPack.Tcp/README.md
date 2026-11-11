@@ -12,13 +12,13 @@ MemoryPack-based RPC sample over TCP.
 Build or regenerate the sample from the repository root:
 
 ```powershell
-pwsh -NoProfile -File .\scripts\sample.ps1 -Sample Unity.MemoryPack.Tcp
+pwsh -NoProfile -File .\scripts\rpc\sample.ps1 -Sample Rpc.Unity.MemoryPack.Tcp
 ```
 
 Run the server:
 
 ```powershell
-pwsh -NoProfile -File .\scripts\sample.ps1 -Sample Unity.MemoryPack.Tcp -Run
+pwsh -NoProfile -File .\scripts\rpc\sample.ps1 -Sample Rpc.Unity.MemoryPack.Tcp -Run
 ```
 
 The sample server enables connection keepalive by default and also accepts:
@@ -29,7 +29,7 @@ The sample server enables connection keepalive by default and also accepts:
 --keepalive-timeout 00:00:45
 ```
 
-Open `samples/Unity.MemoryPack.Tcp/Client`, load `Assets/Scenes/ConnectionTest.unity`, and press Play.
+Open `samples/Rpc.Unity.MemoryPack.Tcp/Client`, load `Assets/Scenes/ConnectionTest.unity`, and press Play.
 
 The Unity client opens multiple TCP connections. Each connection uses three independent services:
 

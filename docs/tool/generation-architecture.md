@@ -800,8 +800,12 @@ Actor startup is explicit by default: generated `Program.cs` registers only
 the selected transport and serializer implementations and does not emit
 business service or actor-registration callbacks. Single-node starter
 projects do not generate component selection. If a generated project later
-splits into multiple processes, use `Lakona:Node:Roles` with `[NodeRole]` on stable Actor and Module types to select actor host
-capabilities. Startup Actor groups remain declared in
+splits into multiple processes, use `Lakona:Node:Roles` with `[NodeRole]` on
+stable Actor types to select actor host capabilities. HotfixComponent types may
+also declare `[NodeRole]` to filter resource registration and component
+activation; unmarked components run on every node. See
+[Hotfix Components](../hotfix/components.md) for their lifecycle.
+Startup Actor groups remain declared in
 `HotfixStartup.ConfigureActors` with `RegisterStartup<TActor, TKey>()` or its
 selector overload.
 
@@ -912,13 +916,9 @@ rg "Server/Server/|Server\\\\Server\\\\|network-profile|realtime|single" src/Lak
 `Server/Server.slnx` is a valid solution path. Nested-directory checks must
 target `Server/Server/`, not that filename.
 
-For normal validation, follow `CONTRIBUTING.md`:
-
-```powershell
-dotnet build Lakona.slnx
-dotnet test Lakona.slnx --no-build
-```
-
-For generation changes, run both
-`dotnet test tests/Lakona.ProjectSystem.Tests/Lakona.ProjectSystem.Tests.csproj`
-and `dotnet test tests/Lakona.Tool.Tests/Lakona.Tool.Tests.csproj`.
+Select affected ProjectSystem and Tool adapter checks according to
+[Validation Scope And Completion](../contributing/testing.md#validation-scope-and-completion).
+When repository-wide validation is required, use the
+[repository test entry point](../contributing/testing.md#repository-test-entry-point).
+Do not run a separate solution build or repeat project tests already covered
+by a successful run unless new changes, failures, or unresolved risk justify it.

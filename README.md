@@ -53,6 +53,8 @@ imports existing Lakona projects, packages server and Hotfix releases, and
 opens your development tools. Every generated project remains ordinary files
 that you can build and use without Hub. See the [Hub documentation](docs/tool/lakona-hub.md).
 
+<a id="see-it-in-action"></a>
+
 ## See It In Action 🎮
 
 > **Agar in action:** [From a local Unity game to a nine-node cluster](https://bruce48x.github.io/Lakona/posts/agar/) — including deployment and OpenTelemetry observability.
@@ -102,9 +104,11 @@ under [`src/`](src).
 Supported targets include .NET 10 server projects, .NET Standard 2.1 shared and
 client packages, Unity 2022 LTS, Godot 4.x .NET, and Windows, Linux, and macOS.
 
+<a id="learn-more"></a>
+
 ## Learn More 📚
 
-- [Create and Run a Lakona Project](https://bruce48x.github.io/Lakona/posts/getting-started/)
+- [Create Your First Game Project with Lakona Hub (Unity)](https://bruce48x.github.io/Lakona/posts/getting-started/)
 - [Design Philosophy](docs/design-philosophy.md)
 - [Lakona Hub](docs/tool/lakona-hub.md)
 - [RPC architecture](docs/rpc/architecture.md)
@@ -159,6 +163,6 @@ In another terminal, check that the generated runtime is ready:
 curl http://127.0.0.1:20080/_lakona/health/ready
 ```
 
-Then open the generated `Client/` project in Unity or Godot. For the complete
-first-run walkthrough, including the Godot command and client setup, read
-[Create and Run a Lakona Project](https://bruce48x.github.io/Lakona/posts/getting-started/).
+Then open the generated `Client/` project in Unity. For a complete Unity
+first-run walkthrough using Lakona Hub, read
+[Create Your First Game Project with Lakona Hub](https://bruce48x.github.io/Lakona/posts/getting-started/).

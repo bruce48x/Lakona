@@ -288,7 +288,7 @@ the Hotfix generation; reload does not rerun ActorStart or replay initialization
 Stable Actor state and reloadable Behavior form one Actor programming model.
 The complete authoring, state-access, lifecycle, Startup Actor, placement, and
 timer contracts live in
-[Actors and Hotfix Behavior](../actor.md#stable-actor-hotfix-behavior).
+[Actors and Hotfix Behavior](../actor.md).
 
 At the Hotfix generation boundary, an accepted Actor turn acquires one dispatch
 snapshot when mailbox execution begins and uses that generation for the whole

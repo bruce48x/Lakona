@@ -86,10 +86,26 @@ Every full review independently completes:
 Finding a strong problem in one pass does not end or reduce another pass. Small
 findings remain local instead of being inflated into broad redesigns.
 
-The standards pass is delta-shaped. It reviews changes since the baseline
-commit recorded by the most recent report, or since the most recent release
-named in `CHANGELOG.md` when no baseline exists. Documented rule breaches are
-hard findings, not design judgement, and must cite the rule.
+### Standards Comparison Scope
+
+By default, the standards pass covers committed changes since the baseline,
+staged changes, unstaged changes, and non-ignored untracked files within the
+review scope. Inspect these surfaces separately so edits reversed between the
+index and worktree are not hidden. An explicit commit range overrides this
+default; report its actual coverage and any excluded worktree changes.
+
+Use an explicit baseline or the reviewed commit from the most recent complete
+report covering the same scope. Resolve the baseline to a commit and verify
+it is an ancestor of the target commit. An unresolvable explicit range blocks
+that scope. Without a usable prior baseline, perform an initial full-tree
+standards pass and record that no baseline exists; do not infer a release
+commit from `CHANGELOG.md` dates or package versions.
+
+Record the resolved comparison range, current HEAD, worktree status, and covered
+scope. A complete report may nominate its reviewed HEAD as the next baseline
+for that scope, but that commit does not capture uncommitted content.
+Documented rule breaches are hard findings, not design judgement, and must
+cite the rule.
 
 ## Coverage Standard
 

@@ -35,7 +35,8 @@ Verify these before treating a failure as a product bug:
 - Docker with `docker compose` is installed and running.
 - Unity is installed, preferably the version in `samples/Game.Unity.Agar/Client/ProjectSettings/ProjectVersion.txt`.
 - If Unity is not in the default Hub path, pass `-UnityPath` or set `UNITY_PATH`.
-- Port `20000` is available on `127.0.0.1`.
+- Required ports are free or owned by the target test project's expected services.
+- Run only one three-node test at a time, including across worktrees.
 - The working tree can tolerate local artifacts under `.tmp/agar-three-node`.
 
 ## Useful Options
@@ -47,9 +48,9 @@ Verify these before treating a failure as a product bug:
   without that synchronized window but still performs gateway and whole-cluster
   recovery checks.
 - `-KeepEnvironment`: leave Docker Compose services running after a successful or failed run.
-- `-ReuseEnvironment`: reuse an already-running Compose project instead of tearing it down first.
+- `-ReuseEnvironment`: retain the target project's containers and data instead of cleaning first; recovery tests still restart and replace nodes. Do not use against an environment serving other work.
 - `-SkipBuild`: run Compose without `--build`; use only when the images are known current.
-- `-ProjectName <name>`: isolate from another local Compose project; default is `lakona-agar-three-node-test`.
+- `-ProjectName <name>`: select the Compose project; default is `lakona-agar-three-node-test`. Ports, container names, and artifact paths remain fixed, so this does not enable parallel runs.
 
 Examples:
 

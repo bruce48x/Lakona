@@ -12,16 +12,16 @@ MemoryPack-based RPC sample over KCP.
 Build or regenerate the sample from the repository root:
 
 ```powershell
-pwsh -NoProfile -File .\scripts\sample.ps1 -Sample Unity.MemoryPack.Kcp
+pwsh -NoProfile -File .\scripts\rpc\sample.ps1 -Sample Rpc.Unity.MemoryPack.Kcp
 ```
 
 Run the server:
 
 ```powershell
-pwsh -NoProfile -File .\scripts\sample.ps1 -Sample Unity.MemoryPack.Kcp -Run
+pwsh -NoProfile -File .\scripts\rpc\sample.ps1 -Sample Rpc.Unity.MemoryPack.Kcp -Run
 ```
 
-Open `samples/Unity.MemoryPack.Kcp/Client`, load `Assets/Scenes/ConnectionTest.unity`, and press Play.
+Open `samples/Rpc.Unity.MemoryPack.Kcp/Client`, load `Assets/Scenes/ConnectionTest.unity`, and press Play.
 
 The Unity client opens one KCP connection, logs in, then calls `IncrStep()` at a fixed interval. The server creates one `PlayerService` per accepted connection, so each client connection keeps its own counter.
 

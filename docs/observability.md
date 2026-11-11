@@ -91,7 +91,7 @@ when distributed admission is closed because current authority is absent.
 The `Lakona.Game.Session` meter emits
 `lakona.game.notification.backpressure` whenever notification admission is
 rejected. Its bounded `lakona.game.notification.reason` tag distinguishes
-`session_capacity`, `process_capacity`, and `batch_bytes`; it never carries a
+`session_capacity`, `process_capacity`, and `pending_bytes`; it never carries a
 session, owner, callback, or gateway identifier.
 
 `Lakona.Game.Session` also emits `lakona.game.notification.send_failure` for
@@ -149,11 +149,12 @@ dotnet add Server/App/Server.App.csproj package OpenTelemetry.Instrumentation.Ru
 dotnet add Server/App/Server.App.csproj package OpenTelemetry.Instrumentation.AspNetCore
 ```
 
-Pin compatible versions in your application's dependency management. Inside
-the existing `LakonaGameServer.RunAsync` configuration callback in
-`Server/App/Program.cs`, add the following registrations before the host starts.
-Here `server` is that callback's `LakonaGameServerBuilder`; preserve existing
-transport, serializer, Membership Adapter, and application registrations.
+Pin compatible versions in your application's dependency management. Add the
+following `using` directives to `Server/App/Program.cs`, then put the registrations
+inside its existing `LakonaGameServer.RunAsync` configuration callback, before
+the host starts. Here `server` is that callback's `LakonaGameServerBuilder`;
+preserve existing transport, serializer, Membership Adapter, and application
+registrations.
 
 ```csharp
 using Lakona.Game.Server.Observability;

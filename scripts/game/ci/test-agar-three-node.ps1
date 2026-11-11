@@ -436,73 +436,73 @@ function Test-UdpPortFree {
     }
 }
 
-function Get-DockerPublishedPortOwner {
-    param(
-        [int]$Port,
-        [string]$Protocol
-    )
-
-    $containers = & docker ps --format "{{.Names}}|{{.Ports}}" 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        return ""
+function Get-DockerPublishedPorts {
+    $ids = @(& docker ps -q)
+    if ($LASTEXITCODE -ne 0) { throw 'Could not inspect running Docker containers.' }
+    if ($ids.Count -eq 0) { return }
+    $json = & docker inspect @ids
+    if ($LASTEXITCODE -ne 0) { throw 'Could not inspect Docker port ownership.' }
+    foreach ($container in ($json -join "`n" | ConvertFrom-Json)) {
+        foreach ($port in $container.NetworkSettings.Ports.PSObject.Properties) {
+            $parts = $port.Name -split '/'
+            foreach ($binding in $port.Value) {
+                [pscustomobject]@{
+                    Port = [int]$binding.HostPort
+                    Protocol = $parts[1]
+                    ContainerPort = [int]$parts[0]
+                    Name = $container.Name
+                    Project = $container.Config.Labels.'com.docker.compose.project'
+                    Service = $container.Config.Labels.'com.docker.compose.service'
+                }
+            }
+        }
     }
+}
 
-    foreach ($container in $containers) {
-        $parts = $container -split "\|", 2
-        if ($parts.Count -ne 2) {
+function Assert-RequiredPortsAvailable {
+    param([switch]$AllowTargetProject)
+
+    $published = @(Get-DockerPublishedPorts)
+    $required = @(
+        @{ Port = 20000; Protocol = 'tcp'; Service = 'gateway-1'; ContainerPort = 20000 }
+        @{ Port = 20001; Protocol = 'udp'; Service = 'battle-1'; ContainerPort = 20001 }
+        @{ Port = 20080; Protocol = 'tcp'; Service = 'gateway-1'; ContainerPort = 20080 }
+        @{ Port = 20081; Protocol = 'tcp'; Service = 'data-1'; ContainerPort = 20080 }
+        @{ Port = 20082; Protocol = 'tcp'; Service = 'battle-1'; ContainerPort = 20080 }
+        @{ Port = 21000; Protocol = 'tcp'; Service = 'data-1'; ContainerPort = 21000 }
+        @{ Port = 25432; Protocol = 'tcp'; Service = 'postgres'; ContainerPort = 5432 }
+        @{ Port = 26379; Protocol = 'tcp'; Service = 'redis'; ContainerPort = 6379 }
+    )
+    foreach ($port in $required) {
+        $owners = @($published | Where-Object { $_.Port -eq $port.Port -and $_.Protocol -eq $port.Protocol })
+        if ($owners.Count -gt 0) {
+            foreach ($owner in $owners) {
+                if (-not $AllowTargetProject -or $owner.Project -cne $ProjectName -or
+                    $owner.Service -cne $port.Service -or $owner.ContainerPort -ne $port.ContainerPort) {
+                    throw "Port $($port.Port)/$($port.Protocol) is published by '$($owner.Name)' outside the expected target binding."
+                }
+            }
             continue
         }
-
-        $ports = $parts[1]
-        if ($ports.Contains(":$Port->", [StringComparison]::Ordinal) -and
-            $ports.Contains("/$Protocol", [StringComparison]::OrdinalIgnoreCase)) {
-            return $parts[0]
+        $free = if ($port.Protocol -eq 'udp') { Test-UdpPortFree $port.Port } else { Test-TcpPortFree $port.Port }
+        if (-not $free) {
+            throw "Port $($port.Port)/$($port.Protocol) is already in use by a non-target process."
         }
     }
-
-    return ""
 }
 
-function Test-DockerPublishedPortFree {
-    param(
-        [int]$Port,
-        [string]$Protocol
-    )
-
-    return [string]::IsNullOrWhiteSpace((Get-DockerPublishedPortOwner $Port $Protocol))
-}
-
-function Assert-RequiredPortsFree {
-    $gatewayOwner = Get-DockerPublishedPortOwner 20000 "tcp"
-    if (-not (Test-TcpPortFree 20000) -or -not (Test-DockerPublishedPortFree 20000 "tcp")) {
-        $suffix = [string]::IsNullOrWhiteSpace($gatewayOwner) ? "" : " Docker container '$gatewayOwner' publishes this port."
-        throw "Port 20000/tcp is already in use.$suffix Stop the existing Agar gateway or run the script on a host with that port free."
+function Enter-TestRunLock {
+    param([string]$Name = $(if ($IsWindows) { 'Global\Lakona.AgarThreeNodeE2E' } else { 'Lakona.AgarThreeNodeE2E' }))
+    $mutex = [Threading.Mutex]::new($false, $Name)
+    try {
+        try { $acquired = $mutex.WaitOne(0) }
+        catch [Threading.AbandonedMutexException] { $acquired = $true }
+        if (-not $acquired) { throw 'Another Agar three-node test is running. Run tests serially, even with different -ProjectName values.' }
+        return $mutex
     }
-
-    $battleOwner = Get-DockerPublishedPortOwner 20001 "udp"
-    if (-not (Test-UdpPortFree 20001) -or -not (Test-DockerPublishedPortFree 20001 "udp")) {
-        $suffix = [string]::IsNullOrWhiteSpace($battleOwner) ? "" : " Docker container '$battleOwner' publishes this port."
-        throw "Port 20001/udp is already in use.$suffix Stop the existing Agar battle node or run the script on a host with that port free."
-    }
-
-    foreach ($port in @(20080, 20081, 20082)) {
-        $owner = Get-DockerPublishedPortOwner $port "tcp"
-        if (-not (Test-TcpPortFree $port) -or -not (Test-DockerPublishedPortFree $port "tcp")) {
-            $suffix = [string]::IsNullOrWhiteSpace($owner) ? "" : " Docker container '$owner' publishes this port."
-            throw "Port $port/tcp is already in use.$suffix Stop the existing Agar topology or run the script on a host with that port free."
-        }
-    }
-
-    $postgresOwner = Get-DockerPublishedPortOwner 25432 "tcp"
-    if (-not (Test-TcpPortFree 25432) -or -not (Test-DockerPublishedPortFree 25432 "tcp")) {
-        $suffix = [string]::IsNullOrWhiteSpace($postgresOwner) ? "" : " Docker container '$postgresOwner' publishes this port."
-        throw "Port 25432/tcp is already in use.$suffix Stop the existing test database or run the script on a host with that port free."
-    }
-
-    $redisOwner = Get-DockerPublishedPortOwner 26379 "tcp"
-    if (-not (Test-TcpPortFree 26379) -or -not (Test-DockerPublishedPortFree 26379 "tcp")) {
-        $suffix = [string]::IsNullOrWhiteSpace($redisOwner) ? "" : " Docker container '$redisOwner' publishes this port."
-        throw "Port 26379/tcp is already in use.$suffix Stop the existing test Redis or run the script on a host with that port free."
+    catch {
+        $mutex.Dispose()
+        throw
     }
 }
 
@@ -748,14 +748,14 @@ if ([string]::IsNullOrWhiteSpace($TestFilter)) {
     throw "-TestFilter must identify a Unity PlayMode test."
 }
 
-New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
-Write-OverrideComposeFile
-
 $unity = ""
 $failed = $false
 $composeStarted = $false
+$runLock = Enter-TestRunLock
 
 try {
+    New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
+    Write-OverrideComposeFile
     Write-Banner "Preflight"
     $unity = Resolve-UnityExecutable $UnityPath
     Write-Host "  Unity executable: $unity" -ForegroundColor Green
@@ -777,7 +777,7 @@ try {
         throw "Unity client project was not found: $clientRoot"
     }
 
-    Assert-RequiredPortsFree
+    Assert-RequiredPortsAvailable -AllowTargetProject
 
     $script:deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
 
@@ -787,6 +787,7 @@ try {
         if ($LASTEXITCODE -ne 0) {
             throw "docker compose down failed before startup."
         }
+        Assert-RequiredPortsAvailable
     }
 
     $upArgs = @("up", "-d")
@@ -889,18 +890,24 @@ catch {
     throw
 }
 finally {
-    if ($composeStarted -and -not $failed) {
-        Save-ComposeArtifacts
-    }
-
-    if ($KeepEnvironment -or $ReuseEnvironment) {
-        Write-Host "Preserving Docker Compose environment: project=$ProjectName" -ForegroundColor Yellow
-    }
-    elseif ($composeStarted) {
-        Write-Banner "Cleanup"
-        & docker compose -p $ProjectName -f $composeFile -f $overrideFile down --volumes --remove-orphans
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "docker compose down failed during cleanup." -ForegroundColor Red
+    try {
+        if ($composeStarted -and -not $failed) {
+            Save-ComposeArtifacts
         }
+
+        if ($KeepEnvironment -or $ReuseEnvironment) {
+            Write-Host "Preserving Docker Compose environment: project=$ProjectName" -ForegroundColor Yellow
+        }
+        elseif ($composeStarted) {
+            Write-Banner "Cleanup"
+            & docker compose -p $ProjectName -f $composeFile -f $overrideFile down --volumes --remove-orphans
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "docker compose down failed during cleanup." -ForegroundColor Red
+            }
+        }
+    }
+    finally {
+        $runLock.ReleaseMutex()
+        $runLock.Dispose()
     }
 }

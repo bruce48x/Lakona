@@ -107,7 +107,9 @@
           <span class="code-context">State</span>
         </div>
         <div class="code-body">
-          <span class="c">// Server.App: durable state stays here</span><br>
+          <span class="c">// Server.App: in-memory state survives Hotfix reloads</span><br>
+          <span class="c">// Persist externally to recover after a process restart</span><br>
+          <span class="na">[NodeRole("battle")]</span><br>
           <span class="k">public sealed class</span> <span class="nc">RoomActor</span> : <span class="nc">Actor&lt;RoomId&gt;</span><br>
           {<br>
           &nbsp;&nbsp;&nbsp;&nbsp;<span class="k">internal</span> <span class="nc">RoomState</span> State = <span class="k">new</span>();<br>

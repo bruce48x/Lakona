@@ -11,33 +11,67 @@ or learn.
 
 ## Connect OpenTelemetry
 
-Subscribe to the instrumentation scopes published by
-`LakonaGameServerTelemetry`:
+Install these packages in the stable application host, not the reloadable
+Hotfix project. From a generated project's root:
+
+```bash
+dotnet add Server/App/Server.App.csproj package OpenTelemetry.Extensions.Hosting
+dotnet add Server/App/Server.App.csproj package OpenTelemetry.Exporter.OpenTelemetryProtocol
+dotnet add Server/App/Server.App.csproj package OpenTelemetry.Instrumentation.Runtime
+dotnet add Server/App/Server.App.csproj package OpenTelemetry.Instrumentation.AspNetCore
+```
+
+Pin compatible versions in your application's dependency management. Add the
+following `using` directives to `Server/App/Program.cs`, then put the registrations
+inside its existing `LakonaGameServer.RunAsync` configuration callback, before
+the host starts. Here `server` is that callback's `LakonaGameServerBuilder`;
+preserve existing transport, serializer, Membership Adapter, and application
+registrations.
 
 ```csharp
 using Lakona.Game.Server.Observability;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
-using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 server.AddServices(services =>
 {
     services.AddOpenTelemetry()
-        .ConfigureResource(resource => resource.AddService("game-gateway"))
         .WithMetrics(metrics => metrics
             .AddMeter(LakonaGameServerTelemetry.MeterNames.ToArray())
             .AddRuntimeInstrumentation()
-            .AddProcessInstrumentation()
             .AddOtlpExporter())
         .WithTracing(tracing => tracing
             .AddSource(LakonaGameServerTelemetry.ActivitySourceNames.ToArray())
             .AddAspNetCoreInstrumentation()
             .AddOtlpExporter());
 });
+
+server.ConfigureLogging(logging => logging.AddOpenTelemetry(options =>
+{
+    options.IncludeFormattedMessage = true;
+    options.IncludeScopes = true;
+    options.AddOtlpExporter();
+}));
 ```
 
-Point the exporter at the deployment's Collector with standard `OTEL_*`
-environment variables. The Collector can then route the same signals to
+Set these variables in the server process environment, using your Collector's
+address:
+
+```text
+OTEL_SERVICE_NAME=game-gateway
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+```
+
+For example, use `export` in Bash or `$env:OTEL_SERVICE_NAME = 'game-gateway'`
+in PowerShell. The SDK's default resource uses this service identity for all
+three signals. Environment variables alone do not register the SDK or subscribe
+it to Lakona's meters and activity sources.
+
+The Collector can then route the same signals to
 Prometheus, Grafana, Tempo, Jaeger, Loki, Application Insights, or a hosted
 OpenTelemetry backend.
 

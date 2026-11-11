@@ -96,7 +96,7 @@ and `Lakona.Game.Server 0.53.26`.
 ## 2026-11-04 — Endpoint-encoded notifications and Hotfix calls across reloads
 
 **Key releases:** `Lakona.Game.Server 0.53.18`, `Lakona.Rpc.Core 0.16.2`,
-`Lakona.Rpc.Server 0.17.21`, `Lakona.Tool 0.43.69`, and `Lakona Hub 0.17.81`.
+`Lakona.Rpc.Server 0.17.21`, `Lakona.Tool 0.43.69`, and `Lakona.Hub 0.17.81`.
 
 - Business notifications use the session's registered endpoint serializer,
   including application converters. Local delivery, gateway relay and reliable
@@ -113,7 +113,7 @@ and `Lakona.Game.Server 0.53.26`.
 ## 2026-10-29 — Actor timers without business arguments
 
 **Key releases:** `Lakona.Game.Server 0.53.15`, `Lakona.Game.Testing 0.3.55`,
-`Lakona.Tool 0.43.65`, and `Lakona Hub 0.17.76`.
+`Lakona.Tool 0.43.65`, and `Lakona.Hub 0.17.76`.
 
 - Actor timers support argument-free creation and `TimerTick` callbacks alongside
   existing generic APIs, preserving activation ownership and Hotfix dispatch.
@@ -121,7 +121,7 @@ and `Lakona.Game.Server 0.53.26`.
 
 ## 2026-10-26 — Refined Lakona Hub visual identity
 
-**Key release:** `Lakona Hub 0.17.73`.
+**Key releases:** `Lakona.Hub 0.17.73`.
 
 - Hub introduces a distinctive geometric black-panther mark across Windows, macOS,
   and Linux, with black fur, gold edging, rounded jaguar ears, a broad jaw, and
@@ -135,7 +135,7 @@ and `Lakona.Game.Server 0.53.26`.
 ## 2026-10-23 — Actor initialization snapshots and Ensure readiness
 
 **Key releases:** `Lakona.Game.Server 0.53.14`, `Lakona.Game.Testing 0.3.54`,
-`Lakona.Tool 0.43.64`, and `Lakona Hub 0.17.68`.
+`Lakona.Tool 0.43.64`, and `Lakona.Hub 0.17.68`.
 
 - Actor placement can carry a stable serialized initialization snapshot into
   `ActorStartCall<TArgs>`, while preserving parameterless startup. Existing
@@ -152,7 +152,7 @@ and `Lakona.Game.Server 0.53.26`.
 ## 2026-10-22 — Graceful Actor shutdown after Membership withdrawal
 
 **Key releases:** `Lakona.Game.Server 0.53.11`, `Lakona.Game.Testing 0.3.51`,
-`Lakona.Tool 0.43.61`, and `Lakona Hub 0.17.64`.
+`Lakona.Tool 0.43.61`, and `Lakona.Hub 0.17.64`.
 
 - Startup and ordinary Actors retire from their exact local activation proof
   after the node leaves routing. The last node can complete claim release after
@@ -164,7 +164,7 @@ and `Lakona.Game.Server 0.53.26`.
 ## 2026-10-19 — Automatic RPC generation and reliable keepalive
 
 **Key releases:** `Lakona.Rpc.Core 0.16.1`, `Lakona.Game.Client 0.5.18`,
-`Lakona.Tool 0.43.60`, and `Lakona Hub 0.17.63`.
+`Lakona.Tool 0.43.60`, and `Lakona.Hub 0.17.63`.
 
 - Referencing `Lakona.Game.Client` now enables the generated Game client and
   typed RPC API across Unity, Tuanjie, Godot, and .NET clients without opt-in
@@ -181,7 +181,7 @@ and `Lakona.Game.Server 0.53.26`.
 ## 2026-10-16 — Explicit component dependency and State boundaries
 
 **Key releases:** `Lakona.Game.Server 0.53.6`, `Lakona.Tool 0.43.57`,
-and `Lakona Hub 0.17.59`.
+and `Lakona.Hub 0.17.59`.
 
 - Component constructors now require concrete marked ComponentState for custom
   App dependencies, including method-only use. State keeps data and actual
@@ -196,7 +196,7 @@ and `Lakona Hub 0.17.59`.
 ## 2026-10-15 — Actor activation identity for business behavior
 
 **Key releases:** `Lakona.Game.Server 0.53.3`, `Lakona.Tool 0.43.53`,
-and `Lakona Hub 0.17.55`.
+and `Lakona.Hub 0.17.55`.
 
 - `ActorContext.ActivationId` exposes the hosted instance's identity from
   `[ActorStart]` onward for local and distributed Actors. It survives Hotfix
@@ -205,7 +205,7 @@ and `Lakona Hub 0.17.55`.
 ## 2026-10-14 — Hotfix components with stable resource state
 
 **Key releases:** `Lakona.Game.Server 0.53.0`, `Lakona.Tool 0.43.49`,
-and `Lakona Hub 0.17.51`.
+and `Lakona.Hub 0.17.51`.
 
 - HotfixComponent unifies node-level tools and resource lifecycles. Optional App
   ComponentState survives reload; constructor dependencies order first Start and
@@ -220,7 +220,7 @@ and `Lakona Hub 0.17.51`.
 ## 2026-10-10 — Membership failure evidence and safety deadlines
 
 **Key releases:** `Lakona.Game.Server 0.52.1`, `Lakona.Tool 0.43.46`,
-and `Lakona Hub 0.17.48`.
+and `Lakona.Hub 0.17.48`.
 
 - Membership distinguishes failed target probes from unknown intermediary
   outcomes. Unknown rounds do not advance suspicion or refresh votes; nested
@@ -237,7 +237,7 @@ and `Lakona Hub 0.17.48`.
 
 **Key releases:** `Lakona.Game.Server 0.51.5`, `Lakona.Game.Client 0.5.15`,
 `Lakona.Rpc.Client 0.14.8`, `Lakona.Rpc.Core 0.14.11`, `Lakona.Tool 0.43.43`,
-and `Lakona Hub 0.17.45`.
+and `Lakona.Hub 0.17.45`.
 
 - Generated projects bundle `lakona-integrate-game-client` to guide connection
   progress, business login, automatic recovery, main-thread presentation, and
@@ -255,7 +255,7 @@ and `Lakona Hub 0.17.45`.
 ## 2026-10-05 — Client connection lifecycle queries
 
 **Key releases:** `Lakona.Rpc.Client 0.14.6`, `Lakona.Rpc.Core 0.14.9`,
-`Lakona.Game.Client 0.5.13`, `Lakona.Tool 0.43.40`, and `Lakona Hub 0.17.42`.
+`Lakona.Game.Client 0.5.13`, `Lakona.Tool 0.43.40`, and `Lakona.Hub 0.17.42`.
 
 - RPC clients expose a synchronized five-state connection lifecycle. Generated
   Game clients expose six connection states and a derived `IsConnected`, tracking
@@ -270,7 +270,7 @@ and `Lakona Hub 0.17.45`.
 ## 2026-09-30 — Reliable notification failure diagnostics
 
 **Key releases:** `Lakona.Game.Server 0.51.1`, `Lakona.Game.Testing 0.3.32`,
-`Lakona.Tool 0.43.39`, and `Lakona Hub 0.17.41`.
+`Lakona.Tool 0.43.39`, and `Lakona.Hub 0.17.41`.
 
 - Reliable notification diagnostics distinguish send exceptions from pending
   capacity loss through separate counters and safe session-correlated warnings.
@@ -283,7 +283,7 @@ and `Lakona Hub 0.17.45`.
 ## 2026-09-24 — Host startup and configuration reliability
 
 **Key releases:** `Lakona.Game.Server 0.51.0`, `Lakona.Game.Testing 0.3.31`,
-`Lakona.Tool 0.43.38`, and `Lakona Hub 0.17.39`.
+`Lakona.Tool 0.43.38`, and `Lakona.Hub 0.17.39`.
 
 - Readiness waits for the complete Host startup, including HTTP listeners.
   Startup failures stop started modules. Startup and shutdown failures retain
@@ -321,7 +321,7 @@ and `Lakona Hub 0.17.45`.
 ## 2026-09-21 — Explicit Actor cancellation and unified diagnostics
 
 **Key releases:** `Lakona.Game.Server 0.49.2`, `Lakona.Game.Testing 0.3.2`,
-`Lakona.Rpc.Core 0.14.1`, `Lakona.Tool 0.43.3`, and `Lakona Hub 0.17.3`.
+`Lakona.Rpc.Core 0.14.1`, `Lakona.Tool 0.43.3`, and `Lakona.Hub 0.17.3`.
 
 - Removed remote Actor cancellation propagation. Caller cancellation and timeout
   end the wait; accepted work continues. Business cancellation uses explicit
@@ -336,7 +336,7 @@ and `Lakona Hub 0.17.45`.
 
 ## 2026-09-18 — Hub theme selection
 
-**Key release:** `Lakona Hub 0.16.5`.
+**Key releases:** `Lakona.Hub 0.16.5`.
 
 - Added a complete light appearance and a persisted Settings choice for dark,
   light, or the operating-system theme. Theme changes apply immediately through
@@ -345,7 +345,7 @@ and `Lakona Hub 0.17.45`.
 ## 2026-09-17 — Per-session Hotfix lifecycle selection
 
 **Key releases:** `Lakona.Game.Server 0.48.1`, `Lakona.Tool 0.42.1`, and
-`Lakona Hub 0.16.4`.
+`Lakona.Hub 0.16.4`.
 
 - Sessions select their lifecycle handler at creation. Live selections survive
   Hotfix replacement and prevent removal of handlers still in use.
@@ -361,7 +361,7 @@ and `Lakona Hub 0.17.45`.
 ## 2026-09-16 — Typed Hotfix lifecycle contracts and earlier validation
 
 **Key releases:** `Lakona.Game.Server 0.47.0`, `Lakona.Tool 0.41.0`, and
-`Lakona Hub 0.15.0`.
+`Lakona.Hub 0.15.0`.
 
 - Startup declaration and Timer DTO errors are caught during compilation and
   checked again before publication. Invalid Startup roots are rejected before
@@ -381,8 +381,9 @@ and `Lakona Hub 0.17.45`.
 ## 2026-09-15 — Single-path Actor lifecycle and minimal timer data
 
 **Key releases:** `Lakona.Game.Server 0.45.0`, `Lakona.Tool 0.39.5`,
-`Lakona Hub 0.13.5`, `Lakona.Game.Testing 0.2.18`, and the three
-`Lakona.Game.Clustering.*` providers at `0.1.17`.
+`Lakona.Hub 0.13.5`, `Lakona.Game.Testing 0.2.18`,
+`Lakona.Game.Clustering.Postgres 0.1.17`, `Lakona.Game.Clustering.MySql 0.1.17`,
+and `Lakona.Game.Clustering.Redis 0.1.17`.
 
 - Stable Actor classes are state-only and no longer expose activation or
   deactivation overrides. `[ActorStart]` and `[ActorStop]` are the sole
@@ -395,12 +396,13 @@ and `Lakona Hub 0.17.45`.
 ## 2026-09-14 — Activation-owned timers and lossless admission
 
 **Key releases:** `Lakona.Game.Server 0.44.0`, `Lakona.Tool 0.39.0`,
-`Lakona Hub 0.13.0`, `Lakona.Game.Testing 0.2.13`, and the three
-`Lakona.Game.Clustering.*` providers at `0.1.12`.
+`Lakona.Hub 0.13.0`, `Lakona.Game.Testing 0.2.13`,
+`Lakona.Game.Clustering.Postgres 0.1.12`, `Lakona.Game.Clustering.MySql 0.1.12`,
+and `Lakona.Game.Clustering.Redis 0.1.12`.
 
-- Timer APIs and implementation share `Lakona.Game.Server.Hotfix.Timers`;
-  creation and cancellation are synchronous.
-- Actor timers select `[ActorTimer]` Behavior methods directly, execute in the
+- Timer APIs and implementation share `Lakona.Game.Server.Hotfix.Timers`, with
+  synchronous creation and cancellation. Actor timers select `[ActorTimer]`
+  Behavior methods directly, execute in the
   exact activation's mailbox, and cancel automatically when it stops. Queued
   callbacks acquire the current Hotfix generation only when execution begins.
 - Timer capacity pressure delays accepted work without dropping it. Periodic
@@ -412,10 +414,10 @@ and `Lakona Hub 0.17.45`.
 
 ## 2026-09-10 — Packaging compatibility and shared dependency identity
 
-**Key releases:** `Lakona.Game.Server 0.43.1`, `Lakona Hub 0.12.24`,
+**Key releases:** `Lakona.Game.Server 0.43.1`, `Lakona.Hub 0.12.24`,
 `Lakona.Tool 0.38.24`, `Lakona.Game.Testing 0.2.12`, and
-`Lakona.Game.Clustering.Redis`, `Lakona.Game.Clustering.MySql`,
-`Lakona.Game.Clustering.Postgres` at `0.1.11`.
+`Lakona.Game.Clustering.Redis 0.1.11`, `Lakona.Game.Clustering.MySql 0.1.11`,
+and `Lakona.Game.Clustering.Postgres 0.1.11`.
 
 - Hub's packaging dialog saves valid BuildTag edits immediately to the shared
   project properties, with validation and save failures blocking packaging.
@@ -427,7 +429,7 @@ and `Lakona Hub 0.17.45`.
 
 ## 2026-09-09 — Complete Hotfix deployment dependencies
 
-**Key releases:** `Lakona.Tool 0.38.21` and `Lakona Hub 0.12.20`.
+**Key releases:** `Lakona.Tool 0.38.21` and `Lakona.Hub 0.12.20`.
 
 - Full and Hotfix packages carry Hotfix runtime dependencies and nested publish
   assets with checksums, allowing libraries referenced only by Hotfix to run
@@ -454,7 +456,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Game.Testing 0.2.10`, `Lakona.Game.Clustering.Postgres 0.1.9`,
 `Lakona.Game.Clustering.Redis 0.1.9`,
 `Lakona.Game.Clustering.MySql 0.1.9`, `Lakona.Tool 0.38.14`, and
-`Lakona Hub 0.12.13`.
+`Lakona.Hub 0.12.13`.
 
 - Concurrent `EnsureAsync` requests for the same absent Actor now converge on
   one local activation without a spurious placement failure, preserving the
@@ -468,7 +470,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Game.Testing 0.2.9`, `Lakona.Game.Clustering.Postgres 0.1.8`,
 `Lakona.Game.Clustering.Redis 0.1.8`,
 `Lakona.Game.Clustering.MySql 0.1.8`, `Lakona.Tool 0.38.13`, and
-`Lakona Hub 0.12.11`.
+`Lakona.Hub 0.12.11`.
 
 - Server-initiated termination now sends its fixed framework notification
   directly through the bound RPC connection before disconnecting it, independent
@@ -481,7 +483,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Game.Testing 0.2.6`, `Lakona.Game.Clustering.Postgres 0.1.5`,
 `Lakona.Game.Clustering.Redis 0.1.5`,
 `Lakona.Game.Clustering.MySql 0.1.5`, `Lakona.Tool 0.38.10`, and
-`Lakona Hub 0.12.8`.
+`Lakona.Hub 0.12.8`.
 
 - Startup Actor business-key affinity is now independent of Hotfix generation,
   so rolling mixed-version publication cannot fork strongly stateful ownership.
@@ -494,7 +496,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Game.Clustering.Postgres 0.1.4`,
 `Lakona.Game.Clustering.Redis 0.1.4`,
 `Lakona.Game.Clustering.MySql 0.1.4`, `Lakona.Tool 0.38.6`, and
-`Lakona Hub 0.12.6`.
+`Lakona.Hub 0.12.6`.
 
 - Removed peer-formation settings now stop startup instead of silently falling
   back to one process-local Membership Table per server.
@@ -507,7 +509,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Game.Clustering.Postgres 0.1.3`,
 `Lakona.Game.Clustering.Redis 0.1.3`,
 `Lakona.Game.Clustering.MySql 0.1.3`, `Lakona.Tool 0.38.5`, and
-`Lakona Hub 0.12.5`.
+`Lakona.Hub 0.12.5`.
 
 - Actor Directory transition locks, recovery telemetry, bounded receiver-side
   Membership catch-up, deterministic Membership-view barriers, and five-node
@@ -526,7 +528,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Game.Clustering.Postgres 0.1.0`,
 `Lakona.Game.Clustering.Redis 0.1.0`,
 `Lakona.Game.Clustering.MySql 0.1.0`, `Lakona.Game.Testing 0.2.0`,
-`Lakona.Tool 0.38.1`, and `Lakona Hub 0.12.1`.
+`Lakona.Tool 0.38.1`, and `Lakona.Hub 0.12.1`.
 
 - `Lakona.Game.Server` now owns a storage-neutral Membership Table interface,
   while PostgreSQL, MySQL, and Redis implementations ship as independent
@@ -542,7 +544,7 @@ and `Lakona Hub 0.17.45`.
 
 **Key releases:** `Lakona.Game.Testing 0.1.6`,
 `Lakona.Game.Server 0.41.12`, `Lakona.Tool 0.37.12`, and
-`Lakona Hub 0.11.12`.
+`Lakona.Hub 0.11.12`.
 
 - Cluster Actor calls now use receiver-local TTL countdowns and correlated
   cancellation, never retry ambiguous outcomes, finish pending callers during
@@ -557,7 +559,7 @@ and `Lakona Hub 0.17.45`.
 ## 2026-08-25 — Role-based Actor lifecycle and recovery
 
 **Key releases:** `Lakona.Game.Server 0.41.8`, `Lakona.Tool 0.37.8`, and
-`Lakona Hub 0.11.8`.
+`Lakona.Hub 0.11.8`.
 
 - `[NodeRole]` declarations now govern Actor, application Module, Hotfix HTTP,
   and generated-project placement through one ordered node lifecycle with
@@ -572,7 +574,7 @@ and `Lakona Hub 0.17.45`.
 ## 2026-08-24 — Membership-backed, strongly consistent Actor Directory
 
 **Key releases:** `Lakona.Game.Server 0.40.44`, `Lakona.Tool 0.36.49`, and
-`Lakona Hub 0.10.51`.
+`Lakona.Hub 0.10.51`.
 
 - An Orleans-style shared Membership Table replaces leader election, replicated
   logs, voter promotion, and static peers with exact-incarnation CAS admission,
@@ -596,7 +598,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Rpc.Transport.Tcp 0.11.22`,
 `Lakona.Rpc.Transport.WebSocket 0.11.24`,
 `Lakona.Game.Client 0.4.21`, `Lakona.Game.Server 0.40.36`,
-`Lakona.Tool 0.36.41`, and `Lakona Hub 0.10.42`.
+`Lakona.Tool 0.36.41`, and `Lakona.Hub 0.10.42`.
 
 - Unexpected request-gate and handler failures share the sanitized
   `InternalError` outcome with structured root-cause logs, while listener faults
@@ -631,7 +633,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Rpc.Serializer.MemoryPack 0.11.15`,
 `Lakona.Rpc.Transport.Kcp 0.11.33`, `Lakona.Rpc.Transport.Tcp 0.11.20`,
 `Lakona.Rpc.Transport.WebSocket 0.11.22`, `Lakona.Tool 0.36.23`, and
-`Lakona Hub 0.10.23`.
+`Lakona.Hub 0.10.23`.
 
 - Made RPC hosts token-driven so only application composition roots own Ctrl+C
   and service-lifetime signals, bounded overload responses and cooperative
@@ -650,7 +652,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Rpc.Serializer.MemoryPack 0.11.14`, `Lakona.Rpc.Transport.Kcp 0.11.31`,
 `Lakona.Rpc.Transport.Loopback 0.11.14`, `Lakona.Rpc.Transport.Tcp 0.11.18`,
 `Lakona.Rpc.Transport.WebSocket 0.11.20`, `Lakona.Game.Client 0.4.15`,
-`Lakona.Game.Server 0.40.20`, `Lakona.Tool 0.36.21`, and `Lakona Hub 0.10.21`.
+`Lakona.Game.Server 0.40.20`, `Lakona.Tool 0.36.21`, and `Lakona.Hub 0.10.21`.
 
 - Kept append, vote, proof, and snapshot-install ingress responsive while a
   Join, Promote, or Ready mutation waits on network replication; overlapping
@@ -726,21 +728,21 @@ and `Lakona Hub 0.17.45`.
 
 - Replaced the replicated activation protocol and generic cluster routing stack
   with a 1,024-shard, SHA-256 single-owner Actor Location DHT, typed lifecycle
-  RPC, exact activation fencing, and explicit recovery barriers.
-- Decoupled Membership from Actor and Startup affinity state; Startup keeps its
+  RPC, exact activation fencing, and explicit recovery barriers. Decoupled
+  Membership from Actor and Startup affinity state; Startup keeps its
   public API while sticky keys use a typed affinity DHT and replica catalogs.
 - Routed notifications directly from the opaque Session locator to the exact
   gateway, with bounded FIFO admission and owner-side quorum authority checks;
   Actor behavior now receives the decoded business key separately from the
   canonical `<actor-name>/<key>` runtime identity.
-- Made timed-out Actor retirement cancel queued lifecycle work before returning,
-  so delayed deactivation cannot run after the timeout result is observed.
 - Completed the explicit Actor lifecycle with cluster-wide, exact-activation
   `Place(id).DestroyAsync()` and post-turn `ActorContext.RequestDeactivation()`;
   Agar now rolls back failed room creation, creates fully running rooms in one
   behavior call, and retires successfully settled rooms. The stable framework
   now owns the reusable `ActorPlacement<TActor, TKey>` selector while generated
-  Hotfix code retains only business-key-specific `Place` entry points.
+  Hotfix code retains only business-key-specific `Place` entry points. Timed-out
+  retirement cancels queued lifecycle work before returning, preventing delayed
+  deactivation after the timeout result is observed.
 
 ## 2026-08-12 — Process-local Actor boundary cleanup
 
@@ -755,7 +757,7 @@ and `Lakona Hub 0.17.45`.
 
 **Key releases:** `Lakona.Rpc.Server 0.16.0`, `Lakona.Game.Server 0.36.0`,
 `Lakona.Rpc.Client 0.12.18`, `Lakona.Game.Client 0.4.14`,
-`Lakona.Tool 0.33.3`, and `Lakona Hub 0.7.6`.
+`Lakona.Tool 0.33.3`, and `Lakona.Hub 0.7.6`.
 
 - Made RPC and Game runtimes provider-agnostic: applications own logging
   providers, OpenTelemetry SDKs, exporters, sampling, and backends, while
@@ -772,7 +774,7 @@ and `Lakona Hub 0.17.45`.
 ## 2026-08-10 — Application-owned client logging and recoverable cluster startup
 
 **Key releases:** `Lakona.Rpc.Client 0.12.17`, `Lakona.Game.Client 0.4.13`,
-`Lakona.Game.Server 0.33.33`, `Lakona.Tool 0.32.35`, and `Lakona Hub 0.6.38`.
+`Lakona.Game.Server 0.33.33`, `Lakona.Tool 0.32.35`, and `Lakona.Hub 0.6.38`.
 
 - Moved the RPC client default from an embedded console provider to a null
   logger, so runtime consumers depend only on logging abstractions while
@@ -788,7 +790,7 @@ and `Lakona Hub 0.17.45`.
 ## 2026-08-08 — Session-oriented notifications and term-safe promotion
 
 **Key releases:** `Lakona.Game.Server 0.33.30`, `Lakona.Tool 0.32.32`, and
-`Lakona Hub 0.6.35`.
+`Lakona.Hub 0.6.35`.
 
 - Removed the connection-scoped callback from generated Hotfix service calls;
   all Lakona.Game business notifications now select a `GameSessionKey` through
@@ -803,7 +805,7 @@ and `Lakona Hub 0.17.45`.
 ## 2026-08-07 — Formation-safe recovery and framework-aligned skills
 
 **Key releases:** `Lakona.Game.Server 0.33.27`, `Lakona.Rpc.Server 0.14.17`,
-`Lakona.Tool 0.32.29`, and `Lakona Hub 0.6.31`.
+`Lakona.Tool 0.32.29`, and `Lakona.Hub 0.6.31`.
 
 - Retried only definitely unexecuted (`Rejected`) activation-directory sends
   within a small cancellation-aware bound, classified formation races with the
@@ -824,7 +826,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Rpc.Serializer.MemoryPack 0.11.13`, `Lakona.Rpc.Transport.Kcp 0.11.30`,
 `Lakona.Rpc.Transport.Loopback 0.11.13`, `Lakona.Rpc.Transport.Tcp 0.11.17`,
 `Lakona.Rpc.Transport.WebSocket 0.11.19`, `Lakona.Game.Client 0.4.12`,
-`Lakona.Game.Server 0.33.16`, `Lakona.Tool 0.32.17`, and `Lakona Hub 0.6.19`.
+`Lakona.Game.Server 0.33.16`, `Lakona.Tool 0.32.17`, and `Lakona.Hub 0.6.19`.
 
 - Made `RpcServiceAttribute.NotificationContract` the single association
   authority between an RPC service and its notification contract by replacing
@@ -844,13 +846,12 @@ and `Lakona Hub 0.17.45`.
 ## 2026-08-05 — Bounded runtime lifecycle and focused tooling workflows
 
 **Key releases:** `Lakona.Game.Server 0.33.7`, `Lakona.Tool 0.32.8`, and
-`Lakona Hub 0.6.9`.
+`Lakona.Hub 0.6.9`.
 
 - Made framework termination cancel the exact RPC Session lease, close its
   transport, and release endpoint connection capacity without a public closer
-  extension point.
-- Made non-retained termination remove recovery state immediately and bounded
-  retained terminal outcomes by the exact Session resume deadline, with
+  extension point. Non-retained termination removes recovery state immediately;
+  retained terminal outcomes are bounded by the exact Session resume deadline, with
   mandatory cleanup of Session indexes and opaque tickets.
 - Added fixed-rate structured diagnostics for activation replica read, repair,
   quorum commit, and extra-copy failures without exposing Actor identities or
@@ -865,7 +866,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Rpc.Serializer.MemoryPack 0.11.12`, `Lakona.Rpc.Transport.Kcp 0.11.29`,
 `Lakona.Rpc.Transport.Loopback 0.11.12`, `Lakona.Rpc.Transport.Tcp 0.11.16`,
 `Lakona.Rpc.Transport.WebSocket 0.11.18`, `Lakona.Game.Client 0.4.11`,
-`Lakona.Game.Server 0.33.3`, `Lakona.Tool 0.32.3`, and `Lakona Hub 0.6.3`.
+`Lakona.Game.Server 0.33.3`, `Lakona.Tool 0.32.3`, and `Lakona.Hub 0.6.3`.
 
 - Replaced four independent Game server generator switches with the single
   `LakonaProjectRole` contract for stable App and replaceable Hotfix projects.
@@ -883,7 +884,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Rpc.Transport.Loopback 0.11.11`, `Lakona.Rpc.Transport.Tcp 0.11.15`,
 `Lakona.Rpc.Transport.WebSocket 0.11.17`, `Lakona.Game.Client 0.4.10`,
 `Lakona.Game.Server 0.33.0`, `Lakona.Tool 0.32.0`, and
-`Lakona Hub 0.6.0`.
+`Lakona.Hub 0.6.0`.
 
 - Made Tool and Hub restore exact Unity or Tuanjie dependencies before
   publishing source and track the verified `Assets/Packages` tree; generated
@@ -895,8 +896,8 @@ and `Lakona Hub 0.17.45`.
 - Reduced generated notification dispatch to typed and serialized numeric
   contracts, removed dead project-mutation paths, made Hotfix activation order
   deterministic, and surfaced cleanup warnings plus build/version lifecycle
-  diagnostics without rolling back an already published generation.
-- Folded the Hotfix authoring interface into `Lakona.Game.Server`; generated
+  diagnostics without rolling back an already published generation. Folded the
+  Hotfix authoring interface into `Lakona.Game.Server`; generated
   App and Hotfix projects now model one application split for reload, with
   Hotfix inheriting the framework interface through App instead of referencing
   a separate abstractions assembly.
@@ -905,7 +906,7 @@ and `Lakona Hub 0.17.45`.
 
 **Key releases:** `Lakona.Rpc.Server 0.14.12`,
 `Lakona.Rpc.Transport.Kcp 0.11.26`, `Lakona.Game.Server 0.32.42`,
-`Lakona.Tool 0.31.79`, and `Lakona Hub 0.5.92`.
+`Lakona.Tool 0.31.79`, and `Lakona.Hub 0.5.92`.
 
 - Made disconnects and KCP background faults terminal, released Session and
   admission resources before observers run, and rebuilt disconnected cluster
@@ -921,7 +922,7 @@ and `Lakona Hub 0.17.45`.
 
 **Key releases:** `Lakona.Game.Client 0.4.8`,
 `Lakona.Game.Server 0.32.37`, `Lakona.Tool 0.31.71`, and
-`Lakona Hub 0.5.83`.
+`Lakona.Hub 0.5.83`.
 
 - Made each Hotfix assembly's optional `[HotfixStartup]` class its single
   composition root and stabilized discovery and diagnostic ordering before any
@@ -934,7 +935,7 @@ and `Lakona Hub 0.17.45`.
 
 **Key releases:** `Lakona.Rpc.Server 0.14.11`,
 `Lakona.Rpc.Transport.Kcp 0.11.25`, `Lakona.Game.Server 0.32.36`,
-`Lakona.Tool 0.31.69`, and `Lakona Hub 0.5.80`.
+`Lakona.Tool 0.31.69`, and `Lakona.Hub 0.5.80`.
 
 - Replaced writable node directories, heartbeats, bootstrap flags, and seed
   lists with replicated membership that self-forms one canonical cluster view,
@@ -958,7 +959,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Rpc.Transport.Tcp 0.11.13`,
 `Lakona.Rpc.Transport.WebSocket 0.11.15`,
 `Lakona.Game.Client 0.4.6`, `Lakona.Game.Server 0.32.26`,
-`Lakona.Tool 0.31.58`, and `Lakona Hub 0.5.69`.
+`Lakona.Tool 0.31.58`, and `Lakona.Hub 0.5.69`.
 
 - Changed the serializer extension contract to write typed client requests,
   typed server responses, and typed server notifications directly into their
@@ -990,7 +991,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Rpc.Transport.Tcp 0.11.12`,
 `Lakona.Rpc.Transport.WebSocket 0.11.14`,
 `Lakona.Game.Client 0.4.5`, `Lakona.Game.Server 0.32.21`,
-`Lakona.Tool 0.31.49`, and `Lakona Hub 0.5.53`.
+`Lakona.Tool 0.31.49`, and `Lakona.Hub 0.5.53`.
 
 - Replaced remaining friend-assembly coupling across RPC hosting, Hotfix
   timers, and ProjectSystem adapters with explicit framework interfaces, and
@@ -1015,7 +1016,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Rpc.Transport.Tcp 0.11.10`,
 `Lakona.Rpc.Transport.WebSocket 0.11.12`,
 `Lakona.Game.Client 0.4.3`, `Lakona.Game.Server 0.32.12`,
-`Lakona.Tool 0.31.37`, and `Lakona Hub 0.5.40`.
+`Lakona.Tool 0.31.37`, and `Lakona.Hub 0.5.40`.
 
 - Made `Lakona.Game.Server` the deployment and versioning owner of cluster
   contracts, routing, its private TCP + MemoryPack channel, and the internal
@@ -1048,7 +1049,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Game.Cluster 0.5.6`,
 `Lakona.Game.Server.Hotfix.Abstractions 0.10.0`,
 `Lakona.Game.Server 0.30.0`, `Lakona.Tool 0.31.22`, and
-`Lakona Hub 0.5.22`.
+`Lakona.Hub 0.5.22`.
 
 - Removed the obsolete standalone stable-actor generator package and its
   actor-method path, folded the Hotfix runtime into `Lakona.Game.Server`, and
@@ -1068,7 +1069,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Game.Server.Hotfix 0.14.0`,
 `Lakona.Game.Server.Hotfix.Generators 0.11.0`,
 `Lakona.Game.Server 0.28.0`, `Lakona.Tool 0.31.15`, and
-`Lakona Hub 0.5.15`.
+`Lakona.Hub 0.5.15`.
 
 - Moved Application HTTP declarations beside their handlers in
   `Server.Hotfix`, removed stable App-side HTTP interfaces and user-authored
@@ -1090,7 +1091,7 @@ and `Lakona Hub 0.17.45`.
 `Lakona.Game.Server.Hotfix 0.13.2`,
 `Lakona.Game.Server.Hotfix.Generators 0.10.1`,
 `Lakona.Game.Server 0.27.0`, `Lakona.Tool 0.31.14`, and
-`Lakona Hub 0.5.14`.
+`Lakona.Hub 0.5.14`.
 
 - Replaced the bespoke management HTTP stack with one root ASP.NET Core
   application, isolated product listeners, bounded request snapshots,
@@ -1107,7 +1108,7 @@ and `Lakona Hub 0.17.45`.
 ## 2026-07-24 — Server ownership and lifecycle hardening
 
 **Key releases:** `Lakona.Game.Server 0.25.6`, `Lakona.Tool 0.31.11`,
-and `Lakona Hub 0.5.11`.
+and `Lakona.Hub 0.5.11`.
 
 - Kept `LakonaGameServer.RunAsync` as the sole startup entry point and made
   bootstrap, module, Hotfix, framework, shutdown, provider-disposal, readiness,
@@ -1122,7 +1123,7 @@ and `Lakona Hub 0.5.11`.
 ## 2026-07-23 — Application resources and durable Agar persistence
 
 **Key releases:** `Lakona.Game.Server 0.25.0`, `Lakona.Tool 0.31.5`,
-and `Lakona Hub 0.5.5`.
+and `Lakona.Hub 0.5.5`.
 
 - Added automatically discovered stable application modules with pre-provider
   registration, asynchronous startup, deterministic reverse rollback,
@@ -1140,7 +1141,7 @@ and `Lakona Hub 0.5.5`.
 `Lakona.Game.Cluster.Rpc.Transport.Tcp 0.1.1`,
 `Lakona.Game.Cluster.Rpc.Serializer.Json 0.1.1`,
 `Lakona.Game.Cluster.Rpc.Serializer.MemoryPack 0.1.1`,
-`Lakona.Tool 0.31.2`, and `Lakona Hub 0.5.2`.
+`Lakona.Tool 0.31.2`, and `Lakona.Hub 0.5.2`.
 
 - Separated opaque RPC connection identity from transport display names and
   introduced typed/raw registration seams that centralize serialization,
@@ -1162,7 +1163,7 @@ and `Lakona Hub 0.5.5`.
 `Lakona.Game.Cluster.Sql 0.4.4`,
 `Lakona.Game.Server.Hotfix.Abstractions 0.8.4`,
 `Lakona.Game.Server.Hotfix 0.12.4`, `Lakona.Game.Server 0.23.1`,
-`Lakona.Tool 0.31.1`, and `Lakona Hub 0.5.1`.
+`Lakona.Tool 0.31.1`, and `Lakona.Hub 0.5.1`.
 
 - Made rendezvous hashing implicit when an Actor has no placement override and
   added `RegisterStartup<TActor, TKey>()` as its Startup-affinity counterpart,
@@ -1188,21 +1189,19 @@ and `Lakona Hub 0.5.5`.
 
 - Added exact cluster/node incarnation identities, immutable membership views,
   bounded in-memory consensus log and snapshots, election fencing, renewable
-  quorum proofs, and one serialized replica lifecycle.
-- Added a fail-closed distributed-work gate, ordered recovery barrier, and
-  supervised host path whose explicit bootstrap or learner join commits Ready
-  and re-proves the new view before opening traffic.
-- Added unordered-contact multi-node join, joint-consensus promotion/removal,
-  stable-NodeId incarnation replacement, Ready descriptor refresh, and
-  heartbeat-driven voter log/view catch-up after missed commits.
+  quorum proofs, and one serialized replica lifecycle. Multi-node join,
+  joint-consensus promotion/removal, incarnation replacement, Ready descriptor
+  refresh, and heartbeat catch-up feed a fail-closed work gate and ordered recovery
+  barrier; bootstrap or learner join re-proves the committed view before opening
+  Ready traffic.
 - Replaced seed hot paths with local membership discovery, exact incarnation
   sending, sticky quorum-replicated Actor activations, receiver fencing, and
   sticky Startup key affinity with separately fenced replica activations while
   retaining custom placement selectors.
 - Added self-describing session locators and bounded exact-gateway notification
   batching with a configurable 10 ms default, count/byte limits, per-session
-  and process-wide backpressure, while preserving synchronous admission.
-- Made the Room Actor owner return its own gameplay endpoint directly to
+  and process-wide backpressure, while preserving synchronous admission. The
+  Room Actor owner returns its own gameplay endpoint directly to
   matchmaking, keeping transport selection in Agar business code and removing
   the sample's separate endpoint Adapter; also removed its cluster Postgres
   setting.
@@ -1214,7 +1213,7 @@ and `Lakona Hub 0.5.5`.
 `Lakona.Game.Cluster.Rpc.MemoryPack 0.4.0`,
 `Lakona.Game.Server.Hotfix 0.12.0`, `Lakona.Game.Server 0.22.0`,
 `Lakona.Rpc.Analyzers 0.4.0`, `Lakona.Tool 0.29.0`, and
-`Lakona Hub 0.3.21`.
+`Lakona.Hub 0.3.21`.
 
 - Removed Game Session `Generation` from public APIs, internal protocol payloads,
   reliable-push metadata, lifecycle events, routing keys, and generated clients;
@@ -1227,7 +1226,7 @@ and `Lakona Hub 0.5.5`.
 **Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.8.0`,
 `Lakona.Game.Server.Hotfix.Generators 0.8.0`,
 `Lakona.Game.Server.Hotfix 0.11.0`, `Lakona.Game.Server 0.21.0`,
-`Lakona.Tool 0.28.1`, and `Lakona Hub 0.3.15`.
+`Lakona.Tool 0.28.1`, and `Lakona.Hub 0.3.15`.
 
 - Replaced generated Actor and timer wrappers with compile-time-checked static
   method selectors, preserving direct IDE navigation and generation-safe Hotfix
@@ -1241,7 +1240,7 @@ and `Lakona Hub 0.5.5`.
 **Key releases:** `Lakona.Game.Server.Hotfix.Abstractions 0.7.0`,
 `Lakona.Game.Server.Hotfix.Generators 0.7.0`,
 `Lakona.Game.Server.Hotfix 0.10.0`, `Lakona.Game.Server 0.20.0`,
-`Lakona.Tool 0.27.0`, and `Lakona Hub 0.3.8`.
+`Lakona.Tool 0.27.0`, and `Lakona.Hub 0.3.8`.
 
 - Unified Hotfix behaviors, services, lifecycle handlers, components, and timer
   callbacks as generation-scoped DI instances with compile-time classification
@@ -1256,7 +1255,7 @@ and `Lakona Hub 0.5.5`.
 
 ## 2026-07-15 — Native Hub delivery and resilient Hotfix dispatch
 
-**Key releases:** `Lakona Hub 0.2.12`, `Lakona.ProjectSystem 0.1.7`,
+**Key releases:** `Lakona.Hub 0.2.12`, `Lakona.ProjectSystem 0.1.7`,
 `Lakona.Tool 0.25.27`, `Lakona.Game.Server 0.18.13`,
 `Lakona.Game.Server.Hotfix 0.8.4`, and
 `Lakona.Game.Server.Hotfix.Generators 0.5.7`.
@@ -1315,8 +1314,8 @@ and `Lakona Hub 0.5.5`.
 - Replaced the default Chat scaffold with a server-authoritative top-down arena
   for Unity, Tuanjie, Godot, and Console, using engine primitives with no art
   assets; added endpoint-scoped reliable push and negotiated 60-second Game
-  Session resume for ordered recovery after short network transitions.
-- Redesigned the generated arena across Unity, Tuanjie, and Godot with a live
+  Session resume for ordered recovery after short network transitions. The
+  generated arena across Unity, Tuanjie, and Godot gained a live
   battlefield login, broadcast-style HUD, segmented health, readable input,
   slower monsters, and stronger projectile and hit feedback.
 
@@ -1357,7 +1356,7 @@ and `Lakona Hub 0.5.5`.
 
 ## 2026-06-17 — Transactional project generation
 
-**Key release:** `Lakona.Tool 0.12.1`.
+**Key releases:** `Lakona.Tool 0.12.1`.
 
 - Reworked `lakona-tool new` into a transactional full-project generator with
   root documentation, repository metadata, safer ignore rules, and optional Git
