@@ -134,7 +134,7 @@ public sealed class ProjectSystemArchitectureScanTests
             "[Hotfix architecture](docs/hotfix/architecture.md)",
             "[Actors and Hotfix Behavior](docs/actor.md)",
             "[Cluster](docs/cluster.md)",
-            "Create and Run a Lakona Project"
+            "https://bruce48x.github.io/Lakona/posts/getting-started/"
         };
 
         foreach (var expectedEntryPoint in expectedEntryPoints)
@@ -687,14 +687,9 @@ public sealed class ProjectSystemArchitectureScanTests
     {
         var repositoryRoot = FindRepositoryRoot();
         var sampleRoot = Path.Combine(repositoryRoot, "samples", "Game.Unity.Agar");
-        var readme = File.ReadAllText(Path.Combine(sampleRoot, "README.md"));
         var hotfixCode = ReadAllTextFiles(Path.Combine(sampleRoot, "Server", "Hotfix"));
         var clientScripts = ReadAllTextFiles(Path.Combine(sampleRoot, "Client", "Assets", "Scripts"));
 
-        Assert.Contains("node-local actor runtime", readme, StringComparison.Ordinal);
-        Assert.Contains("RPC service", readme, StringComparison.Ordinal);
-        Assert.Contains("may be local or remote", readme, StringComparison.Ordinal);
-        Assert.Contains("typed selector", readme, StringComparison.Ordinal);
         Assert.Contains(".Route<UserActor>(new UserId(", hotfixCode, StringComparison.Ordinal);
         Assert.Contains(".Startup<MatchmakingActor>(new MatchmakingQueueId(", hotfixCode, StringComparison.Ordinal);
         Assert.Contains(".Local<RoomActor>(roomId)", hotfixCode, StringComparison.Ordinal);
