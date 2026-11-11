@@ -1,4 +1,4 @@
 interface:
   display_name: "Lakona Doc Maintenance"
-  short_description: "Audit and prune Lakona repository docs"
-  default_prompt: "Use $lakona-doc-maintenance to audit and clean the Lakona documentation structure."
+  short_description: "Audit docs or apply authorized cleanup"
+  default_prompt: "Use $lakona-doc-maintenance to audit Lakona documentation and report findings. Apply cleanup only within the scope already authorized by the user."

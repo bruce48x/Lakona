@@ -130,68 +130,26 @@ cost and allocations, independently of RPC transport and application latency.
 
 ### Runtime Synchronization
 
-The following synchronization is intentionally narrow and should not be
-changed without new measurements:
+Keep changes to synchronization and buffer ownership scoped to one measured
+path. Runtime guarantees belong to the guides below; this register retains
+the evidence needed to reconsider their cost.
 
-- Reliable Push uses a short owner-map lock and per-owner serialization;
-  network delivery occurs outside locks.
-- Actor hosting operations are serialized per Actor rather than globally.
-- RPC request concurrency gates and serialized frame senders are scoped to one
-  session or connection.
-- The default client dispatch context publishes idle with a full memory barrier
-  before checking for callbacks posted concurrently. Preserve the atomic
-  ownership handoff described in [RPC ordered entry](./rpc/architecture.md#ordered-message-entry);
-  replacing it with a release-only write can strand callbacks even when network
-  I/O and serialized sending have already completed.
-- KCP transport locks and deadline-aware update scheduling follow the
-  [RPC transport contract](./rpc/transport-contract.md#kcp).
-  Do not trade isolated, non-overlapping registration execution for a central
-  sequential update loop without representative measurements.
-- The KCP server listener inputs datagrams into each connection's bounded KCP
-  receive window and signals availability, but only `ReceiveFrameAsync` removes
-  and decodes the next application frame. Do not restore an eager, unbounded
-  decoded-frame queue or wait for one connection from the shared UDP receive
-  loop.
-- KCP capacity and receive-data signals coalesce under the connection lock,
-  without exception-based repeated release. A pending signal represents current
-  protocol/terminal state, not a datagram count. Preserve the wake-up contract
-  in [RPC transports](./rpc/transport-contract.md#kcp).
-- Timer callbacks execute outside the scheduler lock. Heap changes share one
-  pending wake marker, so a registration burst cannot accumulate one redundant
-  timed wait per change. Cancellation drains both wait branches before rearming;
-  preserve the [timer scheduling contract](actor.md#timers). The
-  [wakeup benchmark](../benchmarks/timer-wakeup/README.md) compares ordinary and
-  gated burst registration against the pinned pre-coalescing scheduler. The
-  existing timer performance suite separately exercises full Hotfix callbacks.
-- Cross-node Hotfix Actor calls retain typed requests until a cached
-  MemoryPack codec writes directly into the final RPC envelope buffer. The
-  receive and reply paths operate on owned frame slices and direct response
-  writers; they do not use `Type`-based serializer reflection, `ToArray`, or
-  `ClusterMessage` payload wrapping. Reintroducing any of those operations on
-  this path requires a focused allocation benchmark and an architecture
-  decision.
-- Cross-node client-cache hits reuse existing entries without allocating new
-  candidates or captured connection state. Creation stays inside the lifecycle
-  lock on the miss path; retain shared connection attempts, caller-local
-  cancellation, exact-instance eviction, and shutdown ownership described in
-  [Cluster](cluster.md#cluster-rpc-composition). The
-  [cache benchmark](../benchmarks/cluster-client-cache/README.md) compares both
-  exact-route and formation-contact lookups against a pinned baseline, with
-  single-threaded and concurrent hits. It does not measure end-to-end RPC latency.
-- Typed client requests, typed server responses, and typed server
-  notifications use the same writer-first rule: `IRpcSerializer` writes the
-  business payload directly into the final pooled envelope buffer, and push
-  metadata is decoded as an owned slice of the received frame. The wire bytes
-  are unchanged. This is a structural allocation invariant, not a quantified
-  throughput claim; any claimed performance gain still requires a focused
-  benchmark.
+| Path | Contract owner | Performance evidence or reconsideration check |
+| --- | --- | --- |
+| Reliable Push | [Sessions](session.md#reliable-push-and-resume) | Measure contention and delivery latency before widening lock scope. |
+| Actor execution | [Actor turns](actor.md#actor-turns-and-hotfix-generations) | Measure mailbox throughput and cross-Actor interference. |
+| RPC admission and send lifetime | [RPC lifecycle](rpc/architecture.md#host-and-session-lifetime) | Measure overload and stalled-send behavior. |
+| Client dispatch handoff | [Ordered message entry](rpc/architecture.md#ordered-message-entry) | Retain a deterministic concurrent-post regression alongside scheduling measurements. |
+| KCP synchronization and scheduling | [KCP contract](rpc/transport-contract.md#kcp) | Use the [reliability probe](../benchmarks/rpc-reliability/README.md); include idle and active connections. |
+| Timer scheduling | [Actor timers](actor.md#timers) | The [wakeup benchmark](../benchmarks/timer-wakeup/README.md) compares ordinary and gated registration bursts; full Hotfix callback cost needs the timer performance suite. |
+| Cross-node Actor encoding | [Cluster RPC](cluster.md#cluster-rpc-composition) | Measure allocations across request encoding, receive and reply paths before introducing extra copies or reflection. |
+| Cross-node client-cache hits | [Cluster client ownership](cluster.md#cluster-rpc-composition) | The [cache benchmark](../benchmarks/cluster-client-cache/README.md) covers exact-route and formation-contact lookups, including concurrent hits; it does not measure end-to-end RPC latency. |
+| Typed RPC frame writing | [Frame ownership](rpc/architecture.md#frame-ownership) | Removing a payload allocation is structural evidence; throughput gains still need a benchmark. |
 
 ### RPC Route Metrics
 
-RPC request metrics resolve a registered descriptor once at admission and retain
-that classification through completion. Unknown wire ids share a fixed metric
-category without a separate whitelist or per-request cache. See
-[Observability](observability.md#instrumentation-scopes) for the label contract.
+Route classification and metric labels follow
+[Observability](observability.md#instrumentation-scopes).
 The [route-metrics benchmark](../benchmarks/rpc-route-metrics/README.md) compares
 recording cost and real 32-byte loopback requests against a pinned pre-fix runtime,
 both with and without metric listeners. Loopback measurements include dispatch
@@ -199,12 +157,8 @@ and framing, but do not represent network latency or exporter cost.
 
 ### Session Population Collection
 
-Session population gauges share a one-second, demand-driven snapshot instead
-of scanning the registry separately for each metric. A direct diagnostics call
-still scans immediately. Enumeration allocates no population-sized reference
-array; per-session locks preserve the existing state-read boundary. See
-[Observability](observability.md#instrumentation-scopes) for freshness and
-failure semantics.
+Collection freshness and failure semantics follow
+[Observability](observability.md#instrumentation-scopes).
 
 The [population benchmark](../benchmarks/session-population/README.md) compares
 direct scans, forced refreshes and cache hits against a pinned baseline. It also
@@ -213,10 +167,8 @@ metric collection. Cache-hit measurements must not stand in for refresh cost.
 
 ### Application HTTP Body Reads
 
-The HTTP body reader rents an 8 KiB scratch buffer and creates accumulation
-storage only after its first nonempty read. The final body remains request-owned;
-pooling does not change raw-byte lifetime or actual-size validation. See
-[Application HTTP](http.md#hotfix-owns-product-behavior) for the ownership contract.
+Buffering changes must preserve the raw-body lifetime and validation contract in
+[Application HTTP](http.md#hotfix-owns-product-behavior).
 
 The [body-reader benchmark](../benchmarks/http-body-reader/README.md) compares
 the actual reader method with a pinned pre-fix revision, covering empty, small,
@@ -226,12 +178,10 @@ or retained process memory.
 
 ### Client Notification Queue
 
-The client notification receive queue is intentionally unbounded. A slow
-notification handler must not cause the receive loop to drop notifications,
-disconnect the client, or block frame reception. The runtime emits
-logarithmically coalesced warnings when queued notification count or retained
-wire bytes cross new high-water thresholds, beginning at 256 notifications
-or 1 MiB. Do not propose a bounded queue, dropping, forced disconnect, or
-receive-loop backpressure again without a representative stress/soak test
-that measures notification rate, handler latency, queue growth, retained
-memory, request latency, and recovery after the burst.
+[RPC](rpc/architecture.md#host-and-session-lifetime) owns the queue's delivery
+policy and warning thresholds. The performance tradeoff deliberately favors
+response reception over a fixed notification-memory bound. Reconsidering it
+requires a representative stress/soak test that measures notification rate,
+handler latency, queue growth, retained memory, request latency, and recovery
+after the burst; neither a bounded queue nor dropping should be presented as
+a cost-free replacement.

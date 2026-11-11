@@ -430,28 +430,9 @@ and log levels explicit so telemetry volume remains bounded.
 
 ## Management Configuration
 
-Hotfix admin routes, when needed, are enabled independently from telemetry:
-
-```json
-{
-  "Lakona": {
-    "Management": {
-      "Http": {
-        "Host": "127.0.0.1",
-        "Port": 20080
-      },
-      "Admin": {
-        "Enabled": true,
-        "RequireLoopback": true
-      }
-    },
-    "Health": {
-      "Enabled": true,
-      "RequireLoopback": true
-    }
-  }
-}
-```
+Telemetry export does not require Hotfix admin routes. Configure management and
+health listeners, route enablement and loopback restrictions through
+[Configuration](configuration.md#validation), which owns the complete example.
 
 The removed `Lakona:Observability` section and
 `/_lakona/diagnostics/*` routes are not compatibility aliases. Startup rejects

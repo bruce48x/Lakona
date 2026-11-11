@@ -268,7 +268,10 @@ creating an unbounded family of overload-send tasks outside the request budget.
 
 The client notification receive queue is an intentional exception to bounded
 queueing: slow notification handlers must not block response reception. Its
-[resource tradeoff and conditions for reconsideration](../performance.md#client-notification-queue)
+delivery policy does not drop notifications or force a disconnect merely because
+handlers are slow. Logarithmically coalesced warnings report new queue-count or
+retained-wire-byte high-water thresholds, beginning at 256 notifications or 1 MiB.
+The [resource tradeoff and conditions for reconsideration](../performance.md#client-notification-queue)
 are defined in the performance guidance. Server request admission and client
 notification delivery have different pressure policies.
 

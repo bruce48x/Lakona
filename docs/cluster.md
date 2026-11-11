@@ -468,6 +468,13 @@ Types below `Lakona.Game.Cluster.Rpc` are internal implementation details.
 Applications compose the high-level game server and use the public membership
 identity and snapshot contracts rather than replacing the wire protocol.
 
+Typed Hotfix Actor calls retain requests until a cached MemoryPack codec writes
+into the final RPC envelope. Received payloads use owned frame slices and replies
+use direct writers, without Type-based serializer reflection, intermediate array
+copies or `ClusterMessage` payload wrapping. Allocation changes to this path need
+a focused benchmark and architecture assessment; shared buffer ownership follows
+[RPC frame ownership](rpc/architecture.md#frame-ownership).
+
 The outbound client factory observes RPC connection state changes and evicts
 `Stopped` or `Disposed` runtimes from its connection cache. Because state
 notifications are asynchronous, it also checks the runtime state before

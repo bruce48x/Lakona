@@ -142,7 +142,8 @@ method on the active Hotfix generation.
 
 Put reloadable lifecycle work on the behavior. The `InitializeAsync` and
 `CleanupAsync` calls below are private helpers, not public Actor entry methods;
-they may receive the framework lifecycle token:
+they may receive the framework lifecycle token. Include only hooks with actual
+business work; the Stop example is not needed solely for Actor-owned timers:
 
 ```csharp
 [ActorStart]

@@ -5,7 +5,7 @@ does not own an application's logging policy. Runtime packages depend on
 logging abstractions, accept an application-owned `ILoggerFactory`, and remain
 externally silent when the application does not install a provider.
 
-This document is the authority for logging ownership, integration points, and
+This document describes logging ownership, integration points, and
 provider replacement across Lakona RPC and Game applications.
 
 ## Ownership Boundary

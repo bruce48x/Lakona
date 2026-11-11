@@ -96,14 +96,10 @@ applies to reading steps in Skills, without waiving applicable project rules.
 
 ## Shared Validation Policy
 
-Service and layout guidance distinguishes DI-owned `[HotfixComponent]` helpers
-from business exceptions. Direct and indirect `System.Exception` subclasses may
-remain in Hotfix without a role; construct them with runtime data using `new`.
-Do not suggest component markers, DI registration, or moving exceptions to App
-to resolve old `LAKONA20037` guidance. Upgrade affected framework packages,
-remove mistaken markers (`LAKONA20060`) and temporary suppressions, and verify
-compilation and Hotfix loading. This exception does not relax ordinary class
-roles or dependency checks for real components.
+Authoring guidance must agree with the [Hotfix role boundary](../hotfix/architecture.md#boundaries)
+and [component contract](../hotfix/components.md), including the distinction
+between business exceptions and DI-owned components. Maintain those contracts
+in their owning guides and self-contained project workflows in the public Skills.
 
 Each public Skill must remain usable in a generated project without this
 repository's contributor docs. Its validation guidance selects checks for the
@@ -144,24 +140,17 @@ maintenance policy rather than a second copy of those workflows.
 
 Service and HTTP workflows use the component Skill when resource lifecycle work
 is required by the authorized task; this handoff does not require renewed
-approval. Concrete HotfixComponent dependencies own business resource operations.
-Framework and third-party infrastructure interfaces remain valid for
-configuration, secrets and clients. Component constructors require concrete
-marked State for custom App dependencies, including method-only use; State
-declares data, basic initialization and actual disposal implementations rather
-than business methods. Prefer the component's Hotfix ComponentConfigureServices
-entry for stable root-DI resource registration; App AddServices remains valid for
-global host composition. See [Hotfix Components](../hotfix/components.md) for the
-framework contract and the Skill's [resource examples](../../skills/lakona-implement-component/references/resource-patterns.md)
-for complete authoring patterns. The framework guide's
+approval. Component injection, State and registration rules belong to
+[Hotfix Components](../hotfix/components.md). The Skill's
+[resource examples](../../skills/lakona-implement-component/references/resource-patterns.md)
+provide complete project-local authoring patterns. The framework guide's
 [Agar example](../hotfix/components.md#agar-example) maps those patterns to the
 runnable sample.
 
-The client Skill observes the generated facade's actual `ConnectionStateChanged`
-event and initial `ConnectionState`, separately from authentication and session
-phase. It detects compatibility from the project's dependencies and generated
-output and upgrades a matching dependency set if required members are absent;
-it must not invent an event or infer APIs from the installed Tool/Hub version.
+The client Skill derives API compatibility from the project's dependencies and
+generated output, rather than the installed Tool/Hub version. Client lifecycle
+and recovery behavior belongs to [Sessions](../session.md#game-client-lifecycle)
+and the linked client workflow.
 
 ## Maintenance Checks
 

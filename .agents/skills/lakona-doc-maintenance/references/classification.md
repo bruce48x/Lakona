@@ -12,7 +12,7 @@ Classify every relevant doc before editing:
   names, or old starter designs without current operational value.
 - **Duplicate:** repeats content already covered by a clearer current authority.
 
-Default actions:
+Default dispositions to propose during an audit, or apply during authorized cleanup:
 
 - Keep current authority and current supplements.
 - Apply the entrypoint's user-facing scope rule: repair links affected by the

@@ -137,8 +137,8 @@ two-provider shape reflects two real lifetimes and must not be replaced by a
 duplicate stable-service allow-list.
 
 DLL reload and `Lakona.Game.Testing.UseHotfixAssembly` share the internal
-generation composition rules: Startup registrations precede generated
-generated concrete component singletons, modules belong to a generation provider, and Actor roles
+generation composition rules: Startup registrations precede generated concrete
+component singletons, modules belong to a generation provider, and Actor roles
 and enabled HTTP services filter the dispatch table. In-process tests use an
 already loaded assembly and retire that provider when the node stops. They do
 not exercise collectible assembly loading or the reload publication transaction;

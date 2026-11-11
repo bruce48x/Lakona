@@ -6,6 +6,9 @@ checklist items. If reusing a command below for a scoped task, restrict it to
 the affected files and incoming references. Run commands from the repository
 root.
 
+Audit mode is read-only: deletion, migration and map changes are proposals.
+Follow the entrypoint's authorization boundary before applying any cleanup.
+
 ## Workflow
 
 1. Follow `CONTRIBUTING.md`, reusing applicable material already read.
@@ -28,24 +31,30 @@ root.
 4. Run all six passes in the Complete Quality Audit Checklist and keep an
    evidence-backed result for each pass.
 
-5. Check references before deleting:
+5. Check incoming references when proposing deletion or migration:
 
    ```powershell
    rg -n "path-or-filename-to-delete" CONTRIBUTING.md docs README.md CHANGELOG.md
    ```
 
-6. Edit narrowly:
-   - delete stale files
-   - remove links to deleted docs
-   - compact entry maps
-   - replace completed phase sections with current contracts only when the
-     contract is still useful
+6. Report findings, evidence, proposed dispositions and coverage limitations.
+   Complete audit verification below, then stop. Do not apply the findings.
 
-7. Repeat the affected checklist passes after editing. A cleanup is incomplete
-   if it fixes one document while leaving a conflicting authority or duplicate
-   mutable fact elsewhere.
+## Authorized Cleanup
 
-8. Remove temporary planning docs created during the cleanup before finishing.
+For findings the user has authorized fixing, check references and edit narrowly:
+
+- delete stale files
+- remove links to deleted docs
+- compact entry maps
+- replace completed phase sections with current contracts only when the
+  contract is still useful
+
+Repeat the affected checklist passes after editing. A cleanup is incomplete
+if it fixes one document while leaving a conflicting authority or duplicate
+mutable fact elsewhere.
+
+Remove temporary planning docs created during the cleanup before finishing.
 
 ## Verification
 
@@ -54,8 +63,8 @@ Before claiming a full audit complete:
 - Confirm the six audit passes have explicit results and evidence.
 - Confirm every current authority is mapped by `CONTRIBUTING.md` and every
   mapped target exists.
-- After edits, re-run only searches whose results may have changed, covering
-  affected duplicate facts, competing authority markers, and transitional
+- For authorized cleanup, re-run only searches whose results may have changed,
+  covering affected duplicate facts, competing authority markers, and transitional
   wording. Review remaining matches in that scope as intentional. Reuse valid
   evidence for unchanged areas rather than restarting the full audit.
 

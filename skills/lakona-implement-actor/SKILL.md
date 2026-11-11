@@ -46,7 +46,10 @@ and timers; a Startup Actor is not a general resource-initialization mechanism.
    lifetime requests post-turn cleanup through
    `self.Context.RequestDeactivation()`.
 10. Add `[ActorStart]` and `[ActorStop]` hooks only for real lifecycle work.
-   Release timers and other long-lived handles during cleanup.
+    Release application-owned long-lived handles during cleanup. Activation
+    shutdown automatically cancels its timers; use `DestroyTimer` only when
+    business logic needs early cancellation. Do not add `[ActorStop]` solely
+    to destroy timers.
 11. Reuse focused tests for affected state transitions, replies, lifecycle,
     placement assumptions, and failure behavior; add or update tests only where
     meaningful coverage is missing.

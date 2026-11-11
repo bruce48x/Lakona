@@ -30,7 +30,8 @@
 房间所属 battle 节点。控制连接和实时连接各有自己的会话与回调，
 不能依赖它们处于同一进程。
 
-`Shared` 保持协议与模拟独立于 Unity、托管和数据库。
+`Shared` 不依赖 Unity 引擎运行时、UI、服务端托管或数据库。
+共享模拟使用的 Unity 值类型由 `MemoryPack.UnityShims` 支持，可在普通 .NET 环境中运行。
 `Server/App` 持有稳定宿主、绑定、Actor 内存状态和稳定资源身份；
 `Server/Hotfix` 持有 RPC/HTTP 业务入口、Behavior 和 Store。
 内存状态跨热更保留，不等于进程重启后自动恢复。
