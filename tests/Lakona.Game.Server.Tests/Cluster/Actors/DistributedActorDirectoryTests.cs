@@ -15,6 +15,41 @@ namespace Lakona.Game.Server.Tests.Cluster.Actors;
 public sealed class DistributedActorDirectoryTests
 {
     [Fact]
+    public async Task Exiting_snapshot_source_interrupts_requests_waiting_for_a_newer_view()
+    {
+        var node = Reference("node-a", 1);
+        var before = Snapshot(1, Active(node));
+        var membership = new MutableMembership(before);
+        var network = new DirectoryNetwork();
+        using var directory = Directory(node, membership, network, before);
+        var client = new DirectoryClient(directory, network);
+        using var requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.Current.CancellationToken);
+        var request = client.CallAsync(ActorDirectoryProtocol.PartitionSnapshot,
+            new ActorDirectoryPartitionSnapshotRequest
+            {
+                View = 2,
+                SnapshotView = 1,
+                PartitionIndex = 0,
+                Range = new ActorDirectoryRangeDto { Kind = 2 }
+            }, requestCancellation.Token).AsTask();
+        try
+        {
+            // The source exits before learning the requested view. An in-flight
+            // RPC must disconnect, rather than wait forever for that update.
+            await membership.ChangeWaitStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
+            directory.Dispose();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                request.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            await requestCancellation.CancelAsync();
+            _ = await Record.ExceptionAsync(() => request);
+        }
+    }
+
+    [Fact]
     public async Task Late_start_notification_does_not_cancel_the_transition_already_running()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -2109,10 +2144,14 @@ public sealed class DistributedActorDirectoryTests
     {
         public ClusterMembershipSnapshot Current { get; set; } = current;
 
+        public TaskCompletionSource ChangeWaitStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public async ValueTask<ClusterMembershipSnapshot> WaitForChangeAsync(
             MembershipViewId after,
             CancellationToken cancellationToken = default)
         {
+            ChangeWaitStarted.TrySetResult();
             while (Current.View.CompareTo(after) <= 0)
                 await Task.Delay(1, cancellationToken);
             return Current;
@@ -2363,6 +2402,10 @@ public sealed class DistributedActorDirectoryTests
             TArg? arg,
             CancellationToken ct = default)
         {
+            // Model transport disconnect when the target exits, including calls
+            // already waiting for a Membership view that it will never observe.
+            using var requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                ct, directory.StoppingToken);
             network.MethodIds.Enqueue(method.MethodId);
             if (network.FailAcknowledge
                 && method.MethodId == ActorDirectoryProtocol.AcknowledgeSnapshot.MethodId)
@@ -2378,16 +2421,18 @@ public sealed class DistributedActorDirectoryTests
                 ActorDirectoryRequest request => await directory.HandleAsync(
                     (RpcMethod<ActorDirectoryRequest, ActorDirectoryReply>)(object)method,
                     request,
-                    ct),
+                    requestCancellation.Token),
                 ActorDirectoryPartitionSnapshotRequest request =>
-                    await directory.HandlePartitionSnapshotAsync(request, ct),
+                    await directory.HandlePartitionSnapshotAsync(request, requestCancellation.Token),
                 ActorDirectoryActivationSnapshotRequest request =>
-                    await directory.HandleActivationSnapshotAsync(request, ct),
+                    await directory.HandleActivationSnapshotAsync(request, requestCancellation.Token),
                 ActorDirectorySnapshotAcknowledgeRequest request =>
-                    await directory.HandleAcknowledgeAsync(request, ct),
+                    await directory.HandleAcknowledgeAsync(request, requestCancellation.Token),
                 _ => throw new NotSupportedException(
                     $"Unsupported Actor Directory method '{method.MethodId}'.")
             };
+            // Captured replies have already reached the client. Their delivery
+            // gates remain controlled by the caller even if the source exits.
             if (arg is ActorDirectoryPartitionSnapshotRequest partitionSnapshotRequest)
             {
                 await network.PausePartitionSnapshotResponseAsync(
