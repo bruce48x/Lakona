@@ -1,11 +1,33 @@
 # Architecture And Complexity Review
 
-Lakona uses manual architecture reviews to discover structural friction,
-over-design, ineffective code, local code smells, and generated-project
-consumer costs before anyone proposes implementation work. Reviews also
-identify performance risks across CPU, memory, latency, throughput, bandwidth,
-allocation, garbage collection, and contention without optimizing one signal
-in isolation.
+Lakona architecture reviews prioritize reliability, performance, and long-term
+maintenance cost under real requirements and runtime constraints. Every review
+is guided by one question:
+
+> **Are we taking on avoidable complexity and risk to meet current requirements?**
+
+## Review Principles
+
+Re-examine design decisions across code, documentation, and tests, including
+responsibility splits, state models, and abstraction boundaries. Proactively
+look for problems the requester has not identified or cannot yet describe.
+Functional success and agreement among implementation, documentation, and
+tests do not by themselves establish that the underlying design is appropriate.
+
+Judge simplicity by the total cost of understanding, changing, operating, and
+diagnosing the system for maintainers and consumers. Distinguish complexity
+required by real needs from complexity introduced by design choices. Trace
+where those choices force other modules to add adapters, duplicate state, or
+special cases. Moving complexity into callers, configuration, generated code,
+or operations does not remove it; fewer lines, types, or layers alone do not
+establish an improvement.
+
+Identify the requirement or invariant each mechanism serves and preserve
+necessary behavioral guarantees when simplifying. A from-scratch design can
+provide a comparison under the same requirements and runtime constraints.
+Evaluate the merits of that design separately from the value of changing the
+existing system; recommendations remain subject to the
+[compatibility policy](../../CONTRIBUTING.md).
 
 ## Trigger And Default Scope
 
@@ -111,10 +133,15 @@ or handoff.
 
 ## Evidence Standard
 
-Each finding identifies exact files or symbols, observed evidence, concrete
-maintenance cost or credible failure mode, counterevidence, uncertainty, and a
-discussion question. A standards finding must additionally cite the rule file
-and section it breaches.
+Each finding identifies exact files or symbols, observed evidence, the mechanism
+behind a concrete maintenance cost or credible failure mode, counterevidence,
+uncertainty, and a discussion question. Distinguish demonstrated problems from
+risks awaiting verification. A standards finding must additionally cite the rule
+file and section it breaches.
+
+For each proposed change, explain why it would address the problem and assess
+its expected benefit against compatibility and migration costs, ongoing
+maintenance cost, and regression risk.
 
 Use these recommendation strengths:
 
@@ -126,7 +153,8 @@ Recommendation strength is independent of size. A small local smell can be
 strong; a large redesign can remain speculative.
 
 Do not report formatting preferences as architecture findings. Do not impose a
-finding quota, and do not invent findings to fill a category.
+finding quota, and do not invent findings to fill a category. Keeping a sound
+design unchanged is a valid conclusion; refactoring alone is not a benefit.
 
 Performance findings follow [Runtime Performance](../performance.md) and
 [Cross-Framework Game Server Benchmarking](../framework-benchmarking.md).
