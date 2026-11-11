@@ -14,6 +14,38 @@ namespace Lakona.Game.Server.Hosting;
 
 public sealed class MembershipTableHostedServiceTests
 {
+    [Fact]
+    public async Task Full_membership_rejects_startup_without_retry_or_peer_probes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var cluster = await CreateActiveClusterAsync(ClusterMembershipSnapshot.MaximumMembersV1);
+        var reads = 0;
+        var table = new FailingMembershipTable(cluster.Table)
+        {
+            BeforeRead = _ => { Interlocked.Increment(ref reads); return default; }
+        };
+        var state = new ClusterMembershipState();
+        var manager = new MembershipTableManager(new NodeId("overflow"), NodeIncarnationId.New(),
+            new NodeEndpoint("tcp://127.0.0.1:31001"), new ClusterBuildTag("TestBuild1"), table, state);
+        var probes = new RecordingProbeTransport((_, _, _) => true);
+        using var services = new ServiceCollection().BuildServiceProvider();
+        using var hosted = CreateHosted(cluster.Runtime, manager, state, table, probes, services);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(TimeSpan.FromSeconds(10));
+        var before = await cluster.Table.ReadOrCreateAsync(ct);
+
+        var error = await Assert.ThrowsAsync<ClusterMembershipFencedException>(() => hosted.StartAsync(deadline.Token));
+        Assert.Contains("capacity of 1024", error.Message);
+        Assert.Equal(1, reads);
+        Assert.Equal(1, table.AllocateAttempts);
+        Assert.Empty(probes.Calls);
+        Assert.Throws<InvalidOperationException>(() => state.Current);
+        var after = await cluster.Table.ReadOrCreateAsync(ct);
+        Assert.Equal(before.Version, after.Version);
+        Assert.Equal(before.Entries, after.Entries);
+        await cluster.Managers[0].RefreshAsync(ct);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

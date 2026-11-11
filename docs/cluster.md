@@ -280,6 +280,22 @@ the CAS and retry from a fresh snapshot. Heartbeat writes update only
 `IAmAliveTime`, so routine liveness does not create a constant stream of new
 membership views.
 
+Membership v1 admits at most 1,024 `Joining` and `Active` members. The shared
+join manager checks the projected count before inserting or replacing a row,
+then commits against that same table version. A concurrent structural change
+forces a reread and another capacity check. Replacing a `Joining` or `Active`
+incarnation uses its existing slot; replacing `Stopping` or restarting `Dead`
+requires a free slot. Neither historical `Dead` rows nor `Stopping` rows count
+toward this routing limit. Confirmation of an already committed exact Joining
+row is not a new admission, including after a lost write response.
+
+Capacity exhaustion raises `ClusterMembershipFencedException` before the member
+write and ends startup without retrying. Once a slot is free, restart the rejected
+process. Its allocated generation is not reused or rolled back. The existing
+snapshot size check remains a defensive invariant. Upgrade all joining processes
+to receive this admission check; direct writes through `IMembershipTable` must
+preserve the same invariant. No storage schema or provider API change is required.
+
 Structural updates preserve the stored `IAmAliveTime`; only the heartbeat
 operation advances it after insertion. `TryUpdateAsync` additionally compares
 the proposal's `IAmAliveTime` with the stored value when transitioning to `Dead`,

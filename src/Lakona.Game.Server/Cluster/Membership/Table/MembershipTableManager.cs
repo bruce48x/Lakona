@@ -111,6 +111,18 @@ internal sealed class MembershipTableManager : IClusterMembershipRefresher
 
             var existing = snapshot.Entries.SingleOrDefault(entry =>
                 entry.Reference.Node == nodeId && entry.Status != MembershipTableStatus.Dead);
+            var membersAfterReplacement = snapshot.Entries.Count(static entry =>
+                entry.Status is MembershipTableStatus.Joining or MembershipTableStatus.Active);
+            if (existing?.Status is MembershipTableStatus.Joining or MembershipTableStatus.Active)
+                membersAfterReplacement--;
+            if (membersAfterReplacement >= ClusterMembershipSnapshot.MaximumMembersV1)
+            {
+                throw new ClusterMembershipFencedException(
+                    $"Node '{nodeId.Value}' cannot join: Membership v1 capacity of {ClusterMembershipSnapshot.MaximumMembersV1} members is full. "
+                    + "Free a member slot before restarting this process.");
+            }
+            // Commit against the same view used for capacity accounting. A losing
+            // CAS rereads and rechecks; confirming an existing own row above is free.
             var joining = new MembershipTableEntry(
                 reference,
                 MembershipTableStatus.Joining,

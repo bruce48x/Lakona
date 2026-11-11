@@ -4,7 +4,7 @@ using Xunit;
 
 namespace Lakona.Game.Cluster.Tests;
 
-public abstract class MembershipTableContractTests
+public abstract partial class MembershipTableContractTests
 {
     private const string BuildTag = "Release1";
 
