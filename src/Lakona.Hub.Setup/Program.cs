@@ -6,7 +6,7 @@ using Lakona.Hub.Installation;
 internal static partial class Program
 {
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
         string? work = null;
         try
@@ -26,6 +26,7 @@ internal static partial class Program
             SignedPackage.Release().Extract(archive, runner);
             var start = new ProcessStartInfo(Path.Combine(runner, "Lakona.Hub.Updater.exe")) { UseShellExecute = false, WorkingDirectory = runner };
             start.ArgumentList.Add("--package"); start.ArgumentList.Add(archive);
+            if (args.Contains("--smoke-test")) start.ArgumentList.Add("--smoke-test");
             using var process = Process.Start(start) ?? throw new IOException("The setup window could not start.");
             process.WaitForExit();
             return process.ExitCode;

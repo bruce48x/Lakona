@@ -3,14 +3,16 @@ param(
     [Parameter(Mandatory)][string]$Version,
     [Parameter(Mandatory)][string]$OutputRoot,
     [Parameter(Mandatory)][string]$ManifestPrivateKeyPath,
-    [Parameter(Mandatory)][string]$SignScript,
-    [Parameter(Mandatory)][string]$PublisherThumbprint
+    [string]$SignScript,
+    [string]$PublisherThumbprint,
+    [string]$RuntimeFrameworkVersion
 )
 
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'Windows setup must be built on Windows.' }
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'A stable three-part Hub version is required.' }
-$signer = (Resolve-Path -LiteralPath $SignScript).Path
+if ([bool]$SignScript -ne [bool]$PublisherThumbprint) { throw 'Supply both SignScript and PublisherThumbprint, or neither.' }
+$signer = if ($SignScript) { (Resolve-Path -LiteralPath $SignScript).Path } else { $null }
 $privateKey = (Resolve-Path -LiteralPath $ManifestPrivateKeyPath).Path
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 $output = (Resolve-Path -LiteralPath $OutputRoot).Path
@@ -19,18 +21,24 @@ New-Item -ItemType Directory -Path $work | Out-Null
 $rsa = [Security.Cryptography.RSA]::Create()
 try {
     $rsa.ImportFromPem([IO.File]::ReadAllText($privateKey))
+    $expectedKey = [IO.File]::ReadAllText((Join-Path $PSScriptRoot '../../src/Lakona.Hub.Installation/release-public.pem')).Replace("`r`n", "`n").Trim()
+    if ($rsa.ExportSubjectPublicKeyInfoPem().Replace("`r`n", "`n") -ne $expectedKey) { throw 'The private key does not match the pinned release public key. Do not rotate it without a trust-migration plan.' }
     $publicKey = Join-Path $work 'release-public.pem'
     [IO.File]::WriteAllText($publicKey, $rsa.ExportSubjectPublicKeyInfoPem())
     $payload = Join-Path $work 'payload'
     $updater = Join-Path $work 'updater'
     $setup = Join-Path $work 'setup'
     function Publish-App([string]$Project, [string]$Destination, [string[]]$ExtraArguments = @()) {
+        if ($RuntimeFrameworkVersion) {
+            $ExtraArguments += "-p:RuntimeFrameworkVersion=$RuntimeFrameworkVersion", "-p:IlcPackageVersion=$RuntimeFrameworkVersion"
+        }
         & dotnet publish $Project -c Release -r win-x64 --self-contained true -o $Destination `
             "-p:Version=$Version" "-p:HubReleasePublicKey=$publicKey" -p:TreatWarningsAsErrors=true `
             -p:ILLinkTreatWarningsAsErrors=true -p:DebugType=None -p:DebugSymbols=false @ExtraArguments
         if ($LASTEXITCODE -ne 0) { throw "NativeAOT publishing failed: $Project" }
     }
     function Sign-And-Verify([string]$Path) {
+        if (-not $signer) { return }
         # A fixed script path receives a structured argument. No interpolated shell
         # command, private key, or signing credential is written to release logs.
         & $signer -FilePath $Path
@@ -70,7 +78,7 @@ try {
     Sign-And-Verify $setupExecutable
     Copy-Item -LiteralPath $archive -Destination $output
     Copy-Item -LiteralPath $setupExecutable -Destination (Join-Path $output 'Lakona.Hub.Setup.exe')
-    Write-Host 'Signed offline setup and update payload created. Complete the Windows release-candidate tests before distribution.'
+    Write-Host "Offline setup and signed update payload created. Windows Authenticode enabled: $([bool]$signer)."
 }
 finally {
     $rsa.Dispose()

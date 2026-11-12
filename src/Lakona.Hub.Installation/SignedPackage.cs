@@ -27,7 +27,7 @@ public sealed class SignedPackage
     public static SignedPackage Release()
     {
         using var resource = typeof(SignedPackage).Assembly.GetManifestResourceStream("Lakona.Hub.ReleaseKey.pem")
-            ?? throw new InvalidOperationException("This build has no release signing key. Use the current MSI release.");
+            ?? throw new InvalidOperationException("This build has no update verification key. Download the official Lakona Hub setup.");
         using var reader = new StreamReader(resource);
         return new SignedPackage(reader.ReadToEnd());
     }

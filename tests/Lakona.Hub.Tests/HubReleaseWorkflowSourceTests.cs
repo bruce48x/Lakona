@@ -12,13 +12,12 @@ public sealed class HubReleaseWorkflowSourceTests
         var root = FindRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "publish-hub.yml"));
         var packager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubRelease.ps1"));
-        var windowsPackager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubWindowsPackage.ps1"));
+        var windowsPackager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubUserSetup.ps1"));
         var macPackager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubMacPackage.ps1"));
         var linuxPackager = File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubLinuxPackages.ps1"));
         var linuxPackageConfig = File.ReadAllText(Path.Combine(root, "scripts", "hub", "linux", "nfpm.yaml"));
         var linuxDesktopEntry = File.ReadAllText(Path.Combine(root, "scripts", "hub", "linux", "dev.lakona.hub.desktop"));
         var linuxCacheUpdater = File.ReadAllText(Path.Combine(root, "scripts", "hub", "linux", "update-desktop-caches.sh"));
-        var windowsShortcut = windowsPackager.Split('\n').Single(line => line.Contains("<Shortcut", StringComparison.Ordinal));
         var project = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "Lakona.Hub.csproj"));
 
         var checkoutCount = workflow.Split("uses: actions/checkout@v5", StringSplitOptions.None).Length - 1;
@@ -49,13 +48,15 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.DoesNotContain("dotnet/dotnet", linuxPackager, StringComparison.Ordinal);
         Assert.Contains("-Filter '*.pdb'", workflow, StringComparison.Ordinal);
         Assert.Contains("New-HubRelease.ps1", workflow, StringComparison.Ordinal);
-        Assert.Contains("New-HubWindowsPackage.ps1", workflow, StringComparison.Ordinal);
+        Assert.Contains("New-HubUserSetup.ps1", workflow, StringComparison.Ordinal);
         Assert.Contains("New-HubMacPackage.ps1", workflow, StringComparison.Ordinal);
         Assert.Contains("New-HubLinuxPackages.ps1", workflow, StringComparison.Ordinal);
-        Assert.Contains("wix --version 5.0.2", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("wix --version", workflow, StringComparison.Ordinal);
+        Assert.Contains("secrets.HUB_UPDATE_PRIVATE_KEY", workflow, StringComparison.Ordinal);
         Assert.Contains("hdiutil attach", workflow, StringComparison.Ordinal);
         Assert.Contains("github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0", workflow, StringComparison.Ordinal);
-        Assert.Contains(".msi", packager, StringComparison.Ordinal);
+        Assert.DoesNotContain(".msi", packager, StringComparison.Ordinal);
+        Assert.Contains("Lakona.Hub.Setup.exe", packager, StringComparison.Ordinal);
         Assert.Contains(".dmg", packager, StringComparison.Ordinal);
         Assert.Contains("linux-x64.deb", packager, StringComparison.Ordinal);
         Assert.Contains("linux-x64.rpm", packager, StringComparison.Ordinal);
@@ -65,11 +66,7 @@ public sealed class HubReleaseWorkflowSourceTests
         Assert.Contains("<IsAotCompatible>true</IsAotCompatible>", project, StringComparison.Ordinal);
         Assert.Contains("<ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>", project, StringComparison.Ordinal);
         Assert.Contains("<ApplicationIcon>Assets\\lakona-hub.ico</ApplicationIcon>", project, StringComparison.Ordinal);
-        Assert.Contains("<Icon Id=\"LakonaHubProductIcon\"", windowsPackager, StringComparison.Ordinal);
-        Assert.Contains("ARPPRODUCTICON\" Value=\"LakonaHubProductIcon\"", windowsPackager, StringComparison.Ordinal);
-        Assert.Contains("Advertise=\"no\"", windowsShortcut, StringComparison.Ordinal);
-        Assert.DoesNotContain(" Icon=", windowsShortcut, StringComparison.Ordinal);
-        Assert.DoesNotContain("Advertise=\"yes\"", windowsPackager, StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(root, "scripts", "hub", "New-HubWindowsPackage.ps1")));
         Assert.True(File.Exists(Path.Combine(root, "src", "Lakona.Hub", "Assets", "lakona-hub.ico")));
         Assert.True(File.Exists(Path.Combine(root, "src", "Lakona.Hub", "Assets", "lakona-hub-2048.png")));
         Assert.Contains("CFBundleIconFile", File.ReadAllText(Path.Combine(root, "scripts", "hub", "New-HubMacPackage.ps1")), StringComparison.Ordinal);
@@ -153,10 +150,8 @@ public sealed class HubReleaseWorkflowSourceTests
         }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Packager_CreatesInstallerManifestForEveryPlatform(bool includeUserCandidate)
+    [Fact]
+    public async Task Packager_CreatesInstallerManifestForEveryPlatform()
     {
         var root = FindRepositoryRoot();
         var temporary = Path.Combine(Path.GetTempPath(), $"lakona-hub-packager-{Guid.NewGuid():N}");
@@ -165,32 +160,22 @@ public sealed class HubReleaseWorkflowSourceTests
         try
         {
             WriteInstallerPackages(publish, "1.1.0");
-            string? candidate = null;
-            if (includeUserCandidate)
-            {
-                candidate = Path.Combine(temporary, "candidate");
-                Directory.CreateDirectory(candidate);
-                File.WriteAllText(Path.Combine(candidate, "lakona-hub-1.1.0-win-x64-user.zip"), "candidate payload");
-                File.WriteAllText(Path.Combine(candidate, "Lakona.Hub.Setup.exe"), "candidate setup");
-            }
-            await RunPackagerAsync(root, publish, output, "1.1.0", candidate);
+            await RunPackagerAsync(root, publish, output, "1.1.0");
 
             using var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(
                 Path.Combine(output, "lakona-hub-manifest.json"),
                 TestContext.Current.CancellationToken));
             var platforms = manifest.RootElement.GetProperty("platforms");
-            Assert.Equal(includeUserCandidate ? 6 : 5, platforms.EnumerateObject().Count());
-            if (includeUserCandidate)
-            {
-                Assert.EndsWith("-user.zip", platforms.GetProperty("win-x64-user").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
-                Assert.True(File.Exists(Path.Combine(output, "Lakona.Hub.Setup.exe")));
-            }
+            Assert.Equal(5, platforms.EnumerateObject().Count());
+            Assert.EndsWith("-user.zip", platforms.GetProperty("win-x64-user").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
+            Assert.True(File.Exists(Path.Combine(output, "Lakona.Hub.Setup.exe")));
+            Assert.False(platforms.TryGetProperty("win-x64", out _));
+            Assert.Empty(Directory.GetFiles(output, "*.msi"));
             foreach (var platform in platforms.EnumerateObject())
             {
                 Assert.True(File.Exists(Path.Combine(output, platform.Value.GetProperty("full").GetProperty("assetName").GetString()!)));
                 Assert.Empty(platform.Value.GetProperty("deltas").EnumerateArray());
             }
-            Assert.EndsWith(".msi", platforms.GetProperty("win-x64").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
             Assert.EndsWith(".dmg", platforms.GetProperty("osx-x64").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
             Assert.EndsWith(".dmg", platforms.GetProperty("osx-arm64").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
             Assert.Contains("linux", platforms.GetProperty("linux-x64-deb").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
@@ -209,7 +194,7 @@ public sealed class HubReleaseWorkflowSourceTests
     {
         var files = new Dictionary<string, string>
         {
-            ["hub-win-x64-package"] = $"lakona-hub-{version}-win-x64.msi",
+            ["hub-win-x64-package"] = $"lakona-hub-{version}-win-x64-user.zip",
             ["hub-osx-x64-package"] = $"lakona-hub-{version}-osx-x64.dmg",
             ["hub-osx-arm64-package"] = $"lakona-hub-{version}-osx-arm64.dmg"
         };
@@ -220,6 +205,7 @@ public sealed class HubReleaseWorkflowSourceTests
             File.WriteAllText(Path.Combine(root, file), directory);
         }
 
+        File.WriteAllText(Path.Combine(publish, "hub-win-x64-package", "Lakona.Hub.Setup.exe"), "offline setup");
         var linux = Path.Combine(publish, "hub-linux-packages");
         Directory.CreateDirectory(linux);
         File.WriteAllText(Path.Combine(linux, $"lakona-hub-{version}-linux-x64.deb"), $"deb-{version}");
@@ -230,8 +216,7 @@ public sealed class HubReleaseWorkflowSourceTests
         string root,
         string publish,
         string output,
-        string version,
-        string? userCandidate = null)
+        string version)
     {
         var startInfo = new ProcessStartInfo("pwsh")
         {
@@ -251,11 +236,6 @@ public sealed class HubReleaseWorkflowSourceTests
         })
         {
             startInfo.ArgumentList.Add(argument);
-        }
-        if (userCandidate is not null)
-        {
-            startInfo.ArgumentList.Add("-WindowsUserPackageRoot");
-            startInfo.ArgumentList.Add(userCandidate);
         }
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Could not start PowerShell.");

@@ -36,15 +36,40 @@ internal sealed partial class WindowsInstallationHost(InstallationPaths paths) :
 
     public async Task StopFailedApplicationAsync()
     {
-        if (launched is { HasExited: false })
+        if (launched is { } process)
         {
-            launched.Kill();
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-            await launched.WaitForExitAsync(timeout.Token);
+            if (!process.HasExited)
+            {
+                process.Kill();
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                await process.WaitForExitAsync(timeout.Token);
+            }
+            process.Dispose();
+            launched = null;
         }
         // On crash recovery a process may belong to the previous updater. Never
         // kill a reused PID or an unrelated Hub; require the user to close it.
         EnsureClosed();
+        // Windows can signal process exit before its native image mappings are
+        // released. Wait for actual file availability before rollback deletes them.
+        var releaseWait = Stopwatch.StartNew();
+        while (Directory.Exists(paths.Application))
+        {
+            try
+            {
+                InstallationPaths.RejectLinks(paths.Application);
+                foreach (var file in Directory.EnumerateFiles(paths.Application, "*", SearchOption.AllDirectories))
+                {
+                    InstallationPaths.RejectLinks(file);
+                    using var probe = new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                }
+                break;
+            }
+            catch (IOException ex) when ((ex.HResult & 0xffff) is 32 or 33 && releaseWait.Elapsed < TimeSpan.FromSeconds(5))
+            {
+                await Task.Delay(50);
+            }
+        }
     }
 
     public void EnsureClosed()
@@ -96,17 +121,25 @@ internal sealed partial class WindowsInstallationHost(InstallationPaths paths) :
 
     public static bool HasLegacyMsi() => LegacyProduct() is not null;
 
-    public async Task<bool> RemoveLegacyMsiAsync()
+    public Task<bool> RemoveLegacyMsiAsync() => RemoveLegacyMsiAsync(LegacyProduct, UninstallLegacyMsiAsync,
+        () => Register(SignedPackage.Release().ReadInstalledManifest(paths.Application).Version));
+
+    internal static async Task<bool> RemoveLegacyMsiAsync(Func<string?> findProduct, Func<string, Task<int>> uninstall, Action register)
     {
-        var product = LegacyProduct();
+        var product = findProduct();
         if (product is null) return true;
+        if (await uninstall(product) is not 0 and not 3010) return false;
+        register();
+        return findProduct() is null;
+    }
+
+    private static async Task<int> UninstallLegacyMsiAsync(string product)
+    {
         var start = new ProcessStartInfo("msiexec.exe") { UseShellExecute = true };
         foreach (var argument in new[] { "/x", product, "/passive", "/norestart" }) start.ArgumentList.Add(argument);
         using var process = Process.Start(start) ?? throw new IOException("Windows Installer could not start.");
         await process.WaitForExitAsync();
-        if (process.ExitCode is not 0 and not 3010) return false;
-        Register(SignedPackage.Release().ReadInstalledManifest(paths.Application).Version);
-        return !HasLegacyMsi();
+        return process.ExitCode;
     }
 
     private static unsafe string? LegacyProduct()

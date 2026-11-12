@@ -13,21 +13,17 @@ param(
     [string]$PublishRoot,
 
     [Parameter(Mandatory = $true)]
-    [string]$OutputRoot,
-
-    # Supply only signed, VM-validated output of New-HubUserSetup.ps1.
-    # Normal releases leave this unset until the Windows channel is ready.
-    [string]$WindowsUserPackageRoot
+    [string]$OutputRoot
 )
 
 $ErrorActionPreference = 'Stop'
 
 $packages = @(
     @{
-        Platform = 'win-x64'
+        Platform = 'win-x64-user'
         ArtifactRoot = 'hub-win-x64-package'
-        SourceName = "lakona-hub-$Version-win-x64.msi"
-        PackageRoot = 'C:/Program Files/Lakona Hub'
+        SourceName = "lakona-hub-$Version-win-x64-user.zip"
+        PackageRoot = '%LOCALAPPDATA%/Programs/Lakona Hub'
         ExecutablePath = 'Lakona.Hub.exe'
     },
     @{
@@ -90,22 +86,9 @@ foreach ($package in $packages) {
     }
 }
 
-if ($WindowsUserPackageRoot) {
-    $archiveName = "lakona-hub-$Version-win-x64-user.zip"
-    $archivePath = Join-Path $WindowsUserPackageRoot $archiveName
-    $setupPath = Join-Path $WindowsUserPackageRoot 'Lakona.Hub.Setup.exe'
-    if (-not (Test-Path -LiteralPath $archivePath) -or -not (Test-Path -LiteralPath $setupPath)) {
-        throw 'The Windows user installer candidate is incomplete.'
-    }
-    Copy-Item -LiteralPath $archivePath -Destination $OutputRoot -Force
-    Copy-Item -LiteralPath $setupPath -Destination $OutputRoot -Force
-    $releasePlatforms['win-x64-user'] = [ordered]@{
-        packageRoot = '%LOCALAPPDATA%/Programs/Lakona Hub'
-        executablePath = 'Lakona.Hub.exe'
-        full = [ordered]@{ assetName = $archiveName; sha256 = Get-Sha256 $archivePath; size = (Get-Item -LiteralPath $archivePath).Length }
-        deltas = @()
-    }
-}
+$setupPath = Join-Path $PublishRoot 'hub-win-x64-package/Lakona.Hub.Setup.exe'
+if (-not (Test-Path -LiteralPath $setupPath)) { throw 'The Windows offline installer is missing.' }
+Copy-Item -LiteralPath $setupPath -Destination $OutputRoot -Force
 
 Write-JsonFile (Join-Path $OutputRoot 'lakona-hub-manifest.json') ([ordered]@{
     schemaVersion = 1

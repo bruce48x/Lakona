@@ -102,6 +102,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev xvfb xauth
 
       - name: Publish NativeAOT app with analysis warnings as errors
+        if: runner.os != 'Windows'
         shell: pwsh
         run: >-
           dotnet publish src/Lakona.Hub/Lakona.Hub.csproj
@@ -117,21 +118,9 @@ jobs:
           -p:DebugSymbols=false
 
       - name: Remove debug symbols
+        if: runner.os != 'Windows'
         shell: pwsh
         run: Get-ChildItem 'artifacts/publish/hub-${{ matrix.rid }}' -Recurse -Filter '*.pdb' | Remove-Item -Force
-
-      - name: Smoke test Windows NativeAOT artifact
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $process = Start-Process `
-            'artifacts/publish/hub-${{ matrix.rid }}/Lakona.Hub.exe' `
-            -ArgumentList '--aot-smoke-test' `
-            -Wait `
-            -PassThru
-          if ($process.ExitCode -ne 0) {
-            throw "Lakona Hub NativeAOT smoke test exited with code $($process.ExitCode)."
-          }
 
       - name: Smoke test Linux NativeAOT artifact
         if: runner.os == 'Linux'
@@ -147,50 +136,50 @@ jobs:
           chmod +x artifacts/publish/hub-${{ matrix.rid }}/Lakona.Hub
           artifacts/publish/hub-${{ matrix.rid }}/Lakona.Hub --aot-smoke-test
 
-      - name: Validate Windows user installer components
-        # The signed per-user channel remains gated until its release-candidate
-        # installation/migration tests pass. Always compile its UI to prevent drift.
+      - name: Build Windows offline setup and update payload
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          HUB_UPDATE_PRIVATE_KEY: ${{ secrets.HUB_UPDATE_PRIVATE_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:HUB_UPDATE_PRIVATE_KEY)) { throw 'HUB_UPDATE_PRIVATE_KEY is required.' }
+          $keyPath = Join-Path $env:RUNNER_TEMP ('hub-key-' + [Guid]::NewGuid().ToString('N') + '.pem')
+          try {
+            [IO.File]::WriteAllText($keyPath, $env:HUB_UPDATE_PRIVATE_KEY)
+            Remove-Item Env:HUB_UPDATE_PRIVATE_KEY
+            ./scripts/hub/New-HubUserSetup.ps1 `
+              -Version '${{ needs.validate.outputs.version }}' `
+              -OutputRoot artifacts/packages/hub-win-x64 `
+              -ManifestPrivateKeyPath $keyPath
+          }
+          finally { Remove-Item -LiteralPath $keyPath -Force -ErrorAction SilentlyContinue }
+
+      - name: Smoke test complete Windows setup and payload
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          dotnet publish src/Lakona.Hub.Updater/Lakona.Hub.Updater.csproj -c Release -r win-x64 --self-contained true -o artifacts/updater -p:TreatWarningsAsErrors=true -p:ILLinkTreatWarningsAsErrors=true
-          if ($LASTEXITCODE -ne 0) { throw 'Updater NativeAOT build failed.' }
-          $process = Start-Process artifacts/updater/Lakona.Hub.Updater.exe -ArgumentList '--smoke-test' -WindowStyle Hidden -Wait -PassThru
-          if ($process.ExitCode -ne 0) { throw 'Updater UI smoke test failed.' }
-          dotnet publish src/Lakona.Hub.Setup/Lakona.Hub.Setup.csproj -c Release -r win-x64 --self-contained true -o artifacts/setup-check -p:TreatWarningsAsErrors=true -p:ILLinkTreatWarningsAsErrors=true
-          if ($LASTEXITCODE -ne 0) { throw 'Setup NativeAOT build failed.' }
+          $process = Start-Process artifacts/packages/hub-win-x64/Lakona.Hub.Setup.exe -ArgumentList '--smoke-test' -WindowStyle Hidden -PassThru
+          if (-not $process.WaitForExit(60000)) { $process.Kill($true); throw 'Offline setup smoke test timed out.' }
+          if ($process.ExitCode -ne 0) { throw 'Offline setup smoke test failed.' }
+          $extract = Join-Path $PWD 'artifacts/user-payload'
+          Expand-Archive 'artifacts/packages/hub-win-x64/lakona-hub-${{ needs.validate.outputs.version }}-win-x64-user.zip' $extract
+          $process = Start-Process (Join-Path $extract 'Lakona.Hub.exe') -ArgumentList '--aot-smoke-test' -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Windows payload smoke test failed.' }
 
-      - name: Install pinned WiX Toolset
-        if: runner.os == 'Windows'
-        run: dotnet tool install --global wix --version 5.0.2
-
-      - name: Build Windows MSI
+      - name: Verify Windows installation and legacy MSI migration
         if: runner.os == 'Windows'
         shell: pwsh
-        run: >-
-          ./scripts/hub/New-HubWindowsPackage.ps1
-          -Version '${{ needs.validate.outputs.version }}'
-          -PublishRoot artifacts/publish/hub-${{ matrix.rid }}
-          -OutputRoot artifacts/packages/hub-${{ matrix.rid }}
-
-      - name: Smoke test Windows MSI payload
-        if: runner.os == 'Windows'
-        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LAKONA_HUB_ACCEPTANCE_PACKAGE: artifacts/packages/hub-win-x64/lakona-hub-${{ needs.validate.outputs.version }}-win-x64-user.zip
+          LAKONA_HUB_ACCEPTANCE_MSI: artifacts/legacy/lakona-hub-0.17.138-win-x64.msi
         run: |
-          $package = Resolve-Path 'artifacts/packages/hub-${{ matrix.rid }}/lakona-hub-${{ needs.validate.outputs.version }}-${{ matrix.rid }}.msi'
-          $extract = Join-Path $PWD 'artifacts/msi-extract'
-          New-Item -ItemType Directory -Path $extract -Force | Out-Null
-          $process = Start-Process msiexec.exe `
-            -ArgumentList @('/a', $package.Path, '/qn', '/norestart', "TARGETDIR=$extract") `
-            -Wait `
-            -PassThru
-          if ($process.ExitCode -ne 0) { throw "MSI administrative extraction failed with exit code $($process.ExitCode)." }
-          $executable = Get-ChildItem $extract -Recurse -Filter 'Lakona.Hub.exe' |
-            Where-Object { $_.FullName -notmatch '[\\/]dotnet[\\/]' } |
-            Select-Object -First 1
-          if ($null -eq $executable) { throw 'The MSI does not contain Lakona.Hub.exe.' }
-          $smoke = Start-Process $executable.FullName -ArgumentList '--aot-smoke-test' -Wait -PassThru
-          if ($smoke.ExitCode -ne 0) { throw 'The extracted MSI payload failed its smoke test.' }
+          # A historical release fixture, not a rebuilt or newly published MSI.
+          gh release download hub-v0.17.138 --repo '${{ github.repository }}' --pattern 'lakona-hub-0.17.138-win-x64.msi' --dir artifacts/legacy
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download the legacy migration fixture.' }
+          if ((Get-FileHash $env:LAKONA_HUB_ACCEPTANCE_MSI -Algorithm SHA256).Hash -ne '1241c62daa17e8895c55129cbd24aaa2b0532f6cb119edb9631544cab57e73e7') { throw 'Legacy MSI digest mismatch.' }
+          dotnet test tests/Lakona.Hub.Tests/Lakona.Hub.Tests.csproj -c Release --filter WindowsInstallerAcceptanceTests --blame-hang-timeout 5m --blame-hang-dump-type none
+          if ($LASTEXITCODE -ne 0) { throw 'Windows installation acceptance failed.' }
 
       - name: Build macOS DMG
         if: runner.os == 'macOS'
@@ -320,4 +309,5 @@ jobs:
           gh release create "$tag" artifacts/release/* \
             --target '${{ github.sha }}' \
             --title "Lakona Hub ${{ needs.validate.outputs.version }}" \
+            --notes-file scripts/hub/release-notes.md \
             --generate-notes

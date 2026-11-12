@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsAotCompatible>true</IsAotCompatible>
+    <HubReleasePublicKey Condition="'$(HubReleasePublicKey)' == ''">$(MSBuildThisFileDirectory)release-public.pem</HubReleasePublicKey>
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(HubReleasePublicKey)" LogicalName="Lakona.Hub.ReleaseKey.pem" Condition="'$(HubReleasePublicKey)' != ''" />

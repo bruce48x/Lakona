@@ -6,6 +6,29 @@ namespace Lakona.Hub.Tests;
 
 public sealed class WindowsInstallationProcessTests
 {
+    [Fact]
+    public async Task Recovery_waits_for_an_exited_applications_remaining_file_lease()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var root = Path.Combine(Path.GetTempPath(), "lakona-install-lease-" + Guid.NewGuid().ToString("N"));
+        var paths = new InstallationPaths(root);
+        Directory.CreateDirectory(paths.Application);
+        try
+        {
+            File.WriteAllText(paths.Executable, "fixture");
+            var host = new WindowsInstallationHost(paths);
+            Task stopping;
+            using (var lease = File.OpenRead(paths.Executable))
+            {
+                stopping = host.StopFailedApplicationAsync();
+                Assert.False(stopping.IsCompleted);
+            }
+            await stopping.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            File.Delete(paths.Executable);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     [Theory]
     [InlineData("healthy", true)]
     [InlineData("wrong-token", false)]

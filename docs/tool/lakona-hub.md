@@ -24,7 +24,7 @@ and they do not add files to a Lakona project.
 
 The desktop adapter uses Avalonia on .NET 10 and release builds use NativeAOT.
 Hub itself is self-contained, while project packaging uses a compatible .NET 10
-SDK. Windows uses MSI, macOS uses DMG, and Linux uses native DEB and RPM
+SDK. Windows uses a per-user EXE setup, macOS uses DMG, and Linux uses native DEB and RPM
 packages. Release artifacts contain only the Hub application so routine Hub
 updates do not repeatedly transfer an SDK. Their version lifecycles remain
 distinct:
@@ -402,26 +402,17 @@ NativeAOT publishing runs on a matching Windows, Linux, or macOS runner; cross-
 operating-system publishing is not a supported release path. Linux support is
 limited to glibc-based Debian and RPM distribution families on x64.
 
-Each Release contains one x64 MSI for Windows, x64 and arm64 DMGs for macOS,
-one x64 DEB, one x64 RPM, and a `lakona-hub-manifest.json`. Linux asset names
-include `linux-x64` so their target platform remains visible outside package
-manager metadata.
+Each Release contains `Lakona.Hub.Setup.exe` and a `win-x64-user.zip` update
+payload for Windows, x64 and arm64 DMGs for macOS, one x64 DEB, one x64 RPM,
+and `lakona-hub-manifest.json`. Linux asset names include `linux-x64`.
+New MSI packages are no longer built or published. Existing MSI users download
+the EXE once to migrate; their older built-in MSI updater cannot install it.
 
-Hub updates are installer-based on all platforms. After downloading and
-verifying the matching MSI, DMG, DEB, or RPM, Hub opens it through the operating
-system. Windows Installer owns files under Program Files, macOS users install
-the app from the mounted DMG, and Linux invokes the distribution package
-manager through PolicyKit, waits for its result, and keeps package ownership
-under `/usr/lib/lakona-hub`. After a successful Linux or Windows package update,
-Hub starts the newly installed version by default and closes the old window. On
-Windows, the running Hub copies its NativeAOT executable into the verified
-update staging directory as a temporary update worker. The worker waits for the
-old process to exit, runs Windows Installer with system authorization, and then
-reopens the installed application; this avoids holding installed files open
-during MSI replacement. If Windows installation is canceled or fails, the
-worker reopens the existing installed version. Hub does not overwrite
-package-managed application files or bypass the platform installer; the
-operating system owns authorization and displays the elevation prompt.
+Windows updates use the independent per-user updater described below. macOS
+opens the verified DMG for installation. Linux invokes the distribution package
+manager through PolicyKit, waits for its result, and keeps ownership under
+`/usr/lib/lakona-hub`; successful installation restarts Hub. Platform-managed
+application files are never replaced by the Windows user updater.
 
 Hub automatically checks for updates when the main window opens and whenever
 the user returns to it after it was deactivated, but a successful check remains
@@ -462,295 +453,141 @@ Release assets and manifests are retrieved over authenticated HTTPS from the
 GitHub API and GitHub Releases. Repository release permissions are restricted
 to the publishing job; the desktop client never receives a GitHub token.
 
-### Windows User-Scoped Installer Candidate
+### Windows User-Scoped Installation
 
-Windows has a candidate implementation of user-scoped installation and branded
-updating. It is not yet the default distribution channel: release signing and
-clean-Windows installation/migration acceptance are prerequisites for cutover.
-The normal release workflow still publishes MSI, DMG, DEB, and RPM. Existing
-MSI installations continue using Windows Installer and never overwrite files
-under Program Files through the user updater.
+Windows uses three components: an offline NativeAOT setup bootstrap, an
+independent Avalonia updater window, and shared installation logic. The updater
+shares Hub's color dictionary, without referencing Hub features. First install,
+repair, and updates use the same verified payload, staging, startup confirmation,
+and recovery code. There is no background service or delta-patch implementation.
 
-The candidate uses three small components: an offline NativeAOT setup bootstrap,
-an independent Avalonia updater window, and shared installation logic. The
-window links the Hub color dictionary without depending on Hub project features.
-First install and subsequent updates use the same signed payload, staging,
-startup confirmation, and recovery code. Full packages are supported; there is
-no background service or delta-patch implementation.
-
-Build a release candidate on Windows with a current serviced .NET 10 SDK:
-
-```powershell
-pwsh -NoProfile -File scripts/hub/New-HubUserSetup.ps1 `
-  -Version 0.18.0 -OutputRoot artifacts/hub-user-candidate `
-  -ManifestPrivateKeyPath <protected-RSA-private-key.pem> `
-  -SignScript <protected-signing-provider.ps1> `
-  -PublisherThumbprint <expected-Authenticode-certificate-thumbprint>
-```
-
-The signing provider receives `-FilePath` and must throw on failure. The script
-checks Windows trust and publisher identity after signing every executable,
-including setup and updater. It embeds only the RSA public key in the binaries;
-private signing material stays outside source and output. The payload contains
-an RSA-PSS/SHA-256 signed file manifest. Runtime verification binds every file
-to that manifest and rejects unrecognized files, traversal, links, duplicates,
-wrong platforms, unsupported protocols, and downgrades. An unsigned build has
-no trusted release key and cannot install a payload; `--smoke-test` only opens
-and closes the updater UI without changing an installation.
-
-After signed VM acceptance, `New-HubRelease.ps1 -WindowsUserPackageRoot` can add
-the candidate setup and `win-x64-user` update asset alongside the MSI. The
-normal workflow deliberately does not pass this option yet. A Hub running from
-the exact per-user application root selects only that update channel. Changing
-the pinned release key requires a separately validated trust-migration plan;
-replacing it arbitrarily would strand installed clients.
-
-The following sections describe the complete cutover contract. Candidate
-coverage is recorded separately from release acceptance: signed artifacts,
-destructive-transition fault injection, and clean-VM migration acceptance
-remain required before promotion. If the recovery backup cannot be verified,
-the candidate preserves both copies, disables retry, and offers diagnostics;
-automatic repair of that ambiguous state is not supported. Do not describe a local test run as signed
-distribution acceptance or promise suppression of Windows security prompts.
-
-The target experience is one Lakona-designed window from initial installation
-through later updates. A small standalone updater remains alive after Hub exits,
-shows the active stage in the selected Hub language and theme, applies the new
-payload transactionally, verifies that the new process is healthy, and restores
-the previous version when activation fails. Platform authorization may still
-appear when the operating system requires it; the UI must not imitate or obscure
-an elevation or security prompt.
-
-#### Distribution And Installation Ownership
-
-Windows is the first implementation target. New installations move from the
-per-machine MSI under `Program Files` to a per-user application root:
+The installer writes only the current user's application and registration:
 
 ```txt
 %LOCALAPPDATA%/Programs/Lakona Hub/
   Lakona.Hub.exe
   Lakona.Hub.Updater.exe
-  ... NativeAOT publish payload
+  ... NativeAOT payload and signed file manifest
 
 %LOCALAPPDATA%/Lakona/Hub/
-  settings.json and existing Hub-owned state
-  logs/
-  updates/
-    <version>/<platform>/ downloaded package and resumable partial download
+  user-settings.json and existing Hub-owned state
+  updates/<version>/<platform>/
   installer/
-    lock
-    journal.json
-    health.json
-    installation.log
-    staging/
-    backup/
-    handoff-<id>/
+    lock, journal.json, health.json, installation.log
+    staging/, backup/, setup-<id>/, handoff-<id>/
 ```
 
-The release publishes a signed offline `Lakona.Hub.Setup.exe` containing the
-complete compressed Hub payload. The setup program renders the same installation
-surface as the updater, verifies its embedded payload before extraction, creates
-per-user Start menu registration, and writes an uninstall entry under the
-current user's Windows uninstall registry. It never requires a system-wide
-service, modifies `PATH`, or writes to `Program Files`.
+Setup creates a current-user Start menu shortcut and Windows uninstall entry.
+It does not modify `PATH` or write the new application into `Program Files`.
+Re-running setup offers update/repair, opening Hub, and uninstall. Uninstall
+removes the application, shortcut and registration, preserving projects,
+settings and downloaded SDKs. There is no implicit user-data removal option.
 
-The installed updater is a dedicated Avalonia NativeAOT executable rather than
-a second implementation in web technology. It may share a narrowly scoped Hub
-resource dictionary for colors, typography, icons, localization, and control
-metrics, but it must not reference `MainWindow`, project workflows, the SDK
-manager, or another Hub feature module. Its command protocol and update journal
-are versioned contracts. Hub verifies the target package and launches its updater
-from a separate handoff directory, after checking the supported protocol. Repair
-and uninstall launched from an installed updater first copy its verified binary
-and dependencies out of the application directory. A helper never replaces files
-from its own executable directory.
+#### Package Trust And Release Builds
 
-Windows Releases add a compressed application payload alongside the setup
-program. A future manifest schema records at least the payload kind, target
-architecture, root directory, entry point, exact length, SHA-256 digest, minimum
-compatible updater protocol, and detached signature identity. Full payloads are
-required initially. Delta payloads remain optional and must reconstruct a byte-
-identical, fully verified full payload before activation; failure to apply a
-delta falls back to the full asset.
+Windows Authenticode publisher signing is deferred. Unsigned executables work,
+but Windows may display security warnings; setup does not suppress or bypass
+them. This is separate from the required RSA-PSS/SHA-256 signature on the update
+payload's file manifest. Every file is bound to that manifest before activation.
+Archives reject tampering, undeclared files, traversal, links, duplicate names,
+wrong platforms, unsupported protocols, and downgrades.
 
-Hub-owned settings remain in the existing per-user application-data location,
-outside the versioned application root. Updating, rolling back, or uninstalling
-the application therefore never rewrites project registrations or user
-preferences. Uninstall preserves this data by default and offers an explicit
-separate choice to remove it.
+The public update key is tracked in `src/Lakona.Hub.Installation/release-public.pem`.
+Its private key lives in the repository Actions secret `HUB_UPDATE_PRIVATE_KEY`.
+CI writes it to a temporary file, clears the environment variable before building,
+and removes that file afterwards. No private key is embedded in a binary or
+published artifact. The packager rejects a private key that does not match the
+tracked public key. Do not replace this key without a tested trust-migration
+plan: installed clients pin it across releases.
 
-#### Update Transaction
+Build on Windows with a serviced .NET 10 SDK:
 
-Only one setup, update, repair, or uninstall transaction may own the per-user
-lock. A second process reports the active operation instead of waiting without a
-bound. Every filesystem path is canonicalized and checked against the exact
-application, staging, or backup root before extraction, replacement, or cleanup.
-Archives reject absolute paths, parent traversal, links, duplicate destinations,
-and entries outside the declared payload root.
-
-The normal update state machine is:
-
-```txt
-checking
-  -> downloading
-  -> verifying
-  -> waiting-for-hub-exit
-  -> extracting-to-staging
-  -> backing-up-current-version
-  -> activating-new-version
-  -> launching
-  -> awaiting-health-confirmation
-  -> completed
-
-any activation failure after backup
-  -> rolling-back
-  -> relaunching-previous-version
-  -> failed-but-recovered
+```powershell
+pwsh -NoProfile -File scripts/hub/New-HubUserSetup.ps1 `
+  -Version 0.18.1 -OutputRoot artifacts/hub-user-package `
+  -ManifestPrivateKeyPath <protected-RSA-private-key.pem>
 ```
 
-Hub continues to stream downloads to a temporary file, supports bounded retry
-and resume when the server confirms the same asset, and verifies length, digest,
-signature, platform, and version before renaming the payload into the trusted
-staging area. Verification failure leaves the installed application untouched.
+The optional `-SignScript` and `-PublisherThumbprint` must be supplied together
+when Authenticode becomes available. The script receives `-FilePath`; the build
+then checks certificate identity and Windows signature validity. The optional
+`-RuntimeFrameworkVersion` selects the same serviced runtime and NativeAOT
+compiler patch when the local SDK defaults to an older patch.
 
-Before exiting, Hub passes the updater the validated package path, parent
-process identifier and start time, selected language and theme, and readiness
-marker. The signed package supplies the target version; the updater creates the
-one-time activation token. Hub waits for the update window to accept the handoff.
-The updater persists each
-completed state transition to `journal.json` with an atomic replace and flushes
-the transition before performing the next destructive step. Logs contain stage,
-version, duration, exit code, and a bounded sanitized error; they must not record
-project paths, user-profile paths, downloaded URLs containing credentials, or
-environment variables.
+`New-HubRelease.ps1` requires the EXE and update ZIP under
+`hub-win-x64-package`. The release manifest exposes only `win-x64-user` for
+Windows. The complete setup supports `--smoke-test`: it verifies and extracts
+the embedded payload, opens and closes the updater, and leaves installation
+and registration unchanged. An ordinary setup run still requires the user to
+choose Install or Repair.
 
-After the parent process exits, the updater extracts into a new directory and
-validates the staged entry point before changing the live installation. It moves
-the current application root to the single backup location, moves the staged
-root into the stable application path, and starts the new Hub with the one-time
-activation token. The new process confirms startup only after Avalonia
-initialization, settings loading, and update-protocol compatibility checks have
-completed. A bounded timeout, early process exit, wrong version, or invalid
-token triggers rollback.
+#### Update And Recovery
 
-Rollback stops the failed new process, removes only the validated new
-application root, restores the backup to the stable path, and relaunches the
-previous executable. One known-good backup is retained until health confirmation
-and then deleted. A crash or power loss resumes from the journal on the next
-setup, updater, or Hub start; recovery decisions depend on the persisted stage
-and observed directories, not on elapsed time alone. If neither version can be
-proved complete, the updater preserves both directories, stops mutation, and
-offers repair with an actionable log location.
+Hub streams the download with bounded retries and resumes only when the server
+confirms the same asset. Length and SHA-256 are checked before handoff; the
+pinned key authenticates the package itself. A failed download or verification
+does not change the installed application.
 
-Cancellation is allowed during checking and downloading. Once backup begins,
-the UI changes from a cancel action to an explanation that recovery must finish.
-Closing the updater window during this phase hides or minimizes the surface but
-does not terminate the transaction. Setup and update retain at most one backup,
-one active staging directory, and a bounded number of failure logs; abandoned
-downloads expire by age and total-byte budget.
+Hub verifies the target package and launches its updater from an external
+handoff directory. It passes its process ID and start time, language, theme,
+and a readiness marker; Hub exits only after the updater accepts the handoff.
+The updater waits for that exact parent process and acquires the per-user lock.
+A second installer fails promptly instead of waiting indefinitely.
 
-#### Initial Setup, Repair, And Uninstall
+The transaction extracts and verifies staging, moves the current application
+to backup, activates staging at the stable application path, and starts Hub
+with a one-time token. Journal transitions use atomic replacement and disk
+flushes. Startup succeeds only when the live process confirms the expected
+version and token after application initialization. Timeout, early exit, or a
+bad confirmation triggers rollback and relaunch of the previous version.
+After stopping a failed child, the updater waits at most five seconds for Windows
+to release its native files before removing them; persistent locks remain errors.
+The backup is removed only after confirmation. Interrupted transactions recover
+from the journal on the next setup or Hub start. If the backup cannot be
+verified, both copies are preserved and the UI offers diagnostics; it does not
+guess which damaged copy to delete.
 
-Initial setup uses the same extraction, activation, launch confirmation, and
-rollback machinery as an update, with the missing current installation treated
-as an empty backup. Re-running setup for the installed version offers launch,
-repair, and uninstall rather than silently overwriting files. Repair verifies
-the installed payload against the signed manifest and restores only from a
-complete verified payload.
+Application, staging and backup paths are canonicalized and checked for links
+before replacement or deletion. An installed updater copies verified helper
+files outside the application before uninstall or recovery, avoiding Windows
+file locks. Transaction-time window closing is blocked. Logs contain bounded
+stage names and exception types, never project paths or credentials. Temporary
+work cleanup respects active file leases and retains only recent work; the
+application has at most one staging directory and one rollback backup.
 
-Uninstall launches a staged copy of the updater, waits for Hub to exit, removes
-the exact per-user application root, Start menu entries, and current-user
-uninstall registration, then removes its own temporary directory on the next
-safe cleanup opportunity. User settings and managed SDKs are separate explicit
-choices because deleting either may be expensive or surprising.
+#### Existing MSI Users
 
-Existing MSI installations require a one-time migration. The new setup detects
-the registered MSI product and must not silently create two authoritative Hub
-installations. It installs and validates the per-user copy first, transfers no
-settings because settings already live in per-user application data, updates
-shortcuts, and then offers to remove the MSI. Removing the machine-owned MSI may
-produce one final Windows authorization prompt. Cancellation leaves the verified
-new copy available but reports the old MSI registration clearly; release notes
-and the updater must not claim that migration is complete until the MSI is gone.
+Close the old Hub and run `Lakona.Hub.Setup.exe` once. Setup detects legacy MSI
+registration by its existing UpgradeCode, installs and confirms the per-user
+copy first, registers its shortcut, and then offers **Remove old installation**.
+Settings already reside in per-user application data and need no copying.
+Only Windows Installer removes the old machine-owned files, which may require
+one final authorization prompt. Canceling or failing that removal leaves the
+new Hub available and migration pending. Run setup again to retry; migration
+is complete only when MSI registration is gone. The new shortcut is registered
+again after removal so legacy cleanup cannot leave it pointing at the old copy.
 
-#### macOS And Linux Boundary
+The historical `hub-v0.17.138` MSI remains a migration test fixture, downloaded
+with a pinned SHA-256. It is not rebuilt or included in new releases. macOS DMG
+and Linux DEB/RPM ownership and authorization remain unchanged.
 
-The visual state model, manifest validation, journaling, health confirmation,
-and rollback rules are platform-neutral. Installation ownership is not.
+#### Verification
 
-- macOS may add a signed and notarized application ZIP for in-app updates while
-  retaining a DMG for first installation. The updater may replace only the exact
-  installed `.app` bundle after validating its code signature and notarization.
-  A non-writable Applications directory or App Translocation requires an
-  explicit platform-appropriate fallback; Hub must not weaken macOS security
-  attributes or install an unnotarized replacement.
-- Linux DEB and RPM installations remain package-manager-owned and continue
-  through PolicyKit. A fully branded, non-privileged path requires a separate
-  user-owned distribution such as an AppImage or verified per-user archive.
-  Hub detects its installation kind and never updates package-managed files
-  with the user-owned updater. Both channels may share discovery and progress
-  UI, but authorization and activation remain truthful to their owner.
+Hub tests cover signed archive validation, lock contention, journal recovery,
+startup-token validation, failed-start rollback, repair, downgrade rejection,
+bounded download resume, and MSI-removal cancellation/failure/retry. Windows
+release CI additionally runs the complete offline-setup smoke test and real
+native installation, damaged-file repair, uninstall preservation, and migration
+from the historical MSI before publication.
 
-Identical pixels are not a cross-platform requirement. Shared language,
-hierarchy, status names, icons, progress behavior, and recovery semantics are;
-native security prompts and platform installation conventions remain visible
-when required.
-
-#### Release Security Prerequisites
-
-The custom path must not ship until its trust chain is stronger than the current
-package path:
-
-- Windows setup, Hub, and updater executables have valid Authenticode signatures
-  from the same publisher, and CI verifies those signatures before publishing.
-- macOS application and updater code are signed with hardened runtime, notarized,
-  and stapled; CI validates the final distributed archive rather than only the
-  pre-archive bundle.
-- The release manifest has a detached signature verified with a pinned Lakona
-  release key. Transport HTTPS and a digest delivered beside its payload are not
-  sufficient on their own.
-- Signing credentials remain in protected release jobs. Desktop clients contain
-  public verification material only and never receive publishing credentials or
-  a GitHub token.
-- Downgrades are rejected by default. An explicit repair or rollback may activate
-  only the journaled previous version or a user-selected payload whose signature
-  and compatibility are valid.
-
-The updater protocol must remain backward compatible for at least the oldest Hub
-version allowed to update directly to the current release. A manifest requiring
-a newer protocol selects a separately signed updater bootstrap asset, verifies
-it with the existing trust root, and restarts the transaction before touching
-the installed Hub. Release publication fails when no tested upgrade path exists
-from the declared minimum supported version.
-
-#### Required Verification Before Cutover
-
-Focused unit and contract tests cover manifest parsing, signature and digest
-failure, path containment, malicious archives, lock contention, state-machine
-transitions, journal recovery, health-token validation, cancellation boundaries,
-retention limits, uninstall preservation choices, and every rollback branch.
-Filesystem tests inject a failure after each destructive transition and prove
-that at least one complete signed version remains recoverable.
-
-Release E2E runs on clean platform VMs and validates:
-
-1. clean offline installation and launch;
-2. update from the oldest supported version and from the immediately previous
-   version;
-3. interrupted download and successful resume;
-4. process crash and simulated power-loss recovery at every journaled phase;
-5. failed new-version startup followed by automatic rollback;
-6. concurrent setup/update rejection;
-7. repair of a corrupted installed file;
-8. uninstall with settings preserved and with explicit settings removal;
-9. Windows MSI-to-user-install migration, including canceled authorization;
-10. signature, wrong-architecture, downgrade, and archive-traversal rejection.
-
-The current package channel is removed only after signed artifacts, migration,
-uninstall registration, rollback, crash recovery, platform E2E, and documentation
-all pass in the same release candidate. Windows may cut over before macOS and
-Linux, but manifests and UI must identify each platform's active installation
-owner instead of pretending that all platforms have switched together.
+`WindowsInstallerAcceptanceTests` is explicitly enabled by
+`LAKONA_HUB_ACCEPTANCE_PACKAGE` (the signed update ZIP) and
+`LAKONA_HUB_ACCEPTANCE_MSI` (the verified historical MSI). It refuses to replace
+an existing installation and must run on an otherwise uninstalled test host.
+For local release acceptance also exercise an actual previous-version update
+through `UpdaterLaunch`; unit tests alone do not establish cross-process
+handoff behavior. Local Windows acceptance is not a claim of physical power-loss
+testing, clean-VM coverage, Authenticode trust, or absence of security prompts.
 
 ## Guided Project Creation
 
