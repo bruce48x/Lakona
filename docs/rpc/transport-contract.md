@@ -39,6 +39,12 @@ The client also cancels and joins admitted request sends before publishing
 and queued writes. A canceled active write retains the caller's frame until the
 transport operation actually completes; cancellation alone does not release it.
 
+A throwing cancellation callback cannot skip client cleanup. The client records
+the cancellation failure, joins startup and active I/O, and attempts every owned
+resource's disposal before completing its shared `DisposeAsync` task. Cancellation
+and cleanup failures are reported together; repeated disposal observes the same
+result. An earlier terminal I/O error remains the `Disconnected` reason.
+
 The host's abort deadline is a containment mechanism, not a guarantee that an
 arbitrary third-party implementation cooperates. See
 [Host And Session Lifetime](architecture.md#host-and-session-lifetime).

@@ -34,6 +34,8 @@ namespace Lakona.Rpc.Client
         private readonly object _lifecycleGate = new();
         private Task? _startupCompletion;
         private Task? _disposal;
+        private readonly TaskCompletionSource<bool> _cancellationCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private Exception? _cancellationError;
         private readonly TaskCompletionSource<bool> _sendsCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _activeSends;
         private bool _sendsStopped;
@@ -422,11 +424,14 @@ namespace Lakona.Rpc.Client
 
         private async Task DisposeCoreAsync(TaskCompletionSource<bool> completion)
         {
+            Exception? error = null;
             try
             {
                 StopConnection();
-                _dispatchCts.Cancel();
-                _pending.Close(new ObjectDisposedException(nameof(RpcClientRuntime)));
+                await _cancellationCompleted.Task.ConfigureAwait(false);
+                error = _cancellationError;
+                Cleanup(_dispatchCts.Cancel);
+                Cleanup(() => _pending.Close(new ObjectDisposedException(nameof(RpcClientRuntime))));
                 if (_startupCompletion is not null)
                     await _startupCompletion.ConfigureAwait(false);
                 await JoinLoopAsync(_recvLoop).ConfigureAwait(false);
@@ -434,17 +439,29 @@ namespace Lakona.Rpc.Client
                 _messageQueue.Writer.TryComplete();
                 await JoinLoopAsync(_dispatchLoop).ConfigureAwait(false);
                 await _sendsCompleted.Task.ConfigureAwait(false);
-                try { await _transport.DisposeAsync().ConfigureAwait(false); }
-                finally
-                {
-                    _connection.Dispose();
-                    _cts.Dispose();
-                    _dispatchCts.Dispose();
-                }
-                completion.TrySetResult(true);
             }
-            catch (Exception error) { completion.TrySetException(error); }
+            catch (Exception failure) { error = CombineErrors(error, failure); }
+            finally
+            {
+                try { await _transport.DisposeAsync().ConfigureAwait(false); }
+                catch (Exception failure) { error = CombineErrors(error, failure); }
+                Cleanup(_connection.Dispose);
+                Cleanup(_cts.Dispose);
+                Cleanup(_dispatchCts.Dispose);
+            }
+
+            if (error is null) completion.TrySetResult(true);
+            else completion.TrySetException(error);
+
+            void Cleanup(Action action)
+            {
+                try { action(); }
+                catch (Exception failure) { error = CombineErrors(error, failure); }
+            }
         }
+
+        private static Exception CombineErrors(Exception? earlier, Exception later) =>
+            earlier is null ? later : new AggregateException(earlier, later);
 
         private static async Task JoinLoopAsync(Task? loop)
         {
@@ -538,6 +555,7 @@ namespace Lakona.Rpc.Client
             finally
             {
                 StopConnection(error);
+                await _cancellationCompleted.Task.ConfigureAwait(false);
                 if (_startupCompletion is not null)
                     await _startupCompletion.ConfigureAwait(false);
                 // Stop the producer before releasing queued frames or publishing the terminal event.
@@ -750,15 +768,26 @@ namespace Lakona.Rpc.Client
         {
             if (error is not null)
                 Interlocked.CompareExchange(ref _disconnectReason, error, null);
+            bool cancel;
             lock (_lifecycleGate)
             {
+                cancel = !_sendsStopped;
                 _sendsStopped = true;
                 if (_connectionState != RpcClientConnectionState.Disposed)
                     SetConnectionState(RpcClientConnectionState.Stopped);
                 if (_activeSends == 0) _sendsCompleted.TrySetResult(true);
             }
+            // Exactly one caller owns cancellation. Other stop paths must not
+            // mistake IsCancellationRequested for callbacks having completed.
+            if (!cancel) return;
             try { _cts.Cancel(); }
             catch (ObjectDisposedException) { }
+            catch (Exception failure)
+            {
+                _cancellationError = failure;
+                Interlocked.CompareExchange(ref _disconnectReason, failure, null);
+            }
+            finally { _cancellationCompleted.TrySetResult(true); }
         }
 
         private void ThrowIfDisposed()
