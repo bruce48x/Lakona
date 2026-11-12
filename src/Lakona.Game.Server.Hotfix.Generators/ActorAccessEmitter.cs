@@ -264,7 +264,7 @@ namespace Lakona.Game.Server.Hotfix.Generators
             builder.AppendLine("    public static global::Lakona.Game.Server.Hotfix.Abstractions.Actors.HotfixActorBehaviorMethod ResolveBehaviorMethod(");
             builder.AppendLine("        global::System.Delegate method,");
             builder.AppendLine("        global::System.Type requestType,");
-            builder.AppendLine("        global::System.Type resultType)");
+            builder.AppendLine("        global::System.Type? resultType)");
             builder.AppendLine("    {");
             builder.AppendLine("        var methodInfo = method.Method;");
             builder.AppendLine("        var declaringTypeName = methodInfo.DeclaringType?.FullName;");

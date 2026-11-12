@@ -44,7 +44,8 @@ internal static class GeneratorTestHost
         string appAssemblyName,
         string hotfixAssemblyName,
         IReadOnlyDictionary<string, string>? appGlobalOptions = null,
-        IReadOnlyDictionary<string, string>? hotfixGlobalOptions = null)
+        IReadOnlyDictionary<string, string>? hotfixGlobalOptions = null,
+        NullableContextOptions nullableContextOptions = NullableContextOptions.Disable)
     {
         var references = CreateDefaultReferences();
         var appTree = CSharpSyntaxTree.ParseText(appSource);
@@ -52,7 +53,7 @@ internal static class GeneratorTestHost
             appAssemblyName,
             new[] { appTree },
             references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: nullableContextOptions));
 
         var generator = new HotfixGenerator();
         CreateDriver(generator, appGlobalOptions).RunGeneratorsAndUpdateCompilation(
@@ -79,7 +80,7 @@ internal static class GeneratorTestHost
             hotfixAssemblyName,
             new[] { hotfixTree },
             hotfixReferences,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: nullableContextOptions));
 
         CreateDriver(generator, hotfixGlobalOptions).RunGeneratorsAndUpdateCompilation(
             hotfixCompilation,

@@ -95,6 +95,11 @@ changes. Use `[ActorIgnore]` for public composition helpers that must not enter
 generation or remote dispatch. The attributes are mutually exclusive, and an
 explicit method name must not be empty.
 
+Generated Actor source explicitly enables its nullable context, independently
+of the consuming project's nullable setting. Optional module resolution retains
+its nullable return annotation; consumers do not need to suppress CS8669 for
+framework-generated code.
+
 Generated method keys and IDs must match the runtime's reflected type identities.
 Array identities preserve their rank and use the element type's assembly; nested
 generic identities include all enclosing type arguments, from outermost to
