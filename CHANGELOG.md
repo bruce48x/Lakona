@@ -8,7 +8,7 @@ date and package versions of important releases are retained.
 
 **Key releases:** `Lakona.Rpc.Client 0.14.18`, `Lakona.Game.Client 0.5.28`,
 `Lakona.Rpc.Transport.WebSocket 0.11.47`, `Lakona.Game.Server 0.54.8`,
-`Lakona.Tool 0.43.121`, and `Lakona.Hub 0.17.137`.
+`Lakona.Tool 0.43.122`, and `Lakona.Hub 0.17.137`.
 
 - RPC client shutdown retains cancellation callback failures while joining
   startup and active I/O and releasing owned resources. Concurrent and repeated
@@ -17,7 +17,9 @@ date and package versions of important releases are retained.
   same message while retaining the existing frame and buffer limits.
 - Queued remote Actor posts select the current Hotfix generation when execution
   begins, matching local posts and calls. Waiting posts no longer lease an old
-  generation; an executing turn retains its generation until completion.
+  generation; an executing turn retains its generation until completion. Hotfix
+  activation rejects malformed CLI arguments before sending a request, so a
+  missing option value cannot silently remove the expected-version check.
 - Hub's private SDK setup selects supported archives instead of system installers,
   and rejects missing archive choices before downloading. Hash verification,
   version validation and atomic activation remain in place. Settings saves are

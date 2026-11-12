@@ -215,6 +215,14 @@ Activate, status, and rollback use the running node's loopback-only HTTP admin
 endpoint. V1 deliberately has no remote upload, public management endpoint, or
 built-in cluster rollout command.
 
+Use `hotfix activate <version> --expected-current-version <current-version>`
+to activate only if the node still selects the expected current version. Omitting
+the option leaves this check optional; supplying it requires a nonblank value.
+The activate command validates all arguments before sending a request. Missing
+values (including for `--server`), unknown or repeated options, and extra
+positional arguments produce a usage error and exit code 1 without contacting
+the node. An option cannot serve as another option's value.
+
 Activation changes `previous.txt` only when selecting a different version.
 After the expected-current-version check, package checksums and BuildTag checks,
 an activation whose target matches both `current.txt` and the published runtime
