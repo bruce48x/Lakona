@@ -204,6 +204,9 @@ RPC frame boundaries are independent of WebSocket message and receive boundaries
 Each receive drains a complete buffered RPC frame before requesting more socket
 input. Coalesced frames therefore progress even when the peer sends nothing else
 or closes afterward; a trailing partial prefix or payload waits for more input.
+Socket reads are capped by the accumulator's remaining capacity. A maximum-sized
+legal frame is drained before its successor can exceed that buffer budget, even
+when both share a WebSocket message. The per-frame size limit remains unchanged.
 Already buffered frames may complete before cancellation is observed, as allowed
 by the transport contract. They do not bypass disposal's receive admission gate.
 

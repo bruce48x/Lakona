@@ -57,7 +57,11 @@ internal sealed class WsTransportFraming
                 var tmp = ArrayPool<byte>.Shared.Rent(8 * 1024);
                 try
                 {
-                    var res = await _webSocket.ReceiveAsync(tmp, ct).ConfigureAwait(false);
+                    // Finish and drain a maximum-sized frame before reading bytes
+                    // belonging to its successor into the same bounded accumulator.
+                    var remaining = RpcProtocolLimits.DefaultMaxLengthPrefixedFrameSize - _accumulator.Count;
+                    var res = await _webSocket.ReceiveAsync(
+                        tmp.AsMemory(0, Math.Min(tmp.Length, remaining)), ct).ConfigureAwait(false);
                     if (res.MessageType == WebSocketMessageType.Close)
                         throw new IOException("WebSocket closed.");
 

@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
@@ -10,6 +11,74 @@ namespace Lakona.Rpc.Transport.Tests;
 
 public sealed class WebSocketBufferedReceiveTests
 {
+    [Theory]
+    [InlineData(2)]
+    [InlineData(7)]
+    [InlineData(12)]
+    public async Task Maximum_frame_preserves_following_prefix_or_payload(int followingBytes)
+    {
+        using var socket = new BoundarySocket(MaximumFrameWithTail(), followingBytes);
+        await using var receiver = new WsServerTransport(socket);
+        using var first = await receiver.ReceiveFrameAsync();
+        using var second = await receiver.ReceiveFrameAsync();
+        Assert.Equal(LengthPrefix.DefaultMaxFrameSize, first.Length);
+        Assert.Equal(-1, first.Span.IndexOfAnyExcept((byte)42));
+        Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, second.ToArray());
+        FrameLimitTestAssertions.UsesDerivedLengthPrefixedBudgets(receiver);
+        Assert.Equal(0, FrameLimitTestAssertions.GetAccumulator(receiver).Count);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task Maximum_frame_and_following_frame_cross_a_socket_read(bool serverReceives) =>
+        WithConnectionAsync(serverReceives, async (receiver, peer, ct) =>
+        {
+            var wire = MaximumFrameWithTail();
+            var boundary = RpcProtocolLimits.DefaultMaxLengthPrefixedFrameSize - 1;
+            var receiving = receiver.ReceiveFrameAsync(ct).AsTask();
+            try
+            {
+                await peer.SendAsync(wire.AsMemory(0, boundary), WebSocketMessageType.Binary, false, ct);
+                await WaitForPartialAsync(receiver, boundary, receiving, ct);
+                await peer.SendAsync(wire.AsMemory(boundary), WebSocketMessageType.Binary, true, ct);
+                using var first = await receiving.WaitAsync(ct);
+                using var second = await receiver.ReceiveFrameAsync(ct);
+                Assert.Equal(LengthPrefix.DefaultMaxFrameSize, first.Length);
+                Assert.Equal(-1, first.Span.IndexOfAnyExcept((byte)42));
+                Assert.Equal(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, second.ToArray());
+                Assert.Equal(0, FrameLimitTestAssertions.GetAccumulator(receiver).Count);
+            }
+            finally
+            {
+                if (!receiving.IsCompleted) await receiver.DisposeAsync();
+                await ObserveAsync(receiving);
+            }
+        });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task Oversized_frame_is_rejected_from_its_prefix(bool serverReceives) =>
+        WithConnectionAsync(serverReceives, async (receiver, peer, ct) =>
+        {
+            var prefix = new byte[4];
+            BinaryPrimitives.WriteUInt32BigEndian(prefix, (uint)LengthPrefix.DefaultMaxFrameSize + 1);
+            await peer.SendAsync(prefix.AsMemory(), WebSocketMessageType.Binary, true, ct);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => receiver.ReceiveFrameAsync(ct).AsTask());
+        });
+
+    private static byte[] MaximumFrameWithTail()
+    {
+        var length = RpcProtocolLimits.DefaultMaxLengthPrefixedFrameSize;
+        var wire = new byte[length + 12];
+        BinaryPrimitives.WriteUInt32BigEndian(wire, (uint)LengthPrefix.DefaultMaxFrameSize);
+        wire.AsSpan(4, LengthPrefix.DefaultMaxFrameSize).Fill(42);
+        BinaryPrimitives.WriteUInt32BigEndian(wire.AsSpan(length), 8);
+        for (var i = 0; i < 8; i++) wire[length + 4 + i] = (byte)(i + 1);
+        return wire;
+    }
+
     [Fact]
     public async Task Buffered_frames_do_not_request_another_socket_read()
     {
@@ -186,6 +255,36 @@ public sealed class WebSocketBufferedReceiveTests
 
     private static object Field(object value, string name) =>
         value.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(value)!;
+
+    private sealed class BoundarySocket(byte[] wire, int followingBytes) : NetWebSocket
+    {
+        private int offset;
+        private WebSocketState state = WebSocketState.Open;
+        public override WebSocketState State => state;
+        public override WebSocketCloseStatus? CloseStatus => null;
+        public override string? CloseStatusDescription => null;
+        public override string? SubProtocol => null;
+        public override void Abort() => state = WebSocketState.Aborted;
+        public override void Dispose() => state = WebSocketState.Closed;
+        public override Task CloseAsync(WebSocketCloseStatus status, string? description, CancellationToken ct)
+        { state = WebSocketState.Closed; return Task.CompletedTask; }
+        public override Task CloseOutputAsync(WebSocketCloseStatus status, string? description, CancellationToken ct) => throw new NotSupportedException();
+        public override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType type, bool endOfMessage, CancellationToken ct) => throw new NotSupportedException();
+        public override Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            var frameEnd = RpcProtocolLimits.DefaultMaxLengthPrefixedFrameSize;
+            // Deliver all but the final frame byte, then offer that byte together
+            // with a following prefix/payload. Respect the caller's read capacity.
+            var segmentEnd = offset < frameEnd - 1 ? frameEnd - 1 :
+                offset < frameEnd + followingBytes ? frameEnd + followingBytes : wire.Length;
+            var count = Math.Min(buffer.Count, segmentEnd - offset);
+            Assert.True(count > 0, "The receiver must make progress without reading past complete frames.");
+            wire.AsSpan(offset, count).CopyTo(buffer.AsSpan());
+            offset += count;
+            return Task.FromResult(new WebSocketReceiveResult(count, WebSocketMessageType.Binary, offset == wire.Length));
+        }
+    }
 
     private sealed class SingleBatchSocket(byte[] wire) : NetWebSocket
     {
