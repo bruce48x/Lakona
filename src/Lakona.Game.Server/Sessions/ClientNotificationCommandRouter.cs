@@ -20,6 +20,8 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
     private readonly IClientNotificationRemoteDispatcher? _remoteDispatcher;
     private readonly NodeId? _localNode;
     private readonly ILogger<ClientNotificationCommandRouter>? _logger;
+    private readonly TimeProvider _timeProvider;
+    private long _nextFailureLogAt;
     private readonly int _capacityPerSession;
     private readonly int _totalCapacity;
     private readonly ConcurrentDictionary<GameSessionKey, SessionQueue> _queues = new();
@@ -41,7 +43,8 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         int totalCapacity = DefaultTotalCapacity,
         IGameSessionRegistry? sessions = null,
         int maximumPendingBytesPerSession = 128 * 1024 * 1024,
-        int maximumPendingBytesPerProcess = 512 * 1024 * 1024)
+        int maximumPendingBytesPerProcess = 512 * 1024 * 1024,
+        TimeProvider? timeProvider = null)
     {
         _localOwner = localOwner ?? throw new ArgumentNullException(nameof(localOwner));
         _commands = commands;
@@ -50,6 +53,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         _remoteDispatcher = remoteDispatcher;
         _localNode = localNode;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _capacityPerSession = ValidateCapacity(capacityPerSession);
         _totalCapacity = ValidateTotalCapacity(totalCapacity);
         _byteBudget = new(maximumPendingBytesPerSession, maximumPendingBytesPerProcess);
@@ -66,7 +70,8 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         int totalCapacity = DefaultTotalCapacity,
         IGameSessionRegistry? sessions = null,
         int maximumPendingBytesPerSession = 128 * 1024 * 1024,
-        int maximumPendingBytesPerProcess = 512 * 1024 * 1024)
+        int maximumPendingBytesPerProcess = 512 * 1024 * 1024,
+        TimeProvider? timeProvider = null)
     {
         _localDispatcher = localDispatcher ?? throw new ArgumentNullException(nameof(localDispatcher));
         _commands = commands;
@@ -75,6 +80,7 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
         _remoteDispatcher = remoteDispatcher;
         _localNode = localNode;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _capacityPerSession = ValidateCapacity(capacityPerSession);
         _totalCapacity = ValidateTotalCapacity(totalCapacity);
         _byteBudget = new(maximumPendingBytesPerSession, maximumPendingBytesPerProcess);
@@ -279,9 +285,8 @@ internal sealed class ClientNotificationCommandRouter : IClientNotificationComma
             catch (Exception exception)
             {
                 item.Completion.TrySetResult(ClientNotificationStatus.Failed);
-                _logger?.LogWarning(
-                    exception,
-                    "Background client notification delivery failed after framework admission.");
+                ClientNotificationDiagnostics.LogFailure(_logger, _timeProvider, ref _nextFailureLogAt,
+                    "background_delivery", item.Session, exception);
             }
             finally
             {

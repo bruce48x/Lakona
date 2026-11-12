@@ -105,9 +105,15 @@ capacity loss even though reliable publication returns `Failed` for either.
 The reliable runtime logs one warning for that capacity transition with
 `SessionId`, `PendingCount`, `LastSequence`, and `AcknowledgedSequence`, captured
 at the overflow boundary. The local notification dispatcher logs send failures
-with `SessionId`, numeric `ServiceId`/`MethodId`, and `ExceptionType`. Send
-warnings are limited to one per dispatcher per 30 seconds across all sessions;
-the counter still records every failure. These warnings use the application's
+with `SessionId`, numeric `ServiceId`/`MethodId`, and `ExceptionType`. The outer
+background router uses the same safe warning policy for delivery exceptions,
+including faults that occur before callback dispatch. `Stage` distinguishes
+`send` from `background_delivery`; the router does not attach callback method
+identifiers it does not own. Failure warnings are limited to one per dispatcher
+and one per router per 30 seconds across all sessions. A propagated send failure
+can therefore produce one warning at each boundary, while the send-failure
+counter records it only once at the dispatcher. Requested cancellation produces
+neither failure warnings nor send-failure counts. These warnings use the application's
 logger factory and omit owner identity, payload, tickets, and exception text or
 stack (which may contain sensitive serializer data). Session ids are log fields,
 never metric labels. A sampled send warning does not identify every affected

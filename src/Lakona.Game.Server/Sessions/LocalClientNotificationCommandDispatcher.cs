@@ -133,17 +133,8 @@ internal sealed class LocalClientNotificationCommandDispatcher
     private void RecordSendFailure(GameSessionKey session, int serviceId, int methodId, Exception exception)
     {
         ClientNotificationDiagnostics.SendFailures.Add(1);
-        // Bound warnings without retaining per-session state. Exception messages and
-        // stacks may contain serializer payloads or credentials, so log only the type.
-        var now = _timeProvider.GetTimestamp();
-        var next = Volatile.Read(ref _nextFailureLogAt);
-        if (!_logger.IsEnabled(LogLevel.Warning) || now < next ||
-            Interlocked.CompareExchange(ref _nextFailureLogAt, now + 30 * _timeProvider.TimestampFrequency, next) != next)
-            return;
-
-        _logger.LogWarning(
-            "Client notification send failed. SessionId={SessionId} ServiceId={ServiceId} MethodId={MethodId} ExceptionType={ExceptionType}. Further send failure warnings suppressed for 30 seconds; all failures counted by lakona.game.notification.send_failure.",
-            session.SessionId, serviceId, methodId, exception.GetType().FullName);
+        ClientNotificationDiagnostics.LogFailure(_logger, _timeProvider, ref _nextFailureLogAt,
+            "send", session, exception, serviceId, methodId);
     }
 
     private static GameSessionKey ToSessionKey(ClientNotificationCommand command) =>

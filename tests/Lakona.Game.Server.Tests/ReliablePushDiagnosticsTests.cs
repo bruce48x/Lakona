@@ -15,6 +15,148 @@ namespace Lakona.Game.Server.Tests;
 [Collection(GameSessionPopulationMetricsCollectionNames.Diagnostics)]
 public sealed class ReliablePushDiagnosticsTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Generated_router_failures_are_bounded_across_sessions_and_counted_once(bool concurrent)
+    {
+        using var evidence = new Evidence();
+        var sessions = new InMemoryGameSessionRegistry();
+        var connections = new GameFrameworkConnectionRegistry();
+        var proxies = new GameSessionCallbackProxyRegistry();
+        var callback = new Callback { Failure = new InvalidOperationException("secret payload credential") };
+        var clock = new ManualClock();
+        var bindings = new List<TestCallbackConnection>();
+        var keys = new List<GameSessionKey>();
+        try
+        {
+            for (var index = 0; index < 8; index++)
+            {
+                var key = await sessions.StartNewSessionAsync($"private-owner-{index}", Token);
+                var connectionId = $"connection-{index}";
+                await sessions.BindSessionAsync(key, connectionId, Token);
+                keys.Add(key);
+                bindings.Add(new TestCallbackConnection(sessions, connections, proxies, connectionId, callback));
+            }
+            var dispatcher = new LocalClientNotificationCommandDispatcher(bindings[0].Resolver, sessions, evidence, clock);
+            await using var router = new ClientNotificationCommandRouter(dispatcher, TestNotificationProfiles.JsonCommands(),
+                logger: evidence.CreateLogger<ClientNotificationCommandRouter>(), sessions: sessions, timeProvider: clock);
+
+            if (concurrent)
+                await Task.WhenAll(keys.Select(key => Task.Run(() => SendAsync(key), Token)));
+            else
+                foreach (var key in keys) await SendAsync(key);
+
+            AssertSafeWarnings(evidence, 2);
+            Assert.Equal(2, evidence.Entries.Select(entry => entry.Category).Distinct().Count());
+            Assert.Equal(32, evidence.Measurements.Sum(measurement => measurement.Value));
+            Assert.All(evidence.Measurements, measurement =>
+            {
+                Assert.Equal("lakona.game.notification.send_failure", measurement.Name);
+                Assert.Empty(measurement.Tags);
+            });
+            Assert.Equal(0, router.QueueCount);
+            clock.Timestamp = 29_999;
+            await SendAsync(keys[0]);
+            AssertSafeWarnings(evidence, 2);
+            clock.Timestamp = 30_000;
+            await SendAsync(keys[0]);
+            AssertSafeWarnings(evidence, 4);
+            Assert.Equal(40, evidence.Measurements.Sum(measurement => measurement.Value));
+            callback.Failure = null;
+            await SendAsync(keys[0]);
+            Assert.Equal(4, callback.Deliveries);
+            Assert.Equal(40, evidence.Measurements.Sum(measurement => measurement.Value));
+
+            async Task SendAsync(GameSessionKey key)
+            {
+                for (var index = 0; index < 4; index++)
+                    Assert.Equal(ClientNotificationStatus.Accepted,
+                        router.EnqueueGenerated<Callback, string>(key, 1, 2, "Notify", "secret payload"));
+                await router.WaitForIdleAsync(key, Token).AsTask().WaitAsync(TimeSpan.FromSeconds(10), Token);
+            }
+        }
+        finally
+        {
+            foreach (var binding in bindings) await binding.DisposeAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Router_only_failures_remain_diagnosable_without_counting_send_failures(bool generated)
+    {
+        using var evidence = new Evidence();
+        var clock = new ManualClock();
+        var runtime = new ControlledRuntime
+        {
+            Publish = _ => throw new InvalidOperationException("secret route credential")
+        };
+        var key = new GameSessionKey("private-owner", "session");
+        await using var router = new ClientNotificationCommandRouter(runtime, TestNotificationProfiles.JsonCommands(),
+            logger: evidence.CreateLogger<ClientNotificationCommandRouter>(), timeProvider: clock);
+
+        for (var index = 0; index < 8; index++) Enqueue();
+        await router.WaitForIdleAsync(key, Token).AsTask().WaitAsync(TimeSpan.FromSeconds(10), Token);
+        AssertSafeWarnings(evidence, 1);
+        Assert.Equal("background_delivery", Assert.Single(evidence.Logs)["Stage"]);
+        Assert.Equal(typeof(ClientNotificationCommandRouter).FullName, Assert.Single(evidence.Entries).Category);
+        Assert.Empty(evidence.Measurements);
+        clock.Timestamp = 30_000;
+        Enqueue();
+        await router.WaitForIdleAsync(key, Token);
+        AssertSafeWarnings(evidence, 2);
+        Assert.Equal(0, router.QueueCount);
+
+        void Enqueue() => Assert.Equal(ClientNotificationStatus.Accepted, generated
+            ? router.EnqueueGenerated<Callback, string>(key, 1, 2, "Notify", "secret payload")
+            : router.Enqueue(Command(key)));
+    }
+
+    [Fact]
+    public async Task Router_shutdown_cancellation_is_not_logged_or_counted_as_failure()
+    {
+        using var evidence = new Evidence();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var exited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var runtime = new ControlledRuntime
+        {
+            Publish = async token =>
+            {
+                entered.TrySetResult();
+                try { await Task.Delay(Timeout.Infinite, token); }
+                finally { exited.TrySetResult(); }
+                return ClientNotificationStatus.Accepted;
+            }
+        };
+        var key = new GameSessionKey("private-owner", "session");
+        await using var router = new ClientNotificationCommandRouter(runtime, TestNotificationProfiles.JsonCommands(),
+            logger: evidence.CreateLogger<ClientNotificationCommandRouter>());
+        Assert.Equal(ClientNotificationStatus.Accepted, router.Enqueue(Command(key)));
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(10), Token);
+        await router.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), Token);
+
+        Assert.True(exited.Task.IsCompletedSuccessfully);
+        Assert.Empty(evidence.Entries);
+        Assert.Empty(evidence.Measurements);
+        Assert.Equal(0, router.QueueCount);
+    }
+
+    private static void AssertSafeWarnings(Evidence evidence, int count)
+    {
+        Assert.Equal(count, evidence.Entries.Count);
+        Assert.All(evidence.Entries, entry =>
+        {
+            Assert.Null(entry.Exception);
+            Assert.DoesNotContain("secret", entry.Message);
+            Assert.DoesNotContain("private-owner", entry.Message);
+            Assert.DoesNotContain("secret", string.Join(" ", entry.Fields.Values));
+            Assert.DoesNotContain("private-owner", string.Join(" ", entry.Fields.Values));
+            Assert.Equal(typeof(InvalidOperationException).FullName, entry.Fields["ExceptionType"]);
+        });
+    }
+
     [Fact]
     public async Task Ack_keeps_stream_live_capacity_loss_is_logged_once_and_new_session_recovers()
     {
@@ -47,6 +189,7 @@ public sealed class ReliablePushDiagnosticsTests
         Assert.True(await sessions.IsReliableContinuityLostAsync(session, Token));
         Assert.Equal(302, outbox.GetLastSequence(session));
         var log = Assert.Single(evidence.Logs);
+        Assert.All(evidence.Entries, entry => Assert.Null(entry.Exception));
         Assert.Equal(session.SessionId, log["SessionId"]);
         Assert.Equal(2, log["PendingCount"]);
         Assert.Equal(302L, log["LastSequence"]);
@@ -107,6 +250,7 @@ public sealed class ReliablePushDiagnosticsTests
         clock.Timestamp = 30_000;
         Assert.Equal(ClientNotificationStatus.Failed, await dispatcher.DispatchAsync(Command(session), Token));
         Assert.Equal(2, evidence.Logs.Count);
+        AssertSafeWarnings(evidence, 2);
         Assert.Equal(33, evidence.Measurements.Sum(m => m.Value));
         Assert.False(await sessions.IsReliableContinuityLostAsync(session, Token));
         callback.Failure = null;
@@ -142,6 +286,7 @@ public sealed class ReliablePushDiagnosticsTests
             Assert.Equal(ClientNotificationStatus.Failed, await Send(Token));
         Assert.Single(evidence.Logs);
         Assert.Single(evidence.Measurements);
+        AssertSafeWarnings(evidence, 1);
 
         Task<ClientNotificationStatus> Send(CancellationToken token) => generated
             ? dispatcher.DispatchGeneratedAsync<Callback, string>(session, 1, 2, "secret", token).AsTask()
@@ -208,10 +353,25 @@ public sealed class ReliablePushDiagnosticsTests
         public override long GetTimestamp() => Timestamp;
     }
 
-    private sealed class Evidence : ILoggerFactory, ILogger
+    private sealed class ControlledRuntime : IReliablePushRuntime
+    {
+        public required Func<CancellationToken, ValueTask<ClientNotificationStatus>> Publish { get; init; }
+        public ValueTask<ClientNotificationStatus> PublishGeneratedAsync<TCallback, TPayload>(GameSessionKey session,
+            int serviceId, int methodId, string methodName, TPayload payload, CancellationToken cancellationToken = default)
+            where TCallback : class => Publish(cancellationToken);
+        public ValueTask<ClientNotificationStatus> PublishAsync(GameSessionKey session,
+            ClientNotificationCommand command, CancellationToken cancellationToken = default) => Publish(cancellationToken);
+        public ValueTask ReplayPendingAsync(GameSessionKey session, string connectionId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+        public ValueTask<ReliablePushAckOutcome> AckAsync(GameSessionKey currentSession, GameSessionKey acknowledgedSession,
+            long sequence, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class Evidence : ILoggerFactory
     {
         private readonly MeterListener listener = new();
         public ConcurrentQueue<Dictionary<string, object?>> Logs { get; } = new();
+        public ConcurrentQueue<(string Category, string Message, Exception? Exception, Dictionary<string, object?> Fields)> Entries { get; } = new();
         public ConcurrentQueue<(string Name, long Value, KeyValuePair<string, object?>[] Tags)> Measurements { get; } = new();
         public Evidence()
         {
@@ -224,15 +384,20 @@ public sealed class ReliablePushDiagnosticsTests
                 Measurements.Enqueue((instrument.Name, value, tags.ToArray())));
             listener.Start();
         }
-        public ILogger CreateLogger(string categoryName) => this;
+        public ILogger CreateLogger(string categoryName) => new CategoryLogger(this, categoryName);
         public void AddProvider(ILoggerProvider provider) => throw new NotSupportedException();
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel logLevel) => true;
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter)
+        private sealed class CategoryLogger(Evidence owner, string category) : ILogger
         {
-            Assert.Null(exception);
-            Logs.Enqueue(((IEnumerable<KeyValuePair<string, object?>>)state!).ToDictionary());
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+            public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+                Func<TState, Exception?, string> formatter)
+            {
+                if (!IsEnabled(logLevel)) return;
+                var fields = ((IEnumerable<KeyValuePair<string, object?>>)state!).ToDictionary();
+                owner.Logs.Enqueue(fields);
+                owner.Entries.Enqueue((category, formatter(state, exception), exception, fields));
+            }
         }
         public void Dispose() => listener.Dispose();
     }
