@@ -4,14 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-11-12 — RPC client cleanup survives cancellation failures
+## 2026-11-12 — RPC cleanup and Actor hotfix consistency
 
 **Key releases:** `Lakona.Rpc.Client 0.14.18`, `Lakona.Game.Client 0.5.28`,
-`Lakona.Game.Server 0.54.7`, `Lakona.Tool 0.43.119`, and `Lakona.Hub 0.17.133`.
+`Lakona.Game.Server 0.54.8`, `Lakona.Tool 0.43.120`, and `Lakona.Hub 0.17.134`.
 
 - RPC client shutdown retains cancellation callback failures while joining
   startup and active I/O and releasing owned resources. Concurrent and repeated
   disposal share the final result, including any cleanup failures.
+- Queued remote Actor posts select the current Hotfix generation when execution
+  begins, matching local posts and calls. Waiting posts no longer lease an old
+  generation; an executing turn retains its generation until completion.
 
 ## 2026-11-11 — Actor dispatch consistency and bounded lifecycle cleanup
 

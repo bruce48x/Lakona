@@ -223,7 +223,6 @@ internal sealed class HotfixActorClusterHandler
                 return;
             }
 
-            var state = new ActorDispatchState(lease, table, descriptor.MethodKey, request);
             ActorTellResult accepted;
             try
             {
@@ -231,39 +230,20 @@ internal sealed class HotfixActorClusterHandler
                     descriptor.ActorType,
                     actorId,
                     wireRequest.TargetProof.ActivationId,
-                    async (actor, ct) =>
-                    {
-                        try
-                        {
-                            using var dispatchScope = state.EnterDispatchScope();
-                            await state.Table.InvokeActorAsync(
-                                    state.MethodKey,
-                                    actor,
-                                    state.Request,
-                                    expectedResultType: null,
-                                    ct)
-                                .ConfigureAwait(false);
-                        }
-                        finally
-                        {
-                            try { state.DisposeLease(); }
-                            finally { admission.Complete(); }
-                        }
-                    },
+                    CreateTellCallback(accessor, header.MethodId, request, admission),
                     CancellationToken.None);
             }
             catch
             {
-                state.DisposeLease();
                 ClusterActorWireCodec.WriteReply(response, RemoteActorStatus.NodeUnavailable);
                 return;
             }
-
-            if (accepted != ActorTellResult.Accepted)
+            finally
             {
-                state.DisposeLease();
+                lease.Dispose();
             }
-            else admission.Accept();
+
+            if (accepted == ActorTellResult.Accepted) admission.Accept();
 
             ClusterActorWireCodec.WriteReply(response, MapTellStatus(accepted));
             return;
@@ -424,31 +404,24 @@ internal sealed class HotfixActorClusterHandler
         };
     }
 
-    private sealed class ActorDispatchState(
-        HotfixRuntimeSnapshotLease lease,
-        HotfixDispatchTable table,
-        string methodKey,
-        object? request)
+    private static Func<IActor, CancellationToken, ValueTask> CreateTellCallback(
+        IHotfixRuntimeAccessor accessor,
+        ulong methodId,
+        object? request,
+        ActorWorkAdmission admission)
     {
-        private int _leaseDisposed;
-
-        public HotfixDispatchTable Table { get; } = table;
-
-        public string MethodKey { get; } = methodKey;
-
-        public object? Request { get; } = request;
-
-        public IDisposable EnterDispatchScope()
+        // Keep the queued closure separate from admission-time descriptors and leases.
+        // Only the executing turn owns a generation, just as for local posts and calls.
+        return async (actor, ct) =>
         {
-            return lease.EnterDispatchScope();
-        }
-
-        public void DisposeLease()
-        {
-            if (Interlocked.Exchange(ref _leaseDisposed, 1) == 0)
+            try
             {
-                lease.Dispose();
+                using var lease = accessor.AcquireCurrent();
+                using var dispatchScope = lease.EnterDispatchScope();
+                await lease.Snapshot.DispatchTable!.InvokeActorAsync(
+                    methodId, actor, request, typeof(void), ct).ConfigureAwait(false);
             }
-        }
+            finally { admission.Complete(); }
+        };
     }
 }

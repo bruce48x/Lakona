@@ -265,6 +265,12 @@ Hotfix dispatch snapshot and uses it for the whole turn. Publishing a newer
 generation affects later turns; it cannot switch Behavior midway through an
 in-flight turn.
 
+This rule applies equally to local and remote posts. Remote admission validates
+the method and decodes the stable request DTO without keeping that generation
+leased for the queue's lifetime. A method removed before execution fails through
+the mailbox's normal failure path; the runtime does not fall back to an old
+generation. Post acceptance still acknowledges enqueueing, not business success.
+
 Generated dispatch retains stable method identity and serialized arguments,
 never a Behavior delegate. The executing node resolves the Behavior from the
 acquired generation and releases that generation after the turn completes.

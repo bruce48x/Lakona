@@ -736,9 +736,10 @@ public sealed partial class HotfixActorClusterHandlerTests
     {
         var runtime = new RecordingActorRuntime { TellResult = tellResult };
         var descriptor = CreateNotifyDescriptor();
+        var snapshot = CreateSnapshot(descriptor);
         var gate = new DistributedWorkAdmissionGate();
         gate.Open();
-        await using var fixture = CreateFixture(runtime, CreateSnapshot(descriptor), admissionGate: gate);
+        await using var fixture = CreateFixture(runtime, snapshot, admissionGate: gate);
         var invocation = CreateInvocation(
             descriptor.MethodId,
             new NotifyRequest { Value = "notice" });
@@ -754,47 +755,122 @@ public sealed partial class HotfixActorClusterHandlerTests
         Assert.Equal(RemoteActorRetrySafety.Indeterminate, reply.RetrySafety);
         Assert.Null(runtime.Actor.LastNotification);
         Assert.True(await gate.CloseAndDrainAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+        await snapshot.RetireAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
     }
 
-    [Fact]
-    public async Task Actor_rpc_tell_retains_snapshot_lease_until_mailbox_work_completes()
+    [Theory]
+    [InlineData("success")]
+    [InlineData("failure")]
+    [InlineData("removed")]
+    public async Task Actor_rpc_queued_tell_uses_execution_generation(string outcome)
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var retired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var runtime = new RecordingActorRuntime
         {
             TellEntered = entered,
             TellRelease = release.Task
         };
         var descriptor = CreateNotifyDescriptor();
-        var snapshot = CreateSnapshot(descriptor, () => retired.TrySetResult());
+        var snapshot = CreateSnapshot(descriptor);
+        var replacement = CreateSnapshot(outcome == "removed" ? CreatePingDescriptor() :
+            CreateNotifyDescriptor(outcome == "failure" ? nameof(FailNotifyAsync) : nameof(NotifyV2Async)));
+        var accessor = new MutableRuntimeAccessor(snapshot);
         var gate = new DistributedWorkAdmissionGate();
         gate.Open();
-        await using var fixture = CreateFixture(runtime, snapshot, admissionGate: gate);
+        await using var fixture = CreateFixture(runtime, snapshot, admissionGate: gate, runtimeAccessor: accessor);
         var invocation = CreateInvocation(
             descriptor.MethodId,
             new NotifyRequest { Value = "notice" });
 
-        using var response = await InvokeAsync(
-            fixture.Handler,
-            invocation,
-            tell: true,
-            TestContext.Current.CancellationToken);
-        var reply = ClusterActorWireCodec.DecodeReply(response.Memory);
-        await entered.Task.WaitAsync(TestContext.Current.CancellationToken);
-        var retirement = snapshot.RetireAsync().AsTask();
+        try
+        {
+            using var response = await InvokeAsync(fixture.Handler, invocation, tell: true, TestContext.Current.CancellationToken);
+            Assert.Equal(RemoteActorStatus.Accepted, ClusterActorWireCodec.DecodeReply(response.Memory).Status);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            accessor.Current = replacement;
+            await snapshot.RetireAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            Assert.Null(runtime.Actor.LastNotification);
+            var drain = gate.CloseAndDrainAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken).AsTask();
+            Assert.False(drain.IsCompleted);
 
-        Assert.Equal(RemoteActorStatus.Accepted, reply.Status);
-        Assert.False(retirement.IsCompleted);
-        var drain = gate.CloseAndDrainAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken).AsTask();
-        Assert.False(drain.IsCompleted);
+            release.TrySetResult();
+            var error = await Record.ExceptionAsync(() => runtime.TellCompletion.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None));
+            if (outcome == "success")
+            {
+                Assert.Null(error);
+                Assert.Equal("v2:notice", runtime.Actor.LastNotification);
+                Assert.Same(replacement, runtime.Actor.NotificationSnapshot);
+            }
+            else
+            {
+                if (outcome == "removed") Assert.IsType<HotfixMethodNotLoadedException>(error);
+                else Assert.IsType<InvalidOperationException>(error);
+                Assert.Null(runtime.Actor.LastNotification);
+            }
+            Assert.True(await drain);
+            await replacement.RetireAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            release.TrySetResult();
+            _ = await Record.ExceptionAsync(() => runtime.TellCompletion.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None));
+            await snapshot.RetireAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+            await replacement.RetireAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+        }
+    }
 
-        release.TrySetResult();
-        await retirement.WaitAsync(TestContext.Current.CancellationToken);
-        await retired.Task.WaitAsync(TestContext.Current.CancellationToken);
-        Assert.Equal("notice", runtime.Actor.LastNotification);
-        Assert.True(await drain);
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Actor_rpc_running_tell_keeps_generation_until_turn_finishes(bool fail)
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var runtime = new RecordingActorRuntime();
+        runtime.Actor.NotificationEntered = entered;
+        runtime.Actor.NotificationRelease = release.Task;
+        runtime.Actor.FailNotification = fail;
+        var descriptor = CreateNotifyDescriptor();
+        var snapshot = CreateSnapshot(descriptor);
+        var replacement = CreateSnapshot(CreateNotifyDescriptor(nameof(NotifyV2Async)));
+        var accessor = new MutableRuntimeAccessor(snapshot);
+        var gate = new DistributedWorkAdmissionGate();
+        gate.Open();
+        await using var fixture = CreateFixture(runtime, snapshot, admissionGate: gate, runtimeAccessor: accessor);
+        try
+        {
+            using var response = await InvokeAsync(fixture.Handler,
+                CreateInvocation(descriptor.MethodId, new NotifyRequest { Value = "notice" }),
+                tell: true, TestContext.Current.CancellationToken);
+            Assert.Equal(RemoteActorStatus.Accepted, ClusterActorWireCodec.DecodeReply(response.Memory).Status);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            accessor.Current = replacement;
+            var retirement = snapshot.RetireAsync().AsTask();
+            var drain = gate.CloseAndDrainAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken).AsTask();
+            Assert.False(retirement.IsCompleted);
+            Assert.False(drain.IsCompleted);
+
+            release.TrySetResult();
+            var error = await Record.ExceptionAsync(() => runtime.TellCompletion.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None));
+            if (fail) Assert.IsType<InvalidOperationException>(error);
+            else
+            {
+                Assert.Null(error);
+                Assert.Equal("notice", runtime.Actor.LastNotification);
+            }
+            Assert.Same(snapshot, runtime.Actor.NotificationSnapshot);
+            Assert.Same(snapshot, runtime.Actor.NotificationCompletionSnapshot);
+            await retirement.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            Assert.True(await drain);
+        }
+        finally
+        {
+            release.TrySetResult();
+            _ = await Record.ExceptionAsync(() => runtime.TellCompletion.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None));
+            await snapshot.RetireAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+            await replacement.RetireAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+        }
     }
 
     [Fact]
@@ -829,7 +905,8 @@ public sealed partial class HotfixActorClusterHandlerTests
         bool includeDirectoryCache = true,
         TimeProvider? timeProvider = null,
         IClusterMembership? membership = null,
-        IDistributedWorkAdmissionGate? admissionGate = null)
+        IDistributedWorkAdmissionGate? admissionGate = null,
+        IHotfixRuntimeAccessor? runtimeAccessor = null)
     {
         var location = CreateLocation();
         var effectiveMembership = membership ?? new ImmediateTestClusterMembership(
@@ -849,7 +926,7 @@ public sealed partial class HotfixActorClusterHandlerTests
         var effectiveTimeProvider = timeProvider ?? TimeProvider.System;
         var serviceCollection = new ServiceCollection()
             .AddSingleton(effectiveTimeProvider)
-            .AddSingleton<IHotfixRuntimeAccessor>(new FixedRuntimeAccessor(snapshot));
+            .AddSingleton<IHotfixRuntimeAccessor>(runtimeAccessor ?? new FixedRuntimeAccessor(snapshot));
         if (admissionGate is not null) serviceCollection.AddSingleton(admissionGate);
         if (includeDirectoryCache)
         {
@@ -1019,17 +1096,17 @@ public sealed partial class HotfixActorClusterHandlerTests
                 BindingFlags.Public | BindingFlags.Instance)!);
     }
 
-    private static HotfixActorMethodDescriptor CreateNotifyDescriptor()
+    private static HotfixActorMethodDescriptor CreateNotifyDescriptor(string method = nameof(NotifyAsync))
     {
         return new HotfixActorMethodDescriptor(
             NotifyMethodKey,
             typeof(HotfixActorClusterHandlerTests),
             typeof(TestActor),
-            nameof(NotifyAsync),
+            method,
             typeof(NotifyRequest),
             null,
             typeof(HotfixActorClusterHandlerTests).GetMethod(
-                nameof(NotifyAsync),
+                method,
                 BindingFlags.Public | BindingFlags.Instance)!);
     }
 
@@ -1066,6 +1143,12 @@ public sealed partial class HotfixActorClusterHandlerTests
     {
         return actor.NotifyAsync(request, CancellationToken.None);
     }
+
+    public ValueTask NotifyV2Async(TestActor actor, NotifyRequest request) =>
+        actor.NotifyAsync(new NotifyRequest { Value = "v2:" + request.Value }, CancellationToken.None);
+
+    public ValueTask FailNotifyAsync(TestActor actor, NotifyRequest request) =>
+        throw new InvalidOperationException("Replacement notification failed.");
 
     public ValueTask<PingReply> ThrowAsync(
         TestActor actor,
@@ -1105,6 +1188,12 @@ public sealed partial class HotfixActorClusterHandlerTests
 
         public string? LastNotification { get; private set; }
 
+        public TaskCompletionSource? NotificationEntered { get; set; }
+        public Task? NotificationRelease { get; set; }
+        public bool FailNotification { get; set; }
+        public HotfixRuntimeSnapshot? NotificationSnapshot { get; private set; }
+        public HotfixRuntimeSnapshot? NotificationCompletionSnapshot { get; private set; }
+
         public async ValueTask<PingReply> PingAsync(
             PingRequest request,
             CancellationToken cancellationToken)
@@ -1115,12 +1204,16 @@ public sealed partial class HotfixActorClusterHandlerTests
             return new PingReply { Value = $"pong:{request.Value}" };
         }
 
-        public ValueTask NotifyAsync(
+        public async ValueTask NotifyAsync(
             NotifyRequest request,
             CancellationToken cancellationToken)
         {
+            NotificationSnapshot = HotfixDispatchRuntimeScope.Current?.Snapshot;
+            NotificationEntered?.TrySetResult();
+            if (NotificationRelease is not null) await NotificationRelease;
+            NotificationCompletionSnapshot = HotfixDispatchRuntimeScope.Current?.Snapshot;
+            if (FailNotification) throw new InvalidOperationException("Notification failed.");
             LastNotification = request.Value;
-            return ValueTask.CompletedTask;
         }
     }
 
@@ -1189,6 +1282,8 @@ public sealed partial class HotfixActorClusterHandlerTests
 
         public Task? TellRelease { get; init; }
 
+        public Task TellCompletion { get; private set; } = Task.CompletedTask;
+
         public TaskCompletionSource? AskEntered { get; init; }
 
         public Task? AskRelease { get; init; }
@@ -1229,7 +1324,7 @@ public sealed partial class HotfixActorClusterHandlerTests
                 return TellResult;
             }
 
-            _ = RunTellAsync(message, cancellationToken);
+            TellCompletion = RunTellAsync(message, cancellationToken);
             return ActorTellResult.Accepted;
         }
 
@@ -1314,6 +1409,11 @@ public sealed partial class HotfixActorClusterHandlerTests
         HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor
     {
         public HotfixRuntimeSnapshot Current { get; } = snapshot;
+    }
+
+    private sealed class MutableRuntimeAccessor(HotfixRuntimeSnapshot snapshot) : IHotfixRuntimeAccessor
+    {
+        public HotfixRuntimeSnapshot Current { get; set; } = snapshot;
     }
 
     private sealed class FixedClientFactory(IRpcClient client) : IClusterClientFactory
