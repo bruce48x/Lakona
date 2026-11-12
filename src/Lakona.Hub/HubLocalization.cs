@@ -155,6 +155,7 @@ public sealed class HubText
     public string OpenArtifactFolder => L("打开产物目录", "開啟產物目錄", "Open artifact folder");
     public string OpenPackagingLogFolder => L("打开日志目录", "開啟日誌目錄", "Open log folder");
     public string PackageReady => L("配置完成，可以开始打包。", "設定完成，可以開始打包。", "Ready to build a package.");
+    public string PackageServerDirectoryMissing => L("未找到服务端目录，请检查项目结构后重新打开打包窗口。", "找不到伺服器目錄，請檢查專案結構後重新開啟打包視窗。", "Server directory not found. Check the project structure and reopen packaging.");
     public string PackageSdkRequired => L("打包需要可用的 .NET 10 SDK。", "打包需要可用的 .NET 10 SDK。", "Packaging requires an available .NET 10 SDK.");
     public string PackageAlreadyRunning => L("已有打包任务正在运行。", "已有打包工作正在執行。", "A packaging operation is already running.");
     public string PackagingStarted => L("正在准备打包…", "正在準備打包…", "Preparing package…");

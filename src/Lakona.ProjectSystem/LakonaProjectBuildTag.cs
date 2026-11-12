@@ -12,10 +12,16 @@ public static class LakonaProjectBuildTag
     public static void Save(string projectRoot, string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectRoot);
+        SaveInServerDirectory(Path.Combine(Path.GetFullPath(projectRoot), "Server"), value);
+    }
+
+    public static void SaveInServerDirectory(string serverDirectory, string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serverDirectory);
         if (!IsValid(value))
             throw new ArgumentException("BuildTag must contain 1 to 64 ASCII letters and digits.", nameof(value));
 
-        var path = Path.Combine(Path.GetFullPath(projectRoot), "Server", "BuildTag.props");
+        var path = Path.Combine(Path.GetFullPath(serverDirectory), "BuildTag.props");
         var document = XDocument.Load(path, LoadOptions.PreserveWhitespace);
         var property = document.Descendants().FirstOrDefault(element => element.Name.LocalName == "LakonaBuildTag")
             ?? throw new InvalidOperationException("BuildTag.props does not define LakonaBuildTag.");

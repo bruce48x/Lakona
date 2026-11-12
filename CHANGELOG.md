@@ -8,7 +8,7 @@ date and package versions of important releases are retained.
 
 **Key releases:** `Lakona.Rpc.Client 0.14.18`, `Lakona.Game.Client 0.5.28`,
 `Lakona.Rpc.Transport.WebSocket 0.11.47`, `Lakona.Game.Server 0.54.8`,
-`Lakona.Tool 0.43.122`, and `Lakona.Hub 0.17.137`.
+`Lakona.Tool 0.43.123`, and `Lakona.Hub 0.17.138`.
 
 - RPC client shutdown retains cancellation callback failures while joining
   startup and active I/O and releasing owned resources. Concurrent and repeated
@@ -25,6 +25,8 @@ date and package versions of important releases are retained.
   version validation and atomic activation remain in place. Settings saves are
   serialized so an older background write cannot overwrite the latest explicit
   save; shutdown waits for active disk writes without waiting on UI continuations.
+  BuildTag edits and packaging use the inspected server directory, so renamed
+  server roots remain usable throughout the workflow.
 
 ## 2026-11-11 — Actor dispatch consistency and bounded lifecycle cleanup
 

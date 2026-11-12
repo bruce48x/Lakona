@@ -6,6 +6,70 @@ namespace Lakona.Hub.Tests;
 
 public sealed class ProjectPackagingFormTests
 {
+    [Theory]
+    [InlineData("Server", "server")]
+    [InlineData("Server", "hotfix")]
+    [InlineData("Backend", "server")]
+    [InlineData("Backend", "hotfix")]
+    public async Task Packaging_and_tag_edits_use_the_inspected_server_directory(string directoryName, string kind)
+    {
+        var root = CreateProjectRoot(nameof(Packaging_and_tag_edits_use_the_inspected_server_directory));
+        try
+        {
+            var serverDirectory = Path.Combine(root, directoryName);
+            if (directoryName != "Server") Directory.Move(Path.Combine(root, "Server"), serverDirectory);
+            var packager = new RecordingPackager();
+            using var form = new ProjectPackagingForm(root, CreateDotNetExecutablePath(root), packager,
+                artifactFolderLauncher: new RecordingArtifactFolderLauncher());
+
+            form.BuildTag = "Updated2";
+            Assert.True(form.CanPackage, form.BuildTagStatus);
+            Assert.Equal("Updated2", new LakonaProjectInspector().Inspect(root).BuildTag);
+            Assert.Equal(Path.Combine(serverDirectory, "Build"), form.OutputDirectory);
+            form.SelectedKind = form.KindOptions.Single(option => option.Id == kind);
+            var customOutput = Path.Combine(root, "release-output");
+            form.OutputDirectory = customOutput;
+            await form.PackageAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(form.HasArtifact, form.StatusText);
+            Assert.NotNull(packager.Request);
+            Assert.Equal(Path.Combine(serverDirectory, "App", "Server.App.csproj"), packager.Request.ServerProjectPath);
+            Assert.Equal(Path.Combine(serverDirectory, "Hotfix", "Server.Hotfix.csproj"), packager.Request.HotfixProjectPath);
+            Assert.Equal(customOutput, packager.Request.OutputDirectory);
+            if (directoryName != "Server") Assert.False(Directory.Exists(Path.Combine(root, "Server")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Unrecognized_server_directory_blocks_edits_and_packaging()
+    {
+        var root = CreateProjectRoot(nameof(Unrecognized_server_directory_blocks_edits_and_packaging));
+        try
+        {
+            // A props file alone does not identify a server project.
+            File.Delete(Path.Combine(root, "Server", "Hotfix", "Server.Hotfix.csproj"));
+            var tagPath = Path.Combine(root, "Server", "BuildTag.props");
+            var original = File.ReadAllText(tagPath);
+            using var form = new ProjectPackagingForm(root, CreateDotNetExecutablePath(root),
+                localization: new HubLocalization(HubLanguage.English));
+
+            form.BuildTag = "MustNotSave";
+
+            Assert.Equal(original, File.ReadAllText(tagPath));
+            Assert.False(form.CanPackage);
+            Assert.Contains("server directory", form.BuildTagStatus, StringComparison.OrdinalIgnoreCase);
+            Assert.Throws<InvalidOperationException>(() => form.CreateRequest());
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Fact]
     public async Task Build_tag_cannot_change_during_packaging()
     {

@@ -104,6 +104,7 @@ public sealed class SystemArtifactFolderLauncher : IArtifactFolderLauncher
 public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
 {
     private readonly string projectRoot;
+    private readonly string? serverDirectory;
     private readonly string? dotNetExecutablePath;
     private readonly ILakonaProjectPackager packager;
     private readonly HubLocalization localization;
@@ -157,11 +158,14 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         this.localization = localization;
         this.artifactFolderLauncher = artifactFolderLauncher;
         this.packagingLogStore = packagingLogStore;
-        buildTag = new LakonaProjectInspector().Inspect(this.projectRoot).BuildTag ?? "";
-        outputDirectory = Path.Combine(this.projectRoot, "Server", "Build");
+        var inspection = new LakonaProjectInspector().Inspect(this.projectRoot);
+        serverDirectory = inspection.ServerPath;
+        buildTag = inspection.BuildTag ?? "";
+        outputDirectory = serverDirectory is null ? "" : Path.Combine(serverDirectory, "Build");
         this.localization.PropertyChanged += Localization_PropertyChanged;
         RebuildLocalizedOptions();
-        statusText = string.IsNullOrWhiteSpace(dotNetExecutablePath) ? Text.PackageSdkRequired : Text.PackageReady;
+        statusText = serverDirectory is null ? Text.PackageServerDirectoryMissing
+            : string.IsNullOrWhiteSpace(dotNetExecutablePath) ? Text.PackageSdkRequired : Text.PackageReady;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -179,11 +183,11 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
                 return;
 
             buildTagSaveError = null;
-            if (LakonaProjectBuildTag.IsValid(buildTag))
+            if (serverDirectory is not null && LakonaProjectBuildTag.IsValid(buildTag))
             {
                 try
                 {
-                    LakonaProjectBuildTag.Save(projectRoot, buildTag);
+                    LakonaProjectBuildTag.SaveInServerDirectory(serverDirectory, buildTag);
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Xml.XmlException or InvalidOperationException)
                 {
@@ -195,7 +199,8 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public string BuildTagStatus => !LakonaProjectBuildTag.IsValid(BuildTag)
+    public string BuildTagStatus => serverDirectory is null ? Text.PackageServerDirectoryMissing
+        : !LakonaProjectBuildTag.IsValid(BuildTag)
         ? Text.BuildTagInvalid
         : buildTagSaveError is not null ? Text.BuildTagSaveFailed(buildTagSaveError) : Text.BuildTagSaved;
 
@@ -256,7 +261,7 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public bool CanPackage => !disposed && !IsPackaging && !string.IsNullOrWhiteSpace(dotNetExecutablePath)
+    public bool CanPackage => serverDirectory is not null && !disposed && !IsPackaging && !string.IsNullOrWhiteSpace(dotNetExecutablePath)
         && LakonaProjectBuildTag.IsValid(BuildTag) && buildTagSaveError is null;
 
     public bool CanClose => !IsPackaging;
@@ -319,6 +324,8 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
             ShowsRuntime ? SelectedRuntime.Id : null,
             SelectedConfiguration.Id,
             OutputDirectory: OutputDirectory.Trim(),
+            ServerProjectPath: Path.Combine(serverDirectory!, "App", "Server.App.csproj"),
+            HotfixProjectPath: Path.Combine(serverDirectory!, "Hotfix", "Server.Hotfix.csproj"),
             DotNetExecutablePath: dotNetExecutablePath);
     }
 

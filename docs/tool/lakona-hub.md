@@ -203,17 +203,27 @@ index. The operator selects:
   packages.
 
 Hotfix packages do not select a runtime because they contain managed application
-behavior for the stable server BuildTag. The dialog displays the BuildTag
-inspected from `Server/BuildTag.props` in an editable field. Each valid edit is
+behavior for the stable server BuildTag. On opening, the dialog retains the
+inspected server directory and uses it for BuildTag edits and both package
+project paths. The dialog displays the BuildTag from that directory's
+`BuildTag.props` in an editable field. Each valid edit is
 saved immediately through ProjectSystem, preserving whether the props file has
 an XML declaration; invalid input preserves the last saved
 value, and invalid input or a save failure disables packaging. The field is
 disabled while packaging runs. The dialog never asks for
-a package version. The artifact output directory defaults to `Server/Build` and
+a package version. The artifact output directory defaults to `Build` under the
+inspected server directory (`Server/Build` for the standard layout) and
 can be edited directly or selected with the platform folder picker before the
 operation starts. Hub uses the exact compatible .NET 10 SDK executable selected
 by its SDK manager, including a Hub-managed SDK that is not on the system
 `PATH`.
+
+Renamed server roots therefore use the same resolved location for saving and
+packaging. An unresolved server directory blocks both operations with an
+actionable message; Hub does not fall back to creating another `Server`
+directory. Custom output directories remain supported. ProjectSystem's
+existing project-root BuildTag save entry point and CLI default paths retain
+their standard-layout behavior.
 
 Packaging behavior belongs to the public `ILakonaProjectPackager` boundary in
 `Lakona.ProjectSystem`. Hub and Tool call that same boundary; Hub must not spawn
