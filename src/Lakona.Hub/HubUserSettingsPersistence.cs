@@ -6,6 +6,7 @@ internal sealed class HubUserSettingsPersistence : IDisposable
     private readonly Action<HubUserSettings> writeSettings;
     private readonly TimeSpan delay;
     private readonly Func<TimeSpan, CancellationToken, Task> delayAsync;
+    private readonly object writeGate = new();
     private CancellationTokenSource? pendingSave;
     private bool disposed;
 
@@ -37,10 +38,15 @@ internal sealed class HubUserSettingsPersistence : IDisposable
 
     public Exception? SaveNow()
     {
+        if (disposed) return new ObjectDisposedException(nameof(HubUserSettingsPersistence));
         CancelPending();
         try
         {
-            writeSettings(captureSettings());
+            var settings = captureSettings();
+            lock (writeGate)
+            {
+                writeSettings(settings);
+            }
             return null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -53,8 +59,12 @@ internal sealed class HubUserSettingsPersistence : IDisposable
     {
         disposed = true;
         CancelPending();
-        pendingSave?.Dispose();
-        pendingSave = null;
+        // Join only disk I/O: the async task may still need the UI thread to resume.
+        lock (writeGate)
+        {
+            pendingSave?.Dispose();
+            pendingSave = null;
+        }
     }
 
     private async Task SaveAfterDelayAsync(CancellationToken cancellationToken)
@@ -62,8 +72,17 @@ internal sealed class HubUserSettingsPersistence : IDisposable
         try
         {
             await delayAsync(delay, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var settings = captureSettings();
-            await Task.Run(() => writeSettings(settings), cancellationToken);
+            await Task.Run(() =>
+            {
+                lock (writeGate)
+                {
+                    // Cancellation may have happened while waiting behind another save.
+                    cancellationToken.ThrowIfCancellationRequested();
+                    writeSettings(settings);
+                }
+            }, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

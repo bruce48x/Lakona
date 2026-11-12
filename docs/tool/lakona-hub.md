@@ -138,6 +138,14 @@ disposable cache of automatically detected tools. Startup displays the tool
 cache immediately and then refreshes it from the machine; manual tool
 registrations remain authoritative in their separate settings document.
 
+Settings changes are debounced and written in the background. Background and
+immediate saves serialize disk writes; a canceled save rechecks cancellation
+after obtaining write access. An immediate save writes its latest UI-captured
+snapshot after any in-flight writer. Disposal cancels pending saves and waits
+for disk I/O, without waiting for a continuation on the closing UI thread.
+Atomic file replacement preserves file integrity; serialized writes preserve
+save ordering.
+
 Hub also keeps a small crash-recovery document and active-session marker in its
 per-user application-data directory. Fatal UI or process exceptions record the
 Hub version, operating-system description, process architecture, last known

@@ -8,7 +8,7 @@ date and package versions of important releases are retained.
 
 **Key releases:** `Lakona.Rpc.Client 0.14.18`, `Lakona.Game.Client 0.5.28`,
 `Lakona.Rpc.Transport.WebSocket 0.11.47`, `Lakona.Game.Server 0.54.8`,
-`Lakona.Tool 0.43.121`, and `Lakona.Hub 0.17.136`.
+`Lakona.Tool 0.43.121`, and `Lakona.Hub 0.17.137`.
 
 - RPC client shutdown retains cancellation callback failures while joining
   startup and active I/O and releasing owned resources. Concurrent and repeated
@@ -20,7 +20,9 @@ date and package versions of important releases are retained.
   generation; an executing turn retains its generation until completion.
 - Hub's private SDK setup selects supported archives instead of system installers,
   and rejects missing archive choices before downloading. Hash verification,
-  version validation and atomic activation remain in place.
+  version validation and atomic activation remain in place. Settings saves are
+  serialized so an older background write cannot overwrite the latest explicit
+  save; shutdown waits for active disk writes without waiting on UI continuations.
 
 ## 2026-11-11 — Actor dispatch consistency and bounded lifecycle cleanup
 
