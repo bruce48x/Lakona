@@ -4,20 +4,23 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-11-12 — RPC boundary handling and Actor hotfix consistency
+## 2026-11-12 — RPC reliability, Actor hotfix consistency and Hub setup
 
 **Key releases:** `Lakona.Rpc.Client 0.14.18`, `Lakona.Game.Client 0.5.28`,
 `Lakona.Rpc.Transport.WebSocket 0.11.47`, `Lakona.Game.Server 0.54.8`,
-`Lakona.Tool 0.43.121`, and `Lakona.Hub 0.17.135`.
+`Lakona.Tool 0.43.121`, and `Lakona.Hub 0.17.136`.
 
 - RPC client shutdown retains cancellation callback failures while joining
   startup and active I/O and releasing owned resources. Concurrent and repeated
-  disposal share the final result, including any cleanup failures.
+  disposal share the final result, including any cleanup failures. WebSocket
+  receives accept maximum-sized legal frames followed by another frame in the
+  same message while retaining the existing frame and buffer limits.
 - Queued remote Actor posts select the current Hotfix generation when execution
   begins, matching local posts and calls. Waiting posts no longer lease an old
   generation; an executing turn retains its generation until completion.
-- WebSocket receives accept maximum-sized legal frames followed by another frame
-  in the same message, while retaining the existing frame and buffer limits.
+- Hub's private SDK setup selects supported archives instead of system installers,
+  and rejects missing archive choices before downloading. Hash verification,
+  version validation and atomic activation remain in place.
 
 ## 2026-11-11 — Actor dispatch consistency and bounded lifecycle cleanup
 

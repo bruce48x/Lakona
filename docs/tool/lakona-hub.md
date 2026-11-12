@@ -39,6 +39,9 @@ cancellation stops discovery, and other native process-start errors remain error
 If neither exists, Hub explains the source
 and destination and waits for explicit consent
 before downloading the pinned SDK from Microsoft's official release service.
+Selection matches the SDK version and platform and accepts only `.zip` or
+`.tar.gz` archives, regardless of installers appearing earlier in the release
+list. If no supported archive exists, installation fails before downloading it.
 The archive is SHA-512 verified, extracted to a temporary directory, version
 validated, and atomically activated in Hub's per-user application-data
 directory. Hub does not modify the user's system `PATH`, require administrator

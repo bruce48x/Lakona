@@ -206,8 +206,16 @@ internal sealed class HubSdkManager : IHubSdkManager
             {
                 if (string.Equals(file.GetProperty("rid").GetString(), platform, StringComparison.Ordinal))
                 {
+                    var name = file.GetProperty("name").GetString()
+                        ?? throw new InvalidDataException("SDK asset name is missing.");
+                    if (!name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) &&
+                        !name.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
                     return new SdkAsset(
-                        file.GetProperty("name").GetString() ?? throw new InvalidDataException("SDK asset name is missing."),
+                        name,
                         file.GetProperty("url").GetString() ?? throw new InvalidDataException("SDK asset URL is missing."),
                         file.GetProperty("hash").GetString() ?? throw new InvalidDataException("SDK asset hash is missing."));
                 }
@@ -215,7 +223,7 @@ internal sealed class HubSdkManager : IHubSdkManager
         }
 
         throw new InvalidDataException(
-            $"The .NET release metadata does not contain SDK {HubRuntimeInfo.RequiredSdkVersion} for {platform}.");
+            $"The .NET release metadata does not contain a supported SDK archive (.zip or .tar.gz) for SDK {HubRuntimeInfo.RequiredSdkVersion} on {platform}.");
     }
 
     private async Task DownloadAsync(

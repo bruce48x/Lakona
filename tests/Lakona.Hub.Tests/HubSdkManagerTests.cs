@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Formats.Tar;
 using System.Diagnostics;
 using System.Net;
 using System.Security.Cryptography;
@@ -107,6 +108,74 @@ public sealed class HubSdkManagerTests : IDisposable
         Assert.Equal(HubSdkInstallStage.Completed, progress.Values[^1].Stage);
     }
 
+    [Theory]
+    [InlineData("win-x64", ".exe", ".zip", false)]
+    [InlineData("win-x64", ".exe", ".zip", true)]
+    [InlineData("win-arm64", ".exe", ".ZIP", false)]
+    [InlineData("win-arm64", ".exe", ".ZIP", true)]
+    [InlineData("osx-x64", ".pkg", ".tar.gz", false)]
+    [InlineData("osx-x64", ".pkg", ".tar.gz", true)]
+    [InlineData("osx-arm64", ".pkg", ".TAR.GZ", false)]
+    [InlineData("osx-arm64", ".pkg", ".TAR.GZ", true)]
+    [InlineData("linux-x64", ".deb", ".tar.gz", false)]
+    [InlineData("linux-arm64", ".rpm", ".tar.gz", true)]
+    public async Task InstallAsync_SelectsSupportedArchiveAmongMixedAssets(
+        string platform, string installerExtension, string archiveExtension, bool reverseOrder)
+    {
+        var archive = platform.StartsWith("win-", StringComparison.Ordinal) ? CreateSdkZip() : CreateSdkTarGz();
+        const string archiveUrl = "https://downloads.example/selected-archive";
+        var files = new[]
+        {
+            new { name = "dotnet-sdk" + installerExtension, rid = platform,
+                url = "https://downloads.example/installer", hash = "unused" },
+            new { name = "dotnet-sdk.zip", rid = "other-platform",
+                url = "https://downloads.example/other-platform", hash = "unused" },
+            new { name = "dotnet-sdk" + archiveExtension, rid = platform,
+                url = archiveUrl, hash = Convert.ToHexString(SHA512.HashData(archive)) }
+        };
+        if (reverseOrder) Array.Reverse(files);
+        var handler = new SdkFeedHandler(CreateMetadata(files), archiveUrl, archive);
+        using var client = new HttpClient(handler);
+        var manager = new HubSdkManager(client,
+            new StubCommandRunner(versionOutput: HubRuntimeInfo.RequiredSdkVersion), platform, root);
+
+        var status = await manager.InstallAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(status.IsReady);
+        Assert.Equal(HubSdkSource.Managed, status.Source);
+        Assert.Equal(HubRuntimeInfo.RequiredSdkVersion, status.Version);
+        Assert.True(File.Exists(status.ExecutablePath));
+        Assert.Equal(new[] { archiveUrl }, handler.Downloads);
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(root, ".downloads")));
+        Assert.Empty(Directory.EnumerateDirectories(root, "*.tmp"));
+    }
+
+    [Theory]
+    [InlineData("win-x64", ".exe")]
+    [InlineData("osx-arm64", ".pkg")]
+    [InlineData("linux-x64", ".tar.gz.part")]
+    public async Task InstallAsync_RejectsUnsupportedAssetsBeforeDownload(string platform, string extension)
+    {
+        var metadata = CreateMetadata(
+            new { name = "dotnet-sdk" + extension, rid = platform,
+                url = "https://downloads.example/unsupported", hash = "unused" },
+            new { name = "dotnet-sdk.zip", rid = "other-platform",
+                url = "https://downloads.example/other-platform", hash = "unused" });
+        var handler = new SdkFeedHandler(metadata, "https://downloads.example/unused", []);
+        using var client = new HttpClient(handler);
+        var manager = new HubSdkManager(client, new StubCommandRunner(), platform, root);
+
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            manager.InstallAsync(cancellationToken: TestContext.Current.CancellationToken));
+
+        Assert.Contains(platform, error.Message, StringComparison.Ordinal);
+        Assert.Contains(HubRuntimeInfo.RequiredSdkVersion, error.Message, StringComparison.Ordinal);
+        Assert.Contains(".zip", error.Message, StringComparison.Ordinal);
+        Assert.Contains(".tar.gz", error.Message, StringComparison.Ordinal);
+        Assert.Empty(handler.Downloads);
+        Assert.False(Directory.Exists(root));
+    }
+
     [Fact]
     public async Task InstallAsync_RejectsArchiveWithInvalidHashWithoutActivation()
     {
@@ -175,6 +244,23 @@ public sealed class HubSdkManagerTests : IDisposable
         }
     });
 
+    private static string CreateMetadata(params object[] files) => JsonSerializer.Serialize(new
+    {
+        releases = new[] { new { sdk = new { version = HubRuntimeInfo.RequiredSdkVersion, files } } }
+    });
+
+    private static byte[] CreateSdkTarGz()
+    {
+        using var stream = new MemoryStream();
+        using (var gzip = new GZipStream(stream, CompressionMode.Compress, leaveOpen: true))
+        using (var archive = new TarWriter(gzip))
+        using (var contents = new MemoryStream(Encoding.UTF8.GetBytes("test host")))
+        {
+            archive.WriteEntry(new PaxTarEntry(TarEntryType.RegularFile, "dotnet") { DataStream = contents });
+        }
+        return stream.ToArray();
+    }
+
     private static byte[] CreateSdkZip()
     {
         using var stream = new MemoryStream();
@@ -233,6 +319,8 @@ public sealed class HubSdkManagerTests : IDisposable
 
     private sealed class SdkFeedHandler(string metadata, string archiveUrl, byte[] archive) : HttpMessageHandler
     {
+        public List<string> Downloads { get; } = [];
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             if (request.RequestUri?.AbsoluteUri == HubSdkManager.ReleaseMetadataUrl)
@@ -243,7 +331,8 @@ public sealed class HubSdkManagerTests : IDisposable
                 });
             }
 
-            if (request.RequestUri?.AbsoluteUri == archiveUrl)
+            Downloads.Add(request.RequestUri!.AbsoluteUri);
+            if (request.RequestUri.AbsoluteUri == archiveUrl)
             {
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
                 {
