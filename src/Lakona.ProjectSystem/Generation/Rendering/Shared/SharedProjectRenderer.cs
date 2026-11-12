@@ -8,10 +8,10 @@ internal sealed class SharedProjectRenderer : IPlanContributor
 {
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        builder.AddFile("Shared/Directory.Build.props", RenderDirectoryBuildProps(), FileWriteMode.Replace, GeneratedFileKind.Xml);
-        builder.AddFile("Shared/Shared.csproj", RenderProject(spec), FileWriteMode.Replace, GeneratedFileKind.Project);
-        builder.AddFile("Shared/Shared.asmdef", RenderAsmdef(spec), FileWriteMode.Replace, GeneratedFileKind.Json);
-        builder.AddFile("Shared/package.json", RenderPackageJson(spec), FileWriteMode.Replace, GeneratedFileKind.Json);
+        builder.AddFile("Shared/Directory.Build.props", RenderDirectoryBuildProps());
+        builder.AddFile("Shared/Shared.csproj", RenderProject(spec));
+        builder.AddFile("Shared/Shared.asmdef", RenderAsmdef(spec));
+        builder.AddFile("Shared/package.json", RenderPackageJson(spec));
         new SharedContractsRenderer().AddFiles(spec, builder);
     }
 

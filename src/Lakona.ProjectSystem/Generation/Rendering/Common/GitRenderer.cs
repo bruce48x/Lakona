@@ -9,8 +9,8 @@ internal sealed class GitRenderer : IPlanContributor
     {
         var isUnity = spec.ClientEngine is ClientEngine.Unity or ClientEngine.Tuanjie;
         var isGodot = spec.ClientEngine is ClientEngine.Godot;
-        builder.AddFile(".gitignore", RenderGitIgnore(isUnity, isGodot), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile(".gitattributes", RenderGitAttributes(spec.ClientEngine), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile(".gitignore", RenderGitIgnore(isUnity, isGodot));
+        builder.AddFile(".gitattributes", RenderGitAttributes(spec.ClientEngine));
     }
 
     private static string RenderGitIgnore(bool isUnity, bool isGodot)

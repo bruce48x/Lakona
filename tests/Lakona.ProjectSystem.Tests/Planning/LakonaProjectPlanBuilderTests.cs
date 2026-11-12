@@ -99,8 +99,8 @@ public sealed class LakonaProjectPlanBuilderTests
     {
         public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
         {
-            builder.AddFile("same.txt", "a", FileWriteMode.Replace, GeneratedFileKind.Text);
-            builder.AddFile("same.txt", "b", FileWriteMode.Replace, GeneratedFileKind.Text);
+            builder.AddFile("same.txt", "a");
+            builder.AddFile("same.txt", "b");
         }
     }
 }

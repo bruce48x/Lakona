@@ -7,9 +7,9 @@ internal sealed class SharedContractsRenderer : IPlanContributor
 {
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        builder.AddFile("Shared/Contracts/RpcContractIds.cs", RenderRpcContractIds(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Shared/Contracts/Game/GameProtocols.cs", RenderGameProtocols(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Shared/Contracts/Game/GameMessages.cs", RenderGameMessages(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Shared/Contracts/RpcContractIds.cs", RenderRpcContractIds());
+        builder.AddFile("Shared/Contracts/Game/GameProtocols.cs", RenderGameProtocols());
+        builder.AddFile("Shared/Contracts/Game/GameMessages.cs", RenderGameMessages(spec));
     }
 
     private static string RenderRpcContractIds()

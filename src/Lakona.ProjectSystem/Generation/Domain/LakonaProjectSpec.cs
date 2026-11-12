@@ -10,7 +10,6 @@ internal sealed record LakonaProjectSpec(
     NuGetForUnitySource NuGetForUnitySource,
     DeploymentProfile DeploymentProfile,
     MembershipProviderKind MembershipProvider,
-    IReadOnlyList<ProjectCapability> Capabilities,
     string? ClientEditorPath = null,
     string? ClientEditorVersion = null,
     string? ClientEditorRevision = null);

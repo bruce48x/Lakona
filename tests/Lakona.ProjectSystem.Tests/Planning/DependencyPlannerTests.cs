@@ -168,8 +168,7 @@ public sealed class DependencyPlannerTests
             serializer,
             NuGetForUnitySource.OpenUpm,
             DeploymentProfile.None,
-            MembershipProviderKind.Memory,
-            ProjectCapabilityCatalog.DefaultCapabilities);
+            MembershipProviderKind.Memory);
     }
 
     private static void AssertPackage(

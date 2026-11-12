@@ -34,18 +34,7 @@ internal sealed class AgentSkillsRenderer : IPlanContributor
                 detectEncodingFromByteOrderMarks: true);
             builder.AddFile(
                 ProjectSkillRoot + relativePath,
-                reader.ReadToEnd(),
-                FileWriteMode.Replace,
-                FileKind(relativePath));
+                reader.ReadToEnd());
         }
     }
-
-    private static GeneratedFileKind FileKind(string relativePath) =>
-        Path.GetExtension(relativePath).ToLowerInvariant() switch
-        {
-            ".md" => GeneratedFileKind.Markdown,
-            ".json" => GeneratedFileKind.Json,
-            ".xml" => GeneratedFileKind.Xml,
-            _ => GeneratedFileKind.Text
-        };
 }

@@ -6,12 +6,12 @@ namespace Lakona.ProjectSystem.Tests.Domain;
 public sealed class ProjectSpecFactoryTests
 {
     [Fact]
-    public void Create_UsesOptionsAndDefaultCapabilities()
+    public void Create_UsesOptionsAndResolvesDefaults()
     {
         var outputPath = Path.Combine(
             Path.GetTempPath(),
             nameof(ProjectSpecFactoryTests),
-            nameof(Create_UsesOptionsAndDefaultCapabilities));
+            nameof(Create_UsesOptionsAndResolvesDefaults));
         var options = new ProjectSpecTestOptions(
             ProjectName: "Space Arena",
             OutputPath: outputPath,
@@ -36,15 +36,6 @@ public sealed class ProjectSpecFactoryTests
         Assert.Equal(SerializerKind.Json, spec.Serializer);
         Assert.Equal(NuGetForUnitySource.Embedded, spec.NuGetForUnitySource);
         Assert.Equal(DeploymentProfile.Compose, spec.DeploymentProfile);
-        Assert.Equal(
-            [
-                ProjectCapability.ClusterLocal,
-                ProjectCapability.Hotfix,
-                ProjectCapability.ReliablePush,
-                ProjectCapability.LoginSlice,
-                ProjectCapability.GameSlice
-            ],
-            spec.Capabilities);
     }
 
     [Theory]

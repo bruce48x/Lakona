@@ -56,7 +56,6 @@ public sealed class GitRendererTests
 
         var plan = builder.Build();
         var gitignore = Assert.Single(plan.Files, file => file.RelativePath == ".gitignore");
-        Assert.Equal(GeneratedFileKind.Text, gitignore.Kind);
 
         // Common ignores — all engines
         Assert.Contains("**/bin/", gitignore.Content, StringComparison.Ordinal);
@@ -83,7 +82,6 @@ public sealed class GitRendererTests
 
         // Gitattributes always present
         var gitattributes = Assert.Single(plan.Files, file => file.RelativePath == ".gitattributes");
-        Assert.Equal(GeneratedFileKind.Text, gitattributes.Kind);
         Assert.Contains("* text=auto eol=lf", gitattributes.Content, StringComparison.Ordinal);
         Assert.Contains("*.bat text eol=crlf", gitattributes.Content, StringComparison.Ordinal);
         Assert.Contains("*.cs text eol=lf diff=csharp", gitattributes.Content, StringComparison.Ordinal);

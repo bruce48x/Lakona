@@ -7,9 +7,9 @@ internal sealed class GeneratedProjectGuideRenderer : IPlanContributor
 {
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        builder.AddFile("README.md", RenderReadme(spec), FileWriteMode.Replace, GeneratedFileKind.Markdown);
-        builder.AddFile("AGENTS.md", RenderAgentInstructions("Agent"), FileWriteMode.Replace, GeneratedFileKind.Markdown);
-        builder.AddFile("CLAUDE.md", RenderAgentInstructions("Claude"), FileWriteMode.Replace, GeneratedFileKind.Markdown);
+        builder.AddFile("README.md", RenderReadme(spec));
+        builder.AddFile("AGENTS.md", RenderAgentInstructions("Agent"));
+        builder.AddFile("CLAUDE.md", RenderAgentInstructions("Claude"));
     }
 
     private static string RenderReadme(LakonaProjectSpec spec)

@@ -12,11 +12,11 @@ internal sealed class OperationsRenderer : IPlanContributor
             return;
         }
 
-        builder.AddFile("Server/Dockerfile", RenderDockerfile(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("docker-compose.cluster.yml", RenderCompose(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile(".env.cluster.example", RenderEnv(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile(".dockerignore", "**/bin\n**/obj\n.git\nClient\n", FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("ops/CLUSTER_OPERATIONS.md", RenderOperationsGuide(), FileWriteMode.Replace, GeneratedFileKind.Markdown);
+        builder.AddFile("Server/Dockerfile", RenderDockerfile());
+        builder.AddFile("docker-compose.cluster.yml", RenderCompose(spec));
+        builder.AddFile(".env.cluster.example", RenderEnv());
+        builder.AddFile(".dockerignore", "**/bin\n**/obj\n.git\nClient\n");
+        builder.AddFile("ops/CLUSTER_OPERATIONS.md", RenderOperationsGuide());
     }
 
     private static string RenderDockerfile()

@@ -13,12 +13,12 @@ internal sealed class ConsoleClientRenderer : IClientRenderer
 
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        builder.AddFile("Client/Client.csproj", RenderClientProject(spec), FileWriteMode.Replace, GeneratedFileKind.Project);
-        builder.AddFile("Client/Program.cs", ConsoleClientCodeTemplates.RenderProgram(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/ClientRuntime/ConsoleClientSettings.cs", ConsoleClientCodeTemplates.RenderConsoleClientSettings(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/ClientRuntime/GameClientFactory.cs", ConsoleClientCodeTemplates.RenderGameClientFactory(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/LoadScenarios/GameLoadScenario.cs", ConsoleClientCodeTemplates.RenderGameLoadScenario(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/LoadScenarios/GameLoadScenarioOptions.cs", ConsoleClientCodeTemplates.RenderGameLoadScenarioOptions(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Client.csproj", RenderClientProject(spec));
+        builder.AddFile("Client/Program.cs", ConsoleClientCodeTemplates.RenderProgram(spec));
+        builder.AddFile("Client/ClientRuntime/ConsoleClientSettings.cs", ConsoleClientCodeTemplates.RenderConsoleClientSettings());
+        builder.AddFile("Client/ClientRuntime/GameClientFactory.cs", ConsoleClientCodeTemplates.RenderGameClientFactory(spec));
+        builder.AddFile("Client/LoadScenarios/GameLoadScenario.cs", ConsoleClientCodeTemplates.RenderGameLoadScenario());
+        builder.AddFile("Client/LoadScenarios/GameLoadScenarioOptions.cs", ConsoleClientCodeTemplates.RenderGameLoadScenarioOptions());
     }
 
     private static string RenderClientProject(LakonaProjectSpec spec)

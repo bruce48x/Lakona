@@ -11,8 +11,8 @@ public sealed class PlanValidatorTests
         var plan = new GenerationPlan(
             "Root",
             [
-                new GeneratedFile("Shared/Shared.csproj", "a", FileWriteMode.Replace, GeneratedFileKind.Project),
-                new GeneratedFile("Shared/Shared.csproj", "b", FileWriteMode.Replace, GeneratedFileKind.Project)
+                new GeneratedFile("Shared/Shared.csproj", "a"),
+                new GeneratedFile("Shared/Shared.csproj", "b")
             ],
             [],
             []);
@@ -35,7 +35,7 @@ public sealed class PlanValidatorTests
     {
         var plan = new GenerationPlan(
             "Root",
-            [new GeneratedFile(relativePath, "content", FileWriteMode.Replace, GeneratedFileKind.Text)],
+            [new GeneratedFile(relativePath, "content")],
             [],
             []);
 
@@ -58,7 +58,7 @@ public sealed class PlanValidatorTests
     {
         var plan = new GenerationPlan(
             "Root",
-            [new GeneratedFile("Server/App/appsettings.json", content, FileWriteMode.Replace, GeneratedFileKind.Json)],
+            [new GeneratedFile("Server/App/appsettings.json", content)],
             [],
             []);
 

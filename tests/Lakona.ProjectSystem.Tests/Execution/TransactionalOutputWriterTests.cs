@@ -20,7 +20,7 @@ public sealed class TransactionalOutputWriterTests
                 Directory.CreateDirectory(targetRoot);
             var plan = new GenerationPlan(
                 targetRoot,
-                [new GeneratedFile("Shared/Contracts/Login.cs", "public sealed class Login {}", FileWriteMode.Replace, GeneratedFileKind.Text)],
+                [new GeneratedFile("Shared/Contracts/Login.cs", "public sealed class Login {}")],
                 [new GeneratedDirectory("Server/App")],
                 []);
 
@@ -77,7 +77,7 @@ public sealed class TransactionalOutputWriterTests
     // The writer enumerates files after validating the target and creating staging.
     private sealed class FilesWrittenDuringStaging(Action claimTarget) : IReadOnlyList<GeneratedFile>
     {
-        private readonly GeneratedFile[] files = [new("generated.txt", "generated", FileWriteMode.CreateOnly, GeneratedFileKind.Text)];
+        private readonly GeneratedFile[] files = [new("generated.txt", "generated")];
         public int Count => files.Length;
         public GeneratedFile this[int index] => files[index];
         public IEnumerator<GeneratedFile> GetEnumerator()
@@ -154,8 +154,8 @@ public sealed class TransactionalOutputWriterTests
             var plan = new GenerationPlan(
                 targetRoot,
                 [
-                    new GeneratedFile("ok.txt", "ok", FileWriteMode.Replace, GeneratedFileKind.Text),
-                    new GeneratedFile("../escape.txt", "bad", FileWriteMode.Replace, GeneratedFileKind.Text)
+                    new GeneratedFile("ok.txt", "ok"),
+                    new GeneratedFile("../escape.txt", "bad")
                 ],
                 [],
                 []);
@@ -183,7 +183,7 @@ public sealed class TransactionalOutputWriterTests
         {
             var plan = new GenerationPlan(
                 targetRoot,
-                [new GeneratedFile(string.Concat("Server", "/Server", "/Server.csproj"), "legacy", FileWriteMode.Replace, GeneratedFileKind.Project)],
+                [new GeneratedFile(string.Concat("Server", "/Server", "/Server.csproj"), "legacy")],
                 [],
                 []);
 

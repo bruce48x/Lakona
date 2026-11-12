@@ -219,8 +219,8 @@ internal static class DependencyPlanner
         string? privateAssets = null,
         string? includeAssets = null,
         string? outputItemType = null) =>
-        new(id, version, PackageReferenceStyle.Sdk, PrivateAssets: privateAssets, IncludeAssets: includeAssets, OutputItemType: outputItemType);
+        new(id, version, PrivateAssets: privateAssets, IncludeAssets: includeAssets, OutputItemType: outputItemType);
 
     private static PackageReferenceSpec Unity(string id, string version, bool manuallyInstalled = false) =>
-        new(id, version, PackageReferenceStyle.NuGetForUnity, manuallyInstalled);
+        new(id, version, manuallyInstalled);
 }

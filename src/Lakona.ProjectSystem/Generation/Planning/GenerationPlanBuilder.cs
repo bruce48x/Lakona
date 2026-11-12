@@ -7,9 +7,9 @@ internal sealed class GenerationPlanBuilder(string rootPath)
     private readonly List<PlanDiagnostic> diagnostics = [];
     private readonly List<GeneratedArchive> archives = [];
 
-    public void AddFile(string relativePath, string content, FileWriteMode writeMode, GeneratedFileKind kind)
+    public void AddFile(string relativePath, string content)
     {
-        files.Add(new GeneratedFile(relativePath, content, writeMode, kind));
+        files.Add(new GeneratedFile(relativePath, content));
     }
 
     public void AddDirectory(string relativePath)

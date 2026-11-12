@@ -34,9 +34,9 @@ public sealed class UnityRestoreProcessTests
             return process;
         }, timeout ? TimeSpan.FromSeconds(8) : TimeSpan.FromMinutes(2));
         var plan = new GenerationPlan("", [
-            new("Client/ProjectSettings/ProjectVersion.txt", "", default, default),
-            new("Client/Assets/packages.config", "<packages/>", default, default),
-            new("Client/Assets/NuGet.config", "<configuration/>", default, default)
+            new("Client/ProjectSettings/ProjectVersion.txt", ""),
+            new("Client/Assets/packages.config", "<packages/>"),
+            new("Client/Assets/NuGet.config", "<configuration/>")
         ], [], []);
         var restore = restorer.RestoreAsync(plan, new UnityEditorInstallation("test-editor", "", null), cancel.Token);
         try

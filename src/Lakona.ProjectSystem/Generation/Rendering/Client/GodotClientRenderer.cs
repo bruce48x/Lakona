@@ -13,10 +13,10 @@ internal sealed class GodotClientRenderer : IClientRenderer
 
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        builder.AddFile("Client/project.godot", RenderProjectGodot(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Client.csproj", RenderClientProject(spec), FileWriteMode.Replace, GeneratedFileKind.Project);
-        builder.AddFile("Client/Theme/LakonaTheme.tres", GodotClientAssetTemplates.RenderTheme(), FileWriteMode.Replace, GeneratedFileKind.GodotTheme);
-        builder.AddFile("Client/Game.tscn", GodotClientAssetTemplates.RenderGameScene(), FileWriteMode.Replace, GeneratedFileKind.GodotScene);
+        builder.AddFile("Client/project.godot", RenderProjectGodot(spec));
+        builder.AddFile("Client/Client.csproj", RenderClientProject(spec));
+        builder.AddFile("Client/Theme/LakonaTheme.tres", GodotClientAssetTemplates.RenderTheme());
+        builder.AddFile("Client/Game.tscn", GodotClientAssetTemplates.RenderGameScene());
         AddClientCodeFiles(spec, builder);
     }
 
@@ -78,9 +78,9 @@ internal sealed class GodotClientRenderer : IClientRenderer
 
     private static void AddClientCodeFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        builder.AddFile("Client/Scripts/Game/GameClient.cs", GodotClientCodeTemplates.RenderGameClient(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Scripts/Game/GameClient.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.GameClientUid), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Scripts/Game/GameScene.cs", GodotClientCodeTemplates.RenderGameScene(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Scripts/Game/GameScene.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.GameSceneScriptUid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Scripts/Game/GameClient.cs", GodotClientCodeTemplates.RenderGameClient());
+        builder.AddFile("Client/Scripts/Game/GameClient.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.GameClientUid));
+        builder.AddFile("Client/Scripts/Game/GameScene.cs", GodotClientCodeTemplates.RenderGameScene(spec));
+        builder.AddFile("Client/Scripts/Game/GameScene.cs.uid", GodotClientAssetTemplates.RenderUid(GodotClientAssetTemplates.GameSceneScriptUid));
     }
 }

@@ -8,13 +8,13 @@ internal sealed class ServerAppRenderer : IPlanContributor
 {
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        builder.AddFile("Server/Server.slnx", RenderSolution(), FileWriteMode.Replace, GeneratedFileKind.Solution);
-        builder.AddFile("Server/BuildTag.props", RenderBuildTagProps(), FileWriteMode.Replace, GeneratedFileKind.Project);
-        builder.AddFile("Server/App/Server.App.csproj", RenderProject(spec), FileWriteMode.Replace, GeneratedFileKind.Project);
-        builder.AddFile("Server/App/Program.cs", RenderProgram(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/App/appsettings.json", RenderAppSettings(spec), FileWriteMode.Replace, GeneratedFileKind.Json);
-        builder.AddFile("Server/App/Game/GameWorldActor.cs", RenderGameWorldActor(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/App/Game/GameWorldMessages.cs", RenderGameWorldMessages(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/Server.slnx", RenderSolution());
+        builder.AddFile("Server/BuildTag.props", RenderBuildTagProps());
+        builder.AddFile("Server/App/Server.App.csproj", RenderProject(spec));
+        builder.AddFile("Server/App/Program.cs", RenderProgram(spec));
+        builder.AddFile("Server/App/appsettings.json", RenderAppSettings(spec));
+        builder.AddFile("Server/App/Game/GameWorldActor.cs", RenderGameWorldActor());
+        builder.AddFile("Server/App/Game/GameWorldMessages.cs", RenderGameWorldMessages());
     }
 
     private static string RenderSolution()

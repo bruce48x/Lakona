@@ -14,13 +14,11 @@ public sealed class PackageReferenceRendererTests
             new PackageReferenceSpec(
                 "Sample.Analyzers",
                 "1.2.3",
-                PackageReferenceStyle.Sdk,
                 PrivateAssets: "all",
                 IncludeAssets: "runtime; build; native; contentfiles; analyzers; buildtransitive"),
             new PackageReferenceSpec(
                 "Sample.Generators",
                 "2.3.4",
-                PackageReferenceStyle.Sdk,
                 PrivateAssets: "all",
                 OutputItemType: "Analyzer")
         };
@@ -38,8 +36,8 @@ public sealed class PackageReferenceRendererTests
     {
         var references = new[]
         {
-            new PackageReferenceSpec("Lakona.Rpc.Core", "1.2.3", PackageReferenceStyle.NuGetForUnity),
-            new PackageReferenceSpec("Lakona.Rpc.Client", "2.3.4", PackageReferenceStyle.NuGetForUnity, ManuallyInstalled: true)
+            new PackageReferenceSpec("Lakona.Rpc.Core", "1.2.3"),
+            new PackageReferenceSpec("Lakona.Rpc.Client", "2.3.4", ManuallyInstalled: true)
         };
 
         var xml = PackageReferenceRenderer.RenderNuGetForUnityPackages(references);

@@ -158,11 +158,11 @@ internal sealed class UnityClientRenderer : IClientRenderer
             builder.AddArchive(NuGetForUnityAssetResourceName, "Client/Packages");
         }
 
-        builder.AddFile("Client/Packages/manifest.json", RenderManifest(spec), FileWriteMode.Replace, GeneratedFileKind.Json);
-        builder.AddFile("Client/ProjectSettings/ProjectVersion.txt", RenderProjectVersion(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/ProjectSettings/ProjectSettings.asset", UnityClientAssetTemplates.RenderPlayerSettings(spec.Name), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Assets/packages.config", RenderPackagesConfig(spec), FileWriteMode.Replace, GeneratedFileKind.Xml);
-        builder.AddFile("Client/Assets/NuGet.config", RenderNuGetConfig(spec.ClientEngine), FileWriteMode.Replace, GeneratedFileKind.Xml);
+        builder.AddFile("Client/Packages/manifest.json", RenderManifest(spec));
+        builder.AddFile("Client/ProjectSettings/ProjectVersion.txt", RenderProjectVersion(spec));
+        builder.AddFile("Client/ProjectSettings/ProjectSettings.asset", UnityClientAssetTemplates.RenderPlayerSettings(spec.Name));
+        builder.AddFile("Client/Assets/packages.config", RenderPackagesConfig(spec));
+        builder.AddFile("Client/Assets/NuGet.config", RenderNuGetConfig(spec.ClientEngine));
         AddClientCodeFiles(spec, builder);
         AddUnityAssetFiles(spec, builder);
     }
@@ -372,34 +372,34 @@ internal sealed class UnityClientRenderer : IClientRenderer
 
     private static void AddClientCodeFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        builder.AddFile("Client/Assets/Scripts/Game/GameClient.cs", UnityClientCodeTemplates.RenderGameClient(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Assets/Scripts/Game/GameClient.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.GameClientGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Assets/Scripts/Game/GameController.cs", UnityClientCodeTemplates.RenderGameController(spec), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Assets/Scripts/Game/GameController.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.GameControllerGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Scripts/Game/GameClient.cs", UnityClientCodeTemplates.RenderGameClient());
+        builder.AddFile("Client/Assets/Scripts/Game/GameClient.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.GameClientGuid));
+        builder.AddFile("Client/Assets/Scripts/Game/GameController.cs", UnityClientCodeTemplates.RenderGameController(spec));
+        builder.AddFile("Client/Assets/Scripts/Game/GameController.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.GameControllerGuid));
 
-        builder.AddFile("Client/Assets/Editor/DefaultSceneLoader.cs", UnityClientCodeTemplates.RenderDefaultSceneLoader(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Assets/Editor/DefaultSceneLoader.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.DefaultSceneLoaderGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Assets/Editor/LakonaGameNuGetPackageImportGuard.cs", UnityClientCodeTemplates.RenderNuGetPackageImportGuard(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Assets/Editor/LakonaGameNuGetPackageImportGuard.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.ImportGuardGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Editor/DefaultSceneLoader.cs", UnityClientCodeTemplates.RenderDefaultSceneLoader());
+        builder.AddFile("Client/Assets/Editor/DefaultSceneLoader.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.DefaultSceneLoaderGuid));
+        builder.AddFile("Client/Assets/Editor/LakonaGameNuGetPackageImportGuard.cs", UnityClientCodeTemplates.RenderNuGetPackageImportGuard());
+        builder.AddFile("Client/Assets/Editor/LakonaGameNuGetPackageImportGuard.cs.meta", UnityClientAssetTemplates.RenderMonoScriptMeta(UnityClientAssetTemplates.ImportGuardGuid));
     }
 
     private static void AddUnityAssetFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
-        builder.AddFile("Client/Assets/Input/LakonaInputActions.inputactions", UnityClientAssetTemplates.RenderInputActions(), FileWriteMode.Replace, GeneratedFileKind.Json);
-        builder.AddFile("Client/Assets/Input/LakonaInputActions.inputactions.meta", UnityClientAssetTemplates.RenderInputActionsMeta(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Input/LakonaInputActions.inputactions", UnityClientAssetTemplates.RenderInputActions());
+        builder.AddFile("Client/Assets/Input/LakonaInputActions.inputactions.meta", UnityClientAssetTemplates.RenderInputActionsMeta());
 
-        builder.AddFile("Client/Assets/UI/Game.uxml", UnityClientAssetTemplates.RenderGameUxml(), FileWriteMode.Replace, GeneratedFileKind.Xml);
-        builder.AddFile("Client/Assets/UI/Game.uxml.meta", UnityClientAssetTemplates.RenderUxmlMeta(UnityClientAssetTemplates.GameUxmlGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Assets/UI/Game.uss", UnityClientAssetTemplates.RenderGameUss(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Assets/UI/Game.uss.meta", UnityClientAssetTemplates.RenderUssMeta(UnityClientAssetTemplates.GameUssGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/UI/Game.uxml", UnityClientAssetTemplates.RenderGameUxml());
+        builder.AddFile("Client/Assets/UI/Game.uxml.meta", UnityClientAssetTemplates.RenderUxmlMeta(UnityClientAssetTemplates.GameUxmlGuid));
+        builder.AddFile("Client/Assets/UI/Game.uss", UnityClientAssetTemplates.RenderGameUss());
+        builder.AddFile("Client/Assets/UI/Game.uss.meta", UnityClientAssetTemplates.RenderUssMeta(UnityClientAssetTemplates.GameUssGuid));
 
-        builder.AddFile("Client/Assets/UI/LakonaGamePanelSettings.asset", UnityClientAssetTemplates.RenderPanelSettingsAsset(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Assets/UI/LakonaGamePanelSettings.asset.meta", UnityClientAssetTemplates.RenderNativeAssetMeta(UnityClientAssetTemplates.PanelSettingsGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss", UnityClientAssetTemplates.RenderDefaultRuntimeTheme(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss.meta", UnityClientAssetTemplates.RenderTssMeta(UnityClientAssetTemplates.RuntimeThemeGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/UI/LakonaGamePanelSettings.asset", UnityClientAssetTemplates.RenderPanelSettingsAsset());
+        builder.AddFile("Client/Assets/UI/LakonaGamePanelSettings.asset.meta", UnityClientAssetTemplates.RenderNativeAssetMeta(UnityClientAssetTemplates.PanelSettingsGuid));
+        builder.AddFile("Client/Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss", UnityClientAssetTemplates.RenderDefaultRuntimeTheme());
+        builder.AddFile("Client/Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss.meta", UnityClientAssetTemplates.RenderTssMeta(UnityClientAssetTemplates.RuntimeThemeGuid));
 
-        builder.AddFile("Client/Assets/Scenes/Game.unity", UnityClientAssetTemplates.RenderGameScene(spec.Transport), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/Assets/Scenes/Game.unity.meta", UnityClientAssetTemplates.RenderSceneMeta(UnityClientAssetTemplates.GameSceneGuid), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Client/ProjectSettings/EditorBuildSettings.asset", UnityClientAssetTemplates.RenderGameEditorBuildSettings(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Client/Assets/Scenes/Game.unity", UnityClientAssetTemplates.RenderGameScene(spec.Transport));
+        builder.AddFile("Client/Assets/Scenes/Game.unity.meta", UnityClientAssetTemplates.RenderSceneMeta(UnityClientAssetTemplates.GameSceneGuid));
+        builder.AddFile("Client/ProjectSettings/EditorBuildSettings.asset", UnityClientAssetTemplates.RenderGameEditorBuildSettings());
     }
 }

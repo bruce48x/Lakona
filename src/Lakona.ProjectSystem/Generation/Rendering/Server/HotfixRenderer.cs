@@ -9,12 +9,12 @@ internal sealed class HotfixRenderer : IPlanContributor
     public void AddFiles(LakonaProjectSpec spec, GenerationPlanBuilder builder)
     {
         _ = spec;
-        builder.AddFile("Server/Hotfix/Server.Hotfix.csproj", RenderProject(), FileWriteMode.Replace, GeneratedFileKind.Project);
-        builder.AddFile("Server/Hotfix/Game/GameService.cs", RenderGameService(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/Hotfix/Game/GameSessionLifecycle.cs", RenderGameSessionLifecycle(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/Hotfix/Game/GameWorldBehavior.cs", RenderGameWorldBehavior(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/Hotfix/Game/GameWorldTimer.cs", RenderGameWorldTimer(), FileWriteMode.Replace, GeneratedFileKind.Text);
-        builder.AddFile("Server/Hotfix/HotfixStartup.cs", RenderHotfixStartup(), FileWriteMode.Replace, GeneratedFileKind.Text);
+        builder.AddFile("Server/Hotfix/Server.Hotfix.csproj", RenderProject());
+        builder.AddFile("Server/Hotfix/Game/GameService.cs", RenderGameService());
+        builder.AddFile("Server/Hotfix/Game/GameSessionLifecycle.cs", RenderGameSessionLifecycle());
+        builder.AddFile("Server/Hotfix/Game/GameWorldBehavior.cs", RenderGameWorldBehavior());
+        builder.AddFile("Server/Hotfix/Game/GameWorldTimer.cs", RenderGameWorldTimer());
+        builder.AddFile("Server/Hotfix/HotfixStartup.cs", RenderHotfixStartup());
     }
 
     private static string RenderProject()

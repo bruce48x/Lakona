@@ -132,7 +132,6 @@ src/Lakona.ProjectSystem/Generation/Domain/
   SerializerKind.cs
   DeploymentProfile.cs
   NuGetForUnitySource.cs
-  ProjectCapability.cs
   LakonaProjectSpec.cs
   LakonaProjectSpecFactory.cs
   ProjectLayout.cs
@@ -146,8 +145,6 @@ src/Lakona.ProjectSystem/Generation/Planning/
   GeneratedFile.cs
   GeneratedDirectory.cs
   GeneratedArchive.cs
-  GeneratedFileKind.cs
-  FileWriteMode.cs
   DependencyPlanner.cs
   PackageReferenceSpec.cs
   PlanValidator.cs
@@ -303,7 +300,6 @@ internal sealed record LakonaProjectSpec(
     NuGetForUnitySource NuGetForUnitySource,
     DeploymentProfile DeploymentProfile,
     MembershipProviderKind MembershipProvider,
-    IReadOnlyList<ProjectCapability> Capabilities,
     string? ClientEditorPath = null,
     string? ClientEditorVersion = null,
     string? ClientEditorRevision = null);
@@ -316,8 +312,12 @@ resolution, and the Unity and Tuanjie renderers fall back to the stream defaults
 while they are. `ClientEngineVersion` selects the accepted stream; it is not the
 version that gets recorded.
 
-`LakonaProjectSpecFactory` owns defaulting, naming, layout, and default capability
-selection. Keep name sanitation here rather than spreading it across renderers.
+`LakonaProjectSpecFactory` owns defaulting, naming, and layout. Keep name
+sanitation here rather than spreading it across renderers. Generation intent
+contains only choices consumed by the current pipeline. Each generated text file
+carries its relative path and content; the writer publishes a complete staging
+tree and does not provide per-file overwrite policies. Package-reference format
+is selected by the SDK or NuGetForUnity renderer entry point.
 
 Default generation-time capabilities include:
 
