@@ -479,7 +479,10 @@ The installer writes only the current user's application and registration:
 
 Setup creates a current-user Start menu shortcut and Windows uninstall entry.
 It does not modify `PATH` or write the new application into `Program Files`.
-Re-running setup offers update/repair, opening Hub, and uninstall. Uninstall
+The installer uses a compact borderless window with the Hub identity, one
+Install action, and a close control. Progress and diagnostics appear only after
+an operation starts. Re-running setup updates or repairs the current installation;
+uninstall is available through the Windows installed-apps entry. Uninstall
 removes the application, shortcut and registration, preserving projects,
 settings and downloaded SDKs. There is no implicit user-data removal option.
 

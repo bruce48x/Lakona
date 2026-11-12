@@ -1,0 +1,71 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Lakona.Hub.Updater.InstallerWindow"
+        Title="Lakona Hub" Width="440" Height="340" MinHeight="340" MaxHeight="640"
+        SizeToContent="Height" CanResize="False"
+        WindowDecorations="None" TransparencyLevelHint="Transparent"
+        Background="Transparent" WindowStartupLocation="CenterScreen"
+        Foreground="{DynamicResource HubBrush.TextPrimary}">
+  <Window.Styles>
+    <Style Selector="Button">
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Padding" Value="16,0" />
+      <Setter Property="MinHeight" Value="36" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="Button.chrome">
+      <Setter Property="Width" Value="32" />
+      <Setter Property="Height" Value="32" />
+      <Setter Property="MinHeight" Value="32" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextMuted}" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Height" Value="48" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Background" Value="{DynamicResource HubBrush.Accent}" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextOnAccent}" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.AccentHover}" />
+      <Setter Property="Foreground" Value="{DynamicResource HubBrush.TextOnAccent}" />
+    </Style>
+    <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HubBrush.AccentPressed}" />
+    </Style>
+  </Window.Styles>
+  <Border Background="{DynamicResource HubBrush.Window}" CornerRadius="14"
+          BorderBrush="{DynamicResource HubBrush.BorderSubtle}" BorderThickness="1">
+    <Grid RowDefinitions="40,*,Auto">
+      <Grid Background="Transparent" PointerPressed="DragWindow">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="2" Margin="0,4,7,0">
+          <Button x:Name="close" Classes="chrome" Click="CloseWindow">
+            <PathIcon Width="12" Height="12" Data="M 1,0 L 6,5 11,0 12,1 7,6 12,11 11,12 6,7 1,12 0,11 5,6 0,1 Z" />
+          </Button>
+        </StackPanel>
+      </Grid>
+        <StackPanel Grid.Row="1" Margin="36,0,36,16" VerticalAlignment="Center" Spacing="14">
+          <Image Width="64" Height="64" Source="/Assets/lakona-hub-256.png" />
+          <TextBlock x:Name="title" Text="Lakona Hub" FontSize="26" FontWeight="SemiBold"
+                     TextAlignment="Center" TextWrapping="Wrap" />
+          <TextBlock x:Name="description" IsVisible="False" TextAlignment="Center"
+                     TextWrapping="Wrap" FontSize="13" LineHeight="20"
+                     Foreground="{DynamicResource HubBrush.TextMuted}" />
+        </StackPanel>
+      <StackPanel Grid.Row="2" Margin="36,0,36,32" Spacing="12">
+        <ProgressBar x:Name="progress" IsVisible="False" Minimum="0" Maximum="100"
+                     Height="4" Foreground="{DynamicResource HubBrush.Accent}" />
+        <ScrollViewer x:Name="statusArea" IsVisible="False" MaxHeight="90" HorizontalScrollBarVisibility="Disabled">
+          <TextBlock x:Name="status" TextWrapping="Wrap" TextAlignment="Center" FontSize="13"
+                     Foreground="{DynamicResource HubBrush.TextSecondary}" />
+        </ScrollViewer>
+        <Button x:Name="action" Classes="primary" Width="240" HorizontalAlignment="Center" />
+        <Button x:Name="logs" IsVisible="False" HorizontalAlignment="Center" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</Window>
