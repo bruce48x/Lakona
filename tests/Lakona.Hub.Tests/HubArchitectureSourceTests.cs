@@ -94,12 +94,14 @@ public sealed class HubArchitectureSourceTests
         var app = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "App.axaml"));
         var window = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "MainWindow.axaml"));
         var settings = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "HubThemeSettings.cs"));
+        var palette = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "HubPalette.axaml"));
 
         Assert.Contains("RequestedThemeVariant=\"Default\"", app, StringComparison.Ordinal);
-        Assert.Contains("<ResourceDictionary x:Key=\"Dark\">", app, StringComparison.Ordinal);
-        Assert.Contains("<ResourceDictionary x:Key=\"Light\">", app, StringComparison.Ordinal);
+        Assert.Contains("HubPalette.axaml", app, StringComparison.Ordinal);
+        Assert.Contains("<ResourceDictionary x:Key=\"Dark\">", palette, StringComparison.Ordinal);
+        Assert.Contains("<ResourceDictionary x:Key=\"Light\">", palette, StringComparison.Ordinal);
         var xamlNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
-        var dictionaries = XDocument.Parse(app).Descendants()
+        var dictionaries = XDocument.Parse(palette).Descendants()
             .Where(element => element.Name.LocalName == "ResourceDictionary"
                 && element.Attribute(xamlNamespace + "Key")?.Value is "Dark" or "Light")
             .ToDictionary(element => element.Attribute(xamlNamespace + "Key")!.Value,

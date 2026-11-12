@@ -38,6 +38,7 @@ public sealed partial class App : Application
             }
             else
             {
+                Dispatcher.UIThread.Post(Updates.HubStartupConfirmation.Confirm);
                 Dispatcher.UIThread.Post(mainWindow.ShowPendingCrashReport);
             }
         }

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="$(HubReleasePublicKey)" LogicalName="Lakona.Hub.ReleaseKey.pem" Condition="'$(HubReleasePublicKey)' != ''" />
+    <InternalsVisibleTo Include="Lakona.Hub.Tests" />
+  </ItemGroup>
+</Project>

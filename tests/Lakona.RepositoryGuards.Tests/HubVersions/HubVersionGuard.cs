@@ -8,6 +8,9 @@ internal static class HubVersionGuard
     private static readonly string[] ReleaseInputPrefixes =
     [
         "src/Lakona.Hub/",
+        "src/Lakona.Hub.Installation/",
+        "src/Lakona.Hub.Updater/",
+        "src/Lakona.Hub.Setup/",
         "scripts/hub/"
     ];
 

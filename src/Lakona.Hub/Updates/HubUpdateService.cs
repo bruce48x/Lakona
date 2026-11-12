@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Lakona.Hub.Installation;
 
 namespace Lakona.Hub.Updates;
 
@@ -173,9 +174,13 @@ internal sealed class HubUpdateService : IHubUpdateService
         IProgress<HubUpdateProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        static bool SafeSegment(string value) => !string.IsNullOrEmpty(value) && value is not "." and not ".." &&
+            value.Length <= 100 && !value.EndsWith('.') && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '-' or '_');
+        if (!SafeSegment(update.Version) || !SafeSegment(update.Platform))
+            throw new InvalidDataException("The update location metadata is invalid.");
         var updateDirectory = Path.Combine(updateRoot, update.Version, update.Platform);
         Directory.CreateDirectory(updateDirectory);
-        if (update.Asset.AssetName.Contains('/') || update.Asset.AssetName.Contains('\\') ||
+        if (!SafeSegment(update.Asset.AssetName) ||
             update.Asset.Sha256.Length != 64 || update.Asset.Size < 1)
         {
             throw new InvalidDataException("The update asset metadata is invalid.");
@@ -184,16 +189,19 @@ internal sealed class HubUpdateService : IHubUpdateService
         var archivePath = Path.Combine(updateDirectory, Path.GetFileName(update.Asset.AssetName));
         var assetUrl = $"https://github.com/{Repository}/releases/download/{Uri.EscapeDataString(update.Tag)}/{Uri.EscapeDataString(update.Asset.AssetName)}";
 
-        using (var response = await httpClient.GetAsync(assetUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken))
-        {
-            response.EnsureSuccessStatusCode();
-            await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
-            await using var destination = new FileStream(archivePath, FileMode.Create, FileAccess.Write, FileShare.None);
-            await CopyWithProgressAsync(source, destination, update.Asset.Size, progress, cancellationToken);
-        }
+        await HubPackageDownloader.DownloadAsync(httpClient, assetUrl, archivePath, update.Asset, progress, cancellationToken);
 
         progress?.Report(new HubUpdateProgress(HubUpdateStage.Verifying, update.Asset.Size, update.Asset.Size));
         await VerifyAssetAsync(archivePath, update.Asset, cancellationToken);
+
+        if (update.Platform == "win-x64-user")
+        {
+            if (!OperatingSystem.IsWindows() || !InstallationPaths.Current.Owns(AppContext.BaseDirectory))
+                throw new InvalidOperationException("This update requires the per-user Hub installation.");
+            var settings = new HubUserSettingsStore().Load(HubLocalization.DetectLanguage(System.Globalization.CultureInfo.CurrentUICulture));
+            await UpdaterLaunch.StartAsync(archivePath, update.Version, settings.Language.ToString(), settings.Theme.ToString(), cancellationToken);
+            return HubUpdateLaunchResult.ApplicationRestartInitiated;
+        }
 
         progress?.Report(new HubUpdateProgress(HubUpdateStage.LaunchingInstaller, update.Asset.Size, update.Asset.Size));
         if (update.Platform.StartsWith("linux-", StringComparison.Ordinal))
@@ -202,30 +210,6 @@ internal sealed class HubUpdateService : IHubUpdateService
         }
 
         return await systemPackageLauncher.OpenAsync(archivePath, cancellationToken);
-    }
-
-    private static async Task CopyWithProgressAsync(
-        Stream source,
-        Stream destination,
-        long totalBytes,
-        IProgress<HubUpdateProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        var buffer = new byte[81920];
-        long bytesReceived = 0;
-        progress?.Report(new HubUpdateProgress(HubUpdateStage.Downloading, bytesReceived, totalBytes));
-        while (true)
-        {
-            var read = await source.ReadAsync(buffer, cancellationToken);
-            if (read == 0)
-            {
-                break;
-            }
-
-            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-            bytesReceived += read;
-            progress?.Report(new HubUpdateProgress(HubUpdateStage.Downloading, bytesReceived, totalBytes));
-        }
     }
 
     private static async Task VerifyAssetAsync(
@@ -279,7 +263,7 @@ internal static class HubPlatform
         };
         if (OperatingSystem.IsWindows())
         {
-            return $"win-{architecture}";
+            return $"win-{architecture}" + (InstallationPaths.Current.Owns(AppContext.BaseDirectory) ? "-user" : "");
         }
 
         if (OperatingSystem.IsMacOS())

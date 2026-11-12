@@ -153,8 +153,10 @@ public sealed class HubReleaseWorkflowSourceTests
         }
     }
 
-    [Fact]
-    public async Task Packager_CreatesInstallerManifestForEveryPlatform()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Packager_CreatesInstallerManifestForEveryPlatform(bool includeUserCandidate)
     {
         var root = FindRepositoryRoot();
         var temporary = Path.Combine(Path.GetTempPath(), $"lakona-hub-packager-{Guid.NewGuid():N}");
@@ -163,13 +165,26 @@ public sealed class HubReleaseWorkflowSourceTests
         try
         {
             WriteInstallerPackages(publish, "1.1.0");
-            await RunPackagerAsync(root, publish, output, "1.1.0");
+            string? candidate = null;
+            if (includeUserCandidate)
+            {
+                candidate = Path.Combine(temporary, "candidate");
+                Directory.CreateDirectory(candidate);
+                File.WriteAllText(Path.Combine(candidate, "lakona-hub-1.1.0-win-x64-user.zip"), "candidate payload");
+                File.WriteAllText(Path.Combine(candidate, "Lakona.Hub.Setup.exe"), "candidate setup");
+            }
+            await RunPackagerAsync(root, publish, output, "1.1.0", candidate);
 
             using var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(
                 Path.Combine(output, "lakona-hub-manifest.json"),
                 TestContext.Current.CancellationToken));
             var platforms = manifest.RootElement.GetProperty("platforms");
-            Assert.Equal(5, platforms.EnumerateObject().Count());
+            Assert.Equal(includeUserCandidate ? 6 : 5, platforms.EnumerateObject().Count());
+            if (includeUserCandidate)
+            {
+                Assert.EndsWith("-user.zip", platforms.GetProperty("win-x64-user").GetProperty("full").GetProperty("assetName").GetString(), StringComparison.Ordinal);
+                Assert.True(File.Exists(Path.Combine(output, "Lakona.Hub.Setup.exe")));
+            }
             foreach (var platform in platforms.EnumerateObject())
             {
                 Assert.True(File.Exists(Path.Combine(output, platform.Value.GetProperty("full").GetProperty("assetName").GetString()!)));
@@ -215,7 +230,8 @@ public sealed class HubReleaseWorkflowSourceTests
         string root,
         string publish,
         string output,
-        string version)
+        string version,
+        string? userCandidate = null)
     {
         var startInfo = new ProcessStartInfo("pwsh")
         {
@@ -235,6 +251,11 @@ public sealed class HubReleaseWorkflowSourceTests
         })
         {
             startInfo.ArgumentList.Add(argument);
+        }
+        if (userCandidate is not null)
+        {
+            startInfo.ArgumentList.Add("-WindowsUserPackageRoot");
+            startInfo.ArgumentList.Add(userCandidate);
         }
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Could not start PowerShell.");

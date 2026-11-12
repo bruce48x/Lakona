@@ -462,14 +462,56 @@ Release assets and manifests are retrieved over authenticated HTTPS from the
 GitHub API and GitHub Releases. Repository release permissions are restricted
 to the publishing job; the desktop client never receives a GitHub token.
 
-### Deferred User-Scoped Installation And Branded Updating
+### Windows User-Scoped Installer Candidate
 
-Lakona intends to replace the installer-owned Hub update experience with a
-user-scoped, fully branded installation and update path when release engineering
-capacity is available. This is deferred future work, not the current release
-contract. Until every migration and acceptance requirement below is complete,
-MSI, DMG, DEB, and RPM remain authoritative and Hub must not partially bypass
-their ownership.
+Windows has a candidate implementation of user-scoped installation and branded
+updating. It is not yet the default distribution channel: release signing and
+clean-Windows installation/migration acceptance are prerequisites for cutover.
+The normal release workflow still publishes MSI, DMG, DEB, and RPM. Existing
+MSI installations continue using Windows Installer and never overwrite files
+under Program Files through the user updater.
+
+The candidate uses three small components: an offline NativeAOT setup bootstrap,
+an independent Avalonia updater window, and shared installation logic. The
+window links the Hub color dictionary without depending on Hub project features.
+First install and subsequent updates use the same signed payload, staging,
+startup confirmation, and recovery code. Full packages are supported; there is
+no background service or delta-patch implementation.
+
+Build a release candidate on Windows with a current serviced .NET 10 SDK:
+
+```powershell
+pwsh -NoProfile -File scripts/hub/New-HubUserSetup.ps1 `
+  -Version 0.18.0 -OutputRoot artifacts/hub-user-candidate `
+  -ManifestPrivateKeyPath <protected-RSA-private-key.pem> `
+  -SignScript <protected-signing-provider.ps1> `
+  -PublisherThumbprint <expected-Authenticode-certificate-thumbprint>
+```
+
+The signing provider receives `-FilePath` and must throw on failure. The script
+checks Windows trust and publisher identity after signing every executable,
+including setup and updater. It embeds only the RSA public key in the binaries;
+private signing material stays outside source and output. The payload contains
+an RSA-PSS/SHA-256 signed file manifest. Runtime verification binds every file
+to that manifest and rejects unrecognized files, traversal, links, duplicates,
+wrong platforms, unsupported protocols, and downgrades. An unsigned build has
+no trusted release key and cannot install a payload; `--smoke-test` only opens
+and closes the updater UI without changing an installation.
+
+After signed VM acceptance, `New-HubRelease.ps1 -WindowsUserPackageRoot` can add
+the candidate setup and `win-x64-user` update asset alongside the MSI. The
+normal workflow deliberately does not pass this option yet. A Hub running from
+the exact per-user application root selects only that update channel. Changing
+the pinned release key requires a separately validated trust-migration plan;
+replacing it arbitrarily would strand installed clients.
+
+The following sections describe the complete cutover contract. Candidate
+coverage is recorded separately from release acceptance: signed artifacts,
+destructive-transition fault injection, and clean-VM migration acceptance
+remain required before promotion. If the recovery backup cannot be verified,
+the candidate preserves both copies, disables retry, and offers diagnostics;
+automatic repair of that ambiguous state is not supported. Do not describe a local test run as signed
+distribution acceptance or promise suppression of Windows security prompts.
 
 The target experience is one Lakona-designed window from initial installation
 through later updates. A small standalone updater remains alive after Hub exits,
@@ -494,10 +536,15 @@ per-machine MSI under `Program Files` to a per-user application root:
   settings.json and existing Hub-owned state
   logs/
   updates/
+    <version>/<platform>/ downloaded package and resumable partial download
+  installer/
     lock
     journal.json
-    staging/<version>/
+    health.json
+    installation.log
+    staging/
     backup/
+    handoff-<id>/
 ```
 
 The release publishes a signed offline `Lakona.Hub.Setup.exe` containing the
@@ -512,9 +559,11 @@ a second implementation in web technology. It may share a narrowly scoped Hub
 resource dictionary for colors, typography, icons, localization, and control
 metrics, but it must not reference `MainWindow`, project workflows, the SDK
 manager, or another Hub feature module. Its command protocol and update journal
-are versioned contracts. The running Hub copies the current updater into the
-verified staging root before launch so the helper never replaces files from its
-own executable directory.
+are versioned contracts. Hub verifies the target package and launches its updater
+from a separate handoff directory, after checking the supported protocol. Repair
+and uninstall launched from an installed updater first copy its verified binary
+and dependencies out of the application directory. A helper never replaces files
+from its own executable directory.
 
 Windows Releases add a compressed application payload alongside the setup
 program. A future manifest schema records at least the payload kind, target
@@ -564,9 +613,11 @@ and resume when the server confirms the same asset, and verifies length, digest,
 signature, platform, and version before renaming the payload into the trusted
 staging area. Verification failure leaves the installed application untouched.
 
-Before exiting, Hub passes the updater only validated absolute paths, the parent
-process identifier, selected language and theme, expected installed version,
-target version, and a one-time activation token. The updater persists each
+Before exiting, Hub passes the updater the validated package path, parent
+process identifier and start time, selected language and theme, and readiness
+marker. The signed package supplies the target version; the updater creates the
+one-time activation token. Hub waits for the update window to accept the handoff.
+The updater persists each
 completed state transition to `journal.json` with an atomic replace and flushes
 the transition before performing the next destructive step. Logs contain stage,
 version, duration, exit code, and a bounded sanitized error; they must not record

@@ -8,7 +8,7 @@ date and package versions of important releases are retained.
 
 **Key releases:** `Lakona.Rpc.Client 0.14.18`, `Lakona.Game.Client 0.5.28`,
 `Lakona.Rpc.Transport.WebSocket 0.11.47`, `Lakona.Game.Server 0.54.10`,
-`Lakona.Tool 0.43.125`, and `Lakona.Hub 0.17.140`.
+`Lakona.Tool 0.43.125`, and `Lakona.Hub 0.18.0`.
 
 - RPC client shutdown retains cancellation callback failures while joining
   startup and active I/O and releasing owned resources. Concurrent and repeated
@@ -31,6 +31,9 @@ date and package versions of important releases are retained.
   save; shutdown waits for active disk writes without waiting on UI continuations.
   BuildTag edits and packaging use the inspected server directory, so renamed
   server roots remain usable throughout the workflow.
+  Windows gains a user-scoped installer candidate with a branded update window,
+  signed payload verification and startup-failure rollback. Default distribution
+  remains MSI until signing and Windows migration acceptance are complete.
 
 ## 2026-11-11 — Actor dispatch consistency and bounded lifecycle cleanup
 

@@ -15,5 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Lakona.Hub/Lakona.Hub.csproj" />
+    <ProjectReference Include="../../src/Lakona.Hub.Updater/Lakona.Hub.Updater.csproj" />
+    <ProjectReference Include="../Lakona.Hub.Installation.Fixture/Lakona.Hub.Installation.Fixture.csproj" />
   </ItemGroup>
 </Project>

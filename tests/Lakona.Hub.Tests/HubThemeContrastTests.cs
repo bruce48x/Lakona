@@ -108,7 +108,7 @@ public sealed class HubThemeContrastTests
 
     private static XElement ReadLightTheme() => ReadTheme("Light");
 
-    private static XElement ReadTheme(string variant) => ReadXaml("App.axaml").Descendants()
+    private static XElement ReadTheme(string variant) => ReadXaml("HubPalette.axaml").Descendants()
         .Single(element => element.Name.LocalName == "ResourceDictionary"
             && element.Attribute(XamlNamespace + "Key")?.Value == variant);
 

@@ -18,7 +18,8 @@ internal static class Program
             return;
         }
 
-        var applicationArgs = HubAotSmokeTest.Capture(args);
+        var applicationArgs = HubAotSmokeTest.Capture(HubStartupConfirmation.Capture(args));
+        if (HubStartupConfirmation.StartRecovery()) return;
         HubSingleInstance? singleInstance = null;
         if (!HubAotSmokeTest.IsRequested)
         {

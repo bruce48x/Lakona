@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <PublishAot Condition="'$(Configuration)' == 'Release'">true</PublishAot>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationManifest>../Lakona.Hub.Updater/app.manifest</ApplicationManifest>
+    <ApplicationIcon>../Lakona.Hub/Assets/lakona-hub.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Lakona.Hub.Installation/Lakona.Hub.Installation.csproj" />
+    <EmbeddedResource Include="$(HubSetupPayload)" LogicalName="Lakona.Hub.Payload.zip" Condition="'$(HubSetupPayload)' != ''" />
+  </ItemGroup>
+</Project>

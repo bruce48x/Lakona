@@ -147,6 +147,19 @@ jobs:
           chmod +x artifacts/publish/hub-${{ matrix.rid }}/Lakona.Hub
           artifacts/publish/hub-${{ matrix.rid }}/Lakona.Hub --aot-smoke-test
 
+      - name: Validate Windows user installer components
+        # The signed per-user channel remains gated until its release-candidate
+        # installation/migration tests pass. Always compile its UI to prevent drift.
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          dotnet publish src/Lakona.Hub.Updater/Lakona.Hub.Updater.csproj -c Release -r win-x64 --self-contained true -o artifacts/updater -p:TreatWarningsAsErrors=true -p:ILLinkTreatWarningsAsErrors=true
+          if ($LASTEXITCODE -ne 0) { throw 'Updater NativeAOT build failed.' }
+          $process = Start-Process artifacts/updater/Lakona.Hub.Updater.exe -ArgumentList '--smoke-test' -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Updater UI smoke test failed.' }
+          dotnet publish src/Lakona.Hub.Setup/Lakona.Hub.Setup.csproj -c Release -r win-x64 --self-contained true -o artifacts/setup-check -p:TreatWarningsAsErrors=true -p:ILLinkTreatWarningsAsErrors=true
+          if ($LASTEXITCODE -ne 0) { throw 'Setup NativeAOT build failed.' }
+
       - name: Install pinned WiX Toolset
         if: runner.os == 'Windows'
         run: dotnet tool install --global wix --version 5.0.2

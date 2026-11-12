@@ -110,7 +110,7 @@ jobs:
                   ;;
               esac
               case "$path" in
-                skills/*|src/Lakona.Hub/*|src/Lakona.ProjectSystem/*|scripts/hub/*|Directory.Build.props|Directory.Build.targets|global.json|.github/workflows/publish-nuget.yml|.github/workflows/publish-hub.yml)
+                skills/*|src/Lakona.Hub/*|src/Lakona.Hub.Installation/*|src/Lakona.Hub.Updater/*|src/Lakona.Hub.Setup/*|src/Lakona.ProjectSystem/*|scripts/hub/*|Directory.Build.props|Directory.Build.targets|global.json|.github/workflows/publish-nuget.yml|.github/workflows/publish-hub.yml)
                   hub_required=true
                   nuget_required=true
                   ;;

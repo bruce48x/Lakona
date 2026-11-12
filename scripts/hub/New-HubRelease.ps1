@@ -13,7 +13,11 @@ param(
     [string]$PublishRoot,
 
     [Parameter(Mandatory = $true)]
-    [string]$OutputRoot
+    [string]$OutputRoot,
+
+    # Supply only signed, VM-validated output of New-HubUserSetup.ps1.
+    # Normal releases leave this unset until the Windows channel is ready.
+    [string]$WindowsUserPackageRoot
 )
 
 $ErrorActionPreference = 'Stop'
@@ -82,6 +86,23 @@ foreach ($package in $packages) {
             sha256 = Get-Sha256 $destination
             size = (Get-Item -LiteralPath $destination).Length
         }
+        deltas = @()
+    }
+}
+
+if ($WindowsUserPackageRoot) {
+    $archiveName = "lakona-hub-$Version-win-x64-user.zip"
+    $archivePath = Join-Path $WindowsUserPackageRoot $archiveName
+    $setupPath = Join-Path $WindowsUserPackageRoot 'Lakona.Hub.Setup.exe'
+    if (-not (Test-Path -LiteralPath $archivePath) -or -not (Test-Path -LiteralPath $setupPath)) {
+        throw 'The Windows user installer candidate is incomplete.'
+    }
+    Copy-Item -LiteralPath $archivePath -Destination $OutputRoot -Force
+    Copy-Item -LiteralPath $setupPath -Destination $OutputRoot -Force
+    $releasePlatforms['win-x64-user'] = [ordered]@{
+        packageRoot = '%LOCALAPPDATA%/Programs/Lakona Hub'
+        executablePath = 'Lakona.Hub.exe'
+        full = [ordered]@{ assetName = $archiveName; sha256 = Get-Sha256 $archivePath; size = (Get-Item -LiteralPath $archivePath).Length }
         deltas = @()
     }
 }
