@@ -2,7 +2,7 @@ using Lakona.ProjectSystem.Packaging.Hotfix;
 
 namespace Lakona.ProjectSystem.Packaging.Server;
 
-internal sealed class HotfixPackageBuilder(IDotNetCommandRunner dotNet) : IHotfixPackageBuilder
+internal sealed class HotfixPackageBuilder(IDotNetCommandRunner dotNet, string toolVersion) : IHotfixPackageBuilder
 {
     public Task<string> PackAsync(
         string projectPath,
@@ -13,7 +13,7 @@ internal sealed class HotfixPackageBuilder(IDotNetCommandRunner dotNet) : IHotfi
         string runtimeIdentifier,
         CancellationToken cancellationToken)
     {
-        return new HotfixPackageWriter(dotNet).PackAsync(
+        return new HotfixPackageWriter(dotNet, toolVersion).PackAsync(
             projectPath,
             outputDirectory,
             configuration,

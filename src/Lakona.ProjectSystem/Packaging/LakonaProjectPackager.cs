@@ -1,3 +1,4 @@
+using System.Reflection;
 using Lakona.ProjectSystem.Packaging;
 using Lakona.ProjectSystem.Packaging.Hotfix;
 using Lakona.ProjectSystem.Packaging.Server;
@@ -64,7 +65,13 @@ public sealed class LakonaProjectPackager : ILakonaProjectPackager
     private readonly TimeProvider timeProvider;
 
     public LakonaProjectPackager()
-        : this(new LakonaPackageBackend(), TimeProvider.System)
+        : this(typeof(LakonaProjectPackager).Assembly)
+    {
+    }
+
+    /// <summary>Records the producing application's full assembly version in every package manifest.</summary>
+    public LakonaProjectPackager(Assembly producerAssembly)
+        : this(new LakonaPackageBackend(PackageToolVersion.Read(producerAssembly)), TimeProvider.System)
     {
     }
 
@@ -234,14 +241,14 @@ internal interface ILakonaPackageBackend
         CancellationToken cancellationToken);
 }
 
-internal sealed class LakonaPackageBackend : ILakonaPackageBackend
+internal sealed class LakonaPackageBackend(string toolVersion) : ILakonaPackageBackend
 {
     public Task<string> PackServerAsync(
         LakonaServerPackagePlan request,
         CancellationToken cancellationToken)
     {
         var server = new ServerPackageWriter(
-            new DotNetCommandRunner(request.DotNetExecutablePath));
+            new DotNetCommandRunner(request.DotNetExecutablePath), toolVersion: toolVersion);
         return server.PackAsync(
             new ServerPackOptions(
                 request.ProjectPath,
@@ -258,7 +265,7 @@ internal sealed class LakonaPackageBackend : ILakonaPackageBackend
         CancellationToken cancellationToken)
     {
         var hotfix = new HotfixPackageWriter(
-            new DotNetCommandRunner(request.DotNetExecutablePath));
+            new DotNetCommandRunner(request.DotNetExecutablePath), toolVersion: toolVersion);
         return hotfix.PackAsync(
             request.ProjectPath,
             request.OutputDirectory,

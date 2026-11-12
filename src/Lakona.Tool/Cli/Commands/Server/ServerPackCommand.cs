@@ -14,7 +14,7 @@ internal sealed class ServerPackCommand
     public ServerPackCommand(ICliTerminal terminal, ILakonaProjectPackager? packager = null)
     {
         this.terminal = terminal;
-        this.packager = packager ?? new LakonaProjectPackager();
+        this.packager = packager ?? new LakonaProjectPackager(typeof(ServerPackCommand).Assembly);
     }
 
     public async Task<int> RunAsync(string[] args, CancellationToken cancellationToken)

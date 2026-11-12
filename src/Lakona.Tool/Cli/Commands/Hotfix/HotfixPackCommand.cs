@@ -12,7 +12,7 @@ internal sealed class HotfixPackCommand
         ILakonaProjectPackager? packager = null)
     {
         this.terminal = terminal;
-        this.packager = packager ?? new LakonaProjectPackager();
+        this.packager = packager ?? new LakonaProjectPackager(typeof(HotfixPackCommand).Assembly);
     }
 
     public async Task<int> RunAsync(string[] args, CancellationToken cancellationToken)

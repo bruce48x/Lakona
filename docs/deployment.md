@@ -176,7 +176,12 @@ hotfix/
 
 Platform-specific and optional publish files may differ. The stable manifest
 records the package version, UTC build time, RID, configuration, entry
-assembly, BuildTag, initial Hotfix version, and Tool version. The initial
+assembly, BuildTag, initial Hotfix version, and producing tool version. Both
+server and Hotfix manifests record the CLI or Hub assembly's full informational
+version in `toolVersion`, including commit metadata when available. This is
+provenance, not a deployment compatibility condition. Direct packager callers
+can supply their application assembly to `LakonaProjectPackager`; the parameterless
+constructor retains its legacy shared-component version behavior. The initial
 Hotfix manifest and stable manifest must have the same BuildTag.
 
 `current.txt` names an existing version directory, and `READY` is written only

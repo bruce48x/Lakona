@@ -1,5 +1,4 @@
 using System.IO.Compression;
-using System.Reflection;
 using System.Text.Json;
 using System.Xml.Linq;
 using Lakona.ProjectSystem.Packaging;
@@ -14,16 +13,19 @@ internal sealed class ServerPackageWriter : IServerPackageWriter
     private readonly HotfixPackageInstaller hotfixInstaller;
     private readonly ServerPackageValidator validator;
     private readonly Func<DateTimeOffset> utcNow;
+    private readonly string toolVersion;
 
     public ServerPackageWriter(
         IDotNetCommandRunner? dotNet = null,
         IHotfixPackageBuilder? hotfixPackageBuilder = null,
         HotfixPackageInstaller? hotfixInstaller = null,
         ServerPackageValidator? validator = null,
-        Func<DateTimeOffset>? utcNow = null)
+        Func<DateTimeOffset>? utcNow = null,
+        string? toolVersion = null)
     {
         this.dotNet = dotNet ?? new DotNetCommandRunner();
-        this.hotfixPackageBuilder = hotfixPackageBuilder ?? new HotfixPackageBuilder(this.dotNet);
+        this.toolVersion = toolVersion ?? PackageToolVersion.Read(typeof(ServerPackageWriter).Assembly);
+        this.hotfixPackageBuilder = hotfixPackageBuilder ?? new HotfixPackageBuilder(this.dotNet, this.toolVersion);
         this.hotfixInstaller = hotfixInstaller ?? new HotfixPackageInstaller();
         this.validator = validator ?? new ServerPackageValidator();
         this.utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
@@ -207,7 +209,7 @@ internal sealed class ServerPackageWriter : IServerPackageWriter
                 request.EntryAssembly,
                 request.BuildTag,
                 request.Version,
-                GetToolVersion());
+                toolVersion);
             await using (var stream = File.Create(Path.Combine(stagedApp, "lakona-server.json")))
             {
                 await JsonSerializer.SerializeAsync(
@@ -311,15 +313,6 @@ internal sealed class ServerPackageWriter : IServerPackageWriter
         string runtimeIdentifier)
     {
         return Path.Combine(outputDirectory, $"Server.Full-{buildTag}-{version}-{runtimeIdentifier}.zip");
-    }
-
-    private static string GetToolVersion()
-    {
-        return typeof(ServerPackageWriter).Assembly
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion
-            ?? typeof(ServerPackageWriter).Assembly.GetName().Version?.ToString()
-            ?? "0.0.0-local";
     }
 
     private static string ReadAssemblyName(string projectPath)

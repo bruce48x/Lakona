@@ -1,5 +1,4 @@
 using System.IO.Compression;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Xml.Linq;
@@ -11,10 +10,12 @@ namespace Lakona.ProjectSystem.Packaging.Hotfix;
 internal sealed class HotfixPackageWriter
 {
     private readonly IDotNetCommandRunner dotNet;
+    private readonly string toolVersion;
 
-    public HotfixPackageWriter(IDotNetCommandRunner? dotNet = null)
+    public HotfixPackageWriter(IDotNetCommandRunner? dotNet = null, string? toolVersion = null)
     {
         this.dotNet = dotNet ?? new DotNetCommandRunner();
+        this.toolVersion = toolVersion ?? PackageToolVersion.Read(typeof(HotfixPackageWriter).Assembly);
     }
 
     public async Task<string> PackAsync(
@@ -115,7 +116,7 @@ internal sealed class HotfixPackageWriter
                 assemblyFile,
                 targetFramework,
                 buildTag,
-                GetToolVersion());
+                toolVersion);
             var manifestPath = Path.Combine(staging, "hotfix.json");
             await using (var stream = File.Create(manifestPath))
             {
@@ -231,15 +232,6 @@ internal sealed class HotfixPackageWriter
         }
 
         await File.WriteAllLinesAsync(Path.Combine(directory, "checksums.sha256"), lines, cancellationToken).ConfigureAwait(false);
-    }
-
-    private static string GetToolVersion()
-    {
-        return typeof(HotfixPackageWriter).Assembly
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion
-            ?? typeof(HotfixPackageWriter).Assembly.GetName().Version?.ToString()
-            ?? "0.0.0-local";
     }
 
     private sealed record HotfixProjectInfo(string AssemblyName, string TargetFramework);

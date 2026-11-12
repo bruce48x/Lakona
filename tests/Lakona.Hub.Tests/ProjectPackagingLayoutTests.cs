@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Reflection;
 using System.Text.Json;
 using Lakona.ProjectSystem;
 using Xunit;
@@ -76,6 +77,9 @@ public sealed class ProjectPackagingLayoutTests
                     using var stream = manifest.Open();
                     using var document = await JsonDocument.ParseAsync(stream, cancellationToken: token);
                     Assert.Equal("Updated2", document.RootElement.GetProperty("buildTag").GetString());
+                    Assert.Equal(
+                        typeof(ProjectPackagingForm).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion,
+                        document.RootElement.GetProperty("toolVersion").GetString());
                 }
                 if (directoryName != "Server") Assert.False(Directory.Exists(Path.Combine(root, "Server")));
             }

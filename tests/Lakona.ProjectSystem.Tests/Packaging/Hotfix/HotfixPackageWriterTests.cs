@@ -71,8 +71,10 @@ public sealed class HotfixPackageWriterTests
         }
     }
 
-    [Fact]
-    public async Task WritePackageAsync_creates_manifest_and_checksums()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("1.0.0+legacy-commit")]
+    public async Task WritePackageAsync_creates_manifest_and_checksums(string? toolVersion)
     {
         var root = CreateTempRoot();
         try
@@ -87,7 +89,7 @@ public sealed class HotfixPackageWriterTests
             Directory.CreateDirectory(nativeDirectory);
             await File.WriteAllTextAsync(Path.Combine(nativeDirectory, "libexample.so"), "native", TestContext.Current.CancellationToken);
 
-            var zipPath = await new HotfixPackageWriter().WritePackageAsync(
+            var zipPath = await new HotfixPackageWriter(toolVersion: toolVersion).WritePackageAsync(
                 buildOutput,
                 packages,
                 "Server.Hotfix",
@@ -119,6 +121,7 @@ public sealed class HotfixPackageWriterTests
             Assert.Equal("20260612-153045Z", manifest?.Version);
             Assert.Equal("Server.Hotfix.dll", manifest?.Assembly);
             Assert.Equal("Release1", manifest?.BuildTag);
+            if (toolVersion is not null) Assert.Equal(toolVersion, manifest?.ToolVersion);
         }
         finally
         {

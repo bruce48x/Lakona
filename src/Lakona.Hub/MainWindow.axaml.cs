@@ -336,8 +336,7 @@ public sealed partial class MainWindow : Window
         packagingForm = new ProjectPackagingForm(
             project.Path,
             EnvironmentWorkflow.SdkExecutablePath,
-            new LakonaProjectPackager(),
-            Localization);
+            localization: Localization);
         PackageDialogOverlay.DataContext = packagingForm;
         PackageDialogOverlay.IsVisible = true;
     }

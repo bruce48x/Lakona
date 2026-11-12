@@ -132,7 +132,7 @@ public sealed class ProjectPackagingForm : INotifyPropertyChanged, IDisposable
         : this(
             projectRoot,
             dotNetExecutablePath,
-            packager ?? new LakonaProjectPackager(),
+            packager ?? new LakonaProjectPackager(typeof(ProjectPackagingForm).Assembly),
             localization ?? new HubLocalization(),
             artifactFolderLauncher ?? new SystemArtifactFolderLauncher(),
             new FilePackagingLogStore())
