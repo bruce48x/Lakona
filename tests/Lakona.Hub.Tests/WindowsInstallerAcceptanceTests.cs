@@ -20,6 +20,8 @@ public sealed class WindowsInstallerAcceptanceTests(ITestOutputHelper output)
         var archive = Path.GetFullPath(Environment.GetEnvironmentVariable("LAKONA_HUB_ACCEPTANCE_PACKAGE")!);
         var msi = Path.GetFullPath(Environment.GetEnvironmentVariable("LAKONA_HUB_ACCEPTANCE_MSI")
             ?? throw new InvalidOperationException("LAKONA_HUB_ACCEPTANCE_MSI is required."));
+        Assert.True(File.Exists(archive), $"LAKONA_HUB_ACCEPTANCE_PACKAGE file does not exist: {archive}");
+        Assert.True(File.Exists(msi), $"LAKONA_HUB_ACCEPTANCE_MSI file does not exist: {msi}");
         var paths = InstallationPaths.Current;
         Assert.False(Directory.Exists(paths.Application), "Refusing to replace an existing user installation.");
         Assert.False(WindowsInstallationHost.HasLegacyMsi(), "Refusing to change an existing MSI installation.");

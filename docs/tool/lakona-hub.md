@@ -582,8 +582,10 @@ from the historical MSI before publication.
 
 `WindowsInstallerAcceptanceTests` is explicitly enabled by
 `LAKONA_HUB_ACCEPTANCE_PACKAGE` (the signed update ZIP) and
-`LAKONA_HUB_ACCEPTANCE_MSI` (the verified historical MSI). It refuses to replace
-an existing installation and must run on an otherwise uninstalled test host.
+`LAKONA_HUB_ACCEPTANCE_MSI` (the verified historical MSI). Pass both as absolute
+file paths; the test checks that both files exist before changing installation
+state. It refuses to replace an existing installation and must run on an
+otherwise uninstalled test host.
 For local release acceptance also exercise an actual previous-version update
 through `UpdaterLaunch`; unit tests alone do not establish cross-process
 handoff behavior. Local Windows acceptance is not a claim of physical power-loss

@@ -171,8 +171,8 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          LAKONA_HUB_ACCEPTANCE_PACKAGE: artifacts/packages/hub-win-x64/lakona-hub-${{ needs.validate.outputs.version }}-win-x64-user.zip
-          LAKONA_HUB_ACCEPTANCE_MSI: artifacts/legacy/lakona-hub-0.17.138-win-x64.msi
+          LAKONA_HUB_ACCEPTANCE_PACKAGE: ${{ github.workspace }}/artifacts/packages/hub-win-x64/lakona-hub-${{ needs.validate.outputs.version }}-win-x64-user.zip
+          LAKONA_HUB_ACCEPTANCE_MSI: ${{ github.workspace }}/artifacts/legacy/lakona-hub-0.17.138-win-x64.msi
         run: |
           # A historical release fixture, not a rebuilt or newly published MSI.
           gh release download hub-v0.17.138 --repo '${{ github.repository }}' --pattern 'lakona-hub-0.17.138-win-x64.msi' --dir artifacts/legacy
