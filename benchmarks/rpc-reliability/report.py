@@ -45,22 +45,23 @@ large = []
 for transport in ("kcp", "tcp"):
     for size in (12 * 1024**2, 24 * 1024**2):
         for mode in ("upload", "download"):
-            runs = [r for r in results if (r["transport"], r["size"], r["mode"]) == (transport, size, mode)]
-            if not runs:
-                continue
-            row = dict(transport=transport, sizeMiB=size / 1024**2, mode=mode, runs=len(runs),
-                seconds=median(runs, lambda r: r["elapsed"]),
-                secondsRange=[min(r["elapsed"] for r in runs), max(r["elapsed"] for r in runs)],
-                mibPerSecond=median(runs, lambda r: size / 1024**2 / r["elapsed"]))
-            for side, key in (("client", "resources"), ("server", "serverResources")):
-                row[side] = {
-                    "peakMiB": [max(r[key]["peak"][i] for r in runs) / 1024**2 for i in range(3)],
-                    "peakIncreaseMiB": [max(r[key]["peak"][i] - r[key]["start"][i] for r in runs) / 1024**2 for i in range(3)],
-                    "allocatedMiB": median(runs, lambda r: r[key]["allocatedBytes"] / 1024**2),
-                    "cpuSeconds": median(runs, lambda r: r[key]["cpuSeconds"]),
-                    "gen2": [r[key]["collections"][2] for r in runs],
-                }
-            large.append(row)
+            matching = [r for r in results if (r["transport"], r["size"], r["mode"]) == (transport, size, mode)]
+            for count, concurrency in sorted({(r["count"], r["concurrency"]) for r in matching}):
+                runs = [r for r in matching if (r["count"], r["concurrency"]) == (count, concurrency)]
+                row = dict(transport=transport, sizeMiB=size / 1024**2, mode=mode,
+                    count=count, concurrency=concurrency, totalMiB=size * count / 1024**2, runs=len(runs),
+                    seconds=median(runs, lambda r: r["elapsed"]),
+                    secondsRange=[min(r["elapsed"] for r in runs), max(r["elapsed"] for r in runs)],
+                    mibPerSecond=median(runs, lambda r: r["size"] * r["count"] / 1024**2 / r["elapsed"]))
+                for side, key in (("client", "resources"), ("server", "serverResources")):
+                    row[side] = {
+                        "peakMiB": [max(r[key]["peak"][i] for r in runs) / 1024**2 for i in range(3)],
+                        "peakIncreaseMiB": [max(r[key]["peak"][i] - r[key]["start"][i] for r in runs) / 1024**2 for i in range(3)],
+                        "allocatedMiB": median(runs, lambda r: r[key]["allocatedBytes"] / 1024**2),
+                        "cpuSeconds": median(runs, lambda r: r[key]["cpuSeconds"]),
+                        "gen2": [r[key]["collections"][2] for r in runs],
+                    }
+                large.append(row)
 
 followups = {}
 for name in ("tcp-recheck", "exception-diagnostic", "exception-diagnostic-stacks"):
@@ -96,17 +97,17 @@ for r in small:
         f'{num(b["p99Ms"])} → {num(c["p99Ms"])}',
         f'{b["rpsRange"][0]:,.1f}–{b["rpsRange"][1]:,.1f} / {c["rpsRange"][0]:,.1f}–{c["rpsRange"][1]:,.1f}'])
 small_table = table(["传输", "字节", "并发", "重复 前/后", "吞吐 RPC/s 前 → 后", "变化", "p50 ms", "p95 ms", "p99 ms", "吞吐范围 前 / 后"], rows)
-large_table = table(["传输", "MiB", "方向", "重复", "完成耗时 s", "耗时范围 s", "有效 MiB/s"],
-    [[r["transport"].upper(), r["sizeMiB"], r["mode"], r["runs"], num(r["seconds"]),
+large_table = table(["传输", "单次 MiB", "方向", "并发", "每轮传输次数", "每轮总量 MiB", "独立运行次数", "整批耗时 s", "整批耗时范围 s", "有效 MiB/s"],
+    [[r["transport"].upper(), r["sizeMiB"], r["mode"], r["concurrency"], r["count"], num(r["totalMiB"]), r["runs"], num(r["seconds"]),
       f'{num(r["secondsRange"][0])}–{num(r["secondsRange"][1])}', num(r["mibPerSecond"])] for r in large])
 memory_rows = []
 for r in large:
     for side in ("client", "server"):
         m = r[side]
-        memory_rows.append([r["transport"], r["sizeMiB"], r["mode"], side,
+        memory_rows.append([r["transport"], r["sizeMiB"], r["mode"], r["concurrency"], r["count"], r["runs"], side,
             *[f'{num(m["peakMiB"][i])} (+{num(m["peakIncreaseMiB"][i])})' for i in range(3)],
             num(m["allocatedMiB"]), num(m["cpuSeconds"]), str(m["gen2"])])
-memory_table = table(["传输", "MiB", "方向", "进程", "托管占用峰值 (+增量) MiB", "Private 峰值 (+增量) MiB", "Working set 峰值 (+增量) MiB", "累计分配 MiB", "CPU s", "Gen2 次数"], memory_rows)
+memory_table = table(["传输", "单次 MiB", "方向", "并发", "每轮传输次数", "独立运行次数", "进程", "托管占用峰值 (+增量) MiB", "Private 峰值 (+增量) MiB", "Working set 峰值 (+增量) MiB", "累计分配 MiB", "CPU s", "Gen2 次数"], memory_rows)
 alloc_table = table(["传输", "字节", "并发", "客户端分配 B/op 前 → 后", "服务端分配 B/op 前 → 后", "两端 CPU μs/op 前 → 后"],
     [[r["transport"], r["size"], r["concurrency"],
       *[f'{num(r["baseline"][k])} → {num(r["current"][k])}' for k in ("clientAllocatedPerOp", "serverAllocatedPerOp", "cpuUsPerOp")]] for r in small])
@@ -140,10 +141,11 @@ page = f'''<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>Lakona
 <li>客户端和服务端是独立进程，经过真实 RpcClientRuntime、RpcSession、MemoryPack、共享发送队列及 TCP/KCP。没有绕过 RPC 分发；不包含 Game 路由、跨节点批处理或可靠 Outbox。</li>
 <li>每个小消息工况独立启动；预热 {policy['warmupSeconds']} 秒，测量 {policy['seconds']} 秒并等待已发请求完成；计划 {policy['repeats']} 次重复交替 A/B 顺序。表中是成功测量各次吞吐和分位数的中位数，失败不会填入吞吐平均数，也不能忽略为成功；完整分布保留在每个 JSON 的 1% 精度直方图中。</li>
 <li>单并发 KCP 每次约 150 个请求，p99 的样本很少；请结合每次范围和原始结果，避免把一次尾部抖动解释为稳定回归。</li>
-<li>大消息每个新进程对先做小消息预热，随后只传一个大消息。上传返回校验成功后的长度；下载从请求发出计时到完整 payload 校验完成。因此是完成耗时，包含序列化、调度和校验，不是单纯网络计时。</li>
-<li>默认 KCP 消息模式、窗口、拥塞控制和调度参数不变；无压缩、无加密；keepalive 关闭。12 MiB 各方向 3 次；24 MiB 各方向 1 次用于观察尺寸增长，不据此计算稳定尾延迟。</li></ul>
+<li>大消息每个新进程对先做小消息预热，再执行一轮传输；每轮传输次数采用原始记录的实际完成总次数 count，包含所有并发请求。每轮总量为单次大小 × count，有效吞吐为每轮总量 ÷ 整批耗时，再对独立运行取中位数。不同传输次数或并发数分别汇总，独立运行次数不是每轮传输次数。</li>
+<li>上传返回校验成功后的长度；下载等待完整 payload 校验完成。整批耗时包含序列化、调度和校验，不是单次延迟或单纯网络计时。单次延迟分位数仍来自原始直方图；不能用整批耗时除以次数代替 p99。</li>
+<li>默认 KCP 消息模式、窗口、拥塞控制和调度参数不变；无压缩、无加密；keepalive 关闭。实际独立运行次数以表格为准；少量运行用于观察尺寸增长，不据此计算稳定尾延迟。</li></ul>
 <h2>普通小消息：修改前后</h2>{small_table}<h2>分配与 CPU</h2>{alloc_table}
-<h2>大消息完成时间</h2>{large_table}<h2>大消息内存</h2>
+<h2>大消息整批完成时间与吞吐</h2>{large_table}<h2>大消息内存</h2>
 <p>每 20 ms 采样，不强制 GC；报告各次最高峰值与相对测量起点的最高增量。两端的基准 payload 均在测量前分配，绝对值包含它，增量不包含它。托管占用含尚未回收的垃圾，不能等同存活对象或泄漏。Private 是进程私有提交量，Working set 是驻留量；短于采样周期的峰值可能漏采，尤其是 TCP。采样使用专用线程和 Windows 原生内存计数器，避免每次采样产生托管数组。</p>{memory_table}
 {followup_html}<h2>环境与复现</h2><pre>{html.escape(json.dumps(summary['environment'], indent=2))}\n{html.escape(extra_text)}</pre><pre>{html.escape(json.dumps(manifest, indent=2))}</pre>
 <details><summary>全部原始测量索引</summary>{raw_table}</details></html>'''

@@ -87,6 +87,20 @@ of the complete preceding repair when evaluating tuning; the original
 pre-RELIABILITY-022 revision cannot reliably transfer these large frames.
 
 `RPC_BENCH_LARGE_COUNT=3` repeats large transfers on the same connection.
+The report uses each record's completed `count` across all workers: payload
+size times `count`, divided by the whole batch's elapsed time. It takes the
+median of these per-run rates and groups different counts and concurrency
+levels separately, including their resource summaries. Tables distinguish
+transfers per batch from independent runs; batch duration is not per-request
+latency. Per-request percentiles remain available in the raw results.
+
+Validate report arithmetic and generated HTML with synthetic records, without
+running the network benchmark:
+
+```powershell
+python benchmarks/rpc-reliability/test_report.py
+```
+
 `RPC_BENCH_RETAINED=1` additionally records managed bytes after full collection
 at the end of measurement, with connections still open. This is a separate
 retention diagnostic: the timed/peak counters are captured before collection,
