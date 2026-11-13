@@ -761,7 +761,13 @@ Replaceable request and simulation logic belongs in
 `Server.Hotfix` Service classes, and actor state behavior belongs in
 one-to-one `Server.Hotfix` Behavior classes.
 
-The arena accepts player direction input only; the server computes movement,
+The arena accepts player direction input only. Before changing player state,
+the server ignores an entire input if either direction component is NaN or
+infinite, preserving the previous valid input and facing direction. Finite
+vectors longer than one are normalized using double-precision intermediate
+arithmetic so even extreme finite float values cannot overflow the length
+calculation. Zero input stops movement while retaining the facing direction.
+The server computes movement,
 automatic firing, monster spawning and pursuit, collision damage, PvP/PvE
 scores, death, and five-second respawn. A disconnected player is removed from
 published snapshots immediately. The simulation timer publishes authoritative

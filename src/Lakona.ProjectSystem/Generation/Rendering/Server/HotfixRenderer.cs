@@ -348,11 +348,16 @@ internal sealed class HotfixRenderer : IPlanContributor
                         return default;
                     }
 
-                    var length = MathF.Sqrt(request.DirectionX * request.DirectionX + request.DirectionY * request.DirectionY);
+                    if (!float.IsFinite(request.DirectionX) || !float.IsFinite(request.DirectionY))
+                    {
+                        return default;
+                    }
+
+                    var length = Math.Sqrt((double)request.DirectionX * request.DirectionX + (double)request.DirectionY * request.DirectionY);
                     if (length > 1f)
                     {
-                        request.DirectionX /= length;
-                        request.DirectionY /= length;
+                        request.DirectionX = (float)(request.DirectionX / length);
+                        request.DirectionY = (float)(request.DirectionY / length);
                     }
 
                     player.InputX = request.DirectionX;
