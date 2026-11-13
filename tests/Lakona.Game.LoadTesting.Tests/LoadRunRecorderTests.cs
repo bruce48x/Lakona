@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Reflection;
 using Lakona.Game.LoadTesting.Internal;
 using Xunit;
 
@@ -5,6 +7,91 @@ namespace Lakona.Game.LoadTesting.Tests;
 
 public sealed class LoadRunRecorderTests
 {
+    [Theory]
+    [InlineData(1, int.MaxValue)]
+    [InlineData(4, 700_000_000)]
+    public void Long_runs_preserve_counts_across_recording_aggregation_and_formatting(int operationNames, int seedCount)
+    {
+        var recorder = new LoadRunRecorder("soak", 1);
+        var failure = new InvalidOperationException("failed");
+        var cancellation = new OperationCanceledException();
+        recorder.RecordStartedUser();
+        recorder.RecordCompletedUser();
+        for (var index = 0; index < operationNames; index++)
+        {
+            RecordOneOfEach($"operation-{index}");
+        }
+
+        SeedOperationCounts(recorder, seedCount);
+        for (var index = 0; index < operationNames; index++)
+        {
+            RecordOneOfEach($"operation-{index}");
+        }
+
+        var perOperation = (long)seedCount + 1;
+        var perOutcome = perOperation * operationNames;
+        var summary = recorder.CreateSummary(TimeSpan.FromHours(12));
+        Assert.Equal(perOutcome * 3, summary.TotalOperations);
+        Assert.Equal(perOutcome, summary.SucceededOperations);
+        Assert.Equal(perOutcome, summary.FailedOperations);
+        Assert.Equal(perOutcome, summary.CanceledOperations);
+        Assert.Equal(1, summary.StartedUsers);
+        Assert.Equal(1, summary.CompletedUsers);
+        Assert.Equal(0, summary.FailedUsers);
+        Assert.Equal(operationNames, summary.Latencies.Count);
+        Assert.All(summary.Latencies, latency =>
+        {
+            Assert.Equal(perOperation, latency.Count);
+            Assert.Equal(TimeSpan.FromTicks(1), latency.Average);
+            Assert.Equal(TimeSpan.FromTicks(1), latency.P50);
+            Assert.Equal(TimeSpan.FromTicks(1), latency.P95);
+            Assert.Equal(TimeSpan.FromTicks(1), latency.P99);
+        });
+        Assert.Equal(operationNames, summary.Errors.Count);
+        Assert.All(summary.Errors, error => Assert.Equal(perOperation, error.Count));
+        var text = LoadRunSummaryFormatter.Format(summary);
+        Assert.Contains($"Operations: {perOutcome * 3} total, {perOutcome} succeeded, {perOutcome} failed, {perOutcome} canceled", text);
+        Assert.Contains($"count={perOperation},", text);
+        Assert.Contains($"failed ({perOperation})", text);
+
+        void RecordOneOfEach(string name)
+        {
+            recorder.RecordSucceededOperation(name, TimeSpan.FromTicks(1));
+            recorder.RecordFailedOperation(name, TimeSpan.Zero, failure);
+            recorder.RecordCanceledOperation(name, TimeSpan.Zero, cancellation);
+        }
+    }
+
+    // Seed a consistent completed history instead of executing billions of calls.
+    // Keep private-layout knowledge here, without adding a production mutation API.
+    private static void SeedOperationCounts(LoadRunRecorder recorder, int count)
+    {
+        var operations = (IDictionary)ReadField(recorder, "operations");
+        foreach (var aggregate in operations.Values)
+        {
+            var latency = ReadField(aggregate!, "latency");
+            ((long[])ReadField(latency, "buckets"))[1] = count;
+            SetCount(latency, "totalTicksLow", count);
+            SetCount(aggregate!, "failed", count);
+            SetCount(aggregate!, "canceled", count);
+        }
+        var errors = (IDictionary)ReadField(recorder, "errors");
+        foreach (var bucket in errors.Values)
+        {
+            var messages = (IDictionary)ReadField(bucket!, "messages");
+            messages["failed"] = Convert.ChangeType(count, messages["failed"]!.GetType());
+        }
+
+        static object ReadField(object target, string name) =>
+            target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(target)!;
+
+        static void SetCount(object target, string name, int value)
+        {
+            var field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
+            field.SetValue(target, Convert.ChangeType(value, field.FieldType));
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

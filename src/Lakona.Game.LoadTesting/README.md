@@ -15,4 +15,5 @@ must cooperate with cancellation and await their own resource cleanup.
 
 Latency percentiles cover the entire run with fixed memory per operation name.
 See the [latency summary contract](https://github.com/bruce48x/Lakona/blob/main/docs/performance.md#loadtesting-latency-summaries)
-for precision, memory bounds, and concurrent recording behavior.
+for precision, memory bounds, concurrent recording behavior, and the 0.2.0
+migration to 64-bit operation counts (consumers must recompile).

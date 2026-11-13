@@ -91,6 +91,15 @@ network-capacity guarantees. The bounded send and receive contracts are unchange
 
 ### LoadTesting Latency Summaries
 
+From LoadTesting 0.2.0, operation totals, successful/failed/canceled counts,
+latency sample counts and error occurrence counts use `long` throughout
+recording and reporting. User counts remain `int`. This is a breaking API
+change to the constructors, properties and deconstruction signatures of
+`LoadRunSummary`, `LoadOperationLatencySummary` and `LoadErrorSummary`.
+Recompile consumers against 0.2.0 and change `int` variables that receive these
+operation counts to `long`; do not replace the DLL in an already-built consumer.
+Normal text report formatting and the latency distribution algorithm are unchanged.
+
 `LoadRunner.RunAsync` owns every virtual user it starts. Before each start it
 checks the run's cancellation token, including when ramp-up is zero. Planned
 expiry stops scheduling, cancels active users and returns a summary after all

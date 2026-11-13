@@ -127,8 +127,8 @@ public sealed class LoadRunRecorder
     private sealed class OperationAggregate
     {
         private readonly LatencyHistogram latency = new();
-        private int failed;
-        private int canceled;
+        private long failed;
+        private long canceled;
 
         public void RecordSucceeded(TimeSpan elapsed) => latency.Record(elapsed.Ticks);
 
@@ -139,7 +139,7 @@ public sealed class LoadRunRecorder
         public OperationSnapshot CreateSnapshot(string operationName)
         {
             var snapshot = latency.CreateSnapshot();
-            var succeededCount = (int)snapshot.Count;
+            var succeededCount = snapshot.Count;
             var failedCount = Volatile.Read(ref failed);
             var canceledCount = Volatile.Read(ref canceled);
             return new OperationSnapshot(
@@ -154,7 +154,7 @@ public sealed class LoadRunRecorder
 
     private sealed class ErrorBucket
     {
-        private readonly Dictionary<string, int> messages = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, long> messages = new(StringComparer.Ordinal);
         private readonly object gate = new();
 
         public void Record(string message)
@@ -176,7 +176,7 @@ public sealed class LoadRunRecorder
 
         public IReadOnlyList<LoadErrorSummary> CreateSummaries(string operationName, string exceptionType)
         {
-            KeyValuePair<string, int>[] snapshot;
+            KeyValuePair<string, long>[] snapshot;
             lock (gate)
             {
                 snapshot = messages.ToArray();
@@ -193,10 +193,10 @@ public sealed class LoadRunRecorder
 
     private sealed record OperationSnapshot(
         string OperationName,
-        int Total,
-        int Succeeded,
-        int Failed,
-        int Canceled,
+        long Total,
+        long Succeeded,
+        long Failed,
+        long Canceled,
         LatencyHistogram.Snapshot Latency);
 
     private readonly record struct ErrorBucketKey(string OperationName, string ExceptionType);
