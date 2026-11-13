@@ -545,6 +545,13 @@ version and token after application initialization. Timeout, early exit, or a
 bad confirmation triggers rollback and relaunch of the previous version.
 After stopping a failed child, the updater waits at most five seconds for Windows
 to release its native files before removing them; persistent locks remain errors.
+The installation host's running-process check and rollback cleanup are scoped to
+that installation's executable. Setup separately checks the legacy MSI executable
+before installing, and migration checks it again before invoking Windows Installer.
+An unrelated Hub does not block recovery or uninstall of the current installation.
+Ordinary process tests use isolated temporary installations and never require a
+developer to close their installed Hub. The opt-in MSI acceptance test still
+requires a clean, dedicated installation scope.
 The backup is removed only after confirmation. Interrupted transactions recover
 from the journal on the next setup or Hub start. If the backup cannot be
 verified, both copies are preserved and the UI offers diagnostics; it does not

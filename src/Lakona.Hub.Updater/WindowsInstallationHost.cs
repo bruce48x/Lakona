@@ -7,7 +7,8 @@ using System.Runtime.InteropServices;
 
 namespace Lakona.Hub.Updater;
 
-internal sealed partial class WindowsInstallationHost(InstallationPaths paths) : IInstallationHost
+internal sealed partial class WindowsInstallationHost(InstallationPaths paths,
+    Func<IEnumerable<string>>? runningHubExecutables = null) : IInstallationHost
 {
     private const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Lakona.Hub.User";
     private Process? launched;
@@ -72,16 +73,27 @@ internal sealed partial class WindowsInstallationHost(InstallationPaths paths) :
         }
     }
 
-    public void EnsureClosed()
+    public void EnsureClosed() => EnsureExecutableClosed(paths.Executable,
+        (runningHubExecutables ?? EnumerateHubExecutables)());
+
+    public static void EnsureLegacyClosed() => EnsureExecutableClosed(
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Lakona Hub", "Lakona.Hub.exe"),
+        EnumerateHubExecutables());
+
+    private static void EnsureExecutableClosed(string target, IEnumerable<string> executables)
+    {
+        if (executables.Any(executable => string.Equals(executable, target, StringComparison.OrdinalIgnoreCase)))
+            throw new IOException("Close Lakona Hub before continuing.");
+    }
+
+    private static IEnumerable<string> EnumerateHubExecutables()
     {
         foreach (var process in Process.GetProcessesByName("Lakona.Hub"))
         {
             using (process)
             {
                 var executable = process.HasExited ? null : process.MainModule?.FileName;
-                var legacy = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Lakona Hub", "Lakona.Hub.exe");
-                if (string.Equals(executable, paths.Executable, StringComparison.OrdinalIgnoreCase) || string.Equals(executable, legacy, StringComparison.OrdinalIgnoreCase))
-                    throw new IOException("Close Lakona Hub before continuing.");
+                if (executable is not null) yield return executable;
             }
         }
     }
@@ -122,12 +134,14 @@ internal sealed partial class WindowsInstallationHost(InstallationPaths paths) :
     public static bool HasLegacyMsi() => LegacyProduct() is not null;
 
     public Task<bool> RemoveLegacyMsiAsync() => RemoveLegacyMsiAsync(LegacyProduct, UninstallLegacyMsiAsync,
-        () => Register(SignedPackage.Release().ReadInstalledManifest(paths.Application).Version));
+        () => Register(SignedPackage.Release().ReadInstalledManifest(paths.Application).Version), EnsureLegacyClosed);
 
-    internal static async Task<bool> RemoveLegacyMsiAsync(Func<string?> findProduct, Func<string, Task<int>> uninstall, Action register)
+    internal static async Task<bool> RemoveLegacyMsiAsync(Func<string?> findProduct, Func<string, Task<int>> uninstall, Action register,
+        Action ensureLegacyClosed)
     {
         var product = findProduct();
         if (product is null) return true;
+        ensureLegacyClosed();
         if (await uninstall(product) is not 0 and not 3010) return false;
         register();
         return findProduct() is null;

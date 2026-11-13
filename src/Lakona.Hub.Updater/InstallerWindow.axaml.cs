@@ -138,6 +138,7 @@ public sealed partial class InstallerWindow : Window
             else if (Program.Arguments.Contains("--uninstall")) await Task.Run(transaction.UninstallAsync);
             else
             {
+                WindowsInstallationHost.EnsureLegacyClosed();
                 var archive = Program.Option("--package") ?? throw new InvalidOperationException(Text("请运行完整的 Lakona Hub 安装包。", "Please run the complete Lakona Hub setup package."));
                 await Task.Run(() => transaction.InstallAsync(archive, repair: true, reporter, cancellation.Token));
             }
