@@ -11,6 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <CompilerVisibleProperty Include="LakonaRpcGeneratedNamespace" />
+    <InternalsVisibleTo Include="FrameworkBenchmark.Lakona.Tests" />
     <AssemblyMetadata Include="BenchmarkRevision" Value="$(BenchmarkRevision)" />
   </ItemGroup>
   <ItemGroup>

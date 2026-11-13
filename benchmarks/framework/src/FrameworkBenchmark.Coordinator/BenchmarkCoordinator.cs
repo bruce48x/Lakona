@@ -189,19 +189,33 @@ public sealed class BenchmarkCoordinator
 
         try
         {
+            using var startup = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            startup.CancelAfter(benchmarkCase.Timing.StartupTimeoutMilliseconds);
             foreach (var server in manifest.Servers)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (startup.IsCancellationRequested)
+                    throw new BenchmarkToolException($"Case '{benchmarkCase.Id}' exceeded its startup budget before starting '{server.Role}'.");
                 var process = ManagedServerProcess.Start(
                     CommandTemplateExpander.Expand(server.Command, placeholders),
                     adapterRoot,
                     server.Role,
                     Path.Combine(runDirectory, "logs", $"{safeCaseId}-{server.Role}.stdout.log"),
                     Path.Combine(runDirectory, "logs", $"{safeCaseId}-{server.Role}.stderr.log"),
-                    server.Shutdown is null ? null : CommandTemplateExpander.Expand(server.Shutdown, placeholders));
+                    server.Shutdown is null ? null : CommandTemplateExpander.Expand(server.Shutdown, placeholders),
+                    TimeSpan.FromMilliseconds(benchmarkCase.Timing.ShutdownTimeoutMilliseconds));
                 servers.Add(process);
-                var readyEndpoints = await process.WaitForReadyAsync(
-                    TimeSpan.FromMilliseconds(benchmarkCase.Timing.ReadinessTimeoutMilliseconds),
-                    cancellationToken).ConfigureAwait(false);
+                IReadOnlyDictionary<string, string> readyEndpoints;
+                try
+                {
+                    readyEndpoints = await process.WaitForReadyAsync(
+                        TimeSpan.FromMilliseconds(benchmarkCase.Timing.ReadinessTimeoutMilliseconds),
+                        startup.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+                {
+                    throw new BenchmarkToolException($"Case '{benchmarkCase.Id}' exceeded its startup budget while starting '{server.Role}'.", ex);
+                }
                 foreach (var endpoint in readyEndpoints)
                 {
                     if (!endpoints.TryAdd(endpoint.Key, endpoint.Value))

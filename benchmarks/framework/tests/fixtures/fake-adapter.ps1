@@ -21,6 +21,9 @@ if ($Mode -in @("prepare", "shutdown")) {
     New-Item -ItemType Directory -Force -Path $pidDirectory | Out-Null
     Set-Content -LiteralPath $PidFile -Value $PID -NoNewline
     if ($Mode -eq "shutdown" -and $behavior -eq "shutdown-failure") { exit 31 }
+    if ($Mode -eq "shutdown" -and $behavior -eq "shutdown-hang") {
+        while ($true) { Start-Sleep -Milliseconds 100 }
+    }
     exit 0
 }
 
@@ -46,6 +49,7 @@ if ($Mode -eq "server") {
         }
     }
 
+    if ($behavior -eq "slow-ready") { Start-Sleep -Milliseconds 3000 }
     $ready = [ordered]@{
         event = "ready"
         role = $Role

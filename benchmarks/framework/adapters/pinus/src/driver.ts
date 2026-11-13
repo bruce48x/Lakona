@@ -23,6 +23,7 @@ interface CaseCommand {
     warmupMilliseconds: number;
     measurementMilliseconds: number;
     requestTimeoutMilliseconds: number;
+    drainTimeoutMilliseconds: number;
   };
   histogram: {
     unit: string;
@@ -35,6 +36,7 @@ interface CaseCommand {
 
 class TimeoutError extends Error {}
 class DisconnectError extends Error {}
+class DrainCanceledError extends Error {}
 
 if (require.main === module) {
   main().catch(error => {
@@ -62,11 +64,8 @@ async function main(): Promise<void> {
       await Promise.all(clients.map(client => warmup(client, command, ids, warmupEnd)));
     }
 
-    const accumulator = new Accumulator(command);
-    const measurementEnd = process.hrtime.bigint() +
-      (BigInt(command.timing.measurementMilliseconds) * 1_000_000n);
-    await Promise.all(clients.map(client => measure(client, command, ids, accumulator, measurementEnd)));
-    writeFileSync(resultPath, `${JSON.stringify(accumulator.result(command), null, 2)}\n`);
+    const result = await measureClients(clients, command, ids);
+    writeFileSync(resultPath, `${JSON.stringify(result, null, 2)}\n`);
   } finally {
     for (const client of clients) {
       client.disconnect();
@@ -131,12 +130,21 @@ async function warmup(
   }
 }
 
+export async function measureClients(clients: PomeloClient[], command: CaseCommand, ids = { value: 0 }): Promise<object> {
+  const accumulator = new Accumulator(command);
+  const end = process.hrtime.bigint() + BigInt(command.timing.measurementMilliseconds) * 1_000_000n;
+  const drainEnd = end + BigInt(command.timing.drainTimeoutMilliseconds) * 1_000_000n;
+  await Promise.all(clients.map(client => measure(client, command, ids, accumulator, end, drainEnd)));
+  return accumulator.result(command);
+}
+
 async function measure(
   client: PomeloClient,
   command: CaseCommand,
   ids: { value: number },
   accumulator: Accumulator,
-  end: bigint): Promise<void> {
+  end: bigint,
+  drainEnd: bigint): Promise<void> {
   while (process.hrtime.bigint() < end) {
     const requestId = ++ids.value;
     const payload = createPayload(command.seed, requestId, command.payloadSize);
@@ -148,7 +156,8 @@ async function measure(
         { requestId, payload, targetKey: targetKey(requestId) },
         command.timing.requestTimeoutMilliseconds,
         () => accumulator.duplicateResponses++,
-        routeFor(command.workload));
+        routeFor(command.workload),
+        drainEnd);
       accumulator.recordLatency(Number((process.hrtime.bigint() - started + 999n) / 1_000n));
       accumulator.completed++;
       switch (classifyResponse(response, requestId, payload, terminalNodeFor(command.workload, requestId))) {
@@ -158,7 +167,9 @@ async function measure(
         case "succeeded": accumulator.succeeded++; break;
       }
     } catch (error) {
-      if (error instanceof TimeoutError) {
+      if (error instanceof DrainCanceledError) {
+        accumulator.canceledAtDrain++;
+      } else if (error instanceof TimeoutError) {
         accumulator.timedOut++;
       } else {
         accumulator.disconnected++;
@@ -173,11 +184,23 @@ export function request(
   message: object,
   timeoutMilliseconds: number,
   onLateResponse: () => void = () => undefined,
-  route = "connector.echoHandler.echo"): Promise<any> {
+  route = "connector.echoHandler.echo",
+  drainEnd?: bigint): Promise<any> {
   return new Promise((accept, reject) => {
     let settled = false;
+    let expiredAtDrain = false;
     const onDisconnect = () => finish(() => reject(new DisconnectError("Pinus client disconnected.")));
-    const timer = setTimeout(() => finish(() => reject(new TimeoutError("Pinus request timed out."))), timeoutMilliseconds);
+    const now = process.hrtime.bigint();
+    const requestEnd = now + BigInt(timeoutMilliseconds) * 1_000_000n;
+    const canceledAtDrain = drainEnd !== undefined && drainEnd <= requestEnd;
+    const deadline = canceledAtDrain ? drainEnd! : requestEnd;
+    const expire = () => finish(() => {
+      expiredAtDrain = canceledAtDrain;
+      reject(canceledAtDrain
+        ? new DrainCanceledError("Pinus drain deadline reached.")
+        : new TimeoutError("Pinus request timed out."));
+    });
+    const timer = setTimeout(expire, Math.max(0, Number(deadline - now) / 1_000_000));
     const finish = (action: () => void) => {
       if (settled) {
         return false;
@@ -188,9 +211,13 @@ export function request(
       action();
       return true;
     };
+    if (deadline <= now) {
+      expire();
+      return;
+    }
     client.once("disconnect", onDisconnect);
     client.request(route, message, response => {
-      if (!finish(() => accept(response))) {
+      if (!finish(() => accept(response)) && !expiredAtDrain) {
         onLateResponse();
       }
     });
@@ -251,6 +278,7 @@ class Accumulator {
   public misrouted = 0;
   public timedOut = 0;
   public disconnected = 0;
+  public canceledAtDrain = 0;
   public duplicateResponses = 0;
   private maximum = 0;
   private readonly buckets = new Map<number, number>();
@@ -282,7 +310,7 @@ class Accumulator {
         misrouted: this.misrouted,
         timedOut: this.timedOut,
         disconnected: this.disconnected,
-        canceledAtDrain: 0,
+        canceledAtDrain: this.canceledAtDrain,
         duplicateResponses: this.duplicateResponses
       },
       histogram: {

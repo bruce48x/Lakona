@@ -129,6 +129,77 @@ public sealed class FakeAdapterIntegrationTests
         Assert.Equal("incomplete", BenchmarkJson.Read<RunManifest>(Path.Combine(runDirectory, "run-manifest.json")).Status);
     }
 
+    [Theory]
+    [InlineData(1000, 30000, "startup budget")]
+    [InlineData(30000, 1000, "did not become ready")]
+    public async Task StartupAndReadinessBudgetsAreBothEnforced(int startup, int readiness, string expected)
+    {
+        using var fixture = new TemporaryFixture();
+        var timing = SuiteExpanderTests.CreateSuite().Timing with
+        {
+            StartupTimeoutMilliseconds = startup, ReadinessTimeoutMilliseconds = readiness,
+            ShutdownTimeoutMilliseconds = 5000
+        };
+        var error = await Assert.ThrowsAsync<BenchmarkToolException>(() => new BenchmarkCoordinator().RunAsync(
+            new CoordinatorOptions(fixture.WriteSuite(timing), [fixture.WriteManifest("never-ready", "normal")], fixture.OutputRoot),
+            TestContext.Current.CancellationToken));
+        Assert.Contains(expected, error.Message, StringComparison.Ordinal);
+        AssertOwnedProcessesStopped(fixture.OutputRoot);
+    }
+
+    [Fact]
+    public async Task StartupBudgetIsSharedAcrossServers()
+    {
+        using var fixture = new TemporaryFixture();
+        var manifestPath = fixture.WriteManifest("slow-ready", "normal");
+        var manifest = BenchmarkJson.Read<AdapterManifest>(manifestPath);
+        var first = manifest.Servers[0];
+        var second = first with
+        {
+            Role = "second",
+            Ports = ["secondPort"],
+            Command = first.Command with
+            {
+                Arguments = first.Command.Arguments.Select(value => value == "frontdoor" ? "second" :
+                    value.Replace("fake-server.pid", "second-server.pid", StringComparison.Ordinal)
+                        .Replace("${clientPort}", "${secondPort}", StringComparison.Ordinal)).ToArray()
+            }
+        };
+        BenchmarkJson.Write(manifestPath, manifest with { Servers = [first, second] });
+        var timing = SuiteExpanderTests.CreateSuite().Timing with
+        {
+            StartupTimeoutMilliseconds = 5000, ReadinessTimeoutMilliseconds = 30000,
+            ShutdownTimeoutMilliseconds = 5000
+        };
+        var error = await Assert.ThrowsAsync<BenchmarkToolException>(() => new BenchmarkCoordinator().RunAsync(
+            new CoordinatorOptions(fixture.WriteSuite(timing), [manifestPath], fixture.OutputRoot),
+            TestContext.Current.CancellationToken));
+        Assert.Contains("startup budget", error.Message, StringComparison.Ordinal);
+        Assert.Contains("second", error.Message, StringComparison.Ordinal);
+        AssertOwnedProcessesStopped(fixture.OutputRoot);
+    }
+
+    [Fact]
+    public async Task ShutdownBudgetStopsSlowCommandAndStillReclaimsServer()
+    {
+        using var fixture = new TemporaryFixture();
+        var watch = Stopwatch.StartNew();
+        var error = await Assert.ThrowsAsync<AggregateException>(() => new BenchmarkCoordinator().RunAsync(
+            new CoordinatorOptions(fixture.WriteSuite(), [fixture.WriteManifest("normal", "normal", "shutdown-hang")], fixture.OutputRoot),
+            TestContext.Current.CancellationToken));
+        Assert.Contains("exceeded timeout 00:00:01", error.ToString(), StringComparison.Ordinal);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(12), error.ToString());
+        AssertOwnedProcessesStopped(fixture.OutputRoot);
+    }
+
+    private static void AssertOwnedProcessesStopped(string root)
+    {
+        foreach (var path in Directory.GetFiles(root, "*.pid", SearchOption.AllDirectories))
+            Assert.True(ProcessHasExited(int.Parse(File.ReadAllText(path), System.Globalization.CultureInfo.InvariantCulture)), path);
+        var runDirectory = Assert.Single(Directory.GetDirectories(root));
+        Assert.Equal("incomplete", BenchmarkJson.Read<RunManifest>(Path.Combine(runDirectory, "run-manifest.json")).Status);
+    }
+
     private static bool ProcessHasExited(int pid)
     {
         try
@@ -154,10 +225,11 @@ public sealed class FakeAdapterIntegrationTests
 
         public string OutputRoot => Path.Combine(root, "output");
 
-        public string WriteSuite()
+        public string WriteSuite(SuiteTiming? timing = null)
         {
             var path = Path.Combine(root, "suite.json");
-            BenchmarkJson.Write(path, SuiteExpanderTests.CreateSuite());
+            var suite = SuiteExpanderTests.CreateSuite();
+            BenchmarkJson.Write(path, timing is null ? suite : suite with { Timing = timing });
             return path;
         }
 

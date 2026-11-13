@@ -149,6 +149,24 @@ tree. Cleanup attempts every server in reverse startup order and fails the run
 if resource release fails. Abrupt termination of the coordinator itself is
 outside this cleanup guarantee.
 
+Timing values in each suite are executable budgets. `startupTimeoutMilliseconds`
+covers the complete server group from its first start through final readiness;
+`readinessTimeoutMilliseconds` additionally limits each server's readiness wait.
+Preparation runs separately. After measurement ends, drivers stop issuing requests
+and allow outstanding requests until the common `drainTimeoutMilliseconds`
+deadline. Each request uses the earlier of its own timeout and that deadline;
+drain cancellation is recorded as `canceledAtDrain`, separately from `timedOut`.
+Requests finishing during drain still count as completed. Native clients are
+released after outstanding calls settle; late replies cannot become successes.
+
+`shutdownTimeoutMilliseconds` limits each server's optional shutdown command,
+including on startup failure or cancellation. Expiration fails the run but does
+not skip the remaining cleanup. Each owned command/server process then has a
+separate five-second forced-cleanup grace for termination and output draining.
+Output reads are cancellable, cleanup failures are reported with the original
+failure, and remaining servers are still cleaned in reverse order. A forced
+cleanup failure is never reported as successful resource release.
+
 ### Load Generator
 
 The load policy, case command, histogram contract, and result schema are

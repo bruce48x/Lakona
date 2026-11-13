@@ -5,6 +5,7 @@ const {
   classifyResponse,
   createPayload,
   quantizeUpperBound,
+  measureClients,
   request
 } = require("../dist/driver");
 const { ownerNumber, targetKey, workerNode } = require("../dist/routing");
@@ -78,3 +79,47 @@ class FakeClient extends EventEmitter {
     this.callback(value);
   }
 }
+
+const command = (requestTimeoutMilliseconds, drainTimeoutMilliseconds) => ({
+  schemaVersion: "1", caseId: "test", framework: "pinus", workload: "frontdoor.echo",
+  payloadSize: 32, concurrency: 2, connectionCount: 2, seed: 7,
+  timing: { warmupMilliseconds: 0, measurementMilliseconds: 100, requestTimeoutMilliseconds, drainTimeoutMilliseconds },
+  histogram: { unit: "microseconds", lowestDiscernibleValue: 1, highestTrackableValue: 60000000, significantDigits: 3 },
+  endpoints: {}
+});
+
+for (const drain of [true, false]) {
+  test(`outstanding calls use the earlier ${drain ? "drain" : "request"} deadline`, { timeout: 5000 }, async () => {
+    const clients = [new FakeClient(), new FakeClient()];
+    const result = await measureClients(clients, command(drain ? 10000 : 50, drain ? 50 : 10000));
+    assert.equal(result.outcomes.started, 2);
+    assert.equal(result.outcomes.canceledAtDrain, drain ? 2 : 0);
+    assert.equal(result.outcomes.timedOut, drain ? 0 : 2);
+    assert.equal(result.outcomes.disconnected, 0);
+    assert.equal(result.outcomes.completed, 0);
+    assert.equal(result.histogram.totalCount, 0);
+    clients.forEach(client => assert.equal(client.listenerCount("disconnect"), 0));
+  });
+}
+
+test("response during drain still completes normally", { timeout: 5000 }, async () => {
+  const client = new FakeClient();
+  client.request = (_route, message, callback) => setTimeout(() => callback({
+    ...message, terminalNode: "connector-server-1"
+  }), 250);
+  const result = await measureClients([client], command(10000, 10000));
+  assert.equal(result.outcomes.started, 1);
+  assert.equal(result.outcomes.succeeded, 1);
+  assert.equal(result.outcomes.canceledAtDrain, 0);
+  assert.equal(result.histogram.totalCount, 1);
+});
+
+test("drain cancellation detaches listeners and ignores a late response", { timeout: 5000 }, async () => {
+  const client = new FakeClient();
+  let duplicates = 0;
+  await assert.rejects(request(client, {}, 10000, () => duplicates++, undefined,
+    process.hrtime.bigint() + 20_000_000n), error => error.constructor.name === "DrainCanceledError");
+  assert.equal(client.listenerCount("disconnect"), 0);
+  client.respond({ ok: true });
+  assert.equal(duplicates, 0);
+});

@@ -29,8 +29,10 @@ internal static class ProcessCommandRunner
         {
             await using var stdoutLog = new StreamWriter(stdoutLogPath, append: false) { AutoFlush = true };
             await using var stderrLog = new StreamWriter(stderrLogPath, append: false) { AutoFlush = true };
-            var stdoutPump = PumpAsync(process.StandardOutput, stdoutLog);
-            var stderrPump = PumpAsync(process.StandardError, stderrLog);
+            using var outputCancellation = new CancellationTokenSource();
+            var stdoutPump = PumpAsync(process.StandardOutput, stdoutLog, outputCancellation.Token);
+            var stderrPump = PumpAsync(process.StandardError, stderrLog, outputCancellation.Token);
+            Exception? commandError = null;
 
             try
             {
@@ -38,38 +40,44 @@ internal static class ProcessCommandRunner
             }
             catch (TimeoutException ex)
             {
-                if (!process.HasExited)
-                {
-                    process.Kill(entireProcessTree: true);
-                    await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
-                }
-
-                throw new BenchmarkToolException($"Driver '{command.FileName}' exceeded timeout {timeout}.", ex);
+                commandError = new BenchmarkToolException($"Command '{command.FileName}' exceeded timeout {timeout}.", ex);
+                throw commandError;
             }
-            catch
-            {
-                if (!process.HasExited)
-                {
-                    process.Kill(entireProcessTree: true);
-                    await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
-                }
-
-                throw;
-            }
+            catch (Exception ex) { commandError = ex; throw; }
             finally
             {
-                await Task.WhenAll(stdoutPump, stderrPump).ConfigureAwait(false);
+                try { await FinishAsync(process, stdoutPump, stderrPump, outputCancellation).ConfigureAwait(false); }
+                catch (Exception cleanupError) when (commandError is not null)
+                {
+                    throw new AggregateException("Benchmark command and cleanup failed.", commandError, cleanupError);
+                }
             }
 
             return process.ExitCode;
         }
     }
 
-    private static async Task PumpAsync(StreamReader reader, StreamWriter writer)
+    // A separate, finite cleanup grace still applies after a phase budget expires.
+    internal static async Task FinishAsync(Process process, Task stdoutPump, Task stderrPump,
+        CancellationTokenSource outputCancellation)
     {
-        while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
+        outputCancellation.CancelAfter(TimeSpan.FromSeconds(5));
+        var errors = new List<Exception>();
+        try
         {
-            await writer.WriteLineAsync(line).ConfigureAwait(false);
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(outputCancellation.Token).ConfigureAwait(false);
         }
+        catch (Exception ex) { errors.Add(ex); }
+        try { await Task.WhenAll(stdoutPump, stderrPump).ConfigureAwait(false); }
+        catch (Exception ex) { errors.Add(ex); }
+        if (errors.Count > 0)
+            throw new AggregateException("Benchmark process or output cleanup failed within its five-second grace.", errors);
+    }
+
+    private static async Task PumpAsync(StreamReader reader, StreamWriter writer, CancellationToken cancellationToken)
+    {
+        while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+            await writer.WriteLineAsync(line.AsMemory(), cancellationToken).ConfigureAwait(false);
     }
 }

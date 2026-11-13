@@ -35,17 +35,10 @@ internal static class DriverProgram
             {
                 var requestIds = new RequestIdSource();
                 await RunWarmupAsync(clients, command, requestIds);
-                var accumulator = new ResultAccumulator(command.Histogram);
-                var measurementStart = Stopwatch.GetTimestamp();
-                var measurementEnd = measurementStart + ToStopwatchTicks(command.Timing.MeasurementMilliseconds);
-                await Task.WhenAll(clients.Select(client => RunMeasurementWorkerAsync(
-                    client,
-                    command,
-                    requestIds,
-                    accumulator,
-                    measurementEnd)));
-
-                var result = accumulator.CreateResult(command);
+                var calls = clients.Select(client =>
+                    new Func<EchoRequest, CancellationToken, ValueTask<EchoResponse>>((request, token) =>
+                        SendAsync(client, command.Workload, request, token))).ToArray();
+                var result = await MeasureAsync(command, calls, requestIds);
                 BenchmarkJson.Write(resultPath, result);
                 return 0;
             }
@@ -87,6 +80,20 @@ internal static class DriverProgram
         }
     }
 
+    internal static async Task<CaseResult> MeasureAsync(
+        CaseCommand command,
+        IReadOnlyList<Func<EchoRequest, CancellationToken, ValueTask<EchoResponse>>> calls,
+        RequestIdSource? requestIds = null)
+    {
+        requestIds ??= new RequestIdSource();
+        var accumulator = new ResultAccumulator(command.Histogram);
+        var end = Stopwatch.GetTimestamp() + ToStopwatchTicks(command.Timing.MeasurementMilliseconds);
+        var drainEnd = end + ToStopwatchTicks(command.Timing.DrainTimeoutMilliseconds);
+        await Task.WhenAll(calls.Select(call => RunMeasurementWorkerAsync(
+            call, command, requestIds, accumulator, end, drainEnd)));
+        return accumulator.CreateResult(command);
+    }
+
     private static Task RunWarmupAsync(
         IReadOnlyList<LakonaGameClient> clients,
         CaseCommand command,
@@ -111,7 +118,9 @@ internal static class DriverProgram
         {
             var requestId = requestIds.Next();
             var payload = PayloadGenerator.Create(command.Seed, requestId, command.PayloadSize);
-            var response = await CallAsync(client, command, requestId, payload);
+            var response = await CallAsync(
+                (request, token) => SendAsync(client, command.Workload, request, token),
+                command, requestId, payload, long.MaxValue);
             if (!IsValid(response, requestId, payload, ExpectedTerminalNode(command.Workload, requestId)))
             {
                 throw new InvalidDataException("Lakona returned an invalid response during warm-up.");
@@ -120,11 +129,12 @@ internal static class DriverProgram
     }
 
     private static async Task RunMeasurementWorkerAsync(
-        LakonaGameClient client,
+        Func<EchoRequest, CancellationToken, ValueTask<EchoResponse>> call,
         CaseCommand command,
         RequestIdSource requestIds,
         ResultAccumulator accumulator,
-        long end)
+        long end,
+        long drainEnd)
     {
         while (Stopwatch.GetTimestamp() < end)
         {
@@ -134,7 +144,7 @@ internal static class DriverProgram
             var started = Stopwatch.GetTimestamp();
             try
             {
-                var response = await CallAsync(client, command, requestId, payload);
+                var response = await CallAsync(call, command, requestId, payload, drainEnd);
                 accumulator.Completed(ToMicroseconds(Stopwatch.GetTimestamp() - started));
                 switch (EchoResponseClassifier.Classify(
                     response,
@@ -146,6 +156,11 @@ internal static class DriverProgram
                     case EchoResponseOutcome.Misrouted: accumulator.Misrouted(); break;
                     case EchoResponseOutcome.Succeeded: accumulator.Succeeded(); break;
                 }
+            }
+            catch (DrainCanceledException)
+            {
+                accumulator.CanceledAtDrain();
+                break;
             }
             catch (TimeoutException)
             {
@@ -166,10 +181,11 @@ internal static class DriverProgram
     }
 
     private static async Task<EchoResponse> CallAsync(
-        LakonaGameClient client,
+        Func<EchoRequest, CancellationToken, ValueTask<EchoResponse>> call,
         CaseCommand command,
         long requestId,
-        byte[] payload)
+        byte[] payload,
+        long drainEnd)
     {
         var request = new EchoRequest
         {
@@ -177,14 +193,38 @@ internal static class DriverProgram
             Payload = payload,
             TargetKey = BenchmarkRouting.TargetKey(requestId)
         };
-        var call = command.Workload switch
+        var requestEnd = Stopwatch.GetTimestamp() + ToStopwatchTicks(command.Timing.RequestTimeoutMilliseconds);
+        var canceledAtDrain = drainEnd <= requestEnd;
+        var deadline = Math.Min(requestEnd, drainEnd);
+        using var timeout = new CancellationTokenSource();
+        var remaining = Stopwatch.GetElapsedTime(Stopwatch.GetTimestamp(), deadline);
+        if (remaining <= TimeSpan.Zero) timeout.Cancel();
+        else timeout.CancelAfter(remaining);
+        try
         {
-            "cluster.direct" => client.Api.Benchmark.Echo.DirectAsync(request),
-            "cluster.routed" => client.Api.Benchmark.Echo.RoutedAsync(request),
-            _ => client.Api.Benchmark.Echo.EchoAsync(request)
+            timeout.Token.ThrowIfCancellationRequested();
+            return await call(request, timeout.Token);
+        }
+        catch (OperationCanceledException ex) when (timeout.IsCancellationRequested)
+        {
+            if (canceledAtDrain) throw new DrainCanceledException(ex);
+            throw new TimeoutException("Lakona request timed out.", ex);
+        }
+    }
+
+    private sealed class DrainCanceledException(Exception inner)
+        : OperationCanceledException("Lakona drain deadline reached.", inner);
+
+    private static ValueTask<EchoResponse> SendAsync(
+        LakonaGameClient client, string workload, EchoRequest request, CancellationToken token)
+    {
+        var service = (EchoServiceClient)client.Api.Benchmark.Echo;
+        return workload switch
+        {
+            "cluster.direct" => service.DirectAsync(request, token),
+            "cluster.routed" => service.RoutedAsync(request, token),
+            _ => service.EchoAsync(request, token)
         };
-        return await call.AsTask().WaitAsync(
-            TimeSpan.FromMilliseconds(command.Timing.RequestTimeoutMilliseconds));
     }
 
     private static string ExpectedTerminalNode(string workload, long requestId) => workload switch
@@ -213,7 +253,7 @@ internal static class DriverProgram
             : throw new ArgumentException($"{name} <path> is required.");
     }
 
-    private sealed class RequestIdSource
+    internal sealed class RequestIdSource
     {
         private long current;
 
@@ -232,6 +272,7 @@ internal static class DriverProgram
         private long misrouted;
         private long timedOut;
         private long disconnected;
+        private long canceledAtDrain;
         private long maximum;
 
         public ResultAccumulator(HistogramConfiguration configuration)
@@ -246,6 +287,7 @@ internal static class DriverProgram
         public void Misrouted() => Interlocked.Increment(ref misrouted);
         public void TimedOut() => Interlocked.Increment(ref timedOut);
         public void Disconnected() => Interlocked.Increment(ref disconnected);
+        public void CanceledAtDrain() => Interlocked.Increment(ref canceledAtDrain);
 
         public void Completed(long microseconds)
         {
@@ -270,7 +312,7 @@ internal static class DriverProgram
                 misrouted,
                 timedOut,
                 disconnected,
-                0,
+                canceledAtDrain,
                 0);
             var histogramBuckets = buckets
                 .OrderBy(static pair => pair.Key)
