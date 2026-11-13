@@ -24,15 +24,24 @@ public sealed class LakonaTestMembershipViewControl
         CancellationToken cancellationToken = default) =>
         GetNode(nodeId).WaitUntilBehindAsync(cancellationToken);
 
-    /// <summary>Returns how many Membership waiters are currently held by the pause.</summary>
-    public int GetBlockedWaiterCount(string nodeId) => GetNode(nodeId).BlockedWaiterCount;
+    /// <summary>
+    /// Returns the cumulative number of waits that reached a newer Membership view
+    /// hidden by the current or most recent pause. Canceled waits remain counted,
+    /// and Resume preserves the count; the next Pause resets it to zero.
+    /// This is an arrival count, not the number of currently blocked waiters.
+    /// </summary>
+    public int GetBlockedWaiterCount(string nodeId) => GetNode(nodeId).WaiterArrivalCount;
 
-    /// <summary>Waits until at least <paramref name="minimum"/> Membership waiters are held.</summary>
+    /// <summary>
+    /// While the node is paused, waits until at least <paramref name="minimum"/>
+    /// waits have reached a newer Membership view hidden by this pause, including
+    /// waits that subsequently canceled. Each Pause starts the count at zero.
+    /// </summary>
     public Task WaitForBlockedWaiterCountAsync(
         string nodeId,
         int minimum,
         CancellationToken cancellationToken = default) =>
-        GetNode(nodeId).WaitForBlockedWaiterCountAsync(minimum, cancellationToken);
+        GetNode(nodeId).WaitForWaiterArrivalCountAsync(minimum, cancellationToken);
 
     internal void ConfigureNode(IServiceCollection services, string nodeId)
     {
@@ -146,18 +155,18 @@ public sealed class LakonaTestMembershipViewControl
         private readonly object gate = new();
         private bool paused;
         private ClusterMembershipSnapshot? visible;
-        private int blockedWaiters;
+        private int waiterArrivals;
         private TaskCompletionSource behind = NewCompletion();
         private TaskCompletionSource resumed = NewCompletion();
-        private TaskCompletionSource blockedWaiterChanged = NewCompletion();
+        private TaskCompletionSource waiterArrived = NewCompletion();
 
-        internal int BlockedWaiterCount
+        internal int WaiterArrivalCount
         {
             get
             {
                 lock (gate)
                 {
-                    return blockedWaiters;
+                    return waiterArrivals;
                 }
             }
         }
@@ -179,10 +188,10 @@ public sealed class LakonaTestMembershipViewControl
                 }
 
                 paused = true;
-                blockedWaiters = 0;
+                waiterArrivals = 0;
                 behind = NewCompletion();
                 resumed = NewCompletion();
-                blockedWaiterChanged = NewCompletion();
+                waiterArrived = NewCompletion();
             }
         }
 
@@ -238,7 +247,7 @@ public sealed class LakonaTestMembershipViewControl
         internal Task? BlockOn(ClusterMembershipSnapshot observed)
         {
             TaskCompletionSource behindCompletion;
-            TaskCompletionSource waiterCompletion;
+            TaskCompletionSource arrivalCompletion;
             Task resume;
             lock (gate)
             {
@@ -253,15 +262,15 @@ public sealed class LakonaTestMembershipViewControl
                     return resumed.Task;
                 }
 
-                blockedWaiters++;
+                waiterArrivals++;
                 behindCompletion = behind;
-                waiterCompletion = blockedWaiterChanged;
-                blockedWaiterChanged = NewCompletion();
+                arrivalCompletion = waiterArrived;
+                waiterArrived = NewCompletion();
                 resume = resumed.Task;
             }
 
             behindCompletion.TrySetResult();
-            waiterCompletion.TrySetResult();
+            arrivalCompletion.TrySetResult();
             return resume;
         }
 
@@ -279,7 +288,7 @@ public sealed class LakonaTestMembershipViewControl
             }
         }
 
-        internal async Task WaitForBlockedWaiterCountAsync(
+        internal async Task WaitForWaiterArrivalCountAsync(
             int minimum,
             CancellationToken cancellationToken)
         {
@@ -299,12 +308,12 @@ public sealed class LakonaTestMembershipViewControl
                             $"Membership view observation is not paused for node '{nodeId}'.");
                     }
 
-                    if (blockedWaiters >= minimum)
+                    if (waiterArrivals >= minimum)
                     {
                         return;
                     }
 
-                    changed = blockedWaiterChanged.Task;
+                    changed = waiterArrived.Task;
                 }
 
                 await changed.WaitAsync(cancellationToken).ConfigureAwait(false);

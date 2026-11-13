@@ -822,12 +822,18 @@ independently instead of assuming every network failure is symmetric.
 
 The Membership-view control can pause one node's observation while the shared
 table and other nodes advance. Tests can wait until the node is provably behind
-and until an expected number of Membership waiters are blocked before releasing
-the view. This creates deterministic request-during-propagation coverage rather
-than relying on scheduler timing to happen to expose the interval.
+and until an expected number of waits have reached a newer view hidden by the
+pause before releasing it. This creates deterministic request-during-propagation
+coverage rather than relying on scheduler timing to happen to expose the interval.
 Use `cluster.MembershipViews.Pause(nodeId)` and
 `WaitUntilBehindAsync(nodeId)` to enter that window; call `Resume(nodeId)` in a
 `finally` block so the test releases the paused observation even on failure.
+
+`GetBlockedWaiterCount(nodeId)` and `WaitForBlockedWaiterCountAsync(nodeId, minimum)`
+observe cumulative arrivals in that pause, not the number still blocked.
+Canceled waits remain counted, `Resume` preserves the count for inspection,
+and the next `Pause` resets it to zero. The threshold wait requires a paused
+node; use its cancellation token to bound a threshold that may never be reached.
 
 Convergence timeout diagnostics include every node's current Membership view
 and the directed links blocked by the test. During whole-cluster disposal,
