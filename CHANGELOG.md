@@ -4,15 +4,19 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-11-13 — Long-run load statistics
+## 2026-11-13 — Long-run statistics and notification isolation
 
-**Key releases:** `Lakona.Game.LoadTesting 0.2.0`.
+**Key releases:** `Lakona.Game.LoadTesting 0.2.0` and `Lakona.Game.Server 0.54.11`.
 
 - Operation and error counts now use 64-bit integers from recording through
   reporting, preventing negative counts and summary overflow beyond the 32-bit
   limit. The public summary records have breaking signature changes: recompile
   consumers and use `long` for operation counts. User counts and latency
   distribution semantics remain unchanged.
+- Remote notification batches are isolated by exact gateway and session, so a
+  slow recipient cannot hold unrelated sessions' delivery or response publication.
+  FIFO and resource budgets are preserved; cross-session fan-out uses more RPC
+  calls in exchange for isolation, without changing the wire protocol.
 
 ## 2026-11-12 — RPC reliability, Actor hotfix consistency and Hub setup
 

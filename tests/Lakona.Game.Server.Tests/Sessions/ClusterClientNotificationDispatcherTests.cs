@@ -5,6 +5,7 @@ using Lakona.Game.Server.Observability;
 using Lakona.Game.Server.Tests.Testing;
 using Lakona.Rpc.Core;
 using Xunit;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Lakona.Game.Server.Tests.Sessions;
 
@@ -31,7 +32,7 @@ public sealed class ClusterClientNotificationDispatcherTests
     }
 
     [Fact]
-    public async Task Batch_size_groups_commands_for_one_exact_gateway_without_coalescing()
+    public async Task Batch_size_groups_commands_for_one_exact_gateway_and_session_without_coalescing()
     {
         var client = new RecordingRpcClient();
         var factory = new RecordingClientFactory(client);
@@ -108,6 +109,37 @@ public sealed class ClusterClientNotificationDispatcherTests
         Payload = new byte[payloadBytes]
     };
 
+    [Theory]
+    [InlineData("owner")]
+    [InlineData("session")]
+    [InlineData("node")]
+    [InlineData("incarnation")]
+    public async Task Batch_boundaries_preserve_exact_gateway_and_session_identity(string difference)
+    {
+        var clock = new FakeTimeProvider();
+        var client = new RecordingRpcClient();
+        await using var dispatcher = new ClusterClientNotificationDispatcher(new RecordingClientFactory(client),
+            new ClientNotificationBatchOptions { Window = TimeSpan.FromSeconds(1) }, clock);
+        var target = CreateTarget("gateway-1", 1);
+        var otherTarget = difference switch
+        {
+            "node" => CreateTarget("gateway-2", 1),
+            "incarnation" => CreateTarget("gateway-1", 2),
+            _ => target
+        };
+        var first = CreateCommand("first");
+        var second = CreateCommand("second");
+        if (difference == "owner") second.OwnerKey = "other-owner";
+        if (difference == "session") second.SessionId = "other-session";
+        var firstCall = dispatcher.DispatchAsync(target, first, TestContext.Current.CancellationToken).AsTask();
+        var secondCall = dispatcher.DispatchAsync(otherTarget, second, TestContext.Current.CancellationToken).AsTask();
+        clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.All(await Task.WhenAll(firstCall, secondCall).WaitAsync(TestContext.Current.CancellationToken),
+            status => Assert.Equal(ClientNotificationStatus.Accepted, status));
+        Assert.Equal(2, client.Requests.Count);
+        Assert.All(client.Requests, request => Assert.Single(request.Commands));
+    }
+
     [Fact]
     public async Task Inflight_bytes_remain_reserved_after_caller_cancels_and_release_on_failure()
     {
@@ -151,6 +183,39 @@ public sealed class ClusterClientNotificationDispatcherTests
         client.BeforeReply = null;
         Assert.Equal(ClientNotificationStatus.Accepted, await dispatcher.DispatchAsync(
             CreateTarget("gateway-1", 1), command, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Shutdown_joins_inflight_and_pending_session_batches()
+    {
+        var clock = new FakeTimeProvider();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var exited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new RecordingRpcClient
+        {
+            BeforeReply = async ct =>
+            {
+                entered.TrySetResult();
+                try { await Task.Delay(Timeout.InfiniteTimeSpan, ct); }
+                finally { exited.TrySetResult(); }
+            }
+        };
+        await using var dispatcher = new ClusterClientNotificationDispatcher(new RecordingClientFactory(client),
+            new ClientNotificationBatchOptions { Window = TimeSpan.FromSeconds(1) }, clock);
+        var target = CreateTarget("gateway-1", 1);
+        var inflight = dispatcher.DispatchAsync(target, CreateCommand("inflight"), TestContext.Current.CancellationToken).AsTask();
+        clock.Advance(TimeSpan.FromSeconds(1));
+        await entered.Task.WaitAsync(TestContext.Current.CancellationToken);
+        var other = CreateCommand("pending");
+        other.OwnerKey = "other-player";
+        var pending = dispatcher.DispatchAsync(target, other, TestContext.Current.CancellationToken).AsTask();
+        await dispatcher.DisposeAsync().AsTask().WaitAsync(TestContext.Current.CancellationToken);
+        Assert.True(exited.Task.IsCompletedSuccessfully);
+        Assert.Equal(ClientNotificationStatus.Failed, await inflight);
+        Assert.Equal(ClientNotificationStatus.Failed, await pending);
+        Assert.Empty(client.Requests);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => dispatcher.DispatchAsync(target, other,
+            TestContext.Current.CancellationToken).AsTask());
     }
 
     private static RouteLocation CreateTarget(string node, int incarnation) => new(

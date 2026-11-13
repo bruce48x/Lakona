@@ -40,8 +40,9 @@ internal sealed class ClusterClientNotificationDispatcher :
 {
     private readonly IClusterClientFactory clientFactory;
     private readonly ClientNotificationBatchOptions options;
+    private readonly TimeProvider timeProvider;
     private readonly object gate = new();
-    private readonly Dictionary<GatewayKey, PendingBatch> batches = new();
+    private readonly Dictionary<BatchKey, PendingBatch> batches = new();
     private int disposed;
     private readonly HashSet<PendingBatch> outstanding = new();
     private readonly CancellationTokenSource shutdown = new();
@@ -50,9 +51,18 @@ internal sealed class ClusterClientNotificationDispatcher :
     public ClusterClientNotificationDispatcher(
         IClusterClientFactory clientFactory,
         ClientNotificationBatchOptions? options = null)
+        : this(clientFactory, options, TimeProvider.System)
+    {
+    }
+
+    internal ClusterClientNotificationDispatcher(
+        IClusterClientFactory clientFactory,
+        ClientNotificationBatchOptions? options,
+        TimeProvider timeProvider)
     {
         this.clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
         this.options = options ?? new ClientNotificationBatchOptions();
+        this.timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         this.options.Validate();
         byteBudget = new(this.options.MaximumPendingBytesPerSession, this.options.MaximumPendingBytesPerProcess);
     }
@@ -74,7 +84,8 @@ internal sealed class ClusterClientNotificationDispatcher :
         {
             ObjectDisposedException.ThrowIf(disposed != 0, this);
             var estimatedBytes = EstimateBytes(command);
-            var reservation = byteBudget.TryReserve(new GameSessionKey(command.OwnerKey, command.SessionId),
+            var session = new GameSessionKey(command.OwnerKey, command.SessionId);
+            var reservation = byteBudget.TryReserve(session,
                 ClientNotificationSize.RetainedBytes(command));
             if (reservation is null)
             {
@@ -84,7 +95,8 @@ internal sealed class ClusterClientNotificationDispatcher :
                 goto ExitLock;
             }
 
-            var key = GatewayKey.From(target);
+            // A batch has one reply barrier, so it must not couple unrelated sessions.
+            var key = BatchKey.From(target, session);
             if (!batches.TryGetValue(key, out var batch))
             {
                 batch = new PendingBatch(key, target);
@@ -150,7 +162,7 @@ internal sealed class ClusterClientNotificationDispatcher :
 
     private async Task FlushAfterWindowAsync(PendingBatch batch)
     {
-        try { await Task.Delay(options.Window, shutdown.Token).ConfigureAwait(false); }
+        try { await Task.Delay(options.Window, timeProvider, shutdown.Token).ConfigureAwait(false); }
         catch (OperationCanceledException) { return; }
         lock (gate)
         {
@@ -216,28 +228,30 @@ internal sealed class ClusterClientNotificationDispatcher :
         return bytes;
     }
 
-    private readonly record struct GatewayKey(
+    private readonly record struct BatchKey(
         string Node,
         string Endpoint,
         Guid Cluster,
-        Guid Incarnation)
+        Guid Incarnation,
+        GameSessionKey Session)
     {
-        public static GatewayKey From(RouteLocation target) => new(
+        public static BatchKey From(RouteLocation target, GameSessionKey session) => new(
             target.NodeReference.Node.Value,
             target.Endpoint.Address,
             target.NodeReference.Cluster.Value,
-            target.NodeReference.Incarnation.Value);
+            target.NodeReference.Incarnation.Value,
+            session);
     }
 
     private sealed class PendingBatch
     {
-        public PendingBatch(GatewayKey key, RouteLocation target)
+        public PendingBatch(BatchKey key, RouteLocation target)
         {
             Key = key;
             Target = target;
         }
 
-        public GatewayKey Key { get; }
+        public BatchKey Key { get; }
         public RouteLocation Target { get; }
         public List<PendingItem> Items { get; } = new();
         public int EstimatedBytes { get; set; }

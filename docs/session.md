@@ -1134,7 +1134,8 @@ reliable sequence assignment, serialization, and the actual callback send.
 Clustered delivery additionally bounds the total pending commands
 per process. Admission returns `Backpressure` when either the per-session or
 process-wide capacity is full. Remote commands are grouped by the exact gateway
-incarnation and flushed after at most 10 milliseconds by default; applications
+incarnation and `GameSessionKey` (both owner key and session id), and flushed
+after at most 10 milliseconds by default; applications
 may configure `Lakona:Notifications:BatchWindowMilliseconds`, including zero
 for immediate flush. The target defaults are 256 pending commands per session
 and a provisional, configurable 65,536 pending commands per process; the latter
@@ -1150,6 +1151,13 @@ Local-owner delivery does not wait for the remote batch window. Short-lived
 per-session drains preserve FIFO. A fixed session-affine worker pool is not
 part of the contract and requires large-session-count measurements before
 adoption.
+
+Each remote batch has one reply barrier, so it contains only one session.
+A slow recipient cannot hold another session's batch completion or the RPC
+response waiting for that publication. The batch wire format is unchanged.
+This isolation trades cross-session RPC coalescing for more independent calls;
+fan-out can therefore use more CPU and allocations even when every recipient
+is fast. Existing queue and byte budgets still bound admitted work.
 
 Rejected admission must not retain an empty per-session queue without a drain
 responsible for cleanup. Newly created queues rejected by process capacity or

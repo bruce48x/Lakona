@@ -369,7 +369,8 @@ connection with cluster membership.
 ## Notifications
 
 `Lakona:Notifications` configures synchronous producer admission and remote
-gateway batching:
+gateway/session batching (each batch contains one exact gateway incarnation
+and one `GameSessionKey`):
 
 - `BatchWindowMilliseconds`: maximum remote batching wait; default `10`, and
   `0` flushes immediately.
