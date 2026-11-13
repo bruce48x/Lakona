@@ -190,7 +190,8 @@ started before host shutdown continues.
 framework role; dependency-only helpers use `[HotfixComponent]` and are
 automatically registered once per generation. DTOs, timer arguments, and
 mutable state stay in stable assemblies. Pure static policy classes may remain
-in Hotfix, but they may not own static fields, auto-properties, or events.
+in Hotfix, but they may not own static fields (except constants), auto-properties,
+or events.
 Business exceptions directly or indirectly deriving from `System.Exception`
 may stay in Hotfix without a role, including abstract exception bases. They are
 created with `new`; error codes and inner exceptions are runtime data, not DI

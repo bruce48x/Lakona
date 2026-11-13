@@ -306,11 +306,15 @@ public sealed class RoomActor : Actor<RoomId>
 }
 ```
 
-The default key formatter uses a readable `Value` property when present and
-otherwise uses `ToString()`. The default identity is:
+Supported keys are `string`, `bool`, `char`, the signed and unsigned 8-, 16-,
+32-, and 64-bit integer types, `Guid`, and enum values with nonnegative numeric
+values. A wrapper may expose a public readable, non-indexed `Value` property
+of one of these types; its value must not be null. Other key types are rejected.
+Formatting is culture-independent, and the formatted key is URI-escaped in
+the canonical identity:
 
 ```text
-<actor-name>/<key-value>
+<actor-name>/<escaped-key-value>
 ```
 
 `ActorContext.Id` is the complete type-qualified runtime identity.
@@ -749,8 +753,7 @@ or user identifiers. Metric collection reads maintained aggregate counters; it
 must not enumerate every live mailbox during a scrape.
 
 Low-cardinality fields may include Actor type, message type, timeout reason,
-queue totals, and processed, rejected, or slow-message counts. Detail endpoints
-remain disabled unless diagnostics detail mode is explicitly enabled.
+queue totals, and processed, rejected, or slow-message counts.
 
 Concrete meters, activities, tags, dashboards, and alert guidance belong to
 [Observability](observability.md).

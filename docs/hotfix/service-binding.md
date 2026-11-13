@@ -338,27 +338,31 @@ dependencies less explicit. An explicit capability boundary becomes
 appropriate only if Hotfix is later allowed to host untrusted third-party code
 or receives a concrete tenant-isolation requirement.
 
-Non-static `[HotfixService]` and `[HotfixLifecycle]` implementation classes
-must have one public constructor, or one public constructor marked with
+`[HotfixService]` and `[HotfixLifecycle]` implementations must be sealed,
+non-generic concrete classes with instance entry methods. They must have one
+public constructor, or one public constructor marked with
 `[ActivatorUtilitiesConstructor]`. Missing dependencies, open generic
 implementations, multiple unmarked public constructors, and activation failures
 fail hotfix validation or reload before the candidate generation is published.
 
-The dispatch layer owns each non-static service or lifecycle instance for the
+The dispatch layer owns each service or lifecycle instance for the
 entire published generation and disposes it only after that generation retires
 and its in-flight calls drain. Service instances are therefore concurrent
-coordinators: constructors may capture generation-scoped dependencies, but
-request state belongs in the readonly `HotfixServiceCall` value, durable mutable
-state belongs in Actors or Game Sessions, and any mutable coordinator field
-must be synchronized explicitly. Constructors must not start unmanaged
-background work or subscriptions that outlive generation disposal.
+coordinators: they may retain constructor dependencies in private readonly
+fields or private get-only auto-properties assigned directly from activation
+constructor parameters, but must not own mutable fields or collections.
+Request state belongs in the readonly
+`HotfixServiceCall` value and method-local variables; durable business state
+belongs in Actors or Game Sessions. Node-local data and resource ownership
+follow the [Hotfix Components](components.md) contract. Constructors must not
+start unmanaged background work or subscriptions that outlive generation disposal.
 
 Generated RPC dispatch uses stable numeric method ids. Application HTTP uses
 host-assigned endpoint slots. Both paths use cached typed delegates. Warm
 service, HTTP, and Actor calls must not construct method-name keys, type arrays,
-argument arrays, or invoke user methods through reflection. Static service
-methods remain supported for stateless RPC helpers, but HTTP handlers are
-instance methods on their service class.
+argument arrays, or invoke user methods through reflection. Stateless static
+policy helpers follow the [Hotfix class-role rules](architecture.md#boundaries);
+they are not service entry points.
 
 ## Session Lifecycle Boundary
 

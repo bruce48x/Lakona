@@ -278,12 +278,11 @@ Interactive prompting asks for values needed to form a project spec:
 3. Unity version when Unity is selected
 4. transport
 5. serializer
-6. cluster Membership provider
 
 Non-interactive generation defaults Unity to `2022`. Tuanjie and Godot resolve
-their single current supported versions automatically. NuGetForUnity source,
-deployment profile, and output path keep documented defaults unless explicitly
-provided.
+their single current supported versions automatically. Membership provider,
+NuGetForUnity source, deployment profile, and output path keep documented
+defaults unless explicitly provided as command-line options.
 
 ### Build Project Spec
 
