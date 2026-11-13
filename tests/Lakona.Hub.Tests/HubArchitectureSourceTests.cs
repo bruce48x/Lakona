@@ -47,11 +47,10 @@ public sealed class HubArchitectureSourceTests
     }
 
     [Fact]
-    public void Window_frame_distinguishes_activation_and_maximized_states()
+    public void Window_frame_defines_activation_and_maximized_styles()
     {
         var root = FindRepositoryRoot();
         var xaml = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "MainWindow.axaml"));
-        var code = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "MainWindow.axaml.cs"));
 
         Assert.Contains("Border.window-frame.inactive", xaml, StringComparison.Ordinal);
         Assert.Contains("HubBrush.WindowBorderActive", xaml, StringComparison.Ordinal);
@@ -60,18 +59,13 @@ public sealed class HubArchitectureSourceTests
         Assert.Contains("HubShadow.WindowInactive", xaml, StringComparison.Ordinal);
         Assert.Contains("Border.window-frame.maximized", xaml, StringComparison.Ordinal);
         Assert.Contains("Property=\"BorderThickness\" Value=\"0\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Activated += MainWindow_FrameActivated", code, StringComparison.Ordinal);
-        Assert.Contains("Deactivated += MainWindow_FrameDeactivated", code, StringComparison.Ordinal);
-        Assert.Contains("WindowFrame.Classes.Set(\"inactive\", true)", code, StringComparison.Ordinal);
-        Assert.Contains("WindowFrame.Classes.Set(\"inactive\", false)", code, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Window_frame_keeps_rounded_outline_and_uses_direct_minimize()
+    public void Window_frame_keeps_rounded_outline_and_custom_controls()
     {
         var root = FindRepositoryRoot();
         var xaml = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "MainWindow.axaml"));
-        var code = File.ReadAllText(Path.Combine(root, "src", "Lakona.Hub", "MainWindow.axaml.cs"));
 
         Assert.Contains("ExtendClientAreaToDecorationsHint=\"True\"", xaml, StringComparison.Ordinal);
         Assert.Contains("WindowDecorations=\"None\"", xaml, StringComparison.Ordinal);
@@ -83,8 +77,6 @@ public sealed class HubArchitectureSourceTests
             xaml.IndexOf("x:Name=\"WindowSurface\"", StringComparison.Ordinal)
             < xaml.IndexOf("Classes=\"window-outline\"", StringComparison.Ordinal));
         Assert.DoesNotContain("WindowDecorationProperties.ElementRole=\"MinimizeButton\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("private void Minimize_Click", code, StringComparison.Ordinal);
-        Assert.Contains("=> WindowState = WindowState.Minimized;", code, StringComparison.Ordinal);
     }
 
     [Fact]

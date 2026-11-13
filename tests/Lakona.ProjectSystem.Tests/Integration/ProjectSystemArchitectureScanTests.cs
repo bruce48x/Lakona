@@ -1022,45 +1022,6 @@ public sealed class ProjectSystemArchitectureScanTests
             || StringComparer.Ordinal.Equals(segment, ".import"));
     }
 
-    private static void AssertChatRoomIdContract(string projectRoot, bool expectStartupActors)
-    {
-        var appChat = ReadAllTextFiles(Path.Combine(projectRoot, "Server", "App", "Chat"));
-        var hotfixChat = ReadAllTextFiles(Path.Combine(projectRoot, "Server", "Hotfix"));
-
-        Assert.Contains("public const string Global = \"chat-room/global\";", appChat, StringComparison.Ordinal);
-        if (expectStartupActors)
-        {
-            Assert.Contains("public static class HotfixStartup", hotfixChat, StringComparison.Ordinal);
-            Assert.Contains("[HotfixStartup]", hotfixChat, StringComparison.Ordinal);
-            Assert.Contains("[HotfixConfigureActors]", hotfixChat, StringComparison.Ordinal);
-            Assert.Contains("ConfigureActors(ActorHostBuilder actors)", hotfixChat, StringComparison.Ordinal);
-            Assert.Contains("RegisterStartup<ChatRoomActor, string>", hotfixChat, StringComparison.Ordinal);
-            Assert.DoesNotContain(".GetRequiredService<ActorActivationCatalog>()", hotfixChat, StringComparison.Ordinal);
-            Assert.DoesNotContain(".CreateAsync<ChatRoomActor>", hotfixChat, StringComparison.Ordinal);
-        }
-        else
-        {
-            Assert.Contains(".GetRequiredService<ActorActivationCatalog>()", hotfixChat, StringComparison.Ordinal);
-            Assert.Contains(".CreateAsync<ChatRoomActor>(ActorId.From(ChatRoomIds.Global), call.CancellationToken)", hotfixChat, StringComparison.Ordinal);
-        }
-
-        Assert.DoesNotContain(".EnsureAsync<ChatRoomActor>", hotfixChat, StringComparison.Ordinal);
-        Assert.DoesNotContain(string.Concat("Ensure", "Local", "Actor"), hotfixChat, StringComparison.Ordinal);
-        Assert.Contains(".Startup<ChatRoomActor>(ChatRoomIds.Global)", hotfixChat, StringComparison.Ordinal);
-        Assert.DoesNotContain("private const string RoomKey", hotfixChat, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Get(\"global\")", hotfixChat, StringComparison.Ordinal);
-    }
-
-    private static void AssertBefore(string text, string expectedBefore, string expectedAfter)
-    {
-        var beforeIndex = text.IndexOf(expectedBefore, StringComparison.Ordinal);
-        var afterIndex = text.IndexOf(expectedAfter, StringComparison.Ordinal);
-
-        Assert.True(beforeIndex >= 0, $"Expected to find '{expectedBefore}'.");
-        Assert.True(afterIndex >= 0, $"Expected to find '{expectedAfter}'.");
-        Assert.True(beforeIndex < afterIndex, $"Expected '{expectedBefore}' to appear before '{expectedAfter}'.");
-    }
-
     private sealed class GitUnavailableRunner : IGitCommandRunner
     {
         public Task<GitCommandResult> RunAsync(

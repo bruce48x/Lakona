@@ -87,7 +87,7 @@ public sealed partial class MainWindow : Window
     {
     }
 
-    private MainWindow(
+    internal MainWindow(
         HubLocalization localization,
         IHubUpdateService updateService,
         IHubSdkManager sdkManager,
