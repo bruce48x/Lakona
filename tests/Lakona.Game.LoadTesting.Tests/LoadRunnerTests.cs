@@ -146,9 +146,11 @@ public sealed class LoadRunnerTests
         var scenario = new RecordingScenario();
         var runner = new LoadRunner();
 
+        // Recording users finish immediately; test ramp-up spacing without racing
+        // the planned end against scheduler delays. Expiry has separate coverage.
         await runner.RunAsync(
             scenario,
-            new LoadRunOptions(Users: 3, RampUp: TimeSpan.FromMilliseconds(90), Duration: TimeSpan.FromMilliseconds(20)),
+            new LoadRunOptions(Users: 3, RampUp: TimeSpan.FromMilliseconds(90), Duration: TimeSpan.FromMinutes(1)),
             TestContext.Current.CancellationToken);
 
         var starts = scenario.StartOffsets.Order().ToArray();
