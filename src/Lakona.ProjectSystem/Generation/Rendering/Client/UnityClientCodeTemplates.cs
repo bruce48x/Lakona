@@ -138,6 +138,7 @@ internal static class UnityClientCodeTemplates
                 private VisualElement? _arenaView;
                 private VisualElement? _root;
                 private bool _loginPending;
+                private bool _exiting;
                 private bool _inputPending;
                 private float _nextInputAt;
                 private readonly List<HitEffect> _hitEffects = new();
@@ -180,8 +181,9 @@ internal static class UnityClientCodeTemplates
 
                 private void Update()
                 {
+                    if (_exiting) return;
                     _arenaView?.MarkDirtyRepaint();
-                    if (_client is null) return;
+                    if (_client is null || _loginPending) return;
                     if (_client.TryConsumeLatestSnapshot(out var snapshot)) ApplyWorldSnapshot(snapshot);
                     if (_client.ConsumeDisconnected())
                     {
@@ -201,29 +203,33 @@ internal static class UnityClientCodeTemplates
                     _ = SendInputAsync(x, y);
                 }
 
-                private async void OnConnectClicked()
+                private async void OnConnectClicked() => await ConnectAsync();
+
+                private async Task ConnectAsync()
                 {
-                    if (_loginPending) return;
+                    if (_exiting || _loginPending || _client != null) return;
                     var name = _nameField?.value?.Trim() ?? "";
                     if (name.Length is < 1 or > 20) { SetStatus("Name must contain 1 to 20 characters."); return; }
 
                     _loginPending = true;
                     if (_connectButton != null) { _connectButton.SetEnabled(false); _connectButton.text = "CONNECTING..."; }
                     SetStatus("Connecting...");
-                    _cts = new CancellationTokenSource();
-                    var client = new GameClient(CreateLakonaGameClientOptions());
+                    var lifetime = new CancellationTokenSource();
+                    _cts = lifetime;
                     try
                     {
-                        await client.ConnectAsync(_cts.Token);
+                        var client = new GameClient(CreateLakonaGameClientOptions());
+                        _client = client;
+                        await client.ConnectAsync(lifetime.Token);
+                        if (!IsCurrentConnection(lifetime)) return;
                         var reply = await client.LoginAsync(name);
+                        if (!IsCurrentConnection(lifetime)) return;
                         if (!reply.Success)
                         {
                             SetStatus(reply.Error);
-                            await client.DisposeAsync();
                             return;
                         }
 
-                        _client = client;
                         _localPlayerId = reply.PlayerId;
                         _world = reply.World;
                         _hitEffects.Clear();
@@ -231,23 +237,34 @@ internal static class UnityClientCodeTemplates
                     }
                     catch (Exception ex)
                     {
-                        SetStatus($"Connection failed: {ex.Message}");
-                        await client.DisposeAsync();
+                        if (IsCurrentConnection(lifetime)) SetStatus($"Connection failed: {ex.Message}");
                     }
                     finally
                     {
-                        _loginPending = false;
-                        if (_connectButton != null) { _connectButton.SetEnabled(true); _connectButton.text = "PLAY NOW"; }
+                        if (IsCurrentConnection(lifetime))
+                        {
+                            _loginPending = false;
+                            if (_connectButton != null) { _connectButton.SetEnabled(true); _connectButton.text = "PLAY NOW"; }
+                            if (_localPlayerId == 0) await DisposeClientAsync();
+                        }
                     }
                 }
 
                 private async Task SendInputAsync(float x, float y)
                 {
-                    if (_client is null) return;
+                    var client = _client;
+                    if (_exiting || client is null || _loginPending) return;
                     _inputPending = true;
-                    try { await _client.SubmitInputAsync(x, y); }
-                    catch (Exception) { ShowLogin("Connection lost. Re-enter your name to reconnect."); await DisposeClientAsync(); }
-                    finally { _inputPending = false; }
+                    try { await client.SubmitInputAsync(x, y); }
+                    catch (Exception)
+                    {
+                        if (!_exiting && ReferenceEquals(_client, client))
+                        {
+                            ShowLogin("Connection lost. Re-enter your name to reconnect.");
+                            await DisposeClientAsync();
+                        }
+                    }
+                    finally { if (!_exiting && ReferenceEquals(_client, client)) _inputPending = false; }
                 }
 
                 private void GenerateArenaVisualContent(MeshGenerationContext context)
@@ -538,15 +555,27 @@ internal static class UnityClientCodeTemplates
                     painter.Stroke();
                 }
 
+                private bool IsCurrentConnection(CancellationTokenSource lifetime)
+                    => !_exiting && ReferenceEquals(_cts, lifetime);
+
                 private async Task DisposeClientAsync()
                 {
                     var client = _client; _client = null;
-                    if (client != null) await client.DisposeAsync();
+                    var lifetime = _cts; _cts = null;
+                    _loginPending = false;
+                    _inputPending = false;
+                    try
+                    {
+                        try { lifetime?.Cancel(); }
+                        finally { if (client != null) await client.DisposeAsync(); }
+                    }
+                    catch (Exception ex) { Debug.LogException(ex); }
+                    finally { lifetime?.Dispose(); }
                 }
 
                 private void OnDestroy()
                 {
-                    _cts?.Cancel(); _cts?.Dispose();
+                    _exiting = true;
                     if (_arenaView != null) _arenaView.generateVisualContent -= GenerateArenaVisualContent;
                     if (_root != null) _root.UnregisterCallback<GeometryChangedEvent>(OnRootGeometryChanged);
                     _ = DisposeClientAsync();

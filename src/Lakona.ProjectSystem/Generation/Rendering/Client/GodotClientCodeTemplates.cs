@@ -112,6 +112,7 @@ internal static class GodotClientCodeTemplates
             private WorldSnapshot? _world;
             private long _localPlayerId;
             private bool _loginPending;
+            private bool _exiting;
             private bool _inputPending;
             private double _inputAccumulator;
             private readonly List<HitEffect> _hitEffects = new();
@@ -136,7 +137,8 @@ internal static class GodotClientCodeTemplates
 
             public override void _Process(double delta)
             {
-                if (_client is null) { QueueRedraw(); return; }
+                if (_exiting) return;
+                if (_client is null || _loginPending) { QueueRedraw(); return; }
                 if (_client.TryConsumeLatestSnapshot(out var snapshot)) ApplyWorldSnapshot(snapshot);
                 if (_client.ConsumeDisconnected())
                 {
@@ -304,23 +306,28 @@ internal static class GodotClientCodeTemplates
                 public double ExpiresAt { get; }
             }
 
-            private async void OnConnectPressed()
+            private async void OnConnectPressed() => await ConnectAsync();
+
+            private async Task ConnectAsync()
             {
-                if (_loginPending) return;
+                if (_exiting || _loginPending || _client is not null) return;
                 var name = _nameField.Text.Trim();
                 if (name.Length is < 1 or > 20) { _statusLabel.Text = "Name must contain 1 to 20 characters."; return; }
                 _loginPending = true;
                 _connectButton.Disabled = true;
                 _connectButton.Text = "CONNECTING...";
                 _statusLabel.Text = "Connecting...";
-                _cts = new CancellationTokenSource();
-                var client = new GameClient(CreateLakonaGameClientOptions());
+                var lifetime = new CancellationTokenSource();
+                _cts = lifetime;
                 try
                 {
-                    await client.ConnectAsync(_cts.Token);
-                    var reply = await client.LoginAsync(name);
-                    if (!reply.Success) { _statusLabel.Text = reply.Error; await client.DisposeAsync(); return; }
+                    var client = new GameClient(CreateLakonaGameClientOptions());
                     _client = client;
+                    await client.ConnectAsync(lifetime.Token);
+                    if (!IsCurrentConnection(lifetime)) return;
+                    var reply = await client.LoginAsync(name);
+                    if (!IsCurrentConnection(lifetime)) return;
+                    if (!reply.Success) { _statusLabel.Text = reply.Error; return; }
                     _localPlayerId = reply.PlayerId;
                     _world = reply.World;
                     _hitEffects.Clear();
@@ -330,38 +337,51 @@ internal static class GodotClientCodeTemplates
                 }
                 catch (Exception ex)
                 {
-                    _statusLabel.Text = $"Connection failed: {ex.Message}";
-                    await client.DisposeAsync();
+                    if (IsCurrentConnection(lifetime)) _statusLabel.Text = $"Connection failed: {ex.Message}";
                 }
                 finally
                 {
-                    _loginPending = false;
-                    _connectButton.Disabled = false;
-                    _connectButton.Text = "PLAY NOW";
+                    if (IsCurrentConnection(lifetime))
+                    {
+                        _loginPending = false;
+                        _connectButton.Disabled = false;
+                        _connectButton.Text = "PLAY NOW";
+                        if (_localPlayerId == 0) await DisposeClientAsync();
+                    }
                 }
             }
 
             private async Task RunHeadlessSmokeAsync()
             {
+                if (_exiting || _loginPending || _client is not null) return;
                 var name = System.Environment.GetEnvironmentVariable("LAKONA_GODOT_SMOKE_NAME");
                 if (string.IsNullOrWhiteSpace(name)) name = "godot-arena-smoke";
-                _cts = new CancellationTokenSource();
-                var client = new GameClient(CreateLakonaGameClientOptions());
+                _loginPending = true;
+                var lifetime = new CancellationTokenSource();
+                _cts = lifetime;
                 try
                 {
-                    await client.ConnectAsync(_cts.Token);
+                    var client = new GameClient(CreateLakonaGameClientOptions());
+                    _client = client;
+                    await client.ConnectAsync(lifetime.Token);
+                    if (!IsCurrentConnection(lifetime)) return;
                     var reply = await client.LoginAsync(name);
+                    if (!IsCurrentConnection(lifetime)) return;
                     if (!reply.Success) throw new InvalidOperationException(reply.Error);
                     await client.DisposeAsync();
+                    if (!IsCurrentConnection(lifetime)) return;
                     GD.Print($"Arena smoke ok: player {reply.PlayerId}.");
                     GetTree().Quit(0);
                 }
                 catch (Exception ex)
                 {
-                    try { await client.DisposeAsync(); } catch (Exception) { }
-                    GD.PrintErr($"Connect failed: {ex.Message}");
-                    GetTree().Quit(1);
+                    if (IsCurrentConnection(lifetime))
+                    {
+                        GD.PrintErr($"Connect failed: {ex.Message}");
+                        GetTree().Quit(1);
+                    }
                 }
+                finally { if (IsCurrentConnection(lifetime)) await DisposeClientAsync(); }
             }
 
             private static bool IsHeadlessSmokeEnabled()
@@ -373,11 +393,19 @@ internal static class GodotClientCodeTemplates
 
             private async Task SendInputAsync(Vector2 direction)
             {
-                if (_client is null) return;
+                var client = _client;
+                if (_exiting || client is null || _loginPending) return;
                 _inputPending = true;
-                try { await _client.SubmitInputAsync(direction.X, direction.Y); }
-                catch (Exception) { ShowLogin("Connection lost. Re-enter your name to reconnect."); await DisposeClientAsync(); }
-                finally { _inputPending = false; }
+                try { await client.SubmitInputAsync(direction.X, direction.Y); }
+                catch (Exception)
+                {
+                    if (!_exiting && ReferenceEquals(_client, client))
+                    {
+                        ShowLogin("Connection lost. Re-enter your name to reconnect.");
+                        await DisposeClientAsync();
+                    }
+                }
+                finally { if (!_exiting && ReferenceEquals(_client, client)) _inputPending = false; }
             }
 
             private void RefreshHud()
@@ -450,15 +478,28 @@ internal static class GodotClientCodeTemplates
             private static string NormalizePath(string path) => string.IsNullOrWhiteSpace(path) ? "" : path.StartsWith("/", StringComparison.Ordinal) ? path : "/" + path;
             private static void ConfigureTransportSecurity(TransportSecurityConfig security) { security.EnableCompression = false; security.EnableEncryption = false; security.EncryptionKeyBase64 = null; }
 
+            private bool IsCurrentConnection(CancellationTokenSource lifetime)
+                => !_exiting && ReferenceEquals(_cts, lifetime);
+
             private async Task DisposeClientAsync()
             {
                 var client = _client; _client = null;
-                if (client is not null) await client.DisposeAsync();
+                var lifetime = _cts; _cts = null;
+                _loginPending = false;
+                _inputPending = false;
+                try
+                {
+                    try { lifetime?.Cancel(); }
+                    finally { if (client is not null) await client.DisposeAsync(); }
+                }
+                catch (Exception ex) { GD.PrintErr($"Connection cleanup failed: {ex}"); }
+                finally { lifetime?.Dispose(); }
             }
 
             public override void _ExitTree()
             {
-                _cts?.Cancel(); _cts?.Dispose(); _ = DisposeClientAsync();
+                _exiting = true;
+                _ = DisposeClientAsync();
             }
         }
         """;

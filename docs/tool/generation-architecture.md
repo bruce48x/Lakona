@@ -630,6 +630,15 @@ consumes at most one snapshot per frame. Older pending snapshots are
 superseded; events that require individual observation must use a distinct
 notification contract instead of being encoded as snapshot-delivery history.
 
+The scene owns its client from creation, including connection and login waits.
+Snapshots and gameplay input are processed only after login completes. Scene
+exit invalidates the connection identity before canceling and disposing it;
+asynchronous cleanup observes and reports disposal failures. Login and input
+continuations, including error and finalization paths, may change scene/UI
+state only while they still belong to the current live connection. A late
+result must neither reactivate an exited scene nor dispose a replacement
+client. The Godot headless smoke path follows the same ownership rule.
+
 Godot and Unity share the arena's cream text, lime accents, coral play button,
 centered callsign row, and bottom HUD. The combat HUD occupies 80% of the
 window width and 72 pixels of height, with a 16-pixel bottom inset. Its dark
