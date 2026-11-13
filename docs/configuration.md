@@ -196,6 +196,18 @@ attach a passive public/internal classification to a listener.
 The complete contract is documented in
 [Application HTTP](./http.md).
 
+## Heartbeat
+
+`Lakona:Heartbeat:Interval` (default `00:00:15`) and
+`Lakona:Heartbeat:Timeout` (default `00:00:45`) define the Game client heartbeat
+policy. Both must be positive, and Timeout must not be shorter than Interval.
+The server sends the policy in each handshake, including reconnects; Game
+clients have no separate RPC KeepAlive configuration. The interval is the delay
+before the next heartbeat, and the timeout bounds the heartbeat call, including
+response dispatch on the client's synchronization context. See
+[Framework Heartbeat](session.md#framework-heartbeat) for pause and recovery
+semantics. These settings do not configure cluster membership heartbeats.
+
 ## Session Resume
 
 `Lakona:Sessions:ResumeWindowSeconds` controls how long a disconnected Game

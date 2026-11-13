@@ -18,15 +18,7 @@ namespace Rpc
         {
             return new LakonaGameClientOptions(
                 () => new KcpTransport(host, port),
-                new MemoryPackRpcSerializer())
-            {
-                KeepAlive = new RpcKeepAliveOptions
-                {
-                    Enabled = true,
-                    Interval = TimeSpan.FromSeconds(2),
-                    Timeout = TimeSpan.FromSeconds(6)
-                }
-            };
+                new MemoryPackRpcSerializer());
         }
 #if UNITY_INCLUDE_TESTS
         public static LakonaGameClientOptions CreateOptions(string host, int port, TestTransportGate gate)

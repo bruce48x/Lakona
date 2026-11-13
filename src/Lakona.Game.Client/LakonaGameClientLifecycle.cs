@@ -140,7 +140,7 @@ namespace Lakona.Game.Client
             try
             {
                 token.ThrowIfCancellationRequested();
-                var client = new RpcClientRuntime(_options.CreateConnectionGeneration());
+                var client = _options.CreateConnectionGeneration().CreateRpcClient();
                 RpcClientRuntime? previous = null;
                 // A candidate can disconnect before it is published as the current generation.
                 bool disconnected = false;

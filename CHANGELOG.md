@@ -4,9 +4,10 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-11-13 — Long-run statistics and notification isolation
+## 2026-11-13 — Long-run statistics, notification isolation and Game heartbeat policy
 
-**Key releases:** `Lakona.Game.LoadTesting 0.2.0` and `Lakona.Game.Server 0.54.11`.
+**Key releases:** `Lakona.Game.LoadTesting 0.2.0`, `Lakona.Game.Server 0.54.11`,
+`Lakona.Game.Client 0.6.0`, `Lakona.Tool 0.43.132`, and `Lakona.Hub 0.18.12`.
 
 - Operation and error counts now use 64-bit integers from recording through
   reporting, preventing negative counts and summary overflow beyond the 32-bit
@@ -17,6 +18,12 @@ date and package versions of important releases are retained.
   slow recipient cannot hold unrelated sessions' delivery or response publication.
   FIFO and resource budgets are preserved; cross-session fan-out uses more RPC
   calls in exchange for isolation, without changing the wire protocol.
+
+- Game client heartbeat policy comes exclusively from the server handshake.
+  `LakonaGameClientOptions` no longer inherits `RpcClientOptions` or exposes
+  KeepAlive. Remove client KeepAlive initializers and configure
+  `Lakona:Heartbeat` on the server; standalone RPC options are unchanged.
+  This is an intentional source and binary breaking change: rebuild clients.
 
 ## 2026-11-12 — RPC reliability, Actor hotfix consistency and Hub setup
 

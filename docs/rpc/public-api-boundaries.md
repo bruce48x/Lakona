@@ -74,8 +74,9 @@ Regular application projects should build against this layer.
   - `RpcNotificationContractAttribute`
   - `RpcNotificationAttribute`
 - Generated client facade shape and lifetime semantics.
-- `RpcClientOptions` (intentionally unsealed; `LakonaGameClientOptions` is the
-  supported game-layer subclass).
+- `RpcClientOptions` for standalone RPC clients. `LakonaGameClientOptions` is
+  an independent Game configuration type; it composes RPC options internally
+  and does not expose a separate KeepAlive policy.
 - `RpcClientRuntime` when used through generated clients or advanced client wiring.
 - `RpcClientRuntime.ConnectionState`, `ConnectionStateChanged`,
   `RpcClientConnectionState`, and `RpcClientConnectionStateChange` for the

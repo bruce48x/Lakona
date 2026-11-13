@@ -23,6 +23,8 @@ public sealed class LakonaGameClientCoreTests
         Assert.DoesNotContain("HeartbeatEnabled", propertyNames);
         Assert.DoesNotContain("HeartbeatInterval", propertyNames);
         Assert.DoesNotContain("HeartbeatTimeout", propertyNames);
+        Assert.DoesNotContain("KeepAlive", propertyNames);
+        Assert.False(typeof(RpcClientOptions).IsAssignableFrom(typeof(LakonaGameClientOptions)));
     }
 
     [Fact]
@@ -58,6 +60,34 @@ public sealed class LakonaGameClientCoreTests
 
         Assert.Same(options.LoggerFactory, first.LoggerFactory);
         Assert.Same(options.LoggerFactory, second.LoggerFactory);
+    }
+
+    [Fact]
+    public void Connection_generations_preserve_transport_and_security_configuration()
+    {
+        var options = new LakonaGameClientOptions(static () => new NoopTransport(), new NoopSerializer());
+        Assert.Same(options, options.UseSecurity(security =>
+        {
+            security.EnableCompression = true;
+            security.CompressionThresholdBytes = 64;
+            security.MaxDecodedFrameBytes = 4096;
+            security.EnableEncryption = true;
+            security.EncryptionKey = new byte[32];
+        }));
+
+        var first = options.CreateConnectionGeneration();
+        var second = options.CreateConnectionGeneration();
+        Assert.Same(options.Transport, first.Transport);
+        Assert.NotSame(first.Transport, second.Transport);
+        Assert.Same(options.Serializer, second.Serializer);
+        Assert.True(second.Security.EnableCompression);
+        Assert.Equal(64, second.Security.CompressionThresholdBytes);
+        Assert.Equal(4096, second.Security.MaxDecodedFrameBytes);
+        Assert.True(second.Security.EnableEncryption);
+        Assert.Equal(options.Security.EncryptionKey, second.Security.EncryptionKey);
+        first.Security.EncryptionKey![0] = 1;
+        Assert.Equal(0, second.Security.EncryptionKey![0]);
+        Assert.Equal(0, options.Security.EncryptionKey![0]);
     }
 
     [Fact]

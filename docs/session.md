@@ -452,6 +452,22 @@ loop.
 The default heartbeat policy uses a 15 second interval and 45 second timeout
 unless the resolved server policy says otherwise.
 
+`Lakona:Heartbeat:Interval` and `Lakona:Heartbeat:Timeout` are the only client
+heartbeat policy for Game connections. Every connection, including recovery,
+uses the policy returned by its server handshake. `LakonaGameClientOptions`
+does not inherit `RpcClientOptions` or expose `KeepAlive`; its internal RPC
+client leaves active KeepAlive probing disabled. Standalone RPC clients retain
+their independent KeepAlive configuration. Passive Ping/Pong handling remains
+available on Game connections.
+
+The Game interval is the delay before the next heartbeat request; the timeout
+bounds that request, including local response dispatch. Pausing an engine's
+dispatch context can therefore consume the timeout even after a response has
+arrived. Development environments can increase the server heartbeat timeout
+to tolerate bounded pauses. Increasing it also delays detection of a silent
+peer. Heartbeat failure still triggers automatic recovery; the session resume
+window separately limits recovery after disconnection.
+
 Heartbeat request and reply payloads are encoded with `LakonaInternalCodec`.
 They do not require JSON converters, MemoryPack formatters, or generated
 business contract DTO metadata.
