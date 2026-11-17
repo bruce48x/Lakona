@@ -854,7 +854,7 @@ public sealed class ProjectSystemArchitectureScanTests
             script,
             StringComparison.Ordinal);
         Assert.Contains(
-            "Lakona.Rpc.Server.Request\" = \"Information\"",
+            "Lakona.Game.Rpc\" = \"Information\"",
             script,
             StringComparison.Ordinal);
     }
@@ -889,7 +889,7 @@ public sealed class ProjectSystemArchitectureScanTests
             script,
             StringComparison.Ordinal);
         Assert.Contains(
-            "Logging__LogLevel__Lakona.Rpc.Server.Request",
+            "Logging__LogLevel__Lakona.Game.Rpc",
             script,
             StringComparison.Ordinal);
 

@@ -237,8 +237,76 @@ Per-request and per-notification RPC lifecycle events use `Trace` because they
 can be high-volume on the node-to-node cluster channel. Successful sends,
 receives, and completions are therefore hidden when development logging is set
 to `Debug`; warnings and errors remain at their operational levels. Enable
-`Lakona.Rpc.Client.Request` or `Lakona.Rpc.Server.Request` at `Trace` only when
-wire-level request diagnostics are needed.
+`Lakona.Rpc.Client.Request` or `Lakona.Rpc.Server.Request` at `Trace` in standalone
+RPC applications. Game servers use `Lakona.Game.Rpc` for client-facing requests,
+response completion and outgoing notifications, and `Lakona.Game.Cluster.Rpc`
+for both outbound and inbound node-to-node RPC lifecycle events. Existing Game
+server category overrides must migrate to these names. Unity/Godot logging
+remains controlled in the client process.
+
+### Request and response DTO logging
+
+Game payload logging requires both `IncludePayload=true` and an enabled Trace
+level for the corresponding `.Payload` category. Both switches default to false,
+even if all framework categories are set to Trace. Payload options are captured
+at host startup; changing them requires restarting the host.
+
+```json
+{
+  "Lakona": {
+    "Logging": {
+      "Rpc": {
+        "IncludePayload": false,
+        "MaxPayloadCharacters": 4096,
+        "RedactedMembers": [ "Email", "Phone" ]
+      },
+      "ClusterRpc": { "IncludePayload": false }
+    }
+  },
+  "Logging": {
+    "LogLevel": {
+      "Lakona.Game.Rpc": "Trace",
+      "Lakona.Game.Cluster.Rpc": "Warning"
+    }
+  }
+}
+```
+
+Set `Lakona:Logging:Rpc:IncludePayload` to true to inspect client-facing DTOs
+under `Lakona.Game.Rpc.Payload`. For cluster DTOs, enable the independent
+ClusterRpc switch and set `Lakona.Game.Cluster.Rpc` to Trace. Standard category
+prefix matching applies; an explicit `.Payload=None` override disables payload
+output even when its switch is enabled.
+
+Snapshots include public instance properties and fields, omit `JsonIgnore`
+members, and replace case-insensitive `Password`, `Token`, `AccessToken`,
+`RefreshToken`, `ResumeTicket`, `Secret`, and `Payload` members or dictionary
+keys with `[redacted]`. Configured `RedactedMembers` add to that list. This is
+name-based exclusion, not automatic detection of sensitive values; applications
+must add their own credential and personal-data member names before enabling it.
+Binary arrays are represented by length. Snapshots cap nesting at four levels,
+collections at 32 items, and output at `MaxPayloadCharacters` (64–65536).
+Truncated output is diagnostic text, not necessarily valid JSON.
+
+Filtering happens before DTO traversal. Formatting failures produce a fixed
+unavailable marker without exception details; payload logging failures cannot
+change the RPC result. Snapshotting completes synchronously before providers
+receive the event, so queued providers do not retain DTOs, pooled frames, or
+collectible Hotfix type metadata. DTO getters should be inexpensive and free of
+side effects; these bounds cannot interrupt a blocking getter or enumerator.
+
+Request snapshots follow successful typed deserialization on the server.
+Response snapshots describe the returned (including exception-mapped) DTO,
+before response serialization and transmission; the separate completion log
+reports successful transmission. Correlate them by request, service, method,
+and server connection identifiers. Invalid payloads and rejected requests have
+no decoded DTO. Raw handlers, including the Cluster Actor wire protocol, retain
+length/metadata diagnostics rather than decoding unknown binary content.
+Notification bodies are not included by this request/response switch.
+
+The lower-level RPC runtime emits typed values at its `.Request.Payload` Trace
+category; its provider determines formatting. Game hosting supplies the opt-in,
+bounded snapshot adapter described above. Provider ownership is unchanged.
 
 A Game server can also use the standard application-level `Logging` section:
 

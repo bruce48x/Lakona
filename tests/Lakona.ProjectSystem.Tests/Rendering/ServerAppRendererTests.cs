@@ -58,6 +58,8 @@ public sealed class ServerAppRendererTests
 
         using var document = JsonDocument.Parse(AssertPath(plan, "Server/App/appsettings.json").Content);
         var lakona = document.RootElement.GetProperty("Lakona");
+        Assert.False(lakona.GetProperty("Logging").GetProperty("Rpc").GetProperty("IncludePayload").GetBoolean());
+        Assert.False(lakona.GetProperty("Logging").GetProperty("ClusterRpc").GetProperty("IncludePayload").GetBoolean());
         Assert.Equal(new[] { "game" }, lakona.GetProperty("Node").GetProperty("Roles").EnumerateArray().Select(value => value.GetString()).ToArray());
         Assert.False(lakona.TryGetProperty("ActorHosts", out _));
         var managementHttp = lakona.GetProperty("Management").GetProperty("Http");
@@ -70,7 +72,7 @@ public sealed class ServerAppRendererTests
         Assert.Equal(
             "Trace",
             document.RootElement.GetProperty("Logging").GetProperty("LogLevel")
-                .GetProperty("Lakona.Rpc.Server.Request").GetString());
+                .GetProperty("Lakona.Game.Rpc").GetString());
         var localAdmin = lakona.GetProperty("Management").GetProperty("Admin");
         Assert.True(localAdmin.GetProperty("Enabled").GetBoolean());
         Assert.True(localAdmin.GetProperty("RequireLoopback").GetBoolean());

@@ -28,6 +28,8 @@ public sealed class LakonaGameRuntimeOptions
     /// </summary>
     public LakonaGameNodeOptions Node { get; init; } = new();
 
+    public LakonaLoggingOptions Logging { get; init; } = new();
+
     /// <summary>
     /// Gets the client-facing RPC listener configuration.
     /// </summary>
@@ -104,6 +106,7 @@ public sealed class LakonaGameRuntimeOptions
         return new LakonaGameRuntimeOptions
         {
             Node = BindNode(section.GetSection("Node")),
+            Logging = LakonaLoggingOptions.Bind(section.GetSection("Logging")),
             Endpoints = BindEndpoints(section.GetSection("Endpoints")),
             Http = BindHttp(section.GetSection("Http")),
             Cluster = BindCluster(section.GetSection("Cluster")),

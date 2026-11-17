@@ -365,6 +365,11 @@ internal sealed class ServerAppRenderer : IPlanContributor
 
         var lakonaSettings = new Dictionary<string, object?>
         {
+            ["Logging"] = new Dictionary<string, object?>
+            {
+                ["Rpc"] = new Dictionary<string, object?> { ["IncludePayload"] = false },
+                ["ClusterRpc"] = new Dictionary<string, object?> { ["IncludePayload"] = false }
+            },
             ["Node"] = new Dictionary<string, object?>
             {
                 ["Id"] = "dev-1",
@@ -407,7 +412,8 @@ internal sealed class ServerAppRenderer : IPlanContributor
                 ["LogLevel"] = new Dictionary<string, object?>
                 {
                     ["Lakona.Game.Hotfix"] = "Information",
-                    ["Lakona.Rpc.Server.Request"] = "Trace"
+                    ["Lakona.Game.Rpc"] = "Trace",
+                    ["Lakona.Game.Cluster.Rpc"] = "Warning"
                 }
             }
         };

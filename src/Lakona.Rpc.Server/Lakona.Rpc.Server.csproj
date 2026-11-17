@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Lakona.Rpc.Server</PackageId>
-    <Version>0.17.30</Version>
+    <Version>0.17.31</Version>
     <Description>Lakona.Rpc server runtime core.</Description>
     <PackageTags>rpc;unity;server</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -36,5 +36,8 @@
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../RpcPayloadLogging.cs" Link="Logging/RpcPayloadLogging.cs" />
   </ItemGroup>
 </Project>

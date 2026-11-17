@@ -37,7 +37,7 @@ internal sealed class LakonaClusterRpcServerConfigurator : IRpcServerConfigurato
         var loggerFactory = context.Services.GetService<ILoggerFactory>();
         if (loggerFactory is not null)
         {
-            context.Builder.UseLoggerFactory(loggerFactory);
+            context.Builder.UseLoggerFactory(new GameRpcLoggerFactory(loggerFactory, "Lakona.Game.Cluster.Rpc", _runtimeOptions.Logging.ClusterRpc));
         }
 
         context.Builder.UseSerializer(serializer);

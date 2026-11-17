@@ -392,7 +392,11 @@ public sealed class RpcServerHost
                 requestGates: _requestGates,
                 remoteEndPoint: connection.RemoteEndPoint,
                 serviceExceptionHandler: _serviceExceptionHandler,
-                openServiceScope: _openServiceScope);
+                openServiceScope: _openServiceScope)
+            {
+                PayloadLogger = _loggerFactory?.CreateLogger(RpcServerRequestLogging.Category + ".Payload")
+                    ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance
+            };
             hostOwnedTransport = null; // The Session now owns transport cleanup.
             var sessionRegistered = false;
             try

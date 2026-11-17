@@ -54,6 +54,7 @@ namespace Lakona.Rpc.Client
         private readonly IRpcSerializer _serializer;
         private readonly RpcKeepAliveOptions _keepAlive;
         private readonly ILogger _requestLogger;
+        private readonly ILogger _payloadLogger;
         private Func<RpcPushMetadata?, Action, CancellationToken, ValueTask>? _notificationReceiveMiddleware;
 
         [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
@@ -119,6 +120,7 @@ namespace Lakona.Rpc.Client
             _transport = transport ?? throw new ArgumentNullException(nameof(transport));
             _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
             _keepAlive = keepAlive ?? RpcKeepAliveOptions.Disabled;
+            _payloadLogger = loggerFactory?.CreateLogger(RpcClientRequestLogging.Category + ".Payload") ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
             _requestLogger = loggerFactory?.CreateLogger(RpcClientRequestLogging.Category)
                 ?? NullLogger.Instance;
             _connection = new RpcConnectionChannel(_transport, _keepAlive);
@@ -294,13 +296,19 @@ namespace Lakona.Rpc.Client
             return BeginCall(method.ServiceId, method.MethodId,
                 id =>
                 {
+                    Lakona.Rpc.RpcPayloadLogging.Write(_payloadLogger, "request", id, method.ServiceId, method.MethodId, arg);
                     using var writer = RpcEnvelopeCodec.BeginRequestPayload(id, method.ServiceId, method.MethodId);
                     if (arg is not null) _serializer.Serialize(writer, arg);
                     return RpcEnvelopeCodec.CompletePayload(writer);
                 },
-                response => typeof(TResult) == typeof(RpcVoid)
-                    ? (TResult)(object)RpcVoid.Instance
-                    : _serializer.Deserialize<TResult>(response.Payload.Memory)!, ct);
+                response =>
+                {
+                    var result = typeof(TResult) == typeof(RpcVoid)
+                        ? (TResult)(object)RpcVoid.Instance
+                        : _serializer.Deserialize<TResult>(response.Payload.Memory)!;
+                    Lakona.Rpc.RpcPayloadLogging.Write(_payloadLogger, "response", response.RequestId, method.ServiceId, method.MethodId, result);
+                    return result;
+                }, ct);
         }
 
         [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]

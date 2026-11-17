@@ -45,8 +45,10 @@ public sealed class RpcServiceRegistration<TService>
                     return badRequestResponse;
                 }
 
+                session.LogPayload(request, "request", argument);
                 var service = _activate(session);
                 await invoke(service, argument, cancellationToken).ConfigureAwait(false);
+                session.LogPayload<object?>(request, "response", null);
                 return RpcServerResponse.Encode(request.RequestId, RpcStatus.Ok, ReadOnlyMemory<byte>.Empty);
             },
             _serviceName,
@@ -70,6 +72,7 @@ public sealed class RpcServiceRegistration<TService>
                     return badRequestResponse;
                 }
 
+                session.LogPayload(request, "request", argument);
                 var service = _activate(session);
                 using var scope = session.OpenServiceScope?.Invoke();
                 TResponse result;
@@ -87,6 +90,7 @@ public sealed class RpcServiceRegistration<TService>
                         return RpcServerResponse.InternalError(request.RequestId);
                 }
 
+                session.LogPayload(request, "response", result);
                 return RpcServerResponse.Serialize(request.RequestId, session.Serializer, result);
             },
             _serviceName,

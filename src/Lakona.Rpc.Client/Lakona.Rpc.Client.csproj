@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Lakona.Rpc.Client</PackageId>
-    <Version>0.14.18</Version>
+    <Version>0.14.19</Version>
     <Description>Lakona.Rpc client runtime and client-side transports.</Description>
     <PackageTags>rpc;unity;client;tcp;loopback</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -30,5 +30,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Lakona.Rpc.Tests" />
     <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../RpcPayloadLogging.cs" Link="Logging/RpcPayloadLogging.cs" />
   </ItemGroup>
 </Project>

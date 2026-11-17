@@ -109,6 +109,12 @@ namespace Lakona.Rpc.Server
         /// </summary>
         public string ConnectionId { get; }
 
+        internal ILogger PayloadLogger { get; set; } = NullLogger.Instance;
+
+        internal void LogPayload<T>(RpcRequestFrame request, string direction, T payload) =>
+            Lakona.Rpc.RpcPayloadLogging.Write(PayloadLogger, direction, request.RequestId,
+                request.ServiceId, request.MethodId, payload, ConnectionId);
+
         internal RpcConnectionInfo ConnectionInfo => new(ConnectionId, RemoteEndPoint);
 
         internal RpcServiceExceptionHandler? ServiceExceptionHandler { get; }

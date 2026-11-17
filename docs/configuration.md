@@ -17,6 +17,10 @@ client RPC endpoint configuration.
       "Id": "dev-1",
       "Roles": [ "gateway", "data", "battle" ]
     },
+    "Logging": {
+      "Rpc": { "IncludePayload": false },
+      "ClusterRpc": { "IncludePayload": false }
+    },
     "Endpoints": [
       {
         "Transport": "websocket",

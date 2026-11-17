@@ -37,7 +37,9 @@ public static class LakonaClusterEndpointServiceCollectionExtensions
 
         services.TryAddSingleton<IClusterClientFactory>(provider => new ClusterClientFactory(
             provider.GetRequiredService<ClusterRpcChannel>(),
-            loggerFactory: provider.GetService<ILoggerFactory>()));
+            loggerFactory: provider.GetService<ILoggerFactory>() is { } factory
+                ? new GameRpcLoggerFactory(factory, "Lakona.Game.Cluster.Rpc", runtimeOptions.Logging.ClusterRpc)
+                : null));
         services.TryAddSingleton<IMembershipProbeTransport>(provider =>
         {
             var runtime = provider.GetRequiredService<LakonaGameRuntimeOptions>();

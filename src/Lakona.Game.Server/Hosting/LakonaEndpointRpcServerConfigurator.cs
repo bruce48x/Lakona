@@ -35,7 +35,8 @@ public sealed class LakonaEndpointRpcServerConfigurator : IRpcServerConfigurator
         var loggerFactory = context.Services.GetService<ILoggerFactory>();
         if (loggerFactory is not null)
         {
-            builder.UseLoggerFactory(loggerFactory);
+            builder.UseLoggerFactory(new GameRpcLoggerFactory(loggerFactory, "Lakona.Game.Rpc",
+                context.Services.GetService<LakonaGameRuntimeOptions>()?.Logging.Rpc ?? new LakonaRpcLoggingOptions()));
         }
 
         var runtime = context.Services.GetRequiredService<LakonaEndpointRuntimeRegistry>();

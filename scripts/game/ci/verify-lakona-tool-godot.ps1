@@ -273,7 +273,7 @@ function Start-ClusterNode {
             "LAKONA__Management__Http__Port" = $ManagementPort
             "LAKONA__Health__ClusterDiagnosticsEnabled" = "true"
             "Logging__LogLevel__Lakona.Game.Server.Hosting.MembershipTableHostedService" = "Debug"
-            "Logging__LogLevel__Lakona.Rpc.Server.Request" = "Information"
+            "Logging__LogLevel__Lakona.Game.Rpc" = "Information"
         }
 }
 

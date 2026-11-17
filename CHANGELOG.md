@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-11-17 — Application RPC logging and opt-in DTO snapshots
+
+**Key releases:** `Lakona.Game.Server 0.54.12`, `Lakona.Rpc.Server 0.17.31`,
+`Lakona.Rpc.Client 0.14.19`, `Lakona.Tool 0.43.133`, and `Lakona.Hub 0.18.13`.
+
+- Game servers separate client-facing and cluster RPC logs under
+  `Lakona.Game.Rpc` and `Lakona.Game.Cluster.Rpc`; migrate existing low-level
+  request category overrides to these application categories.
+- Independent payload switches enable bounded, member-redacted typed request
+  and response snapshots. Payload output remains disabled by default even at Trace.
+
 ## 2026-11-13 — Long-run statistics, notification isolation and Game heartbeat policy
 
 **Key releases:** `Lakona.Game.LoadTesting 0.2.0`, `Lakona.Game.Server 0.54.11`,
