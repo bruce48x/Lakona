@@ -211,6 +211,7 @@ public sealed class ProjectListItem : INotifyPropertyChanged, IDisposable
     {
         lastOpenedAtUtc = timeProvider.GetUtcNow();
         OnPropertyChanged(nameof(LastOpened));
+        OnPropertyChanged(nameof(LastOpenedAtUtc));
     }
 
     public void RefreshLastOpened() => OnPropertyChanged(nameof(LastOpened));

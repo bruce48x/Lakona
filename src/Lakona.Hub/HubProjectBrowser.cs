@@ -138,7 +138,9 @@ internal sealed class HubProjectBrowser : IDisposable
 
     private void Project_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(ProjectListItem.LastOpened))
+        // Relative-time and language refreshes only update the bound text.
+        // Reordering and persistence depend on the stored timestamp changing.
+        if (e.PropertyName != nameof(ProjectListItem.LastOpenedAtUtc))
         {
             return;
         }

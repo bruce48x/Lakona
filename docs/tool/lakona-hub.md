@@ -635,6 +635,11 @@ time when present and otherwise the added time, so a newly created or manually
 imported project that has never been opened appears first without being labeled
 as opened.
 
+The minute timer refreshes relative-time labels in place. Display-only time and
+language notifications must not rebuild the project collection or save settings.
+Opening a project changes its stored timestamp and triggers sorting and persistence;
+the passage of time does not change the ordering of those timestamps.
+
 ## Security Contract
 
 Opening and inspecting files is distinct from packaging a project. An imported
