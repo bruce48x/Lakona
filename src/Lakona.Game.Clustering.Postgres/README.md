@@ -15,4 +15,4 @@ services.AddLakonaPostgresClustering(configuration);
 
 See [Membership providers](https://github.com/bruce48x/Lakona/blob/main/docs/cluster.md#providers) for connection
 configuration, the packaged `database/postgresql/membership.sql` deployment
-step, runtime grants, and upgrade requirements.
+step, runtime grants, and handling of incompatible storage.

@@ -302,7 +302,7 @@ two Lakona Membership tables; it must not own the schema or have DDL rights.
 Before starting or upgrading a cluster, stop all nodes and execute the single
 `database/postgresql/membership.sql` shipped in
 `Lakona.Game.Clustering.Postgres` with a separate deployment account. The SQL
-is transactional and repeatable. A node does not create or migrate tables and
+installs or checks the current schema in one transaction. A node does not create or migrate tables and
 fails startup immediately when that step was missed. See
 [Membership Table](cluster.md#membership-table) for the rollout order and
 example grants.

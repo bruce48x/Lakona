@@ -178,18 +178,10 @@ dependency. Its deployment schema defines:
 
 The game-server process never creates or alters these objects. Before the first
 node starts, apply the package's single
-`database/postgresql/membership.sql` file with a deployment account. The file
-is both the current schema definition and the upgrade path: it runs in one
-transaction, serializes concurrent deployment jobs with a PostgreSQL advisory
-lock, and is safe to execute repeatedly. Every later Membership schema change
-belongs in that same convergent file; operators do not choose from a migration
-directory.
-
-For an upgrade:
-
-1. Stop every node which uses the Membership schema.
-2. Apply the latest `database/postgresql/membership.sql` with the schema owner.
-3. Start the new nodes.
+`database/postgresql/membership.sql` file with a deployment account. Stop all
+nodes using the schema before running it. The script installs into an empty
+Membership namespace or checks an existing installation in place. It runs in
+one transaction under a PostgreSQL advisory lock.
 
 For example, after extracting the SQL from the
 `Lakona.Game.Clustering.Postgres` package:
@@ -203,10 +195,12 @@ psql "$LAKONA_DEPLOYMENT_CONNECTION" \
 `LAKONA_DEPLOYMENT_CONNECTION` belongs to deployment automation, not to the
 game-server container or process.
 
-Known pre-namespace-removal tables containing `cluster_id` are incompatible.
-The SQL replaces only those framework Membership tables while the cluster is
-stopped. Membership rows are process-lifetime coordination metadata; business
-tables and application state are not touched.
+Both relational installers preserve existing Membership data on reapplication.
+They check the installation marker, required columns and unique live-member
+index. A partial installation or incompatible marker requires operator action.
+Verify the target environment and inspect the tables before deciding whether
+to provision fresh Membership storage. Resetting it creates a new cluster
+identity, so all nodes using the previous storage must be stopped first.
 
 The runtime connection must belong to a different, low-privilege role. A
 typical PostgreSQL grant, adjusted for the deployment's schema and role names,
@@ -235,7 +229,9 @@ incarnation.
 
 As with PostgreSQL, game servers do not create or alter MySQL tables. Stop the
 cluster and apply the package's single, repeatable
-`database/mysql/membership.sql` file with a deployment account. The runtime
+`database/mysql/membership.sql` file with a deployment account that can create
+temporary tables. Use a dedicated connection and close it on error to release
+the deployment lock. MySQL commits table creation individually. The runtime
 account needs only `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on
 `lakona_membership_cluster` and `lakona_membership_member`; do not grant it DDL
 or database ownership. The Adapter verifies the schema marker and required

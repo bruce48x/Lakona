@@ -31,12 +31,14 @@ public sealed class PostgresMembershipTableTests : MembershipTableContractTests
 
         try
         {
+            var first = await table.AllocateGenerationAsync("Release1", TestContext.Current.CancellationToken);
             await ApplyMembershipSchemaAsync();
             var generation = await table.AllocateGenerationAsync(
                 "Release1",
                 TestContext.Current.CancellationToken);
 
-            Assert.Equal(1, generation.Value);
+            Assert.Equal(first.Cluster, generation.Cluster);
+            Assert.Equal(first.Value + 1, generation.Value);
         }
         finally
         {
@@ -63,50 +65,49 @@ public sealed class PostgresMembershipTableTests : MembershipTableContractTests
         }
     }
 
-    [Fact]
-    public async Task MembershipSchemaReplacesLegacyClusterNamespaceLayout()
+    [Theory]
+    [InlineData("partial")]
+    [InlineData("missing-index")]
+    [InlineData("unknown-marker")]
+    public async Task IncompatibleInstallationIsRejectedWithoutChangingStoredData(string fault)
     {
-        var table = await CreateIsolatedTableAsync(applySchema: false);
+        var partial = fault == "partial";
+        var table = await CreateIsolatedTableAsync(applySchema: !partial);
         if (table is null) return;
-
         try
         {
-            var isolated = new NpgsqlConnectionStringBuilder(connectionString!)
+            var isolated = new NpgsqlConnectionStringBuilder(connectionString!) { SearchPath = schemaName };
+            await using var connection = new NpgsqlConnection(isolated.ConnectionString);
+            var ct = TestContext.Current.CancellationToken;
+            await connection.OpenAsync(ct);
+            await using var command = connection.CreateCommand();
+            if (!partial)
             {
-                SearchPath = schemaName
-            };
-            await using (var setup = NpgsqlDataSource.Create(isolated.ConnectionString))
-            await using (var command = setup.CreateCommand(
-                """
-                CREATE TABLE lakona_membership_cluster (
-                    cluster_id text PRIMARY KEY,
-                    incarnation uuid NOT NULL,
-                    build_tag text NULL,
-                    version bigint NOT NULL,
-                    next_generation bigint NOT NULL
-                );
-                CREATE TABLE lakona_membership_member (
-                    cluster_id text NOT NULL,
-                    node_id text NOT NULL,
-                    node_incarnation uuid NOT NULL,
-                    generation bigint NOT NULL,
-                    status smallint NOT NULL,
-                    entry_version bigint NOT NULL,
-                    i_am_alive timestamptz NOT NULL,
-                    payload jsonb NOT NULL,
-                    PRIMARY KEY (cluster_id, node_id, node_incarnation)
-                );
-                """))
-            {
-                await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+                await table.AllocateGenerationAsync("Release1", ct);
+                command.CommandText = fault == "missing-index"
+                    ? "DROP INDEX ux_lakona_membership_live_node;"
+                    : "COMMENT ON TABLE lakona_membership_cluster IS 'unknown-format';";
             }
+            else
+            {
+                command.CommandText = """
+                    CREATE TABLE lakona_membership_cluster (cluster_id varchar(64) PRIMARY KEY);
+                    INSERT INTO lakona_membership_cluster VALUES ('keep-me');
+                    """;
+            }
+            await command.ExecuteNonQueryAsync(ct);
 
-            await ApplyMembershipSchemaAsync();
-            var generation = await table.AllocateGenerationAsync(
-                "Release1",
-                TestContext.Current.CancellationToken);
-
-            Assert.Equal(1, generation.Value);
+            var error = await Assert.ThrowsAsync<PostgresException>(ApplyMembershipSchemaAsync);
+            Assert.Contains("Incompatible Lakona Membership schema", error.Message);
+            command.CommandText = partial
+                ? "SELECT cluster_id FROM lakona_membership_cluster;"
+                : "SELECT build_tag FROM lakona_membership_cluster;";
+            Assert.Equal(partial ? "keep-me" : "Release1", await command.ExecuteScalarAsync(ct));
+            if (fault == "unknown-marker")
+            {
+                command.CommandText = "SELECT obj_description('lakona_membership_cluster'::regclass, 'pg_class');";
+                Assert.Equal("unknown-format", await command.ExecuteScalarAsync(ct));
+            }
         }
         finally
         {

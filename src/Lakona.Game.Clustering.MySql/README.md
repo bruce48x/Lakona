@@ -15,4 +15,4 @@ services.AddLakonaMySqlClustering(configuration);
 
 See [Membership providers](https://github.com/bruce48x/Lakona/blob/main/docs/cluster.md#providers) for supported MySQL
 storage, connection configuration, the packaged `database/mysql/membership.sql`
-deployment step, runtime grants, and upgrade requirements.
+deployment step, runtime grants, and handling of incompatible storage.

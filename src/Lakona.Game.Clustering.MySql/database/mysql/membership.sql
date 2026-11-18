@@ -1,14 +1,37 @@
--- Lakona MySQL Membership schema.
---
--- Stop every Lakona node before applying this file. Run it with a deployment
--- account which owns the target database. Game-server runtime accounts need
--- only data access and must not receive CREATE, ALTER, or DROP privileges.
---
--- This is the single schema and upgrade entry point. It is safe to execute
--- repeatedly. Future schema changes belong in this file as conditional,
--- convergent SQL.
+-- Install the current Lakona Membership schema using a deployment account.
+-- Stop all nodes first. Run in a dedicated connection and close it on error
+-- to release the deployment lock and temporary validation table.
+-- Runtime accounts need only data access.
 
-SELECT GET_LOCK(CONCAT('lakona-membership:', MD5(DATABASE())), 60);
+CREATE TEMPORARY TABLE lakona_membership_install_check (
+    lock_acquired INT NOT NULL,
+    schema_compatible INT NOT NULL,
+    CONSTRAINT ck_membership_deployment_lock CHECK (lock_acquired = 1),
+    CONSTRAINT ck_membership_compatible_schema CHECK (schema_compatible = 1)
+);
+
+INSERT INTO lakona_membership_install_check
+VALUES (GET_LOCK(CONCAT('lakona-membership:', MD5(DATABASE())), 60), 1);
+
+-- Check existing objects before issuing any persistent DDL. MySQL commits DDL
+-- statements individually, so a partial installation also requires inspection.
+INSERT INTO lakona_membership_install_check
+SELECT 1, COUNT(*) = 0 OR (
+    COUNT(*) = 2
+    AND COUNT(CASE WHEN table_name = 'lakona_membership_cluster'
+                    AND BINARY table_comment = 'lakona-membership-schema:1' THEN 1 END) = 1
+    AND EXISTS (
+        SELECT 1 FROM information_schema.statistics
+        WHERE table_schema = DATABASE() AND table_name = 'lakona_membership_member'
+          AND index_name = 'ux_lakona_membership_live_node'
+        GROUP BY index_name
+        HAVING COUNT(*) = 1 AND MAX(non_unique) = 0
+           AND MAX(column_name) = 'live_node_id' AND MAX(sub_part) IS NULL
+    )
+)
+FROM information_schema.tables
+WHERE table_schema = DATABASE()
+  AND table_name IN ('lakona_membership_cluster', 'lakona_membership_member');
 
 CREATE TABLE IF NOT EXISTS lakona_membership_cluster (
     singleton TINYINT UNSIGNED NOT NULL,
@@ -41,11 +64,6 @@ CREATE TABLE IF NOT EXISTS lakona_membership_member (
     CONSTRAINT ck_lakona_membership_member_version CHECK (entry_version > 0)
 ) ENGINE=InnoDB;
 
-ALTER TABLE lakona_membership_cluster
-    COMMENT = 'lakona-membership-schema:1';
-
--- Fail when existing tables merely share these names but cannot satisfy the
--- runtime contract. CREATE TABLE IF NOT EXISTS does not validate their shape.
 SELECT singleton, incarnation, build_tag, version, next_generation
 FROM lakona_membership_cluster
 WHERE 1 = 0;
@@ -55,4 +73,5 @@ SELECT node_id, node_incarnation, generation, status, entry_version,
 FROM lakona_membership_member
 WHERE 1 = 0;
 
+DROP TEMPORARY TABLE lakona_membership_install_check;
 SELECT RELEASE_LOCK(CONCAT('lakona-membership:', MD5(DATABASE())));
