@@ -56,8 +56,9 @@ try {
         }
     }
     Get-ChildItem -LiteralPath $payload -Recurse -Filter '*.exe' | ForEach-Object { Sign-And-Verify $_.FullName }
+    $packageFiles = Get-ChildItem -LiteralPath $payload -Recurse -File | Where-Object Extension -ne '.pdb' | Sort-Object FullName
     $files = [ordered]@{}
-    Get-ChildItem -LiteralPath $payload -Recurse -File | Sort-Object FullName | ForEach-Object {
+    $packageFiles | ForEach-Object {
         $relative = [IO.Path]::GetRelativePath($payload, $_.FullName).Replace('\', '/')
         $files[$relative] = [ordered]@{ Size = $_.Length; Sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash }
     }
@@ -68,7 +69,8 @@ try {
     $archive = Join-Path $work "lakona-hub-$Version-win-x64-user.zip"
     $zip = [IO.Compression.ZipFile]::Open($archive, [IO.Compression.ZipArchiveMode]::Create)
     try {
-        Get-ChildItem -LiteralPath $payload -Recurse -File | ForEach-Object {
+        $manifestFiles = Get-Item -LiteralPath (Join-Path $payload '.lakona-package.json'), (Join-Path $payload '.lakona-package.sig')
+        ($packageFiles + $manifestFiles) | ForEach-Object {
             $relative = [IO.Path]::GetRelativePath($payload, $_.FullName).Replace('\', '/')
             [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $relative, [IO.Compression.CompressionLevel]::Optimal) | Out-Null
         }
