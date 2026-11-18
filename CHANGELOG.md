@@ -4,18 +4,20 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
-## 2026-11-18 — Readable RPC method and notification names
+## 2026-11-18 — Readable RPC logs and cross-platform server packaging
 
 **Key releases:** `Lakona.Rpc.Core 0.16.10`, `Lakona.Game.Server 0.54.15`,
-`Lakona.Tool 0.43.136`, and `Lakona.Hub 0.18.18`.
+`Lakona.Tool 0.43.137`, and `Lakona.Hub 0.18.19`.
 
 - Notification logs identify the callback contract and method. The payload switch includes redacted DTOs for sends, receives, and generated replay.
 
 - Request, response and DTO logs display contract/method names across generated
   clients, registered server handlers and named cluster protocols. Numeric IDs
   remain available and unnamed descriptors retain their numeric fallback.
-- Names are local metadata prepared at registration or static initialization;
+  Names are local metadata prepared at registration or static initialization;
   wire formats and existing two-id constructors remain compatible.
+- Linux full server packages built on Windows preserve execute permissions
+  for the native entry point and the runtime dump utility.
 
 ## 2026-11-17 — Application RPC logging and opt-in DTO snapshots
 

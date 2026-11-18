@@ -154,7 +154,10 @@ whole-second timestamp collision is therefore visible instead of ambiguous.
 
 ## Full Package Layout
 
-The zip root is directly executable after extraction:
+The zip root is directly executable after extraction. Linux full packages
+store Unix execute permissions for the native app host and the bundled
+`createdump` utility, including when the ZIP is built on Windows. Extract with
+a tool that restores Unix permissions, such as Linux `unzip`.
 
 ```txt
 Server.App

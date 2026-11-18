@@ -249,6 +249,38 @@ public sealed class ServerPackageWriterTests
     }
 
     [Fact]
+    public async Task Linux_package_marks_the_named_apphost_and_createdump_executable()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var request = await CreateRequestAsync(root, Version, BuildTag, entryAssembly: "Arena.Node.dll");
+            foreach (var name in new[] { "Arena.Node", "Arena.Node.dll", "createdump" })
+            {
+                await File.WriteAllTextAsync(Path.Combine(request.PublishedAppDirectory, name), name,
+                    TestContext.Current.CancellationToken);
+            }
+            var path = await new ServerPackageWriter().WritePackageFromPublishedAppAsync(request,
+                TestContext.Current.CancellationToken);
+
+            using var archive = new ICSharpCode.SharpZipLib.Zip.ZipFile(path);
+            const int executeBits = (int)(UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
+            foreach (var name in new[] { "Arena.Node", "createdump", "Arena.Node.dll", "appsettings.json" })
+            {
+                var entry = archive.GetEntry(name);
+                Assert.NotNull(entry);
+                Assert.Equal((int)ICSharpCode.SharpZipLib.Zip.HostSystemID.Unix, entry.HostSystem);
+                var expected = name is "Arena.Node" or "createdump" ? executeBits : 0;
+                Assert.Equal(expected, (entry.ExternalFileAttributes >> 16) & executeBits);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task WritePackageFromPublishedAppAsync_normalizes_built_at_utc_to_seconds()
     {
         var root = CreateTempRoot();

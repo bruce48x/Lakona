@@ -229,7 +229,14 @@ internal sealed class ServerPackageWriter : IServerPackageWriter
                     File.Delete(temporaryZipPath);
                 }
 
-                ZipFile.CreateFromDirectory(stagedApp, temporaryZipPath);
+                if (request.RuntimeIdentifier.StartsWith("linux-", StringComparison.OrdinalIgnoreCase))
+                {
+                    LinuxServerArchive.Create(stagedApp, temporaryZipPath, request.EntryAssembly, cancellationToken);
+                }
+                else
+                {
+                    ZipFile.CreateFromDirectory(stagedApp, temporaryZipPath);
+                }
                 try
                 {
                     File.Move(temporaryZipPath, finalZipPath);
