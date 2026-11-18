@@ -16,7 +16,20 @@ namespace Lakona.Rpc.Core
         {
             ServiceId = serviceId;
             MethodId = methodId;
+            DisplayName = null;
         }
+
+        /// <summary>Creates a descriptor with a local diagnostic name; names are never sent on the wire.</summary>
+        public RpcMethod(int serviceId, int methodId, string serviceName, string methodName)
+        {
+            ServiceId = serviceId;
+            MethodId = methodId;
+            DisplayName = string.IsNullOrWhiteSpace(serviceName) ? methodName
+                : string.IsNullOrWhiteSpace(methodName) ? serviceName : serviceName + "." + methodName;
+        }
+
+        /// <summary>Precomputed local diagnostic name, or null for an unnamed descriptor.</summary>
+        public string? DisplayName { get; }
 
         /// <summary>
         ///     Stable service id used on the wire.

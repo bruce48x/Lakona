@@ -126,6 +126,7 @@ internal sealed class RpcClusterActorTransport : IClusterActorTransport
                             resolution.Location,
                             timeToLive);
                     },
+                    rpcMethodId == ClusterProtocol.Methods.ActorAsk ? "ClusterActor.Ask" : "ClusterActor.Tell",
                     lifetime.Token)
                 .ConfigureAwait(false);
             var reply = ClusterActorWireCodec.DecodeReply(response.Memory);

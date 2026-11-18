@@ -24,7 +24,7 @@ public sealed partial class LakonaRpcSourceGenerator
             foreach (var method in service.Methods)
             {
                 var returnType = method.IsVoid ? "RpcVoid" : method.ReturnTypeName!;
-                writer.Line($"private static readonly RpcMethod<{method.PayloadType}, {returnType}> {Naming.GetClientMethodFieldName(method.Name)} = new(ServiceId, {method.MethodId});");
+                writer.Line($"private static readonly RpcMethod<{method.PayloadType}, {returnType}> {Naming.GetClientMethodFieldName(method.Name)} = new(ServiceId, {method.MethodId}, \"{service.FullName.Replace("global::", "")}\", \"{method.Name}\");");
             }
 
             writer.Line();

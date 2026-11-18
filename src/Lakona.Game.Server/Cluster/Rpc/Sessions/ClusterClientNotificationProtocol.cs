@@ -11,10 +11,10 @@ internal static class ClusterClientNotificationProtocol
     public static int BatchDispatchMethodId => ClusterProtocol.Methods.ClientNotificationBatchDispatch;
 
     public static readonly RpcMethod<ClientNotificationDispatchRequest, ClientNotificationDispatchReply> DispatchMethod =
-        new(ServiceId, DispatchMethodId);
+        new(ServiceId, DispatchMethodId, "ClientNotificationCommandBinder", "DispatchAsync");
 
     public static readonly RpcMethod<ClientNotificationBatchDispatchRequest, ClientNotificationBatchDispatchReply>
-        BatchDispatchMethod = new(ServiceId, BatchDispatchMethodId);
+        BatchDispatchMethod = new(ServiceId, BatchDispatchMethodId, "ClientNotificationCommandBinder", "DispatchBatchAsync");
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

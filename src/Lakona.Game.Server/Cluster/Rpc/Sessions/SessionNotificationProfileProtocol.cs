@@ -8,7 +8,7 @@ namespace Lakona.Game.Cluster.Rpc;
 internal static class SessionNotificationProfileProtocol
 {
     public static readonly RpcMethod<GameSessionKey, SessionNotificationProfileReply> Lookup =
-        new(ClusterProtocol.ServiceId, ClusterProtocol.Methods.SessionNotificationProfileLookup);
+        new(ClusterProtocol.ServiceId, ClusterProtocol.Methods.SessionNotificationProfileLookup, "SessionNotificationProfileProtocol", "Lookup");
 
     public static void Bind(RpcServiceRegistry registry, IGameSessionNotificationProfileLookup profiles,
         IClusterMembership membership, NodeId localNode)

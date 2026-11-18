@@ -74,6 +74,9 @@ Regular application projects should build against this layer.
   - `RpcNotificationContractAttribute`
   - `RpcNotificationAttribute`
 - Generated client facade shape and lifetime semantics.
+- `RpcMethod<TArg, TResult>` retains its two-id constructor and also accepts
+  service and method names in a four-argument constructor. `DisplayName` is
+  precomputed local diagnostic metadata; it does not change wire identity.
 - `RpcClientOptions` for standalone RPC clients. `LakonaGameClientOptions` is
   an independent Game configuration type; it composes RPC options internally
   and does not expose a separate KeepAlive policy.

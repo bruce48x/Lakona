@@ -111,9 +111,17 @@ namespace Lakona.Rpc.Server
 
         internal ILogger PayloadLogger { get; set; } = NullLogger.Instance;
 
-        internal void LogPayload<T>(RpcRequestFrame request, string direction, T payload) =>
-            Lakona.Rpc.RpcPayloadLogging.Write(PayloadLogger, direction, request.RequestId,
-                request.ServiceId, request.MethodId, payload, ConnectionId);
+        internal void LogPayload<T>(RpcRequestFrame request, string direction, T payload)
+        {
+            try
+            {
+                if (!PayloadLogger.IsEnabled(LogLevel.Trace)) return;
+                Lakona.Rpc.RpcPayloadLogging.Write(PayloadLogger, direction, request.RequestId,
+                    request.ServiceId, request.MethodId, payload, ConnectionId,
+                    _registry.ResolveDisplayName(request.ServiceId, request.MethodId));
+            }
+            catch { /* Optional diagnostics cannot change dispatch. */ }
+        }
 
         internal RpcConnectionInfo ConnectionInfo => new(ConnectionId, RemoteEndPoint);
 
@@ -133,7 +141,7 @@ namespace Lakona.Rpc.Server
             catch (Exception mappingError)
             {
                 _requestLogger.LogError(mappingError,
-                    "RPC service exception handler failed for request {RequestId} in connection {ConnectionId}.",
+                    "RPC service exception handler failed requestId={RequestId} connectionId={ConnectionId}.",
                     request.RequestId, ConnectionId);
                 reply = null;
             }
@@ -151,7 +159,8 @@ namespace Lakona.Rpc.Server
         internal void LogInvalidRequestPayload(RpcRequestFrame request, Exception exception)
         {
             _requestLogger.LogWarning(
-                "RPC request payload could not be deserialized for request {RequestId} service {ServiceId} method {MethodId} in connection {ConnectionId}; payload length {PayloadLength}; exception {ExceptionType}.",
+                "RPC request payload could not be deserialized for {RpcMethod} requestId={RequestId} serviceId={ServiceId} methodId={MethodId} connectionId={ConnectionId}; payloadBytes={PayloadLength}; exceptionType={ExceptionType}.",
+                _registry.ResolveDisplayName(request.ServiceId, request.MethodId),
                 request.RequestId,
                 request.ServiceId,
                 request.MethodId,
@@ -280,7 +289,7 @@ namespace Lakona.Rpc.Server
         private void LogNotificationSent(int serviceId, int methodId, int payloadBytes)
         {
             _requestLogger.LogTrace(
-                "RPC notification sent service {ServiceId} method {MethodId} payloadBytes {PayloadBytes} in connection {ConnectionId}.",
+                "RPC notification sent serviceId={ServiceId} methodId={MethodId} payloadBytes={PayloadBytes} connectionId={ConnectionId}.",
                 serviceId,
                 methodId,
                 payloadBytes,
@@ -503,7 +512,8 @@ namespace Lakona.Rpc.Server
             if (!_requestBudget.Wait(0))
             {
                 _requestLogger.LogWarning(
-                    "RPC request rejected {RequestId} status {Status} service {ServiceId} method {MethodId} in connection {ConnectionId}. {ErrorMessage}",
+                    "RPC request rejected {RpcMethod} requestId={RequestId} status={Status} serviceId={ServiceId} methodId={MethodId} connectionId={ConnectionId} error={ErrorMessage}",
+                    _registry.ResolveDisplayName(req.ServiceId, req.MethodId),
                     req.RequestId,
                     RpcStatus.Overloaded,
                     req.ServiceId,
@@ -563,9 +573,9 @@ namespace Lakona.Rpc.Server
             {
                 // A request canceled while queued has not reached the dispatch
                 // logger. Keep its wire identity available without metric labels.
-                _requestLogger.LogTrace(
-                    "RPC request interrupted {RequestId} service {ServiceId} method {MethodId} in connection {ConnectionId}.",
-                    req.RequestId, req.ServiceId, req.MethodId, ConnectionId);
+                if (_requestLogger.IsEnabled(LogLevel.Trace)) _requestLogger.LogTrace(
+                    "RPC request interrupted {RpcMethod} requestId={RequestId} serviceId={ServiceId} methodId={MethodId} connectionId={ConnectionId}.",
+                    _registry.ResolveDisplayName(req.ServiceId, req.MethodId), req.RequestId, req.ServiceId, req.MethodId, ConnectionId);
                 outcome = await HandleUnansweredRequestAsync(req.RequestId, error, ct).ConfigureAwait(false);
             }
             finally
@@ -620,12 +630,12 @@ namespace Lakona.Rpc.Server
             if (SetDisconnectReason(error))
             {
                 _logger.LogWarning(error,
-                    "Closing RPC connection {ConnectionId} after failing to complete request {RequestId}.",
+                    "Closing RPC connectionId={ConnectionId} after failing to complete request {RequestId}.",
                     ConnectionId, requestId);
                 try { await AbortTransportAsync().ConfigureAwait(false); }
                 catch (Exception abortError)
                 {
-                    _logger.LogError(abortError, "Failed to abort RPC connection {ConnectionId}.", ConnectionId);
+                    _logger.LogError(abortError, "Failed to abort RPC connectionId={ConnectionId}.", ConnectionId);
                 }
             }
             return RpcServerTelemetry.FailureOutcome;
@@ -733,7 +743,7 @@ namespace Lakona.Rpc.Server
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to resolve RPC service {ServiceId} while releasing connection {ConnectionId}.", entry.Key, ConnectionId);
+                    _logger.LogError(ex, "Failed to resolve RPC serviceId={ServiceId} while releasing connectionId={ConnectionId}.", entry.Key, ConnectionId);
                     continue;
                 }
 
@@ -746,7 +756,7 @@ namespace Lakona.Rpc.Server
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to release RPC service {ServiceId} for connection {ConnectionId}.", entry.Key, ConnectionId);
+                    _logger.LogError(ex, "Failed to release RPC serviceId={ServiceId} for connectionId={ConnectionId}.", entry.Key, ConnectionId);
                 }
             }
         }

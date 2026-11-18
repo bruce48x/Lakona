@@ -32,7 +32,10 @@ consistently, and notification parameters may share names with proxy members.
 
 Generated service calls return runtime ValueTasks directly. Void methods use
 `RpcVoidTask.FromResult` to discard RpcVoid without adding an async task layer
-which could reorder response continuations. See
+which could reorder response continuations. Generated static `RpcMethod`
+descriptors also include the contract's qualified name and method name for local
+logs. These names do not change wire IDs or serialization. Existing two-id
+descriptors remain usable with numeric diagnostic fallback. See
 [Ordered Message Entry](architecture.md#ordered-message-entry) for the runtime
 ordering guarantee.
 

@@ -28,6 +28,8 @@ public sealed class LakonaRpcSourceGeneratorTests
             .ToArray();
 
         Assert.Contains("PingServiceClient.g.cs", generatedHintNames);
+        var pingServiceClient = GetGeneratedSource(runResult, "PingServiceClient.g.cs");
+        Assert.Contains("\"Game.Contracts.IPingService\", \"PingAsync\"", pingServiceClient);
         Assert.Contains("PingNotificationsBinder.g.cs", generatedHintNames);
         Assert.Contains("RpcApi.g.cs", generatedHintNames);
         Assert.Contains("PingServiceBinder.g.cs", generatedHintNames);

@@ -4,6 +4,17 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-11-18 — Readable RPC method names
+
+**Key releases:** `Lakona.Rpc.Core 0.16.8`, `Lakona.Game.Server 0.54.13`,
+`Lakona.Tool 0.43.134`, and `Lakona.Hub 0.18.16`.
+
+- Request, response and DTO logs display contract/method names across generated
+  clients, registered server handlers and named cluster protocols. Numeric IDs
+  remain available and unnamed descriptors retain their numeric fallback.
+- Names are local metadata prepared at registration or static initialization;
+  wire formats and existing two-id constructors remain compatible.
+
 ## 2026-11-17 — Application RPC logging and opt-in DTO snapshots
 
 **Key releases:** `Lakona.Game.Server 0.54.12`, `Lakona.Rpc.Server 0.17.31`,

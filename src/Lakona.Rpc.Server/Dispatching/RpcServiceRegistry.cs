@@ -183,9 +183,15 @@ public sealed class RpcServiceRegistry
         return false;
     }
 
+    internal string ResolveDisplayName(int serviceId, int methodId) =>
+        _entries.TryGetValue((serviceId, methodId), out var entry) ? entry.DisplayName : $"{serviceId}:{methodId}";
+
     private sealed record RpcServiceRegistryEntry(
         RpcSessionHandler Handler,
-        RpcMethodDescriptor Descriptor);
+        RpcMethodDescriptor Descriptor)
+    {
+        internal string DisplayName { get; } = Descriptor.DisplayName;
+    }
 }
 
 [EditorBrowsable(EditorBrowsableState.Never)]

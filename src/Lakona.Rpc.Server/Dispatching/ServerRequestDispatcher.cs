@@ -71,10 +71,10 @@ internal sealed class ServerRequestDispatcher
             {
                 _logger.LogError(
                     ex,
-                    "RPC request gate {RequestGate} failed for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId}.",
+                    "RPC request gate={RequestGate} failed for {RpcMethod} requestId={RequestId} serviceId={ServiceId} methodId={MethodId} connectionId={ConnectionId}.",
                     gate.GetType().FullName,
-                    req.RequestId,
                     ResolveRpcMethod(req),
+                    req.RequestId,
                     req.ServiceId,
                     req.MethodId,
                     session.ConnectionId);
@@ -118,9 +118,9 @@ internal sealed class ServerRequestDispatcher
         catch (RpcBadRequestException exception)
         {
             _logger.LogWarning(
-                "RPC request content was invalid for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId}; payload length {PayloadLength}; exception {ExceptionType}.",
-                req.RequestId,
+                "RPC request content was invalid for {RpcMethod} requestId={RequestId} serviceId={ServiceId} methodId={MethodId} connectionId={ConnectionId}; payloadBytes={PayloadLength}; exceptionType={ExceptionType}.",
                 ResolveRpcMethod(req),
+                req.RequestId,
                 req.ServiceId,
                 req.MethodId,
                 session.ConnectionId,
@@ -181,10 +181,11 @@ internal sealed class ServerRequestDispatcher
 
     private void LogRequestReceived(RpcSession session, RpcRequestFrame req)
     {
+        if (!_logger.IsEnabled(LogLevel.Trace)) return;
         _logger.LogTrace(
-            "RPC request received {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId}; payload bytes {PayloadBytes}.",
-            req.RequestId,
+            "RPC request received {RpcMethod} requestId={RequestId} serviceId={ServiceId} methodId={MethodId} connectionId={ConnectionId}; payloadBytes={PayloadBytes}.",
             ResolveRpcMethod(req),
+            req.RequestId,
             req.ServiceId,
             req.MethodId,
             session.ConnectionId, req.Payload.Length);
@@ -199,10 +200,11 @@ internal sealed class ServerRequestDispatcher
     {
         if (status == RpcStatus.Ok)
         {
+            if (!_logger.IsEnabled(LogLevel.Trace)) return;
             _logger.LogTrace(
-                "RPC request completed {RequestId} {RpcMethod} status {Status} service {ServiceId} method {MethodId} in connection {ConnectionId} in {ElapsedMs}ms; response frame bytes {ResponseFrameBytes}.",
-                req.RequestId,
+                "RPC request completed {RpcMethod} requestId={RequestId} status={Status} serviceId={ServiceId} methodId={MethodId} connectionId={ConnectionId} elapsedMs={ElapsedMs}; responseFrameBytes={ResponseFrameBytes}.",
                 ResolveRpcMethod(req),
+                req.RequestId,
                 status,
                 req.ServiceId,
                 req.MethodId,
@@ -212,9 +214,9 @@ internal sealed class ServerRequestDispatcher
         }
 
         _logger.LogWarning(
-            "RPC request completed {RequestId} {RpcMethod} status {Status} service {ServiceId} method {MethodId} in connection {ConnectionId} in {ElapsedMs}ms; response frame bytes {ResponseFrameBytes}. {ErrorMessage}",
-            req.RequestId,
+            "RPC request completed {RpcMethod} requestId={RequestId} status={Status} serviceId={ServiceId} methodId={MethodId} connectionId={ConnectionId} elapsedMs={ElapsedMs}; responseFrameBytes={ResponseFrameBytes} error={ErrorMessage}",
             ResolveRpcMethod(req),
+            req.RequestId,
             status,
             req.ServiceId,
             req.MethodId,
@@ -228,9 +230,9 @@ internal sealed class ServerRequestDispatcher
     {
         _logger.LogError(
             ex,
-            "RPC handler failed for request {RequestId} {RpcMethod} service {ServiceId} method {MethodId} in connection {ConnectionId}.",
-            req.RequestId,
+            "RPC handler failed for {RpcMethod} requestId={RequestId} serviceId={ServiceId} methodId={MethodId} connectionId={ConnectionId}.",
             ResolveRpcMethod(req),
+            req.RequestId,
             req.ServiceId,
             req.MethodId,
             session.ConnectionId);
@@ -238,9 +240,7 @@ internal sealed class ServerRequestDispatcher
 
     private string ResolveRpcMethod(RpcRequestFrame req)
     {
-        return _registry.TryGetDescriptor(req.ServiceId, req.MethodId, out var descriptor)
-            ? descriptor.DisplayName
-            : $"{req.ServiceId}:{req.MethodId}";
+        return _registry.ResolveDisplayName(req.ServiceId, req.MethodId);
     }
 
 }

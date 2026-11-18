@@ -9,11 +9,11 @@ internal static class ActorLifecycleProtocol
     public static int CreateMethodId => ClusterProtocol.Methods.ActorLifecycleCreate;
     public static int DestroyMethodId => ClusterProtocol.Methods.ActorLifecycleDestroy;
     public static readonly RpcMethod<ActorLifecycleCreateRequest, ActorLifecycleReply> Create =
-        new(ClusterProtocol.ServiceId, CreateMethodId);
+        new(ClusterProtocol.ServiceId, CreateMethodId, "ActorLifecycle", "Create");
     public static readonly RpcMethod<ActorLifecycleCreateRequest, ActorLifecycleReply> Activation =
-        new(ClusterProtocol.ServiceId, ClusterProtocol.Methods.ActorLifecycleActivation);
+        new(ClusterProtocol.ServiceId, ClusterProtocol.Methods.ActorLifecycleActivation, "ActorLifecycle", "Activation");
     public static readonly RpcMethod<ActorLifecycleDestroyRequest, ActorLifecycleReply> Destroy =
-        new(ClusterProtocol.ServiceId, DestroyMethodId);
+        new(ClusterProtocol.ServiceId, DestroyMethodId, "ActorLifecycle", "Destroy");
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

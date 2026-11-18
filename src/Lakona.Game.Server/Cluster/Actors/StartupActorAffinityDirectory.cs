@@ -16,11 +16,11 @@ internal sealed class StartupActorAffinityDirectory : IStartupActorAffinityDirec
     private static int CatalogLookupId => ClusterProtocol.Methods.StartupAffinityCatalogLookup;
     private static int RetainId => ClusterProtocol.Methods.StartupAffinityRetain;
     private static int OwnerSnapshotId => ClusterProtocol.Methods.StartupAffinityOwnerSnapshot;
-    private static readonly RpcMethod<AffinityRequest, AffinityReply> LookupRpc = new(ClusterProtocol.ServiceId, LookupId);
-    private static readonly RpcMethod<AffinityRequest, AffinityReply> BindRpc = new(ClusterProtocol.ServiceId, BindId);
-    private static readonly RpcMethod<AffinityRequest, AffinityReply> CatalogLookupRpc = new(ClusterProtocol.ServiceId, CatalogLookupId);
-    private static readonly RpcMethod<AffinityRequest, AffinityReply> RetainRpc = new(ClusterProtocol.ServiceId, RetainId);
-    private static readonly RpcMethod<AffinityRequest, AffinityReply> OwnerSnapshotRpc = new(ClusterProtocol.ServiceId, OwnerSnapshotId);
+    private static readonly RpcMethod<AffinityRequest, AffinityReply> LookupRpc = new(ClusterProtocol.ServiceId, LookupId, "StartupAffinity", "Lookup");
+    private static readonly RpcMethod<AffinityRequest, AffinityReply> BindRpc = new(ClusterProtocol.ServiceId, BindId, "StartupAffinity", "Bind");
+    private static readonly RpcMethod<AffinityRequest, AffinityReply> CatalogLookupRpc = new(ClusterProtocol.ServiceId, CatalogLookupId, "StartupAffinity", "CatalogLookup");
+    private static readonly RpcMethod<AffinityRequest, AffinityReply> RetainRpc = new(ClusterProtocol.ServiceId, RetainId, "StartupAffinity", "Retain");
+    private static readonly RpcMethod<AffinityRequest, AffinityReply> OwnerSnapshotRpc = new(ClusterProtocol.ServiceId, OwnerSnapshotId, "StartupAffinity", "OwnerSnapshot");
     private readonly AffinityShard[] shards =
         Enumerable.Range(0, StartupActorAffinityLayout.ShardCount).Select(_ => new AffinityShard()).ToArray();
     private readonly AffinityShard[] catalog =

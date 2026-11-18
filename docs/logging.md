@@ -246,6 +246,26 @@ remains controlled in the client process.
 
 ### Request and response DTO logging
 
+Request lifecycle and DTO events display the registered RPC contract and method
+name (for example `Shared.ILoginService.LoginAsync`) in `RpcMethod`, alongside
+numeric service/method/request identifiers. Text logs put the method name first,
+followed by explicit fields such as `requestId=5`, `status=Ok`, `serviceId=2`,
+`methodId=2`, `connectionId=...`, and `elapsedMs=0.8`. For example:
+`RPC request completed Shared.ILoginService.LoginAsync requestId=5 status=Ok ...`.
+Structured property names remain unchanged. Generated client descriptors carry
+the same local name. Cluster protocol descriptors supply names such as
+`ActorDirectory.Lookup` and `ClusterActor.Ask`. The latter names the cluster
+transport operation, not the nested Actor behavior method.
+
+Names never travel on the wire. Generated descriptors prepare their display
+name once during static initialization; the server registry caches its display
+name when a handler is registered. Disabled normal Trace paths skip name resolution.
+Unknown routes and old or unnamed client descriptors fall back to `serviceId:methodId`;
+unknown wire ids are not cached. Existing two-id `RpcMethod` constructors remain
+supported. Rebuild generated clients with the matching Core/analyzer package to
+include names; hand-written descriptors can use the four-argument constructor
+with service and method names. Notification naming is unchanged.
+
 Game payload logging requires both `IncludePayload=true` and an enabled Trace
 level for the corresponding `.Payload` category. Both switches default to false,
 even if all framework categories are set to Trace. Payload options are captured

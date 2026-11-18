@@ -85,7 +85,7 @@ public sealed class RpcRequestLoggingTests
             }
             Assert.True(logs.Contains(entry => entry.Level == LogLevel.Error &&
                 ReferenceEquals(entry.Exception, original) &&
-                entry.Message.Contains($"request {requestId} StageService.StageStart", StringComparison.Ordinal)));
+                entry.Message.Contains($"StageService.StageStart requestId={requestId}", StringComparison.Ordinal)));
         }
         finally
         {
@@ -140,12 +140,12 @@ public sealed class RpcRequestLoggingTests
             entry.Category == "Lakona.Rpc.Server.Request" &&
             entry.Level == LogLevel.Trace &&
             entry.Message.Contains("RPC request received", StringComparison.Ordinal) &&
-            entry.Message.Contains("received 1", StringComparison.OrdinalIgnoreCase));
+            entry.Message.Contains("requestId=1", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(loggerProvider.Entries, entry =>
             entry.Category == "Lakona.Rpc.Server.Request" &&
             entry.Level == LogLevel.Trace &&
             entry.Message.Contains("RPC request completed", StringComparison.Ordinal) &&
-            entry.Message.Contains("status Ok", StringComparison.OrdinalIgnoreCase));
+            entry.Message.Contains("status=Ok", StringComparison.OrdinalIgnoreCase));
 
         await client.DisposeAsync();
         await server.StopAsync();
@@ -188,12 +188,12 @@ public sealed class RpcRequestLoggingTests
             entry.Category == "Lakona.Rpc.Server.Request" &&
             entry.Level == LogLevel.Warning &&
             entry.Message.Contains("RPC request completed", StringComparison.Ordinal) &&
-            entry.Message.Contains("status NotFound", StringComparison.OrdinalIgnoreCase));
+            entry.Message.Contains("status=NotFound", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(loggerProvider.Entries, entry =>
             entry.Category == "Lakona.Rpc.Server.Request" &&
             entry.Level == LogLevel.Warning &&
             entry.Message.Contains("RPC request completed", StringComparison.Ordinal) &&
-            entry.Message.Contains("status NotFound", StringComparison.OrdinalIgnoreCase));
+            entry.Message.Contains("status=NotFound", StringComparison.OrdinalIgnoreCase));
 
         await server.StopAsync();
         await clientTransport.DisposeAsync();
@@ -237,7 +237,7 @@ public sealed class RpcRequestLoggingTests
         Assert.False(invoked);
         Assert.Contains(loggerProvider.Entries, entry =>
             entry.Message.Contains("InvalidOperationException", StringComparison.Ordinal)
-            && entry.Message.Contains("payload length 3", StringComparison.Ordinal));
+            && entry.Message.Contains("payloadBytes=3", StringComparison.Ordinal));
         Assert.DoesNotContain(loggerProvider.Entries, entry =>
             entry.Message.Contains("SENSITIVE_SENTINEL", StringComparison.Ordinal)
             || entry.Exception?.ToString().Contains("SENSITIVE_SENTINEL", StringComparison.Ordinal) == true);
@@ -297,7 +297,7 @@ public sealed class RpcRequestLoggingTests
             entry.Category == "Lakona.Rpc.Server.Request" &&
             entry.Level == LogLevel.Trace &&
             entry.Message.Contains("RPC notification sent", StringComparison.Ordinal) &&
-            entry.Message.Contains("service 2 method 2", StringComparison.OrdinalIgnoreCase));
+            entry.Message.Contains("serviceId=2 methodId=2", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(loggerProvider.Entries, entry =>
             entry.Category == "Lakona.Rpc.Client.Request" &&
             entry.Level == LogLevel.Trace &&
@@ -429,7 +429,7 @@ public sealed class RpcRequestLoggingTests
             entry.Category == "Lakona.Rpc.Client.Request" &&
             entry.Level == LogLevel.Trace &&
             entry.Message.Contains("RPC request completed", StringComparison.Ordinal) &&
-            entry.Message.Contains("status Ok", StringComparison.OrdinalIgnoreCase));
+            entry.Message.Contains("status=Ok", StringComparison.OrdinalIgnoreCase));
 
         await client.DisposeAsync();
         await server.StopAsync();

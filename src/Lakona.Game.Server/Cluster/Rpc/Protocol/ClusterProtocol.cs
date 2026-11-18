@@ -36,9 +36,9 @@ namespace Lakona.Game.Cluster.Rpc
         public static readonly RpcMethod<MembershipProbeRequest, MembershipProbeReply>
             MembershipProbeMethod = new(
                 ServiceId,
-                Methods.MembershipProbe);
+                Methods.MembershipProbe, "MembershipProbeBinder", "HandleAsync");
 
         public static readonly RpcMethod<MembershipGossipRequest, MembershipGossipReply>
-            MembershipGossipMethod = new(ServiceId, Methods.MembershipGossip);
+            MembershipGossipMethod = new(ServiceId, Methods.MembershipGossip, "MembershipProbeBinder", "HandleGossipAsync");
     }
 }

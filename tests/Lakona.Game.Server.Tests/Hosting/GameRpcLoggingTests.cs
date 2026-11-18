@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using Lakona.Game.Server.Configuration;
 using Lakona.Game.Server.Hosting;
@@ -29,22 +30,31 @@ public sealed class GameRpcLoggingTests
         var builder = RpcServerHostBuilder.Create().UseSerializer(new JsonRpcSerializer())
             .UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(listener))
             .UseLoggerFactory(new GameRpcLoggerFactory(factory, "Lakona.Game.Rpc", options));
-        builder.ServiceRegistry.RegisterSingleton(77, new object()).Register<Login, Login>(1,
-            (_, request, _) => new ValueTask<Login>(request));
+        builder.ServiceRegistry.RegisterSingleton(77, new object(), "LoginService").Register<Login, Login>(1,
+            (_, request, _) => new ValueTask<Login>(request), "LoginAsync");
+        builder.ServiceRegistry.RegisterRaw(77, 2,
+            (_, _, payload, _) => new ValueTask<RpcRawResult>(RpcRawResult.Ok(payload)), "RawService", "Echo");
         var run = builder.RunAsync(deadline.Token).AsTask();
         try
         {
             await using var client = new RpcClientRuntime(new TcpTransport(address.Host, address.Port), new JsonRpcSerializer(),
                 loggerFactory: new GameRpcLoggerFactory(factory, "Lakona.Game.Cluster.Rpc", options));
             await client.StartAsync(deadline.Token);
-            var reply = await client.CallAsync(new RpcMethod<Login, Login>(77, 1), new Login("alice", "do-not-log"), deadline.Token);
+            var reply = await client.CallAsync(new RpcMethod<Login, Login>(77, 1, "LoginService", "LoginAsync"), new Login("alice", "do-not-log"), deadline.Token);
             Assert.Equal("alice", reply.Name);
             Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Rpc");
             Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Cluster.Rpc");
             var payloads = provider.Entries.Where(e => e.Category.EndsWith(".Payload")).ToArray();
             Assert.Equal(include && !failingProvider ? 4 : 0, payloads.Length);
             Assert.All(payloads, e => { Assert.Contains("alice", e.Text); Assert.DoesNotContain("do-not-log", e.Text); });
+            Assert.All(payloads, e => Assert.Contains("LoginService.LoginAsync", e.Text));
+            Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Cluster.Rpc" && e.Text.Contains("RPC request completed LoginService.LoginAsync requestId=") && e.Text.Contains("status=Ok serviceId=77 methodId=1"));
+            Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Rpc" && e.Text.Contains("RPC request received LoginService.LoginAsync requestId=") && e.Text.Contains("serviceId=77 methodId=1 connectionId="));
             Assert.DoesNotContain(provider.Entries, e => e.Category.StartsWith("Lakona.Rpc.Server.Request") || e.Category.StartsWith("Lakona.Rpc.Client.Request"));
+            using var raw = await client.CallRawAsync(77, 2, writer => writer.Write(new byte[] { 1, 2 }), "RawService.Echo", deadline.Token);
+            Assert.Equal(new byte[] { 1, 2 }, raw.Memory.ToArray());
+            Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Cluster.Rpc" && e.Text.Contains("RawService.Echo"));
+            Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Rpc" && e.Text.Contains("RawService.Echo"));
         }
         finally
         {

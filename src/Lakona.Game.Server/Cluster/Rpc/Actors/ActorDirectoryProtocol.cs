@@ -6,23 +6,23 @@ namespace Lakona.Game.Cluster.Rpc;
 internal static class ActorDirectoryProtocol
 {
     public static readonly RpcMethod<ActorDirectoryRequest, ActorDirectoryReply> Lookup =
-        new(ClusterProtocol.ServiceId, ClusterProtocol.Methods.ActorDirectoryLookup);
+        new(ClusterProtocol.ServiceId, ClusterProtocol.Methods.ActorDirectoryLookup, "ActorDirectory", "Lookup");
     public static readonly RpcMethod<ActorDirectoryRequest, ActorDirectoryReply> Acquire =
-        new(ClusterProtocol.ServiceId, ClusterProtocol.Methods.ActorDirectoryAcquire);
+        new(ClusterProtocol.ServiceId, ClusterProtocol.Methods.ActorDirectoryAcquire, "ActorDirectory", "Acquire");
     public static readonly RpcMethod<ActorDirectoryRequest, ActorDirectoryReply> Release =
-        new(ClusterProtocol.ServiceId, ClusterProtocol.Methods.ActorDirectoryRelease);
+        new(ClusterProtocol.ServiceId, ClusterProtocol.Methods.ActorDirectoryRelease, "ActorDirectory", "Release");
     public static readonly RpcMethod<ActorDirectoryActivationSnapshotRequest, ActorDirectorySnapshotReply>
         ActivationSnapshot = new(
             ClusterProtocol.ServiceId,
-            ClusterProtocol.Methods.ActorDirectoryActivationSnapshot);
+            ClusterProtocol.Methods.ActorDirectoryActivationSnapshot, "ActorDirectory", "ActivationSnapshot");
     public static readonly RpcMethod<ActorDirectoryPartitionSnapshotRequest, ActorDirectorySnapshotReply>
         PartitionSnapshot = new(
             ClusterProtocol.ServiceId,
-            ClusterProtocol.Methods.ActorDirectorySnapshot);
+            ClusterProtocol.Methods.ActorDirectorySnapshot, "ActorDirectory", "PartitionSnapshot");
     public static readonly RpcMethod<ActorDirectorySnapshotAcknowledgeRequest, ActorDirectoryAcknowledgeReply>
         AcknowledgeSnapshot = new(
             ClusterProtocol.ServiceId,
-            ClusterProtocol.Methods.ActorDirectorySnapshotAcknowledge);
+            ClusterProtocol.Methods.ActorDirectorySnapshotAcknowledge, "ActorDirectory", "AcknowledgeSnapshot");
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
