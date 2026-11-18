@@ -34,8 +34,8 @@ versions of this document in one deployment.
   are produced by the configured `IRpcSerializer`; framework-internal
   Lakona.Game payloads use `LakonaInternalCodec`.
 
-Buffer allocation and serializer ownership do not change the wire layout; see
-[Runtime Owns Frames And Sessions](architecture.md#runtime-owns-frames-and-sessions).
+For buffer and serializer ownership during encoding and decoding, see
+[frame ownership](architecture.md#frame-ownership).
 
 ## Resource Limits
 

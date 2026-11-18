@@ -29,25 +29,14 @@ release their reservations.
 Client and Session receive loops supply the single reader. A
 custom caller bypassing those owners must provide the same serialization.
 Repeated initialization is not permission to race two `ConnectAsync` calls or to
-race initialization with disposal. Normal client disposal cancels and joins its
-connection attempt before releasing the transport. Concurrent disposal callers
-must coordinate at their owner; the shared disposal completion in RPC runtime
-does not imply that every transport implements that policy independently.
-
-The client also cancels and joins admitted request sends before publishing
-`Disconnected` or disposing its transport. This includes default-token calls
-and queued writes. A canceled active write retains the caller's frame until the
-transport operation actually completes; cancellation alone does not release it.
-
-A throwing cancellation callback cannot skip client cleanup. The client records
-the cancellation failure, joins startup and active I/O, and attempts every owned
-resource's disposal before completing its shared `DisposeAsync` task. Cancellation
-and cleanup failures are reported together; repeated disposal observes the same
-result. An earlier terminal I/O error remains the `Disconnected` reason.
+race initialization with disposal. The connection owner coordinates concurrent
+disposal calls. An active write borrows its input until the operation completes,
+including when cancellation has been requested. For the ordering of admitted
+sends, disconnect events and runtime disposal, see [client lifetime](architecture.md#client-lifetime).
 
 The host's abort deadline is a containment mechanism, not a guarantee that an
 arbitrary third-party implementation cooperates. See
-[Host And Session Lifetime](architecture.md#host-and-session-lifetime).
+[host shutdown](architecture.md#host-shutdown).
 
 ## Completion, Cancellation, And Connection State
 

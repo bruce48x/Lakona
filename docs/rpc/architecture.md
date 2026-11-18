@@ -1,411 +1,211 @@
 # RPC
 
-Lakona.Rpc is the typed communication foundation under Lakona. It exists so
-game code can describe service contracts once, share DTOs between server and
-Unity/Godot clients, and let generated glue handle frames, dispatch,
-callbacks, and transport differences.
-
-RPC is infrastructure. Business semantics live in contracts and DTOs, not in
-transport code.
-
-## Ordered Message Entry
-
-Each client connection admits pushes and responses to one FIFO. Dispatch starts
-one synchronous processing segment at a time. An incomplete notification await
-allows the next message to enter; asynchronous business completion is not
-serialized. A synchronous handler blocks later message entry. A push handler may
-await another RPC on the same connection without stopping response dispatch.
-
-The runtime binds the synchronization context at startup, or supplies a serial
-context when no host context exists. Generated Game clients retain that binding
-across reconnects. For an already-awaited native RPC, push entry and the user's
-first synchronous segment after the response follow received frame order:
-`P1, P2, R, P3, P4`. Calling from a different host context, converting to Task,
-adding async wrappers, deferring the await, or explicitly switching execution
-contexts does not extend this guarantee across those scheduling boundaries.
-
-The default serial context must publish its idle state with a full memory
-barrier before rechecking the callback queue. A release-only flag write can
-leave a racing producer observing the old busy flag while the consumer observes
-an empty queue, stranding callbacks without a scheduled drain. The atomic idle
-handoff and subsequent claim preserve progress without allowing two consumers.
-`RpcDispatchSynchronizationContextTests` exercises this handoff independently
-of network I/O; `TcpRpcProgressTests` covers real concurrent RPC bursts.
-
-Pending calls return standard ValueTask results directly from single-use result
-sources. Request sending does not delay result subscription. Generated void
-calls use the framework's result adapter instead of additional async wrappers.
-Cancellation, timeout, and disconnect remain local completion events, not ordered
-server response frames. Duplicate or orphan responses do not invoke user code.
-
-Each server connection has a FIFO request-start queue. Framework admission gates
-run in that order; after a service method yields, the next admitted request may
-start subject to the existing in-flight budget. Completion and response order
-between independent requests can differ from request order. Each connection also
-has one FIFO writer shared by notifications, responses, and keepalive sends;
-successful send completion means the actual transport write completed.
-Queued cancellation follows the [transport contract](transport-contract.md#responsibility-boundary).
-
-Game notification publication participates in a
-[request response barrier](../session.md#notification-and-response-publication-order).
-FIFO transport writing alone cannot order
-notifications still waiting in a higher-level delivery queue.
-
-## Design Principles
-
-### Contracts Own Semantics
-
-RPC service interfaces, method ids, notification contracts, and DTOs live in a
-shared assembly. Server and client compile the same contract source so protocol
-drift is not a normal workflow.
-
-```csharp
-[RpcService(10, NotificationContract = typeof(IPlayerCallback))]
-public interface IPlayerService
-{
-    [RpcMethod(1)]
-    ValueTask<LoginReply> LoginAsync(LoginRequest request);
-}
-```
-
-Stable numeric ids are part of the protocol contract. Do not reuse published
-service ids, method ids, or notification ids for different meanings.
-
-### Generated Code Owns Glue
-
-`Lakona.Rpc.Analyzers` reads shared contracts at compile time and emits client
-facades, notification binders, server binders, and generated service metadata.
-
-The [source-generation contract](source-generation.md) defines generated output,
-project configuration, and the boundary between typed glue and Game client
-runtime behavior.
-
-### Runtime Owns Frames And Sessions
-
-The runtime turns generated method calls into request, response, and push
-frames. Server applications should use high-level host configuration and
-generated binders. They should not hand-write `RpcSession` loops or
-`serviceId:methodId` dispatch dictionaries.
-
-All server request handlers resolve through `RpcServiceRegistry`. Generated
-typed binders and raw handlers share the same admission, response publication,
-error handling, logging, and frame ownership path. Low-level dispatch tests
-register handlers in that registry as well.
-
-Internally, registrations return an owned response containing the final encoded
-frame, status, and error message. Response factories encode the frame and retain
-its completion metadata together; the dispatcher does not decode outbound frames
-for logging. Gate rejections, missing methods, and handler results use one send
-and completion-log path. Handler errors are translated before sending, so a send
-failure cannot trigger a second error response. A completed handler response stays
-owned while notification publications drain and is disposed if that barrier fails
-or is canceled, as well as after the send completes or fails.
-
-Registrations reject duplicate method ids. Connection-scoped activation uses
-single-publication semantics. Factory-created services are released after
-in-flight requests drain; explicitly bound singleton instances remain
-caller-owned. `RpcServiceRegistration<TService>` owns typed payload
-serialization, activation, invocation, and response encoding. Framework control
-protocols that own their codec use `RpcRawHandler` and `RpcRawResult`.
-Raw handlers may write their opaque payload directly into an envelope-owned
-buffer without an intermediate payload-frame copy.
-
-#### Frame Ownership
-
-For typed requests, responses, and notifications, the runtime reserves the
-envelope header and gives the configured serializer an `IBufferWriter<byte>`
-positioned at the business payload. The serializer writes directly into that
-final owned frame; it does not allocate a standalone payload frame for the
-runtime to copy. Decoded payload and push-metadata bytes remain owned slices of
-the received frame for the lifetime of their decoded frame object.
-
-Envelope decoders borrow their input and validate the complete envelope before
-creating owned slices. Rejected input must not retain any new buffer lease or
-consume the caller's frame. Successful results retain their slices independently
-until disposed, even when the caller has already released the input frame.
-
-Each non-empty `TransportFrame` instance owns one lease over its shared buffer.
-`Slice` creates an independent lease, and disposing either handle releases only
-that handle once. Access through a disposed non-empty handle throws
-`ObjectDisposedException`; it cannot read or create further slices, while
-other live slices remain valid. The shared `TransportFrame.Empty` value owns no
-buffer and remains reusable after disposal.
-
-The shared length-prefixed accumulator used by KCP and WebSocket grows only as
-bytes arrive; a large advertised length alone does not reserve the payload.
-For large frames, capacity growth stops at the known frame length (or bytes
-already appended when several frames arrive together). Completed payloads larger than 64 KiB transfer
-the accumulator's GC-owned array into a `TransportFrame`; only trailing bytes
-are copied to the next accumulator buffer. Small frames retain the reusable
-buffer/copy path. An empty accumulator does not retain a buffer larger than
-64 KiB. `Clear` discards partial data and releases its backing array; it is not
-thread-safe and must share the transport's receive/close synchronization.
-Buffer provenance follows the shared lease: pooled arrays return to their pool,
-whereas transferred GC-owned arrays are released without entering ArrayPool.
-Slices preserve the same independent lifetime in both cases. These rules avoid
-an extra large payload copy and connection-held jumbo buffers, but do not remove
-incremental growth copies, serializer allocations, or garbage awaiting GC.
-Growth uses doubling below 1 MiB and up to fourfold steps above it, capped by
-the known frame/buffer limit. This reduces repeated large-array copies and GC
-allocation, at the cost of more spare capacity while a large frame is partial;
-receiving only its prefix still allocates only a small buffer.
-
-The client pending-request module consumes ownership of every decoded response.
-It transfers a matched response to its waiting caller and immediately disposes
-an unmatched response, including one that arrives after caller cancellation,
-so pooled payload retention never depends on GC or finalization.
-
-Frame size enforcement follows the shared envelope budget and derived transport
-limits defined in [Resource Limits](wire-protocol-v1.md#resource-limits).
-
-Public API commitment boundaries are documented in
-[public-api-boundaries.md](public-api-boundaries.md).
-
-#### Client Lifetime
-
-`RpcClientRuntime.ConnectionState` exposes `RpcClientConnectionState` through a
-synchronized read: `Created`, `Connecting`, `Connected`, `Stopped`, or `Disposed`.
-`Connected` means transport initialization completed and RPC loops started. It
-does not include a Game handshake, business login, or a guarantee of remote
-liveness or success of the next call. Startup failure or cancellation reports
-`Stopped`; the existing ability to retry a failed startup is preserved when the
-transport supports it. A successfully started runtime cannot be restarted after
-connection termination; reconnect with a new runtime and transport.
-
-The stop entry point publishes `Stopped` when it closes send admission, before
-draining queued work. This state does not imply cleanup completion and does not
-change the later `Disconnected` event ordering. Explicit disposal publishes
-`Disposed` immediately, including during startup; late completion cannot restore
-`Connected` or `Stopped`. Await `DisposeAsync` for cleanup completion or failure.
-Canceling an individual request alone does not change the connection state.
-
-`RpcClientRuntime.ConnectionStateChanged`, also forwarded by the generated
-`RpcClient`, reports `RpcClientConnectionStateChange` with `PreviousState` and
-`CurrentState`. Subscribe before starting and query the property for initial
-state; subscription does not replay it. Changes capture the current subscribers
-and are delivered once per actual transition, in order on the thread pool,
-outside runtime locks and independently of queued message dispatch. Unsubscription
-does not cancel already queued notifications. The property may be newer than
-the event payload. Subscriber failures are logged and isolated, and lifecycle
-operations do not await them. UI subscribers must marshal to their main thread.
-The existing `Disconnected` event retains its drain-completion timing; it has
-no ordering guarantee relative to asynchronous state event delivery.
-
-Game clients use the RPC state event to observe a stopped generation without
-waiting for message dispatch to drain. Recovery triggered by a transport
-disconnect starts when the terminal event arrives. See
-[Game Client Lifecycle](../session.md#game-client-lifecycle).
-
-Client startup links the caller's initial-connect cancellation with runtime
-shutdown. Disposal cancels and joins an outstanding connection attempt before
-releasing the transport; a late successful connect cannot start background loops.
-Concurrent disposal calls share the same cleanup completion.
-
-Client receive and keepalive loops share a connection lifetime. Failure in either
-stops and joins both before `Disconnected` is raised, preserving the original
-failure. Connection termination rejects new calls and drains already-received
-messages in order before failing remaining calls. Custom transports must cooperate
-with I/O cancellation.
-
-Request encoding, queued writes, and active transport writes belong to the same
-client lifetime. Connection termination closes send admission and cancels writes,
-including calls made without a caller cancellation token. `Disconnected` and
-transport disposal wait for admitted sends to finish and release their frames.
-Cancellation of those writes does not replace the original disconnect reason or
-fail an already-received response before ordered dispatch can deliver it. Caller
-cancellation still ends that caller's wait and does not itself stop the runtime;
-a transport may treat cancellation of an active write as terminal. Cancellation
-does not undo work already accepted by the peer.
-
-Explicit client disposal stops framework intake and dispatch and cancels pending RPCs.
-It does not wait for arbitrary business handlers, including the handler calling
-DisposeAsync itself. An already-started handler retains its frame until it exits;
-queued context callbacks are canceled without returning memory still in use by
-a running handler. Await disposal asynchronously on an engine thread.
-
-#### Host And Session Lifetime
-
-The host constructs each internal `RpcSession` with an explicit service registry,
-connection id, and transport ownership decision. Test-only defaults for those
-inputs belong in test fixtures, not runtime constructor overloads.
-
-`RpcServerHost` is an embeddable, token-driven runtime owner. It observes the
-`CancellationToken` supplied to `RunAsync` and does not subscribe to Ctrl+C,
-SIGTERM, process-exit, or another ambient process signal. The application
-composition root owns signal adaptation: `LakonaGameServer.RunAsync` uses the
-.NET host lifetime, while a standalone RPC console application explicitly
-maps its chosen process signals to one shared shutdown token.
-
-The server host also owns hard connection admission. It atomically reserves an
-active-connection slot before constructing `RpcSession`; when the finite budget
-is full, it closes the newly accepted transport instead of retaining another
-Session or wait task. Higher-level frameworks may add neutral Session admission
-gates that return a lifetime cancellation token and an exactly-once lease. The
-host composes those tokens with shutdown, skips lifecycle notifications for
-rejected connections, and releases every admitted lease after Session cleanup.
-`OnSessionDisconnectedAsync` runs only after the Session, transport, and
-admission leases have been released and the active-capacity slot returned.
-Session receive, keepalive, and request work has finished before this terminal
-signal, so framework observers do not race Session-owned work.
-Official transports do not expose a second application-admission callback
-before this host seam. In particular, the KCP bootstrap only establishes a
-bounded transport connection; application and framework policy belongs to the
-host's Session admission gates.
-
-The host's bounded acceptor wrapper owns every accepted connection until it is
-handed to the host loop. If the accept loop fails unexpectedly, it calls
-`IRpcServerLifecycleObserver.OnListenerFailed` with the listen address and
-original exception before listener disposal or Session drain. The first accept
-can fail synchronously, so a supervisor may receive this callback before
-`OnListeningAsync`. The accept interface completes with the original cause.
-The host still owns cleanup of the acceptor, buffered connections and Sessions.
-
-Each Session also owns a finite request budget: active handlers plus the queued
-requests waiting for a concurrency slot. When that budget is full, the receive
-loop awaits the `Overloaded` response before reading another application frame.
-A stalled response transport therefore applies receive backpressure instead of
-creating an unbounded family of overload-send tasks outside the request budget.
-
-The client notification receive queue is an intentional exception to bounded
-queueing: slow notification handlers must not block response reception. Its
-delivery policy does not drop notifications or force a disconnect merely because
-handlers are slow. Logarithmically coalesced warnings report new queue-count or
-retained-wire-byte high-water thresholds, beginning at 256 notifications or 1 MiB.
-The [resource tradeoff and conditions for reconsideration](../performance.md#client-notification-queue)
-are defined in the performance guidance. Server request admission and client
-notification delivery have different pressure policies.
-
-Session request gates fail closed. Denial and exception classification follow
-the [Status and Error Model](status-error-model.md#implementation-mapping).
-
-Request telemetry follows the Session ownership boundary and covers response
-publication or another terminal outcome. Metric definitions, queue timing, and
-attribute restrictions are documented in
-[Observability](../observability.md#instrumentation-scopes).
-
-Session completion covers all work owned by that Session: the receive loop,
-keepalive probing, and in-flight requests. A receive-loop exit cancels and joins
-keepalive before scoped state or the transport is released. Conversely, an
-unexpected keepalive failure cancels the receive loop and becomes the terminal
-disconnect reason. No Session-owned task handle is discarded while its task can
-still access Session resources.
-
-A transport error while writing an RPC response ends that Session. The server
-records the original write error as its disconnect reason, stops accepting
-requests on the connection, and closes the transport it owns. Once the client
-observes the disconnect, its pending calls fail through the normal connection
-cleanup path. The handler may already have applied its business changes, so
-the RPC runtime leaves any retry decision to the application.
-
-With RPC keepalive enabled, a client or server Session starts a probe after
-an `Interval` without inbound traffic. Its `Timeout` starts before the Ping
-enters the shared writer and continues while the Ping is queued or the
-transport is writing it. Any inbound frame ends the probe, including a Pong
-received before the Ping write completes.
-
-Each connection allows at most one queued or active Ping write. If traffic
-resumes and then falls silent again, a new probe gets its own deadline even
-while the earlier write is still pending. When a probe times out, the
-connection owner records the timeout and cancels I/O. The keepalive loop
-waits for the outstanding Ping send to finish before releasing its frame.
-
-Host cancellation or failure starts a cooperative Session drain under one host-wide
-shutdown deadline. `RpcServerHostBuilder.UseShutdownTimeout` configures that
-deadline; the default is 15 seconds. The listener's stop token is separate from
-the host-owned Session cancellation source: external cancellation stops admission,
-then both normal and fault exits cancel Sessions asynchronously under that deadline.
-The deadline starts before cancellation callbacks run and covers both their
-completion and the connection-task drain, even if no active Sessions remain.
-Callback failures do not skip draining; they surface after cleanup, or are logged
-when preserving an earlier host failure. If cleanup does not finish in time,
-the host aborts active Session transports and throws `RpcServerShutdownTimeoutException`
-instead of reporting a clean stop. Managed code cannot forcibly terminate an
-uncooperative handler, so scoped Session state is not disposed concurrently
-with that handler; late completion performs normal exactly-once cleanup. The
-forced transport-abort join uses the same configured duration as its maximum
-cleanup window, so a transport that also refuses disposal cannot restore an
-unbounded wait. The application composition root treats the timeout as terminal
-and owns any final process-termination policy.
-
-After a timeout, the host continues observing cancellation and connection cleanup,
-including late callback exceptions. Their owner disposes the Session cancellation
-source only after both finish. Session services, admission leases and transports
-retain their existing exactly-once cleanup ownership. `RpcServerCancellationTests`
-covers blocked and throwing callbacks, external cancellation and listener failure,
-multiple Sessions sharing the deadline, and callbacks outliving Session drain.
-
-When the host has already failed, it preserves the original exception after
-cleanup and logs any additional shutdown failure, including a drain timeout.
-The host owns each accepted transport until a Session takes ownership; admission
-cancellation, rejection, and failure all dispose the transport and release any
-previously acquired admission leases without emitting Session lifecycle events.
-
-Protocol-specific meanings such as "Game Handshake complete" remain above RPC.
-RPC supplies the enforcement and cancellation mechanism; Lakona.Game owns its
-pending-handshake capacity, deadline, state transition, and defaults.
-
-### Transport And Serializer Are Replaceable
-
-Transports and serializers are extension points. Gameplay code should not care
-whether the connection uses TCP, WebSocket, KCP, loopback, JSON, or MemoryPack.
-
-Custom transports, connection acceptors, and serializers belong behind stable
-extension interfaces such as `ITransport`, `IRpcConnectionAcceptor`, and
-`IRpcSerializer`.
-
-The [Transport Contract](transport-contract.md) defines initialization,
-concurrency, cancellation, memory ownership, shutdown, and reconnection
-responsibilities, along with [official transport behavior](transport-contract.md#official-transport-behavior)
-and verification limits.
-
-`IRpcSerializer.Serialize<T>` is writer-first: implementations synchronously
-write only the serialized DTO bytes to the supplied `IBufferWriter<byte>` and
-must not complete, dispose, or retain that writer. `SerializeFrame` is a Core
-convenience extension for callers that explicitly need a standalone owned
-payload frame; normal runtime request, response, and notification paths do not
-use it.
-
-### Callback Is Part Of The Contract
-
-Server-to-client push is modeled through notification contracts. A callback
-contract is not a separate event bus; it is the reverse direction of the same
-typed RPC session.
-
-Services declare their callback contract through attributes. The declaration
-shape and association validation are defined in
-[Notification Contract Association](source-generation.md#notification-contract-association).
-
-For replayable game notifications above RPC callbacks, publish notification
-intent through the Lakona game session APIs. Lakona.Game business handlers do
-not receive the connection-scoped callback proxy directly; the game framework
-owns reliable push sequencing, acknowledgement, and replay policy.
-
-See [Reliable Push And Resume](../session.md#reliable-push-and-resume) for that
-Game-layer delivery contract.
-
-Notification handler exceptions are reported through
-`NotificationHandlerException` without disconnecting the transport. Missing
-handlers are reported through `UnhandledNotificationReceived`.
-Client notification diagnostic observers do not own runtime control flow.
-`UnhandledNotificationReceived` and `NotificationHandlerException` invoke
-each subscriber independently; a subscriber failure is logged through the
-application-owned client logger and cannot stop later subscribers or the
-notification consumer.
-
-### Framework Status Is Not Business Failure
-
-`RpcStatus` describes framework outcomes such as missing handlers, handler
-failure, overload, bad request, or protocol error. Business failures such as
-login rejection, room full, invalid move, or cooldown not ready belong in
-business DTOs.
-
-See [status-error-model.md](status-error-model.md)
-for status semantics.
-
-## Maintainer References
-
-- [transport-contract.md](transport-contract.md)
-- [source-generation.md](source-generation.md)
-- [wire-protocol-v1.md](wire-protocol-v1.md)
-- [status-error-model.md](status-error-model.md)
-- [public-api-boundaries.md](public-api-boundaries.md)
+## Responsibilities and layers
+
+Lakona.Rpc connects server and client code through shared service interfaces,
+notification contracts and DTOs. Numeric service, method and notification IDs
+identify operations on the wire and remain stable once published. Business
+outcomes such as login rejection belong in reply DTOs. Framework outcomes such
+as overload or a missing method use `RpcStatus`. See the
+[wire protocol](wire-protocol-v1.md) and [status model](status-error-model.md).
+
+`Lakona.Rpc.Analyzers` generates client facades, server binders, notification
+binders and method metadata from those contracts. The client runtime owns
+pending calls and message dispatch. The server host owns connection admission,
+and each accepted Session owns its request processing and connection-scoped
+services. See [source generation](source-generation.md) and the
+[public API boundaries](public-api-boundaries.md).
+
+### Transport and serializer are replaceable
+
+`ITransport` carries complete frames, `IRpcConnectionAcceptor` supplies incoming
+connections, and `IRpcSerializer` encodes and decodes DTOs. A serializer writes
+payload bytes synchronously to the supplied `IBufferWriter<byte>`. The runtime
+owns that writer throughout the call and completes the envelope. Callers that
+need a standalone payload frame can use `SerializeFrame`. Transport
+implementers should follow the [transport contract](transport-contract.md).
+
+## Call path and message ordering
+
+A generated client encodes a request with its request ID and submits it to the
+connection writer. The caller can await its `ValueTask` while the send is in
+progress. The server dispatches the request through its registry and publishes
+a response. The client matches the response to the pending call by request ID.
+Each connection serializes writes from application and keepalive traffic.
+Send completion and queued cancellation follow the
+[transport contract](transport-contract.md#responsibility-boundary).
+
+### Server request dispatch
+
+Generated typed binders and raw handlers register with `RpcServiceRegistry`.
+Duplicate method IDs within a service are rejected. Both paths share request
+admission, response publication, logging and frame ownership. Registrations
+handle typed payloads or supply a raw codec for framework control protocols.
+
+Each Session admits request starts in FIFO order. Admission gates run in that
+order and fail closed. Once a service method yields, another admitted request
+can start within the concurrency budget. Independent requests can complete and
+respond in a different order. Gate rejections, missing routes and handler
+results use the same response path. Handler errors are translated before
+sending, so a failed response write ends the Session without a second reply.
+See [error mapping](status-error-model.md#implementation-mapping) and
+[request telemetry](../observability.md#instrumentation-scopes).
+
+### Ordered message entry
+
+On the client, responses and pushes enter one FIFO. The dispatcher starts one
+synchronous segment at a time. A synchronous handler holds up later entries.
+Once a handler yields, the next message can enter, so a push handler can await
+another RPC on the same connection. A post racing the serial dispatcher's
+transition to idle must still be processed, with only one consumer active.
+
+The runtime binds the synchronization context at startup or supplies a serial
+context. Generated Game clients retain the binding across reconnects. For an
+already-awaited native RPC on that context, push entry and the caller's first
+synchronous continuation after the response follow wire order, for example
+`P1, P2, R, P3, P4`. A deferred await, conversion to Task, async wrapper or
+context switch puts the continuation outside that guarantee. Cancellation,
+timeout and disconnect can complete a call independently of incoming frames.
+Duplicate and orphan responses never invoke user code.
+
+### Client notification queue
+
+A slow notification handler can delay dispatch while the receive loop continues
+accepting responses and pushes. The client keeps queued notifications and
+allows the queue to grow. It warns at increasing high-water marks for message
+count or retained wire bytes, starting at 256 notifications or 1 MiB.
+See the [queue memory and latency tradeoff](../performance.md#client-notification-queue).
+
+### Callback is part of the contract
+
+Each service declares its server-to-client push contract through a
+[notification contract association](source-generation.md#notification-contract-association).
+Missing handlers raise `UnhandledNotificationReceived`. Handler failures raise
+`NotificationHandlerException` and leave the connection active. Each diagnostic
+subscriber runs independently. The client logs subscriber failures and
+continues delivery.
+
+Game owns reliable push sequencing, acknowledgement and replay above RPC.
+Game handlers publish notification intent through Game session APIs. A
+response may need to wait for earlier notification publications before entering
+the connection writer. See the [publication barrier](../session.md#notification-and-response-publication-order)
+and [reliable push and resume](../session.md#reliable-push-and-resume).
+
+## Frame ownership
+
+| Boundary | Ownership rule |
+| --- | --- |
+| Encoding | The runtime reserves the envelope header and the serializer writes into the final frame. Raw handlers can also write directly into an envelope-owned buffer. |
+| Sending | The sender keeps frame memory valid until the transport operation completes, including after cancellation is requested. See the [transport responsibility boundary](transport-contract.md#responsibility-boundary). |
+| Decoding | Decoders borrow the input and validate the whole envelope before retaining payload or metadata slices. Rejection leaves the input with its caller and retains no new lease. |
+| Slicing | Each non-empty `TransportFrame` handle owns one lease. A slice can outlive its parent. Disposing a handle releases it once, and further access through it throws `ObjectDisposedException`. Other handles remain valid. `TransportFrame.Empty` owns no buffer and is reusable. |
+| Publishing a response | The dispatcher owns the encoded response while notification publications drain and through the send. It releases the frame on success, cancellation or failure at either step. |
+| Receiving a response | The pending-call owner transfers a matched response to its caller and immediately disposes an unmatched or late response. |
+
+Frame size limits apply before a complete payload is available. A length prefix
+alone must not trigger a payload-sized allocation. See [resource limits](wire-protocol-v1.md#resource-limits)
+and the [performance guidance](../performance.md).
+
+## Client lifetime
+
+`RpcClientRuntime.ConnectionState` exposes `Created`, `Connecting`, `Connected`,
+`Stopped` and `Disposed`. `Connected` means transport initialization completed
+and RPC loops started. Game handshake and login complete separately. A failed
+or canceled startup reaches `Stopped` and may be retried if the transport
+supports it. After an established connection ends, reconnect with a fresh
+runtime and transport.
+
+`ConnectionStateChanged` reports previous and current state once per transition,
+in order on the thread pool. Subscribe before startup and read the property
+for initial state. Delivery captures subscribers at transition time, runs
+outside runtime locks and isolates subscriber exceptions. The property can
+advance before a callback runs. UI subscribers marshal to their main thread.
+The generated client forwards these changes. Game uses the stopped state for
+early visibility and the terminal event to start disconnect recovery.
+See [Game client lifecycle](../session.md#game-client-lifecycle).
+
+- **Connection termination.** The client publishes `Stopped` when it closes
+  send admission. It cancels admitted writes, joins receive and keepalive,
+  dispatches already-received messages in order, and fails remaining calls.
+  Admitted sends, including those using the default token, finish and release
+  their frames before `Disconnected` or transport disposal. The first terminal
+  I/O failure remains the disconnect reason. `Disconnected` has no ordering
+  guarantee relative to asynchronous state-change callbacks.
+- **Caller cancellation.** Canceling one call ends that caller's wait. Work
+  accepted by the peer may still complete. A transport may treat cancellation
+  during an active write as terminal.
+- **Explicit disposal.** The client publishes `Disposed` immediately, closes
+  intake and dispatch, cancels pending calls, and joins startup and active I/O.
+  Late startup completion cannot start loops or restore a live state. A running
+  business handler retains its frame until it exits and can itself await
+  disposal. Queued callbacks are canceled. Await `DisposeAsync` asynchronously
+  on engine threads. Concurrent disposals share the same result. A throwing
+  cancellation callback still permits cleanup of every owned resource, and
+  disposal reports cancellation and cleanup failures together.
+
+## Host and Session lifetime
+
+### Connection and request admission
+
+The application maps process signals to the cancellation token passed to
+`RpcServerHost.RunAsync`. The bounded acceptor owns each accepted connection
+until handoff. The host reserves an active slot before constructing a Session
+and closes new connections when capacity is exhausted. Session admission gates
+can supply lifetime tokens and leases. A rejected connection releases its
+transport and acquired leases without a Session lifecycle notification.
+
+An admitted Session takes ownership of its transport. Game handshake policy
+runs above this admission boundary, including for KCP connections. Within the
+Session, active and queued requests share a finite budget. When it is full,
+the receive loop waits for the `Overloaded` response before reading again.
+
+### Session completion
+
+The Session owns its receive loop, keepalive work and in-flight requests.
+Connection-scoped service activation publishes one instance per registration.
+The Session releases factory-created services after their requests finish.
+Explicitly bound singleton instances remain caller-owned.
+
+- **Peer disconnect.** EOF or a terminal receive error cancels Session work.
+  Even if a cancellation callback throws, the Session drains requests before
+  releasing scoped services. A prior I/O error remains the disconnect reason
+  and an additional callback failure is logged. On EOF alone, a failing
+  callback supplies the terminal error.
+- **Response write failure.** The Session records the write error and aborts
+  its owned transport so pending I/O can end. The handler may already have
+  applied its business changes. The application decides whether to retry.
+- **Keepalive.** On either endpoint, the probe deadline starts before the Ping
+  enters the shared writer. Any inbound frame ends the probe. At most one Ping
+  write is queued or active. A later period of silence gets a new deadline even
+  if that write is still pending. Timeout records the reason and cancels I/O.
+  The keepalive loop joins its send before releasing the frame, and the Session
+  joins keepalive before releasing scoped state.
+
+The host returns admission leases and the active slot after Session cleanup.
+The host's terminal observation point is `OnSessionDisconnectedAsync`: its
+contract places it after Session work, transport release and admission release.
+
+### Host shutdown
+
+The listener reports an unexpected accept failure and its original exception
+through `OnListenerFailed` before disposal and Session drain. The first accept
+can fail before `OnListeningAsync`. The host still owns buffered connections
+and Session cleanup.
+
+1. The host stops admission and disposes the acceptor. It then starts a
+   shared Session shutdown deadline, configured by `UseShutdownTimeout`
+   (default 15 seconds). It cancels Sessions asynchronously and waits for both
+   cancellation callbacks and connection tasks, even if every Session has left
+   the active set.
+2. If the deadline expires, the host aborts active transports to wake I/O.
+   Waiting for those aborts has a separate window of the same duration.
+   Shutdown reports `RpcServerShutdownTimeoutException`. When a listener
+   failure already explains shutdown, the host preserves that failure and
+   logs the additional cleanup error.
+3. The host continues observing unfinished callbacks and cleanup after a
+   timeout. A handler that ignores cancellation keeps its scoped service until
+   it exits. Late completion follows normal resource ownership. The host
+   disposes its Session cancellation source after callbacks and connection
+   tasks finish. Callback failures surface after cleanup or are logged when
+   preserving an earlier host error. The application owns the final process
+   termination policy.

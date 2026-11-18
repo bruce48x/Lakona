@@ -100,7 +100,7 @@ Regular application projects should build against this layer.
 - `RpcServerHost`.
 - `RpcServerHostBuilder.UseShutdownTimeout` and
   `RpcServerShutdownTimeoutException` for
-  [bounded cooperative shutdown](architecture.md#host-and-session-lifetime).
+  [bounded cooperative shutdown](architecture.md#host-shutdown).
 - `RpcServerLimits`.
 - `RpcConnectionInfo` when a generated service factory needs connection
   identity or optional remote endpoint metadata.
@@ -278,7 +278,7 @@ fallbacks, and exception-based capability detection are not compatibility
 paths; analyzer and runtime changes to this contract ship together.
 
 Typed registrations and raw framework handlers share the
-[runtime dispatch and ownership path](architecture.md#runtime-owns-frames-and-sessions).
+[server request dispatch path](architecture.md#server-request-dispatch).
 Neither exposes the serializer, transport writer, receive loop, or service cache
 to business code. Request validation and failure classification follow the
 [Status and Error Model](status-error-model.md).
@@ -296,7 +296,7 @@ to business code. Request validation and failure classification follow the
   should use `LakonaGameServer.RunAsync(args, configure)`. Both should rely on
   generated binders.
 - Host examples must follow the
-  [shutdown ownership contract](architecture.md#host-and-session-lifetime).
+  [shutdown ownership contract](architecture.md#host-shutdown).
 - Package READMEs should not teach direct `RpcSession` construction as the
   normal server path.
 - API reference entries for runtime-internal types should warn that they are not

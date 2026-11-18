@@ -147,7 +147,7 @@ the evidence needed to reconsider their cost.
 | --- | --- | --- |
 | Reliable Push | [Sessions](session.md#reliable-push-and-resume) | Measure contention and delivery latency before widening lock scope. |
 | Actor execution | [Actor turns](actor.md#actor-turns-and-hotfix-generations) | Measure mailbox throughput and cross-Actor interference. |
-| RPC admission and send lifetime | [RPC lifecycle](rpc/architecture.md#host-and-session-lifetime) | Measure overload and stalled-send behavior. |
+| RPC admission and send lifetime | [Server admission](rpc/architecture.md#connection-and-request-admission) and [client lifetime](rpc/architecture.md#client-lifetime) | Measure overload and stalled-send behavior. |
 | Client dispatch handoff | [Ordered message entry](rpc/architecture.md#ordered-message-entry) | Retain a deterministic concurrent-post regression alongside scheduling measurements. |
 | KCP synchronization and scheduling | [KCP contract](rpc/transport-contract.md#kcp) | Use the [reliability probe](../benchmarks/rpc-reliability/README.md); include idle and active connections. |
 | Timer scheduling | [Actor timers](actor.md#timers) | The [wakeup benchmark](../benchmarks/timer-wakeup/README.md) compares ordinary and gated registration bursts; full Hotfix callback cost needs the timer performance suite. |
@@ -187,7 +187,7 @@ or retained process memory.
 
 ### Client Notification Queue
 
-[RPC](rpc/architecture.md#host-and-session-lifetime) owns the queue's delivery
+[Client notification queue](rpc/architecture.md#client-notification-queue) defines the queue's delivery
 policy and warning thresholds. The performance tradeoff deliberately favors
 response reception over a fixed notification-memory bound. Reconsidering it
 requires a representative stress/soak test that measures notification rate,
