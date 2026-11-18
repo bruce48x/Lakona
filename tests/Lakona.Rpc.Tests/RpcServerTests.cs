@@ -125,7 +125,7 @@ public class RpcSessionTests
             entry.LogLevel == LogLevel.Error &&
             entry.Exception is InvalidOperationException ioe &&
             ioe.Message == "test error" &&
-            entry.Message.Contains("request 1", StringComparison.OrdinalIgnoreCase));
+            entry.Message.Contains("requestId=1", StringComparison.OrdinalIgnoreCase));
 
         await server.StopAsync();
         await clientTransport.DisposeAsync();
@@ -169,7 +169,7 @@ public class RpcSessionTests
         Assert.Equal(RpcStatus.InternalError, resp.Status);
         var entry = Assert.Single(logger.Entries, entry => entry.LogLevel == LogLevel.Error);
         Assert.Contains("Game.Contracts.ILoginService.LoginAsync", entry.Message, StringComparison.Ordinal);
-        Assert.Contains("service 1 method 1", entry.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("serviceId=1 methodId=1", entry.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("gateway-session", entry.Message, StringComparison.Ordinal);
         Assert.IsType<InvalidOperationException>(entry.Exception);
 
