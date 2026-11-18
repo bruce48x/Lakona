@@ -424,11 +424,12 @@ public sealed class DistributedTopologyConfigurationTests
             var login = await LoginAndAttachAsync(
                 provider,
                 playerId,
-                $"control-{i}");
+                $"control-{i}", $"session-{i}");
 
             result = await EnqueueAsync(provider, new MatchmakingEnqueueRequest
             {
                 UserId = login.UserId,
+                ControlSessionId = $"session-{i}",
                 SessionToken = login.SessionToken,
                 EnqueuedAtUtc = DateTime.UtcNow
             });
@@ -486,12 +487,13 @@ public sealed class DistributedTopologyConfigurationTests
             var login = await LoginAndAttachAsync(
                 provider,
                 "local-runtime-player",
-                "control-local-runtime");
+                "control-local-runtime", "local-session");
 
             var result = await EnqueueAsync(provider, new MatchmakingEnqueueRequest
             {
                 UserId = login.UserId,
                 SessionToken = login.SessionToken,
+                ControlSessionId = "local-session",
                 EnqueuedAtUtc = DateTime.UtcNow.AddSeconds(-6)
             });
 
@@ -558,12 +560,13 @@ public sealed class DistributedTopologyConfigurationTests
             var login = await LoginAndAttachAsync(
                 provider,
                 "startup-timer-player",
-                "control-startup-timer");
+                "control-startup-timer", "timer-session");
 
             var result = await EnqueueAsync(provider, new MatchmakingEnqueueRequest
             {
                 UserId = login.UserId,
                 SessionToken = login.SessionToken,
+                ControlSessionId = "timer-session",
                 EnqueuedAtUtc = DateTime.UtcNow
             });
             Assert.True(result.Queued);
@@ -734,8 +737,16 @@ public sealed class DistributedTopologyConfigurationTests
             }),
             cancellationToken);
 
-        await ReleasePlayerThroughInternalBoundaryAsync(provider, "player-stale", "test stale room");
+        await PlayerService.ReleasePlayerAsync(
+            provider.GetRequiredService<ActorAccess>(),
+            provider.GetRequiredService<MatchmakingNotifier>(),
+            new LocalActorNodeIdentity(new NodeId("gateway-1")),
+            provider.GetRequiredService<ILogger<PlayerService>>(),
+            "player-stale",
+            new ControlSessionRequest { SessionId = "control-session-stale" },
+            "test stale room");
 
+        await actors.WaitForDeactivationAsync(UserId("player-stale"), cancellationToken);
         await Assert.ThrowsAsync<ActorNotFoundException>(async () =>
             await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
                 ActorIdentity.Create<UserActor, UserId>(new UserId("player-stale")),
@@ -1012,7 +1023,7 @@ public sealed class DistributedTopologyConfigurationTests
         IServiceProvider provider,
         string playerId,
         string connectionId,
-        string controlSessionId = "")
+        string controlSessionId)
     {
         var actors = provider.GetRequiredService<IActorRuntime>();
         await provider.GetRequiredService<ActorActivationCatalog>().EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(new UserId(playerId)));
@@ -1053,28 +1064,6 @@ public sealed class DistributedTopologyConfigurationTests
         return await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
             UserId(playerId),
             (actor, _) => actor.GetSnapshotAsync(new PlayerSessionSnapshotRequest()));
-    }
-
-    private static async Task ReleasePlayerThroughInternalBoundaryAsync(IServiceProvider provider, string playerId, string reason)
-    {
-        var method = typeof(PlayerService).GetMethod(
-            "ReleasePlayerAsync",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
-            ?? throw new InvalidOperationException("Could not find PlayerService.ReleasePlayerAsync.");
-        var task = method.Invoke(null, [
-            provider.GetRequiredService<ActorAccess>(),
-            provider.GetService<MatchmakingNotifier>() ??
-                ActivatorUtilities.CreateInstance<MatchmakingNotifier>(provider),
-            new LocalActorNodeIdentity(new NodeId("gateway-1")),
-            provider.GetRequiredService<ILogger<PlayerService>>(),
-            playerId,
-            reason,
-            TestContext.Current.CancellationToken,
-            null
-        ]) as Task
-            ?? throw new InvalidOperationException("PlayerService.ReleasePlayerAsync did not return a Task.");
-
-        await task.ConfigureAwait(false);
     }
 
     private static ActorId UserId(string userId) => ActorIdentity.Create<UserActor, UserId>(new UserId(userId));

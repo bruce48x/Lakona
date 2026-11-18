@@ -22,6 +22,7 @@ using Microsoft.Extensions.Logging;
 using Server.App.Generated;
 using Server.Hotfix.Leaderboard;
 using Server.Hotfix.Matchmaking;
+using Server.Hotfix.Players;
 using Server.Hotfix.Rooms;
 using Server.Hotfix.Users;
 using Shared.Interfaces;
@@ -106,8 +107,10 @@ public sealed class AgarHotfixTests
         Assert.Null(map(failure with { ResponseType = typeof(string) }));
     }
 
-    [Fact]
-    public async Task Guest_login_creates_user_actor_in_unified_single_node_cluster()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GuestCanLogBackInByAccountAndOldLogoutCannotReleaseNewSession(bool releaseAlreadyStarted)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -150,6 +153,7 @@ public sealed class AgarHotfixTests
         var service = new LoginService(
             provider.GetRequiredService<ActorAccess>(),
             provider.GetRequiredService<ILogger<LoginService>>());
+        var gameServer = new TestGameServer();
         var call = new LoginServiceCall<LoginRequest>(
             new LoginRequest { GuestLogin = true },
             "control-connection-1",
@@ -157,7 +161,7 @@ public sealed class AgarHotfixTests
             GameSessionItems.Empty,
             provider,
             actors,
-            new TestGameServer());
+            gameServer);
 
         var reply = await service.LoginAsync(call);
 
@@ -166,9 +170,36 @@ public sealed class AgarHotfixTests
         Assert.False(string.IsNullOrWhiteSpace(reply.Password));
         Assert.Equal(reply.Account, reply.PlayerId);
 
-        Assert.Equal(
-            ActorState.Active,
-            actors.GetState(ActorIdentity.Create<UserActor, UserId>(new UserId(reply.PlayerId))));
+        var user = provider.GetRequiredService<ActorAccess>().Route<UserActor>(new UserId(reply.PlayerId));
+        var first = await user.CallAsync(static behavior => behavior.GetSnapshotAsync, new PlayerSessionSnapshotRequest(), cancellationToken);
+        var release = new ControlSessionRequest { SessionId = first.ControlSessionId, ConnectionId = first.ConnectionId };
+        if (releaseAlreadyStarted)
+        {
+            var releasing = await user.CallAsync(static behavior => behavior.BeginControlReleaseAsync, release, cancellationToken);
+            Assert.Equal(reply.Token, releasing.SessionToken);
+        }
+
+        // A new session can also be bound on the same physical connection.
+        var connection = releaseAlreadyStarted ? "control-connection-2" : first.ConnectionId;
+        var next = await service.LoginAsync(new LoginServiceCall<LoginRequest>(
+            new LoginRequest { Account = reply.Account, Password = reply.Password },
+            connection, null, GameSessionItems.Empty, provider, actors, gameServer));
+        Assert.Equal(LoginResultCodes.Ok, next.Code);
+        Assert.Equal(reply.PlayerId, next.PlayerId);
+        Assert.NotEqual(reply.Token, next.Token);
+
+        var player = ActivatorUtilities.CreateInstance<PlayerService>(provider);
+        if (releaseAlreadyStarted)
+            await user.CallAsync(static behavior => behavior.CompleteControlReleaseAsync, release, cancellationToken);
+        else
+            await player.LogoutAsync(new PlayerServiceCall<LogoutRequest>(
+                new LogoutRequest(), first.ConnectionId, new GameSessionKey(reply.PlayerId, first.ControlSessionId),
+                GameSessionItems.Empty, provider, actors, gameServer));
+
+        var current = await user.CallAsync(static behavior => behavior.GetSnapshotAsync, new PlayerSessionSnapshotRequest(), cancellationToken);
+        Assert.Equal(next.Token, current.SessionToken);
+        Assert.NotEqual(first.ControlSessionId, current.ControlSessionId);
+        Assert.Equal(connection, current.ConnectionId);
     }
 
     [Fact]
@@ -910,7 +941,7 @@ public sealed class AgarHotfixTests
             string connectionId,
             CancellationToken cancellationToken = default)
         {
-            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, ownerKey));
+            return new ValueTask<GameSessionKey>(new GameSessionKey(ownerKey, Guid.NewGuid().ToString("N")));
         }
 
         public ValueTask BindSessionAsync(

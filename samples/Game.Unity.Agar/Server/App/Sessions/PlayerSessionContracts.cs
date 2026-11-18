@@ -64,6 +64,16 @@ namespace Server.App.Sessions
 
         [MemoryPackOrder(3)]
         public DateTime QueuedAtUtc { get; set; }
+
+        [MemoryPackOrder(4)]
+        public string ControlSessionId { get; set; } = "";
+    }
+
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class PlayerSessionQueueResult
+    {
+        [MemoryPackOrder(0)]
+        public bool Queued { get; set; }
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]
@@ -144,6 +154,9 @@ namespace Server.App.Sessions
 
         [MemoryPackOrder(3)]
         public string Reason { get; set; } = "";
+
+        [MemoryPackOrder(4)]
+        public string ControlSessionId { get; set; } = "";
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]

@@ -95,6 +95,7 @@ public sealed class ControlSessionLifecycle : IGameSessionLifecycle
                     new PlayerSessionDisconnectRequest
                     {
                         UserId = playerId,
+                        ControlSessionId = call.Request.SessionId,
                         ConnectionId = call.Request.ConnectionId,
                         DisconnectedAtUtc = DateTime.UtcNow,
                         Reason = "Control disconnect"
@@ -149,9 +150,8 @@ public sealed class ControlSessionLifecycle : IGameSessionLifecycle
                     _localNode,
                     _playerLogger,
                     playerId,
-                    "Session recovery window expired",
-                    CancellationToken.None,
-                    expectedControlSessionId: call.Request.SessionId)
+                    new ControlSessionRequest { SessionId = call.Request.SessionId },
+                    "Session recovery window expired")
                 .ConfigureAwait(false);
         }
         catch (ActorNotFoundException)

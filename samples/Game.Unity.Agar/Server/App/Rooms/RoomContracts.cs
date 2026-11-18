@@ -41,6 +41,9 @@ namespace Server.App.Rooms
 
         [MemoryPackOrder(3)]
         public string Reason { get; set; } = "";
+
+        [MemoryPackOrder(4)]
+        public string ControlSessionId { get; set; } = "";
     }
 
     [MemoryPackable(GenerateType.VersionTolerant)]

@@ -18,6 +18,14 @@ namespace Agar.Unity.Tests;
 // unit tests inside an actor turn without recreating runtime dispatch.
 internal static class DirectBehaviorTestExtensions
 {
+    public static async Task WaitForDeactivationAsync(this IActorRuntime actors, ActorId id, CancellationToken ct)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        while (actors.GetState(id) != ActorState.Dead)
+            await Task.Delay(10, timeout.Token);
+    }
+
     public static ValueTask<UserLoginResult> LoginAndAttachAsync(this UserActor actor, UserLoginAndAttachRequest request, CancellationToken ct = default) =>
         CreateBehavior<UserBehavior>(actor).LoginAndAttachAsync(actor, request);
 

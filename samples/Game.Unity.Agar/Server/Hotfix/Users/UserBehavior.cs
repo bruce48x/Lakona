@@ -28,6 +28,10 @@ public sealed partial class UserBehavior
         UserActor self,
         UserLoginAndAttachRequest request)
     {
+        // A login already in the mailbox can run while the activation drains.
+        if (self.DeactivationRequested)
+            throw new InvalidOperationException("The previous session is logging out. Please retry login.");
+
         await EnsureProfileLoadedAsync(self, CancellationToken.None).ConfigureAwait(false);
         var result = await LoginAsync(self, request.Password).ConfigureAwait(false);
         AttachSession(self, result, request);
@@ -83,15 +87,36 @@ public sealed partial class UserBehavior
         };
     }
 
-    public ValueTask SetOnlineAsync(UserActor self, UserOnlineStatusRequest request)
+    public ValueTask<PlayerSessionSnapshot> BeginControlReleaseAsync(UserActor self, ControlSessionRequest request)
     {
-        if (self.RecordExists)
+        var session = self.State.Session;
+        if (!OwnsControlSession(session, request.SessionId) ||
+            (request.ConnectionId is not null && session.ConnectionId != request.ConnectionId))
         {
-            self.State.IsOnline = request.IsOnline;
+            return ValueTask.FromResult(new PlayerSessionSnapshot());
+        }
+
+        var snapshot = BuildSnapshot(self);
+        // Prevent new gameplay operations while queue and room cleanup is in flight.
+        session.SessionToken = "";
+        return ValueTask.FromResult(snapshot);
+    }
+
+    public ValueTask CompleteControlReleaseAsync(UserActor self, ControlSessionRequest request)
+    {
+        var session = self.State.Session;
+        if (OwnsControlSession(session, request.SessionId) && session.SessionToken.Length == 0)
+        {
+            self.State.IsOnline = false;
+            self.Context.RequestDeactivation();
+            self.DeactivationRequested = true;
         }
 
         return default;
     }
+
+    private static bool OwnsControlSession(PlayerSessionState session, string sessionId) =>
+        !string.IsNullOrEmpty(sessionId) && session.ControlSessionId == sessionId;
 
     public async ValueTask AddWinAsync(
         UserActor self,
@@ -227,37 +252,31 @@ public sealed partial class UserBehavior
         }
     }
 
-    public ValueTask MarkQueuedAsync(UserActor self, PlayerSessionQueueRequest request)
+    public ValueTask<PlayerSessionQueueResult> MarkQueuedAsync(UserActor self, PlayerSessionQueueRequest request)
     {
-        var userId = NormalizeUserId(request.UserId);
-        EnsureState(self, userId);
-
-        self.State.UserId = userId;
         var session = self.State.Session;
-        session.MatchmakingTicketId = request.TicketId;
+        if (!OwnsControlSession(session, request.ControlSessionId) || session.SessionToken.Length == 0)
+            return ValueTask.FromResult(new PlayerSessionQueueResult());
 
-        return default;
+        session.MatchmakingTicketId = request.TicketId;
+        return ValueTask.FromResult(new PlayerSessionQueueResult { Queued = true });
     }
 
     public ValueTask ClearQueueAsync(UserActor self, PlayerSessionQueueClearRequest request)
     {
-        var userId = NormalizeUserId(request.UserId);
-        EnsureState(self, userId);
-
         var session = self.State.Session;
-        session.MatchmakingTicketId = "";
+        if (session.MatchmakingTicketId == request.TicketId)
+            session.MatchmakingTicketId = "";
 
         return default;
     }
 
     public ValueTask AssignRoomAsync(UserActor self, PlayerRoomAssignment request)
     {
-        var userId = NormalizeUserId(request.UserId);
-        EnsureState(self, userId);
-
         var session = self.State.Session;
-        session.SessionToken = string.IsNullOrWhiteSpace(request.SessionToken) ? session.SessionToken : request.SessionToken;
-        session.ConnectionId = string.IsNullOrWhiteSpace(request.ConnectionId) ? session.ConnectionId : request.ConnectionId;
+        if (session.SessionToken.Length == 0 || session.SessionToken != request.SessionToken)
+            return default;
+
         session.CurrentRoomId = request.RoomId;
         session.CurrentMatchId = request.MatchId;
         session.SeatIndex = request.SeatIndex;
@@ -287,7 +306,7 @@ public sealed partial class UserBehavior
     {
         var session = self.State.Session;
         if (string.Equals(self.State.UserId, request.UserId, StringComparison.Ordinal) &&
-            string.Equals(session.ControlSessionId, request.SessionId, StringComparison.Ordinal))
+            OwnsControlSession(session, request.SessionId) && session.SessionToken.Length != 0)
         {
             session.ConnectionId = request.ConnectionId;
         }
@@ -296,11 +315,8 @@ public sealed partial class UserBehavior
 
     public ValueTask MarkControlDisconnectedAsync(UserActor self, PlayerSessionDisconnectRequest request)
     {
-        var userId = NormalizeUserId(request.UserId);
-        EnsureState(self, userId);
-
         var session = self.State.Session;
-        if (string.IsNullOrWhiteSpace(request.ConnectionId) || string.Equals(session.ConnectionId, request.ConnectionId, StringComparison.Ordinal))
+        if (OwnsControlSession(session, request.ControlSessionId) && session.ConnectionId == request.ConnectionId)
         {
             session.ConnectionId = "";
         }

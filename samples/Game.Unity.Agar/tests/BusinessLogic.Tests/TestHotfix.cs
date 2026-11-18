@@ -29,6 +29,12 @@ internal static class TestHotfixTimerScope
     {
         public static readonly Backend Instance = new();
 
+        public TimerId CreateTimer<TActor, TBehavior>(
+            TActor actor, Func<TBehavior, ActorTimerCallback<TActor>> selector,
+            TimeSpan dueTime, TimeSpan? period)
+            where TActor : Actor where TBehavior : class =>
+            LakonaTimerRuntime.CreateTimerId();
+
         public TimerId CreateTimer<TActor, TBehavior, TArgs>(
             TActor actor, Func<TBehavior, ActorTimerCallback<TActor, TArgs>> selector,
             TimeSpan dueTime, TimeSpan? period, TArgs args)

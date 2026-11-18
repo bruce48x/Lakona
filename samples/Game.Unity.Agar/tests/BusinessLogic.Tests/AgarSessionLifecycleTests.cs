@@ -11,6 +11,7 @@ using Lakona.Game.Server.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Server.App.Generated;
 using Server.Hotfix.Matchmaking;
 using Server.Hotfix.Players;
 using Server.Hotfix.Rooms;
@@ -325,6 +326,50 @@ public sealed class AgarSessionLifecycleTests
     }
 
     [Fact]
+    public async Task StaleControlRequestsCannotChangeCurrentMatchmakingOrRoom()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var provider = BuildLifecycleServices(includeActors: true).BuildReadyServiceProvider(ct);
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        var id = new UserId("player-1");
+        await provider.GetRequiredService<ActorActivationCatalog>()
+            .EnsureAsync<UserActor>(ActorIdentity.Create<UserActor, UserId>(id), ct);
+        var oldLogin = await LoginAndAttachUserAsync(actors, "player-1", "connection", "old", ct);
+        var login = await LoginAndAttachUserAsync(actors, "player-1", "connection", "new", ct);
+        var user = provider.GetRequiredService<ActorAccess>().Route<UserActor>(id);
+        var queued = await user.CallAsync(static behavior => behavior.MarkQueuedAsync,
+            new PlayerSessionQueueRequest { UserId = "player-1", ControlSessionId = "new", TicketId = "new-ticket" }, ct);
+        Assert.True(queued.Queued);
+
+        var player = ActivatorUtilities.CreateInstance<PlayerService>(provider);
+        var stale = new GameSessionKey("player-1", "old");
+        await player.StartMatchmakingAsync(new PlayerServiceCall<MatchmakingRequest>(
+            new MatchmakingRequest(), "connection", stale, GameSessionItems.Empty, provider, actors, new TestGameServer()));
+        await player.CancelMatchmakingAsync(new PlayerServiceCall<CancelMatchmakingRequest>(
+            new CancelMatchmakingRequest(), "connection", stale, GameSessionItems.Empty, provider, actors, new TestGameServer()));
+        var staleQueue = await user.CallAsync(static behavior => behavior.MarkQueuedAsync,
+            new PlayerSessionQueueRequest { UserId = "player-1", ControlSessionId = "old", TicketId = "old-ticket" }, ct);
+        Assert.False(staleQueue.Queued);
+        await user.CallAsync(static behavior => behavior.ClearQueueAsync,
+            new PlayerSessionQueueClearRequest { UserId = "player-1", TicketId = "old-ticket" }, ct);
+        await user.CallAsync(static behavior => behavior.AssignRoomAsync, new PlayerRoomAssignment
+        {
+            UserId = "player-1", SessionToken = oldLogin.SessionToken, ControlSessionId = "old", RoomId = "old-room"
+        }, ct);
+        await ActivatorUtilities.CreateInstance<ControlSessionLifecycle>(provider).SessionDisconnectedAsync(
+            new HotfixLifecycleCall<GameSessionDisconnectedRequest>(new GameSessionDisconnectedRequest
+            {
+                OwnerKey = "player-1", SessionId = "old", ConnectionId = "connection"
+            }));
+
+        var current = await user.CallAsync(static behavior => behavior.GetSnapshotAsync, new PlayerSessionSnapshotRequest(), ct);
+        Assert.Equal(login.SessionToken, current.SessionToken);
+        Assert.Equal("connection", current.ConnectionId);
+        Assert.Equal("new-ticket", current.MatchmakingTicketId);
+        Assert.Empty(current.CurrentRoomId);
+    }
+
+    [Fact]
     public async Task StaleControlSessionExpiryDoesNotReleaseNewerUserSession()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -412,15 +457,12 @@ public sealed class AgarSessionLifecycleTests
             cancellationToken);
         Assert.Equal(1, firstLogin.LoginCount);
 
-        await PlayerService.ReleasePlayerAsync(
-            provider.GetRequiredService<ActorAccess>(),
-            provider.GetRequiredService<MatchmakingNotifier>(),
-            provider.GetRequiredService<LocalActorNodeIdentity>(),
-            provider.GetRequiredService<ILogger<PlayerService>>(),
-            "player-1",
-            "Logout",
-            cancellationToken);
+        var player = ActivatorUtilities.CreateInstance<PlayerService>(provider);
+        await player.LogoutAsync(new PlayerServiceCall<LogoutRequest>(
+            new LogoutRequest(), "control-1", new GameSessionKey("player-1", "control-session"),
+            GameSessionItems.Empty, provider, actors, new TestGameServer()));
 
+        await actors.WaitForDeactivationAsync(identity, cancellationToken);
         await Assert.ThrowsAsync<ActorNotFoundException>(async () =>
             await actors.AskAsync<UserActor, PlayerSessionSnapshot>(
                 identity,

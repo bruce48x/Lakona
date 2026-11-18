@@ -17,10 +17,13 @@ public sealed partial class UserLoginAndAttachRequest
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]
-public sealed partial class UserOnlineStatusRequest
+public sealed partial class ControlSessionRequest
 {
     [MemoryPackOrder(0)]
-    public bool IsOnline { get; set; }
+    public string SessionId { get; set; } = "";
+
+    [MemoryPackOrder(1)]
+    public string? ConnectionId { get; set; }
 }
 
 [MemoryPackable(GenerateType.VersionTolerant)]

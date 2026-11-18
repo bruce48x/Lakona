@@ -72,62 +72,9 @@ public sealed class PlayerService
 
     public async ValueTask StartMatchmakingAsync(PlayerServiceCall<MatchmakingRequest> call)
     {
-        var playerId = await EnsureControlConnectionAsync(call).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(playerId))
-        {
+        var snapshot = await GetControlSnapshotAsync(call).ConfigureAwait(false);
+        if (snapshot is null)
             return;
-        }
-
-        await EnqueuePlayerAsync(playerId).ConfigureAwait(false);
-    }
-
-    public async ValueTask CancelMatchmakingAsync(PlayerServiceCall<CancelMatchmakingRequest> call)
-    {
-        var playerId = await EnsureControlConnectionAsync(call).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(playerId))
-        {
-            return;
-        }
-
-        await CancelMatchmakingAsync(playerId, "Matchmaking cancelled")
-            .ConfigureAwait(false);
-    }
-
-    public async ValueTask LogoutAsync(PlayerServiceCall<LogoutRequest> call)
-    {
-        var playerId = await EnsureControlConnectionAsync(call).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(playerId))
-        {
-            return;
-        }
-
-        await ReleasePlayerAsync(playerId, "Logout", CancellationToken.None).ConfigureAwait(false);
-    }
-
-    private static async ValueTask<string?> EnsureControlConnectionAsync<TRequest>(
-        PlayerServiceCall<TRequest> call)
-    {
-        if (call.CurrentSession is not { } currentSession)
-        {
-            return null;
-        }
-
-        return currentSession.OwnerKey;
-    }
-
-    private async Task EnqueuePlayerAsync(string playerId)
-    {
-        var userId = new UserId(playerId);
-        var snapshot = await _actors
-            .Route<UserActor>(userId)
-            .CallAsync(
-                static behavior => behavior.GetSnapshotAsync,
-                new PlayerSessionSnapshotRequest())
-            .ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(snapshot.SessionToken))
-        {
-            throw new InvalidOperationException($"Player '{playerId}' does not have an attached control session.");
-        }
 
         var result = await _actors
             .Startup<MatchmakingActor>(new MatchmakingQueueId("default"))
@@ -135,72 +82,54 @@ public sealed class PlayerService
                 static behavior => behavior.EnqueueAsync,
                 new MatchmakingEnqueueRequest
                 {
-                    UserId = playerId,
+                    UserId = snapshot.UserId,
                     SessionToken = snapshot.SessionToken,
                     ControlSessionId = snapshot.ControlSessionId,
                     EnqueuedAtUtc = DateTime.UtcNow
                 })
             .ConfigureAwait(false);
 
-        if (string.IsNullOrWhiteSpace(result.TicketId))
-        {
-            await _actors
-                .Route<UserActor>(userId)
-                .CallAsync(
-                    static behavior => behavior.ClearQueueAsync,
-                    new PlayerSessionQueueClearRequest
-                    {
-                        UserId = playerId,
-                        ClearedAtUtc = DateTime.UtcNow,
-                        Reason = "Matchmaking enqueue did not return a ticket."
-                    })
-                .ConfigureAwait(false);
-        }
-        else
-        {
-            await _actors
-                .Route<UserActor>(userId)
-                .CallAsync(
-                    static behavior => behavior.MarkQueuedAsync,
-                    new PlayerSessionQueueRequest
-                    {
-                        UserId = playerId,
-                        TicketId = result.TicketId,
-                        QueuedAtUtc = DateTime.UtcNow
-                    })
-                .ConfigureAwait(false);
-        }
-
-        PublishQueued(_matchmakingNotifier, snapshot, result);
+        if (result.Queued)
+            PublishQueued(_matchmakingNotifier, snapshot, result);
     }
 
-    private Task CancelMatchmakingAsync(string playerId, string reason)
+    public async ValueTask CancelMatchmakingAsync(PlayerServiceCall<CancelMatchmakingRequest> call)
     {
-        return CancelMatchmakingAsync(
-            _actors,
-            _matchmakingNotifier,
-            playerId,
-            reason);
+        var snapshot = await GetControlSnapshotAsync(call).ConfigureAwait(false);
+        if (snapshot is not null)
+            await CancelMatchmakingAsync(_actors, _matchmakingNotifier, snapshot, "Matchmaking cancelled").ConfigureAwait(false);
+    }
+
+    public async ValueTask LogoutAsync(PlayerServiceCall<LogoutRequest> call)
+    {
+        if (call.CurrentSession is { } session)
+        {
+            await ReleasePlayerAsync(_actors, _matchmakingNotifier, _localNode, _logger, session.OwnerKey,
+                new ControlSessionRequest { SessionId = session.SessionId, ConnectionId = call.ConnectionId },
+                "Logout").ConfigureAwait(false);
+        }
+    }
+
+    private async ValueTask<PlayerSessionSnapshot?> GetControlSnapshotAsync<TRequest>(PlayerServiceCall<TRequest> call)
+    {
+        if (call.CurrentSession is not { } session)
+            return null;
+
+        var snapshot = await _actors.Route<UserActor>(new UserId(session.OwnerKey))
+            .CallAsync(static behavior => behavior.GetSnapshotAsync, new PlayerSessionSnapshotRequest())
+            .ConfigureAwait(false);
+        return snapshot.SessionToken.Length != 0 && snapshot.ControlSessionId == session.SessionId &&
+            snapshot.ConnectionId == call.ConnectionId ? snapshot : null;
     }
 
     private static async Task CancelMatchmakingAsync(
         ActorAccess actors,
         MatchmakingNotifier matchmakingNotifier,
-        string playerId,
+        PlayerSessionSnapshot snapshot,
         string reason)
     {
-        var userId = new UserId(playerId);
-        var snapshot = await actors
-            .Route<UserActor>(userId)
-            .CallAsync(
-                static behavior => behavior.GetSnapshotAsync,
-                new PlayerSessionSnapshotRequest())
-            .ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(snapshot.SessionToken) &&
-            string.IsNullOrWhiteSpace(snapshot.MatchmakingTicketId))
-        {
+        if (string.IsNullOrEmpty(snapshot.MatchmakingTicketId))
             return;
-        }
 
         await actors
             .Startup<MatchmakingActor>(new MatchmakingQueueId("default"))
@@ -208,25 +137,13 @@ public sealed class PlayerService
                 static behavior => behavior.CancelAsync,
                 new MatchmakingCancelRequest
                 {
-                    UserId = playerId,
+                    UserId = snapshot.UserId,
                     TicketId = snapshot.MatchmakingTicketId,
                     CancelledAtUtc = DateTime.UtcNow,
                     Reason = reason
                 })
             .ConfigureAwait(false);
 
-        await actors
-            .Route<UserActor>(userId)
-            .CallAsync(
-                static behavior => behavior.ClearQueueAsync,
-                new PlayerSessionQueueClearRequest
-                {
-                    UserId = playerId,
-                    TicketId = snapshot.MatchmakingTicketId,
-                    ClearedAtUtc = DateTime.UtcNow,
-                    Reason = reason
-                })
-            .ConfigureAwait(false);
         if (!TryCreateControlSession(snapshot, out var controlSession))
         {
             return;
@@ -243,58 +160,24 @@ public sealed class PlayerService
         });
     }
 
-    private Task ReleasePlayerAsync(string playerId, string reason,
-        CancellationToken cancellationToken)
-    {
-        return ReleasePlayerAsync(
-            _actors,
-            _matchmakingNotifier,
-            _localNode,
-            _logger,
-            playerId,
-            reason,
-            cancellationToken);
-    }
-
     internal static async Task ReleasePlayerAsync(
         ActorAccess actors,
         MatchmakingNotifier matchmakingNotifier,
         LocalActorNodeIdentity localNode,
         ILogger<PlayerService> logger,
         string playerId,
-        string reason,
-        CancellationToken cancellationToken = default,
-        string? expectedControlSessionId = null)
+        ControlSessionRequest request,
+        string reason)
     {
         try
         {
-            var userId = new UserId(playerId);
-            var snapshot = await actors
-                .Route<UserActor>(userId)
-                .CallAsync(
-                    static behavior => behavior.GetSnapshotAsync,
-                    new PlayerSessionSnapshotRequest())
+            var user = actors.Route<UserActor>(new UserId(playerId));
+            var snapshot = await user.CallAsync(static behavior => behavior.BeginControlReleaseAsync, request)
                 .ConfigureAwait(false);
-
-            if (expectedControlSessionId is not null &&
-                !string.Equals(snapshot.ControlSessionId, expectedControlSessionId, StringComparison.Ordinal))
-            {
+            if (string.IsNullOrEmpty(snapshot.ControlSessionId))
                 return;
-            }
 
-            if (!string.IsNullOrWhiteSpace(snapshot.MatchmakingTicketId))
-            {
-                await CancelMatchmakingAsync(actors, matchmakingNotifier, playerId, reason)
-                    .ConfigureAwait(false);
-                snapshot = await actors
-                    .Route<UserActor>(userId)
-                    .CallAsync(
-                        static behavior => behavior.GetSnapshotAsync,
-                        new PlayerSessionSnapshotRequest())
-                    .ConfigureAwait(false);
-            }
-
-            var releaseCompleted = true;
+            await CancelMatchmakingAsync(actors, matchmakingNotifier, snapshot, reason).ConfigureAwait(false);
             var roomId = snapshot.CurrentRoomId;
             if (!string.IsNullOrWhiteSpace(roomId))
             {
@@ -311,58 +194,10 @@ public sealed class PlayerService
                         playerId,
                         reason);
                 }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(
-                        ex,
-                        "Failed to leave room {RoomId} while releasing player {PlayerId} during {Reason}. Keeping the User Actor so a later release can complete the room leave.",
-                        roomId,
-                        playerId,
-                        reason);
-                    releaseCompleted = false;
-                }
-
-                await actors
-                    .Route<UserActor>(userId)
-                    .CallAsync(
-                        static behavior => behavior.ClearRoomAsync,
-                        new PlayerRoomClearRequest
-                        {
-                            UserId = playerId,
-                            RoomId = roomId,
-                            ClearedAtUtc = DateTime.UtcNow,
-                            Reason = reason
-                        })
-                    .ConfigureAwait(false);
             }
 
-            await actors
-                .Route<UserActor>(userId)
-                .CallAsync(
-                    static behavior => behavior.MarkControlDisconnectedAsync,
-                    new PlayerSessionDisconnectRequest
-                    {
-                        UserId = playerId,
-                        ConnectionId = snapshot.ConnectionId,
-                        DisconnectedAtUtc = DateTime.UtcNow,
-                        Reason = reason
-                    })
+            await user.CallAsync(static behavior => behavior.CompleteControlReleaseAsync, request)
                 .ConfigureAwait(false);
-            await actors
-                .Route<UserActor>(userId)
-                .CallAsync(
-                    static behavior => behavior.SetOnlineAsync,
-                    new UserOnlineStatusRequest { IsOnline = false })
-                .ConfigureAwait(false);
-
-            if (releaseCompleted)
-            {
-                await actors
-                    .Place<UserActor>(userId)
-                    .DestroyAsync(cancellationToken)
-                    .ConfigureAwait(false);
-                logger.LogDebug("Released User Actor for player {PlayerId} during {Reason}.", playerId, reason);
-            }
         }
         catch (ActorNotFoundException)
         {
@@ -384,6 +219,7 @@ public sealed class PlayerService
         {
             UserId = snapshot.UserId,
             RoomId = snapshot.CurrentRoomId,
+            ControlSessionId = snapshot.ControlSessionId,
             LeftAtUtc = DateTime.UtcNow,
             Reason = reason
         };
@@ -422,8 +258,7 @@ public sealed class PlayerService
         });
     }
 
-    internal static async Task PublishMatchedAsync(
-        ActorAccess actors,
+    internal static void PublishMatched(
         MatchmakingNotifier matchmakingNotifier,
         RoomAssignment assignment)
     {
@@ -434,49 +269,10 @@ public sealed class PlayerService
 
         foreach (var player in assignment.Players)
         {
-            var userRef = actors.Route<UserActor>(new UserId(player.UserId));
-            var snapshot = await userRef
-                .CallAsync(
-                    static behavior => behavior.GetSnapshotAsync,
-                    new PlayerSessionSnapshotRequest())
-                .ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(snapshot.SessionToken))
-            {
+            if (string.IsNullOrWhiteSpace(player.ControlSessionId))
                 continue;
-            }
 
-            await userRef
-                .CallAsync(
-                    static behavior => behavior.ClearQueueAsync,
-                    new PlayerSessionQueueClearRequest
-                    {
-                        UserId = player.UserId,
-                        TicketId = snapshot.MatchmakingTicketId,
-                        ClearedAtUtc = DateTime.UtcNow,
-                        Reason = "Matched"
-                    })
-                .ConfigureAwait(false);
-            await userRef
-                .CallAsync(
-                    static behavior => behavior.AssignRoomAsync,
-                    new PlayerRoomAssignment
-                    {
-                        UserId = player.UserId,
-                        RoomId = assignment.RoomId,
-                        MatchId = assignment.MatchId,
-                        SeatIndex = player.SeatIndex,
-                        SessionToken = snapshot.SessionToken,
-                        ConnectionId = snapshot.ConnectionId,
-                        AssignedAtUtc = DateTime.UtcNow,
-                        RuntimeGateway = assignment.RuntimeGateway
-                    })
-                .ConfigureAwait(false);
-
-            if (!TryCreateControlSession(snapshot, out var controlSession))
-            {
-                continue;
-            }
-
+            var controlSession = new GameSessionKey(player.UserId, player.ControlSessionId);
             matchmakingNotifier.Publish(controlSession, new MatchmakingStatusUpdate
             {
                 State = Shared.Interfaces.MatchmakingState.Matched,

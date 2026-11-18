@@ -51,22 +51,17 @@ public sealed partial class MatchmakingBehavior
         var enqueuedAtUtc = NormalizeUtc(request.EnqueuedAtUtc);
 
         var existingTicket = self.PendingTickets.FirstOrDefault(ticket => string.Equals(ticket.UserId, userId, StringComparison.Ordinal));
-        if (existingTicket is not null)
+        if (existingTicket is not null && existingTicket.SessionToken == request.SessionToken)
         {
-            if (string.Equals(existingTicket.SessionToken, request.SessionToken, StringComparison.Ordinal))
+            return new MatchmakingEnqueueResult
             {
-                return new MatchmakingEnqueueResult
-                {
-                    UserId = userId,
-                    TicketId = existingTicket.TicketId,
-                    Queued = true,
-                    QueuePosition = GetQueuePosition(self, existingTicket.TicketId),
-                    Message = "Player is already queued.",
-                    UpdatedAtUtc = enqueuedAtUtc
-                };
-            }
-
-            self.PendingTickets.Remove(existingTicket);
+                UserId = userId,
+                TicketId = existingTicket.TicketId,
+                Queued = true,
+                QueuePosition = GetQueuePosition(self, existingTicket.TicketId),
+                Message = "Player is already queued.",
+                UpdatedAtUtc = enqueuedAtUtc
+            };
         }
 
         var ticket = new MatchmakingQueueTicket
@@ -80,14 +75,22 @@ public sealed partial class MatchmakingBehavior
             ControlSessionId = request.ControlSessionId
         };
 
-        self.PendingTickets.Add(ticket);
-        SortQueue(self);
-        await MarkQueuedAsync(new PlayerSessionQueueRequest
+        var registration = await MarkQueuedAsync(new PlayerSessionQueueRequest
         {
             UserId = userId,
             TicketId = ticket.TicketId,
+            ControlSessionId = request.ControlSessionId,
             QueuedAtUtc = enqueuedAtUtc
         }).ConfigureAwait(false);
+        if (!registration.Queued)
+        {
+            return new MatchmakingEnqueueResult { UserId = userId };
+        }
+
+        if (existingTicket is not null)
+            self.PendingTickets.Remove(existingTicket);
+        self.PendingTickets.Add(ticket);
+        SortQueue(self);
 
         return new MatchmakingEnqueueResult
         {
@@ -105,7 +108,7 @@ public sealed partial class MatchmakingBehavior
         var userId = NormalizeUserId(request.UserId);
         var cancelledAtUtc = NormalizeUtc(request.CancelledAtUtc);
 
-        var index = FindTicketIndex(self, request.TicketId, userId);
+        var index = self.PendingTickets.FindIndex(ticket => ticket.UserId == userId && ticket.TicketId == request.TicketId);
         if (index < 0)
         {
             return new MatchmakingCancelResult
@@ -154,6 +157,6 @@ public sealed partial class MatchmakingBehavior
 
         var normalizedObservedAtUtc = NormalizeUtc(request.ObservedAtUtc);
         var assignments = await TryMatchAsync(self, normalizedObservedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
-        await PublishMatchedAsync(assignments.Values).ConfigureAwait(false);
+        PublishMatched(assignments.Values);
     }
 }

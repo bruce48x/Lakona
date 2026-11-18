@@ -123,18 +123,18 @@ public sealed partial class MatchmakingBehavior
         return assignments;
     }
 
-    private async Task PublishMatchedAsync(IEnumerable<RoomAssignment> assignments)
+    private void PublishMatched(IEnumerable<RoomAssignment> assignments)
     {
         foreach (var assignment in assignments
             .Where(static assignment => !string.IsNullOrWhiteSpace(assignment.RoomId))
             .GroupBy(static assignment => assignment.RoomId, StringComparer.Ordinal)
             .Select(static group => group.First()))
         {
-            await PlayerService.PublishMatchedAsync(_actors, _notifier, assignment).ConfigureAwait(false);
+            PlayerService.PublishMatched(_notifier, assignment);
         }
     }
 
-    private ValueTask MarkQueuedAsync(PlayerSessionQueueRequest request)
+    private ValueTask<PlayerSessionQueueResult> MarkQueuedAsync(PlayerSessionQueueRequest request)
     {
         return _actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
             static behavior => behavior.MarkQueuedAsync,
@@ -287,20 +287,6 @@ public sealed partial class MatchmakingBehavior
     {
         var index = self.PendingTickets.FindIndex(ticket => string.Equals(ticket.TicketId, ticketId, StringComparison.Ordinal));
         return index < 0 ? -1 : index + 1;
-    }
-
-    private static int FindTicketIndex(MatchmakingActor self, string ticketId, string userId)
-    {
-        if (!string.IsNullOrWhiteSpace(ticketId))
-        {
-            var byTicket = self.PendingTickets.FindIndex(ticket => string.Equals(ticket.TicketId, ticketId, StringComparison.Ordinal));
-            if (byTicket >= 0)
-            {
-                return byTicket;
-            }
-        }
-
-        return self.PendingTickets.FindIndex(ticket => string.Equals(ticket.UserId, userId, StringComparison.Ordinal));
     }
 
     private static void SortQueue(MatchmakingActor self)

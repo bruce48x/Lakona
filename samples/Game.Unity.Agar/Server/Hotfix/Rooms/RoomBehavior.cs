@@ -186,7 +186,7 @@ public sealed partial class RoomBehavior
         }
 
         var player = FindPlayer(self, request.UserId);
-        if (player is null)
+        if (player is null || player.ControlSessionId != request.ControlSessionId)
         {
             return new ValueTask<RoomSettlementResult>(BuildFailure(self, "Player is not in the room.", leftAtUtc));
         }
