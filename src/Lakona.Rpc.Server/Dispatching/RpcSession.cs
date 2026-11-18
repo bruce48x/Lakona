@@ -288,8 +288,10 @@ namespace Lakona.Rpc.Server
 
         private void LogNotificationSent(int serviceId, int methodId, int payloadBytes)
         {
+            if (!_requestLogger.IsEnabled(LogLevel.Trace)) return;
             _requestLogger.LogTrace(
-                "RPC notification sent serviceId={ServiceId} methodId={MethodId} payloadBytes={PayloadBytes} connectionId={ConnectionId}.",
+                "RPC notification sent {RpcMethod} serviceId={ServiceId} methodId={MethodId} payloadBytes={PayloadBytes} connectionId={ConnectionId}.",
+                _registry.ResolveNotificationName(serviceId, methodId),
                 serviceId,
                 methodId,
                 payloadBytes,

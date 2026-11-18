@@ -89,7 +89,7 @@ public sealed partial class LakonaRpcSourceGenerator
             writer.Line($"private const int ServiceId = {service.ServiceId};");
 
             foreach (var method in service.NotificationMethods)
-                writer.Line($"private static readonly RpcNotificationMethod<{method.PayloadType}> {Naming.GetNotificationMethodFieldName(method.Name)} = new(ServiceId, {method.MethodId});");
+                writer.Line($"private static readonly RpcNotificationMethod<{method.PayloadType}> {Naming.GetNotificationMethodFieldName(method.Name)} = new(ServiceId, {method.MethodId}, \"{service.NotificationContractFullName!.Replace("global::", "")}.{method.Name}\");");
 
             writer.Line();
             writer.OpenBlock($"public static void Bind(IRpcClient client, {service.NotificationContractFullName} receiver)");

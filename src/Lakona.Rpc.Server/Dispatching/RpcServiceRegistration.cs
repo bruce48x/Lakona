@@ -28,6 +28,9 @@ public sealed class RpcServiceRegistration<TService>
         _activate = activate;
     }
 
+    public void RegisterNotificationName(int methodId, string displayName) =>
+        _registry.RegisterNotificationName(_serviceId, methodId, displayName);
+
     public void Register<TRequest>(
         int methodId,
         Func<TService, TRequest, CancellationToken, ValueTask> invoke,

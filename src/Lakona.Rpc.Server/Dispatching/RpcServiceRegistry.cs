@@ -43,6 +43,14 @@ public sealed class RpcServiceRegistry
     private readonly ConcurrentDictionary<(int serviceId, int methodId), RpcServiceRegistryEntry> _entries = new();
     private readonly ConcurrentDictionary<int, object> _serviceRegistrations = new();
 
+    private readonly ConcurrentDictionary<(int serviceId, int methodId), string> _notificationNames = new();
+
+    internal void RegisterNotificationName(int serviceId, int methodId, string name) =>
+        _notificationNames[(serviceId, methodId)] = name;
+
+    internal string ResolveNotificationName(int serviceId, int methodId) =>
+        _notificationNames.TryGetValue((serviceId, methodId), out var name) ? name : $"{serviceId}:{methodId}";
+
     public bool IsEmpty => _entries.IsEmpty;
 
     internal void Register(

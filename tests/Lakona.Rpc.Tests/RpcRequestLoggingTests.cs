@@ -266,6 +266,8 @@ public sealed class RpcRequestLoggingTests
     public async Task Server_notification_send_writes_trace_push_log()
     {
         LoopbackTransport.CreatePair(out var clientTransport, out var serverTransport);
+        var registry = new RpcServiceRegistry();
+        registry.RegisterNotificationName(2, 2, "ChatCallback.OnMessage");
         var serverSerializer = new DestinationTrackingRpcSerializer();
         var clientSerializer = new JsonRpcSerializer();
         var loggerProvider = new CategoryRecordingLoggerProvider();
@@ -277,7 +279,7 @@ public sealed class RpcRequestLoggingTests
         var server = new RpcSession(
             serverTransport,
             serverSerializer,
-            registry: new RpcServiceRegistry(),
+            registry: registry,
             connectionId: Guid.NewGuid().ToString("N"),
             ownsTransport: false,
             requestLogger: loggerFactory.CreateLogger("Lakona.Rpc.Server.Request"));
@@ -285,7 +287,7 @@ public sealed class RpcRequestLoggingTests
             clientTransport,
             clientSerializer,
             loggerFactory: loggerFactory);
-        client.RegisterNotificationHandler(NotifyMethod, _ => default);
+        client.RegisterNotificationHandler(new RpcNotificationMethod<string>(2, 2, "ChatCallback.OnMessage"), _ => default);
 
         await server.StartAsync();
         await client.StartAsync();
@@ -296,12 +298,12 @@ public sealed class RpcRequestLoggingTests
         Assert.Contains(loggerProvider.Entries, entry =>
             entry.Category == "Lakona.Rpc.Server.Request" &&
             entry.Level == LogLevel.Trace &&
-            entry.Message.Contains("RPC notification sent", StringComparison.Ordinal) &&
+            entry.Message.Contains("RPC notification sent ChatCallback.OnMessage", StringComparison.Ordinal) &&
             entry.Message.Contains("serviceId=2 methodId=2", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(loggerProvider.Entries, entry =>
             entry.Category == "Lakona.Rpc.Client.Request" &&
             entry.Level == LogLevel.Trace &&
-            entry.Message.Contains("RPC notification received", StringComparison.Ordinal));
+            entry.Message.Contains("RPC notification received ChatCallback.OnMessage", StringComparison.Ordinal));
         Assert.Equal(1, serverSerializer.EnvelopeWriteCount);
 
         await client.DisposeAsync();

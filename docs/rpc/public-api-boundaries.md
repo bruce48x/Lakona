@@ -74,6 +74,7 @@ Regular application projects should build against this layer.
   - `RpcNotificationContractAttribute`
   - `RpcNotificationAttribute`
 - Generated client facade shape and lifetime semantics.
+- `RpcNotificationMethod<TArg>` accepts an optional display name through its three-argument constructor.
 - `RpcMethod<TArg, TResult>` retains its two-id constructor and also accepts
   service and method names in a four-argument constructor. `DisplayName` is
   precomputed local diagnostic metadata; it does not change wire identity.

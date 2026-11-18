@@ -53,8 +53,13 @@ namespace Lakona.Rpc.Core
         /// </summary>
         /// <param name="serviceId">Stable service id declared by <see cref="RpcServiceAttribute"/>.</param>
         /// <param name="methodId">Stable notification method id declared by <see cref="RpcNotificationAttribute"/>.</param>
-        public RpcNotificationMethod(int serviceId, int methodId)
+        public RpcNotificationMethod(int serviceId, int methodId) : this(serviceId, methodId, null) { }
+
+        public string? DisplayName { get; }
+
+        public RpcNotificationMethod(int serviceId, int methodId, string? displayName)
         {
+            DisplayName = displayName;
             ServiceId = serviceId;
             MethodId = methodId;
         }

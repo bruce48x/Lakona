@@ -264,7 +264,7 @@ Unknown routes and old or unnamed client descriptors fall back to `serviceId:met
 unknown wire ids are not cached. Existing two-id `RpcMethod` constructors remain
 supported. Rebuild generated clients with the matching Core/analyzer package to
 include names; hand-written descriptors can use the four-argument constructor
-with service and method names. Notification naming is unchanged.
+with service and method names. Generated notification send and receive logs display the callback contract and method, followed by labeled IDs. Unknown notifications retain their numeric identity.
 
 Game payload logging requires both `IncludePayload=true` and an enabled Trace
 level for the corresponding `.Payload` category. Both switches default to false,

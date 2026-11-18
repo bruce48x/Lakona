@@ -251,7 +251,7 @@ namespace Lakona.Rpc.Client
 
                 var value = _serializer.Deserialize<TArg>(payload);
                 return handler(value);
-            }));
+            }, method.DisplayName));
 
             if (!registered)
                 throw new InvalidOperationException(
@@ -637,11 +637,13 @@ namespace Lakona.Rpc.Client
                     return;
                 }
 
-                _requestLogger.LogTrace(
-                    "RPC notification received serviceId={ServiceId} methodId={MethodId} payloadBytes={PayloadBytes}.",
-                    push.ServiceId,
-                    push.MethodId,
-                    push.Payload.Length);
+                if (_requestLogger.IsEnabled(LogLevel.Trace))
+                {
+                    _requestLogger.LogTrace(
+                        "RPC notification received {RpcMethod} serviceId={ServiceId} methodId={MethodId} payloadBytes={PayloadBytes}.",
+                        ResolveName(registration.DisplayName, push.ServiceId, push.MethodId),
+                        push.ServiceId, push.MethodId, push.Payload.Length);
+                }
 
                 try
                 {
@@ -651,7 +653,8 @@ namespace Lakona.Rpc.Client
                 {
                     _requestLogger.LogError(
                         ex,
-                        "RPC notification handler failed serviceId={ServiceId} methodId={MethodId}.",
+                        "RPC notification handler failed {RpcMethod} serviceId={ServiceId} methodId={MethodId}.",
+                        ResolveName(registration.DisplayName, push.ServiceId, push.MethodId),
                         push.ServiceId,
                         push.MethodId);
                     NotifyDiagnosticObservers(
@@ -886,12 +889,14 @@ namespace Lakona.Rpc.Client
 
         private sealed class RegisteredNotificationHandler
         {
-            public RegisteredNotificationHandler(Type payloadType, RpcNotificationPayloadHandler handler)
+            public RegisteredNotificationHandler(Type payloadType, RpcNotificationPayloadHandler handler, string? displayName = null)
             {
+                DisplayName = displayName;
                 PayloadType = payloadType;
                 Handler = handler;
             }
 
+            public string? DisplayName { get; }
             public Type PayloadType { get; }
 
             public RpcNotificationPayloadHandler Handler { get; }

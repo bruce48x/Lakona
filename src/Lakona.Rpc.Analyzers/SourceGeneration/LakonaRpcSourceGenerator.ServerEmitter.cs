@@ -50,6 +50,8 @@ public sealed partial class LakonaRpcSourceGenerator
             }
             writer.Line();
             writer.OpenBlock($"private static void BindCore(RpcServiceRegistration<{service.FullName}> service)");
+            foreach (var notification in service.NotificationMethods)
+                writer.Line($"service.RegisterNotificationName({notification.MethodId}, \"{StripGlobalPrefix(service.NotificationContractFullName!)}.{notification.Name}\");");
             foreach (var method in service.Methods)
             {
                 if (method.IsVoid)
