@@ -579,8 +579,8 @@ public sealed class LakonaRpcSourceGeneratorTests
 
         var binder = GetGeneratedSource(runResult, "PingNotificationsBinder.g.cs");
         Assert.Contains("private const int ServiceId = 1;", binder);
-        Assert.Contains("= new(ServiceId, 1);", binder);
-        Assert.Contains("= new(ServiceId, 2);", binder);
+        Assert.Contains("= new(ServiceId, 1, \"Game.Contracts.IPingNotifications.OnNotify\");", binder);
+        Assert.Contains("= new(ServiceId, 2, \"Game.Contracts.IPingNotifications.OnNotifyAsync\");", binder);
 
         var proxy = GetGeneratedSource(runResult, "PingNotificationsProxy.g.cs");
         Assert.Contains("private const int ServiceId = 1;", proxy);
