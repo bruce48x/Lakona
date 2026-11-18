@@ -29,7 +29,8 @@ public sealed class GameRpcLoggingTests
         var address = new Uri(listener.ListenAddress);
         var builder = RpcServerHostBuilder.Create().UseSerializer(new JsonRpcSerializer())
             .UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(listener))
-            .UseLoggerFactory(new GameRpcLoggerFactory(factory, "Lakona.Game.Rpc", options));
+            .UseLoggerFactory(new GameRpcLoggerFactory(factory, "Lakona.Game.Rpc"));
+        builder.PayloadLogging = options;
         builder.ServiceRegistry.RegisterSingleton(77, new object(), "LoginService").Register<Login, Login>(1,
             (_, request, _) => new ValueTask<Login>(request), "LoginAsync");
         builder.ServiceRegistry.RegisterRaw(77, 2,
@@ -43,14 +44,17 @@ public sealed class GameRpcLoggingTests
         var run = builder.RunAsync(deadline.Token).AsTask();
         try
         {
-            await using var client = new RpcClientRuntime(new TcpTransport(address.Host, address.Port), new JsonRpcSerializer(),
-                loggerFactory: new GameRpcLoggerFactory(factory, "Lakona.Game.Cluster.Rpc", options));
+            await using var client = new RpcClientRuntime(new RpcClientOptions(new TcpTransport(address.Host, address.Port), new JsonRpcSerializer())
+            {
+                LoggerFactory = new GameRpcLoggerFactory(factory, "Lakona.Game.Cluster.Rpc"),
+                PayloadLogging = options
+            });
             await client.StartAsync(deadline.Token);
             var reply = await client.CallAsync(new RpcMethod<Login, Login>(77, 1, "LoginService", "LoginAsync"), new Login("alice", "do-not-log"), deadline.Token);
             Assert.Equal("alice", reply.Name);
             Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Rpc");
             Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Cluster.Rpc");
-            var payloads = provider.Entries.Where(e => e.Text.Contains("Payload=")).ToArray();
+            var payloads = provider.Entries.Where(e => e.Text.Contains("payload=")).ToArray();
             Assert.Equal(include && !failingProvider ? 4 : 0, payloads.Length);
             Assert.All(payloads, e => { Assert.Contains("alice", e.Text); Assert.DoesNotContain("do-not-log", e.Text); });
             Assert.All(payloads, e => Assert.Contains("LoginService.LoginAsync", e.Text));
@@ -66,7 +70,7 @@ public sealed class GameRpcLoggingTests
             });
             using var raw = await client.CallRawAsync(77, 2, writer => writer.Write(new byte[] { 1, 2 }), "RawService.Echo", deadline.Token);
             await received.Task.WaitAsync(deadline.Token);
-            var notifications = provider.Entries.Where(e => e.Text.Contains("Payload=") && e.Text.Contains("notify-alice")).ToArray();
+            var notifications = provider.Entries.Where(e => e.Text.Contains("payload=") && e.Text.Contains("notify-alice")).ToArray();
             Assert.Equal(include && !failingProvider ? 4 : 0, notifications.Length);
             Assert.All(payloads.Concat(notifications), e => Assert.True(e.Category is "Lakona.Game.Rpc" or "Lakona.Game.Cluster.Rpc"));
             Assert.All(notifications, e => Assert.DoesNotContain("do-not-log", e.Text));
@@ -101,26 +105,33 @@ public sealed class GameRpcLoggingTests
     public void Snapshot_is_bounded_redacts_nested_fields_and_contains_getter_failures()
     {
         var options = new LakonaRpcLoggingOptions { IncludePayload = true, MaxPayloadCharacters = 128 };
-        var redacted = PayloadSnapshot.Format(new { Nested = new Dictionary<string, object> { ["Password"] = "secret" } }, options);
+        var snapshot = new Lakona.Rpc.PayloadSnapshot(options);
+        var redacted = snapshot.Format(new { Nested = new Dictionary<string, object> { ["Password"] = "secret" } });
         Assert.DoesNotContain("secret", redacted);
         Assert.Contains("redacted", redacted);
-        Assert.True(PayloadSnapshot.Format(new { Text = new string('x', 10000) }, options).Length <= 128);
-        Assert.Equal("[payload unavailable]", PayloadSnapshot.Format(new Broken(), options));
+        Assert.True(snapshot.Format(new { Text = new string('x', 10000) }).Length <= 128);
+        Assert.Equal("[payload unavailable]", snapshot.Format(new Broken()));
     }
 
-    [Fact]
-    public void Disabled_payload_logger_and_level_filter_do_not_evaluate_dto()
+    [Theory]
+    [InlineData(false, LogLevel.Trace)]
+    [InlineData(true, LogLevel.Information)]
+    public void Disabled_payload_or_filtered_trace_skips_snapshot_getters(bool include, LogLevel level)
     {
         var provider = new RecordingProvider();
-        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Information).AddProvider(provider));
-        foreach (var include in new[] { false, true })
-        {
-            var logger = new GameRpcLoggerFactory(factory, "Lakona.Game.Rpc", new() { IncludePayload = include })
-                .CreateLogger("Lakona.Rpc.Server.Request.Payload");
-            Assert.False(logger.IsEnabled(LogLevel.Trace));
-            logger.LogTrace("{Payload}", new Broken());
-        }
+        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(level).AddProvider(provider));
+        var logger = Lakona.Rpc.RpcPayloadLogging.Create(factory, "Rpc.Test",
+            new RpcPayloadLoggingOptions { IncludePayload = include });
+        var probe = new GetterProbe();
+        logger?.Write("request", 1, 1, 1, probe);
+        Assert.False(probe.WasRead);
         Assert.Empty(provider.Entries);
+    }
+
+    private sealed class GetterProbe
+    {
+        public bool WasRead { get; private set; }
+        public int Value { get { WasRead = true; return 42; } }
     }
 
     public sealed record Login(string Name, string Password);

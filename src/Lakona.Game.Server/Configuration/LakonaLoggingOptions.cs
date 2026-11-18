@@ -1,3 +1,4 @@
+using Lakona.Rpc.Core;
 using Microsoft.Extensions.Configuration;
 
 namespace Lakona.Game.Server.Configuration;
@@ -14,13 +15,8 @@ public sealed class LakonaLoggingOptions
     };
 }
 
-public sealed class LakonaRpcLoggingOptions
+public sealed class LakonaRpcLoggingOptions : RpcPayloadLoggingOptions
 {
-    public bool IncludePayload { get; init; }
-    public int MaxPayloadCharacters { get; init; } = 4096;
-    public IReadOnlyList<string> RedactedMembers { get; init; } =
-        ["Password", "Token", "AccessToken", "RefreshToken", "ResumeTicket", "Secret", "Payload"];
-
     internal static LakonaRpcLoggingOptions Bind(IConfigurationSection section)
     {
         var limit = LakonaConfigurationReader.ReadInt(section, "MaxPayloadCharacters", 4096);

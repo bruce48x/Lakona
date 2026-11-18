@@ -109,14 +109,14 @@ namespace Lakona.Rpc.Server
         /// </summary>
         public string ConnectionId { get; }
 
-        internal ILogger PayloadLogger { get; set; } = NullLogger.Instance;
+        internal RpcPayloadLogging? PayloadLogger { get; set; }
 
         internal void LogPayload<T>(RpcRequestFrame request, string direction, T payload)
         {
             try
             {
-                if (!PayloadLogger.IsEnabled(LogLevel.Trace)) return;
-                Lakona.Rpc.RpcPayloadLogging.Write(PayloadLogger, direction, request.RequestId,
+                if (PayloadLogger?.IsEnabled != true) return;
+                PayloadLogger.Write(direction, request.RequestId,
                     request.ServiceId, request.MethodId, payload, ConnectionId,
                     _registry.ResolveDisplayName(request.ServiceId, request.MethodId));
             }
@@ -291,8 +291,8 @@ namespace Lakona.Rpc.Server
         {
             try
             {
-                if (!PayloadLogger.IsEnabled(LogLevel.Trace)) return;
-                Lakona.Rpc.RpcPayloadLogging.WriteNotification(PayloadLogger, "sent", serviceId, methodId,
+                if (PayloadLogger?.IsEnabled != true) return;
+                PayloadLogger.WriteNotification("sent", serviceId, methodId,
                     payload, _registry.ResolveNotificationName(serviceId, methodId), ConnectionId);
             }
             catch { /* Optional diagnostics cannot interrupt delivery. */ }
@@ -302,7 +302,7 @@ namespace Lakona.Rpc.Server
         {
             try
             {
-                if (!PayloadLogger.IsEnabled(LogLevel.Trace)) return;
+                if (PayloadLogger?.IsEnabled != true) return;
                 LogNotificationPayload(serviceId, methodId, bytes.IsEmpty ? default : _serializer.Deserialize<T>(bytes));
             }
             catch { /* A failed diagnostic decode cannot interrupt forwarding. */ }

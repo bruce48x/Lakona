@@ -1,3 +1,4 @@
+using System.Buffers;
 using Microsoft.Extensions.Logging;
 using Lakona.Rpc.Client;
 using Lakona.Rpc.Core;
@@ -16,6 +17,75 @@ public sealed class RpcRequestLoggingTests
 
     private sealed record RespStatus(int StatusCode);
     private sealed record StageStartReply(RespStatus RespStatus);
+
+    private sealed record Login(string Name, string Password, Dictionary<string, string> Metadata);
+
+    [Theory]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, false)]
+    public async Task Payloads_require_endpoint_opt_in_and_trace(bool clientEnabled, bool serverEnabled, bool trace)
+    {
+        var logs = new CategoryRecordingLoggerProvider();
+        var level = trace ? LogLevel.Trace : LogLevel.Information;
+        using var factory = LoggerFactory.Create(b => b.AddProvider(logs)
+            .AddFilter("Lakona.Rpc.Client.Request", level)
+            .AddFilter("Lakona.Rpc.Server.Request", level));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var ct = deadline.Token;
+        var listener = new TcpConnectionAcceptor(0);
+        var address = new Uri(listener.ListenAddress);
+        var serializer = new JsonRpcSerializer();
+        var options = new RpcPayloadLoggingOptions { IncludePayload = true, RedactedMembers = ["Email"] };
+        var builder = RpcServerHostBuilder.Create().UseSerializer(serializer)
+            .UseAcceptor(_ => new ValueTask<IRpcConnectionAcceptor>(listener)).UseLoggerFactory(factory);
+        if (serverEnabled) builder.PayloadLogging = options;
+        var login = new Login("alice", "credential-value", new() { ["eMAil"] = "private-address" });
+        builder.ServiceRegistry.RegisterSingleton(77, new object()).Register<Login, Login>(1, (_, request, _) => new(request));
+        builder.ServiceRegistry.RegisterRaw(77, 2, async (_, notifications, payload, token) =>
+        {
+            await notifications.SendAsync(77, 3, login, cancellationToken: token);
+            return RpcRawResult.Ok(payload);
+        });
+
+        var run = builder.RunAsync(ct).AsTask();
+        try
+        {
+            var clientOptions = new RpcClientOptions(new TcpTransport(address.Host, address.Port), serializer) { LoggerFactory = factory };
+            if (clientEnabled) clientOptions.PayloadLogging = options;
+            await using var client = new RpcClientRuntime(clientOptions);
+            var notified = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            client.RegisterNotificationHandler(new RpcNotificationMethod<Login>(77, 3), _ => { notified.TrySetResult(); });
+            await client.StartAsync(ct);
+            var reply = await client.CallAsync(new RpcMethod<Login, Login>(77, 1), login, ct);
+            Assert.Equal(login.Password, reply.Password);
+            using var raw = await client.CallRawAsync(77, 2, writer => writer.Write(new byte[] { 1 }), null, ct);
+            await notified.Task.WaitAsync(ct);
+        }
+        finally
+        {
+            deadline.Cancel();
+            await run;
+        }
+
+        AssertEndpoint("Lakona.Rpc.Client.Request", clientEnabled);
+        AssertEndpoint("Lakona.Rpc.Server.Request", serverEnabled);
+        void AssertEndpoint(string category, bool enabled)
+        {
+            if (trace) Assert.Contains(logs.Entries, entry => entry.Category == category);
+            var events = logs.Entries.Where(entry => entry.Category == category + ".Payload").ToArray();
+            Assert.Equal(enabled && trace ? 3 : 0, events.Length); // request, response, notification
+            Assert.All(events, entry =>
+            {
+                var snapshot = Assert.IsType<string>(entry.Payload);
+                Assert.Contains("alice", snapshot);
+                Assert.Contains("[redacted]", snapshot);
+                Assert.DoesNotContain("credential-value", snapshot);
+                Assert.DoesNotContain("private-address", snapshot);
+            });
+        }
+    }
 
     [Theory]
     [InlineData("reply", true)]
@@ -509,7 +579,7 @@ public sealed class RpcRequestLoggingTests
         {
         }
 
-        public sealed record LogEntry(string Category, LogLevel Level, string Message, Exception? Exception);
+        public sealed record LogEntry(string Category, LogLevel Level, string Message, Exception? Exception, object? Payload);
 
         private sealed class CategoryRecordingLogger(string category, List<LogEntry> entries, Action<LogEntry>? onEntry) : ILogger
         {
@@ -527,7 +597,9 @@ public sealed class RpcRequestLoggingTests
                 LogEntry entry;
                 lock (entries)
                 {
-                    entry = new LogEntry(category, logLevel, formatter(state, exception), exception);
+                    var fields = state as IEnumerable<KeyValuePair<string, object?>>;
+                    var payload = fields?.FirstOrDefault(field => field.Key == "Payload").Value;
+                    entry = new LogEntry(category, logLevel, formatter(state, exception), exception, payload);
                     entries.Add(entry);
                 }
                 onEntry?.Invoke(entry);

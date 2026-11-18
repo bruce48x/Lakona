@@ -9,6 +9,7 @@ public sealed class RpcServerHost
 {
     private readonly Func<CancellationToken, ValueTask<IRpcConnectionAcceptor>> _acceptorFactory;
     private readonly ILogger _logger;
+    private readonly RpcPayloadLogging? _payloadLogger;
     private readonly ILoggerFactory? _loggerFactory;
     private readonly RpcServiceExceptionHandler? _serviceExceptionHandler;
     private readonly Func<IRpcServiceInvocationScope>? _openServiceScope;
@@ -39,7 +40,8 @@ public sealed class RpcServerHost
         IReadOnlyList<IRpcServerLifecycleObserver>? serverLifecycleObservers = null,
         ILoggerFactory? loggerFactory = null,
         RpcServiceExceptionHandler? serviceExceptionHandler = null,
-        Func<IRpcServiceInvocationScope>? openServiceScope = null)
+        Func<IRpcServiceInvocationScope>? openServiceScope = null,
+        RpcPayloadLoggingOptions? payloadLogging = null)
     {
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
@@ -48,6 +50,7 @@ public sealed class RpcServerHost
         _acceptorFactory = acceptorFactory ?? throw new ArgumentNullException(nameof(acceptorFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _loggerFactory = loggerFactory;
+        _payloadLogger = RpcPayloadLogging.Create(loggerFactory, RpcServerRequestLogging.Category, payloadLogging);
         _serviceExceptionHandler = serviceExceptionHandler;
         _openServiceScope = openServiceScope;
         _limits = limits ?? throw new ArgumentNullException(nameof(limits));
@@ -394,8 +397,7 @@ public sealed class RpcServerHost
                 serviceExceptionHandler: _serviceExceptionHandler,
                 openServiceScope: _openServiceScope)
             {
-                PayloadLogger = _loggerFactory?.CreateLogger(RpcServerRequestLogging.Category + ".Payload")
-                    ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance
+                PayloadLogger = _payloadLogger
             };
             hostOwnedTransport = null; // The Session now owns transport cleanup.
             var sessionRegistered = false;

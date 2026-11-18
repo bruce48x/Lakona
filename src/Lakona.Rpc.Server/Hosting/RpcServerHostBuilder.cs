@@ -140,6 +140,9 @@ public sealed class RpcServerHostBuilder
         return this;
     }
 
+    /// <summary>Controls opt-in payload snapshots for this host.</summary>
+    public RpcPayloadLoggingOptions PayloadLogging { get; set; } = new();
+
     public RpcServerHostBuilder UseLoggerFactory(ILoggerFactory loggerFactory)
     {
         _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
@@ -354,7 +357,8 @@ public sealed class RpcServerHostBuilder
             _serverLifecycleObservers.ToArray(),
             _loggerFactory,
             _serviceExceptionHandler,
-            _openServiceScope);
+            _openServiceScope,
+            PayloadLogging);
     }
 
     /// <summary>

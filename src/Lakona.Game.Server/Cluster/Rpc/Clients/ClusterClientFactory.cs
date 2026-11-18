@@ -21,18 +21,21 @@ namespace Lakona.Game.Cluster.Rpc
         private readonly IRpcSerializer _serializer;
         private readonly ClusterClientFactoryOptions _options;
         private readonly ILoggerFactory? _loggerFactory;
+        private readonly RpcPayloadLoggingOptions _payloadLogging;
         private readonly CancellationTokenSource _shutdown = new();
         private int _disposed;
 
         public ClusterClientFactory(
             ClusterRpcChannel channel,
             ClusterClientFactoryOptions? options = null,
-            ILoggerFactory? loggerFactory = null)
+            ILoggerFactory? loggerFactory = null,
+            RpcPayloadLoggingOptions? payloadLogging = null)
         {
             _channel = channel ?? throw new ArgumentNullException(nameof(channel));
             _serializer = channel.Serializer;
             _options = options ?? new ClusterClientFactoryOptions();
             _loggerFactory = loggerFactory;
+            _payloadLogging = payloadLogging ?? new RpcPayloadLoggingOptions();
         }
 
         public async ValueTask<IRpcClient> GetClientAsync(
@@ -125,11 +128,12 @@ namespace Lakona.Game.Cluster.Rpc
                 using var timeout = CreateConnectTimeout(_shutdown.Token);
                 var effectiveToken = timeout?.Token ?? _shutdown.Token;
                 var transport = await _channel.ConnectAsync(endpoint, effectiveToken).ConfigureAwait(false);
-                runtime = new RpcClientRuntime(
-                    transport,
-                    _serializer,
-                    _options.KeepAlive,
-                    _loggerFactory);
+                runtime = new RpcClientRuntime(new RpcClientOptions(transport, _serializer)
+                {
+                    KeepAlive = _options.KeepAlive,
+                    LoggerFactory = _loggerFactory,
+                    PayloadLogging = _payloadLogging
+                });
                 var connectedRuntime = runtime;
                 runtime.ConnectionStateChanged += change =>
                 {

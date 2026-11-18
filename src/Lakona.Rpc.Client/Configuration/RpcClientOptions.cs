@@ -36,6 +36,9 @@ public class RpcClientOptions
     /// </summary>
     public ILoggerFactory? LoggerFactory { get; set; }
 
+    /// <summary>Controls opt-in payload snapshots for this runtime.</summary>
+    public RpcPayloadLoggingOptions PayloadLogging { get; set; } = new();
+
     /// <summary>
     ///     Serializer used for request, response, and push payloads.
     /// </summary>

@@ -322,11 +322,15 @@ reports successful transmission. Correlate them by request, service, method,
 and server connection identifiers. Invalid payloads and rejected requests have
 no decoded DTO. Raw handlers, including the Cluster Actor wire protocol, retain
 length/metadata diagnostics rather than decoding unknown binary content.
-Notification bodies are not included by this request/response switch.
+Typed notifications use the same snapshot policy.
 
-The lower-level RPC runtime emits typed values at its `.Request.Payload` Trace
-category; its provider determines formatting. Game hosting supplies the opt-in,
-bounded snapshot adapter described above. Provider ownership is unchanged.
+Standalone RPC logs call metadata at Trace by default. To include typed
+requests, responses and notifications, assign `new RpcPayloadLoggingOptions
+{ IncludePayload = true }` to `RpcClientOptions.PayloadLogging` or
+`RpcServerHostBuilder.PayloadLogging` on the endpoint being diagnosed.
+Enable Trace for that endpoint's `.Request.Payload` category. The same member
+redaction and size limits apply before any provider receives the snapshot.
+Existing request Trace configurations continue to produce metadata alone.
 
 A Game server can also use the standard application-level `Logging` section:
 

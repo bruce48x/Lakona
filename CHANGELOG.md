@@ -6,10 +6,13 @@ date and package versions of important releases are retained.
 
 ## 2026-11-18 — Readable RPC logs and cross-platform server packaging
 
-**Key releases:** `Lakona.Rpc.Core 0.16.10`, `Lakona.Game.Server 0.54.15`,
-`Lakona.Tool 0.43.137`, and `Lakona.Hub 0.18.19`.
+**Key releases:** `Lakona.Rpc.Core 0.16.11`, `Lakona.Rpc.Client 0.14.23`,
+`Lakona.Rpc.Server 0.17.36`, `Lakona.Game.Server 0.54.17`,
+`Lakona.Tool 0.43.140`, and `Lakona.Hub 0.18.22`.
 
-- Notification logs identify the callback contract and method. The payload switch includes redacted DTOs for sends, receives, and generated replay.
+- Notification logs identify the callback contract and method. Standalone RPC records call metadata by default.
+  To retain body diagnostics, enable `PayloadLogging.IncludePayload` and Trace.
+  Requests, responses, notifications and typed replay use bounded, redacted snapshots.
 
 - Request, response and DTO logs display contract/method names across generated
   clients, registered server handlers and named cluster protocols. Numeric IDs

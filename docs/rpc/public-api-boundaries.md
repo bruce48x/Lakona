@@ -96,7 +96,8 @@ Regular application projects should build against this layer.
   and `LakonaGameServerBuilder.ConfigureLogging` as provider-neutral logging
   seams. Runtime packages do not select a logging provider; application
   composition roots own that choice. [Logging](../logging.md) defines the
-  cross-runtime ownership and integration contract.
+  cross-runtime ownership and integration contract. Client options and the server
+  host builder each accept `RpcPayloadLoggingOptions` through `PayloadLogging`.
 - `RpcServerHost`.
 - `RpcServerHostBuilder.UseShutdownTimeout` and
   `RpcServerShutdownTimeoutException` for
