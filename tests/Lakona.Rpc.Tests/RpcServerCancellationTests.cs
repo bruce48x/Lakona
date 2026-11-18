@@ -9,6 +9,50 @@ namespace Lakona.Rpc.Tests;
 public sealed class RpcServerCancellationTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Peer_disconnect_with_throwing_callback_drains_before_releasing_admission(bool receiveFails)
+    {
+        await using var fixture = new Fixture(1, blockCallback: false, callbackThrows: true, TimeSpan.FromSeconds(10));
+        await fixture.StartedAsync();
+        var service = fixture.Services.Single();
+        var transport = fixture.Transports.Single();
+        var lease = fixture.Leases.Single();
+        var releasesAtLeaseReturn = (Service: 0, Transport: 0);
+        lease.OnRelease = () => releasesAtLeaseReturn = (service.DisposeCount, transport.DisposeCount);
+        var leasesAtDisconnect = 0;
+        Exception? terminalError = null;
+        fixture.OnDisconnect = error =>
+        {
+            leasesAtDisconnect = lease.DisposeCount;
+            terminalError = error;
+        };
+
+        var receiveError = new IOException("Injected receive failure.");
+        if (receiveFails) transport.FailReceive(receiveError);
+        else transport.ClosePeer();
+        await service.CallbackExited.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(0, service.DisposeCount);
+        Assert.Equal(0, lease.DisposeCount);
+        Assert.Equal(0, fixture.DisconnectedCount);
+
+        fixture.ReleaseHandlers();
+        await fixture.AllDisconnected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal((1, 1), releasesAtLeaseReturn);
+        Assert.Equal(1, leasesAtDisconnect);
+        if (receiveFails)
+        {
+            Assert.Same(receiveError, terminalError);
+            Assert.Contains(fixture.Logs.Errors, error => Contains(error, service.Error));
+        }
+        else Assert.True(Contains(terminalError, service.Error), terminalError?.ToString());
+
+        await fixture.TriggerStopAsync(listenerFails: false);
+        await fixture.Run.WaitAsync(TimeSpan.FromSeconds(5));
+        fixture.AssertReleasedOnce();
+    }
+
+    [Theory]
     [InlineData(false, false, 1)]
     [InlineData(true, false, 1)]
     [InlineData(false, true, 1)]
@@ -127,6 +171,7 @@ public sealed class RpcServerCancellationTests
         private CancellationTokenRegistration _admissionRegistration;
         private int _disconnectedCount;
         public int DisconnectedCount => Volatile.Read(ref _disconnectedCount);
+        public Action<Exception?>? OnDisconnect { get; set; }
         public TaskCompletionSource AllDisconnected { get; } = Signal();
         public CallbackService[] Services { get; }
         public RequestTransport[] Transports { get; }
@@ -205,6 +250,7 @@ public sealed class RpcServerCancellationTests
         public ValueTask OnSessionStartedAsync(RpcSessionLifecycleContext context, CancellationToken cancellationToken) => default;
         public ValueTask OnSessionDisconnectedAsync(RpcSessionLifecycleContext context, Exception? error, CancellationToken cancellationToken)
         {
+            OnDisconnect?.Invoke(error);
             if (Interlocked.Increment(ref _disconnectedCount) == Services.Length) AllDisconnected.TrySetResult();
             return default;
         }
@@ -266,7 +312,13 @@ public sealed class RpcServerCancellationTests
     private sealed class Lease : IAsyncDisposable
     {
         public int DisposeCount;
-        public ValueTask DisposeAsync() { Interlocked.Increment(ref DisposeCount); return default; }
+        public Action? OnRelease { get; set; }
+        public ValueTask DisposeAsync()
+        {
+            Interlocked.Increment(ref DisposeCount);
+            OnRelease?.Invoke();
+            return default;
+        }
     }
 
     private sealed class TestAcceptor(RequestTransport[] transports) : IRpcConnectionAcceptor
@@ -300,6 +352,7 @@ public sealed class RpcServerCancellationTests
             return default;
         }
         public void ClosePeer() => _peerClosed.TrySetResult();
+        public void FailReceive(Exception error) => _peerClosed.TrySetException(error);
         public async ValueTask<TransportFrame> ReceiveFrameAsync(CancellationToken ct = default)
         {
             if (Interlocked.Increment(ref _reads) == 1)

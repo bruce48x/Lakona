@@ -825,7 +825,7 @@ namespace Lakona.Rpc.Server
         private bool SetDisconnectReason(Exception ex) =>
             Interlocked.CompareExchange(ref _disconnectReason, ex, null) is null;
 
-        private static void CancelSessionLoop(CancellationTokenSource serverCts)
+        private void CancelSessionLoop(CancellationTokenSource serverCts)
         {
             if (serverCts.IsCancellationRequested)
                 return;
@@ -836,6 +836,12 @@ namespace Lakona.Rpc.Server
             }
             catch (ObjectDisposedException)
             {
+            }
+            catch (AggregateException callbackError)
+            {
+                // The token is already canceled. Keep draining the requests that use it.
+                if (!SetDisconnectReason(callbackError))
+                    _logger.LogError(callbackError, "Cancellation callback failed while closing RPC connectionId={ConnectionId}.", ConnectionId);
             }
         }
     }
