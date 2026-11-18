@@ -250,6 +250,7 @@ namespace Lakona.Rpc.Server
 
             var payloadLength = writer.PayloadLength;
             using var bytes = RpcEnvelopeCodec.CompletePayload(writer);
+            LogNotificationPayload(serviceId, methodId, arg);
             LogNotificationSent(serviceId, methodId, payloadLength);
             await SendFrameAsyncSerialized(bytes.Memory, ct).ConfigureAwait(false);
         }
@@ -284,6 +285,27 @@ namespace Lakona.Rpc.Server
             using var bytes = RpcEnvelopeCodec.CompletePayload(writer);
             LogNotificationSent(serviceId, methodId, payload.Length);
             await SendFrameAsyncSerialized(bytes.Memory, cancellationToken).ConfigureAwait(false);
+        }
+
+        private void LogNotificationPayload<T>(int serviceId, int methodId, T payload)
+        {
+            try
+            {
+                if (!PayloadLogger.IsEnabled(LogLevel.Trace)) return;
+                Lakona.Rpc.RpcPayloadLogging.WriteNotification(PayloadLogger, "sent", serviceId, methodId,
+                    payload, _registry.ResolveNotificationName(serviceId, methodId), ConnectionId);
+            }
+            catch { /* Optional diagnostics cannot interrupt delivery. */ }
+        }
+
+        internal void LogEncodedNotificationPayload<T>(int serviceId, int methodId, ReadOnlyMemory<byte> bytes)
+        {
+            try
+            {
+                if (!PayloadLogger.IsEnabled(LogLevel.Trace)) return;
+                LogNotificationPayload(serviceId, methodId, bytes.IsEmpty ? default : _serializer.Deserialize<T>(bytes));
+            }
+            catch { /* A failed diagnostic decode cannot interrupt forwarding. */ }
         }
 
         private void LogNotificationSent(int serviceId, int methodId, int payloadBytes)

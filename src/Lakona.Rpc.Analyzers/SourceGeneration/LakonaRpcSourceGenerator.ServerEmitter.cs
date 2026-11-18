@@ -135,10 +135,12 @@ public sealed partial class LakonaRpcSourceGenerator
             writer.Line("if (serviceId != ServiceId) throw new InvalidOperationException(\"Notification service id does not match this callback contract.\");");
             writer.OpenBlock("switch (methodId)");
             foreach (var method in service.NotificationMethods.OrderBy(static method => method.MethodId))
+            {
                 writer.Line($"case {method.MethodId}:");
-            writer.Indent();
-            writer.Line("return _notifications.SendRawAsync(serviceId, methodId, payload, metadata, cancellationToken);");
-            writer.Unindent();
+                writer.Indent();
+                writer.Line($"return _notifications.SendRawAsync<{method.PayloadType}>(serviceId, methodId, payload, metadata, cancellationToken);");
+                writer.Unindent();
+            }
             writer.Line("default:");
             writer.Indent();
             writer.Line("throw new InvalidOperationException(\"Unknown notification method id: \" + methodId);");

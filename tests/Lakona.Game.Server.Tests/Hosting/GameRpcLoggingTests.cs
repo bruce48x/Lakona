@@ -33,7 +33,13 @@ public sealed class GameRpcLoggingTests
         builder.ServiceRegistry.RegisterSingleton(77, new object(), "LoginService").Register<Login, Login>(1,
             (_, request, _) => new ValueTask<Login>(request), "LoginAsync");
         builder.ServiceRegistry.RegisterRaw(77, 2,
-            (_, _, payload, _) => new ValueTask<RpcRawResult>(RpcRawResult.Ok(payload)), "RawService", "Echo");
+            async (_, channel, payload, ct) =>
+            {
+                var notice = new Login("notify-alice", "do-not-log");
+                await channel.SendAsync(77, 3, notice, cancellationToken: ct);
+                await channel.SendRawAsync<Login>(77, 3, System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(notice), null, ct);
+                return RpcRawResult.Ok(payload);
+            }, "RawService", "Echo");
         var run = builder.RunAsync(deadline.Token).AsTask();
         try
         {
@@ -44,14 +50,26 @@ public sealed class GameRpcLoggingTests
             Assert.Equal("alice", reply.Name);
             Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Rpc");
             Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Cluster.Rpc");
-            var payloads = provider.Entries.Where(e => e.Category.EndsWith(".Payload")).ToArray();
+            var payloads = provider.Entries.Where(e => e.Text.Contains("Payload=")).ToArray();
             Assert.Equal(include && !failingProvider ? 4 : 0, payloads.Length);
             Assert.All(payloads, e => { Assert.Contains("alice", e.Text); Assert.DoesNotContain("do-not-log", e.Text); });
             Assert.All(payloads, e => Assert.Contains("LoginService.LoginAsync", e.Text));
             Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Cluster.Rpc" && e.Text.Contains("RPC request completed LoginService.LoginAsync requestId=") && e.Text.Contains("status=Ok serviceId=77 methodId=1"));
             Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Rpc" && e.Text.Contains("RPC request received LoginService.LoginAsync requestId=") && e.Text.Contains("serviceId=77 methodId=1 connectionId="));
             Assert.DoesNotContain(provider.Entries, e => e.Category.StartsWith("Lakona.Rpc.Server.Request") || e.Category.StartsWith("Lakona.Rpc.Client.Request"));
+            var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var count = 0;
+            client.RegisterNotificationHandler(new RpcNotificationMethod<Login>(77, 3, "LoginCallback.OnLogin"), notice =>
+            {
+                Assert.Equal("notify-alice", notice.Name);
+                if (Interlocked.Increment(ref count) == 2) received.TrySetResult();
+            });
             using var raw = await client.CallRawAsync(77, 2, writer => writer.Write(new byte[] { 1, 2 }), "RawService.Echo", deadline.Token);
+            await received.Task.WaitAsync(deadline.Token);
+            var notifications = provider.Entries.Where(e => e.Text.Contains("Payload=") && e.Text.Contains("notify-alice")).ToArray();
+            Assert.Equal(include && !failingProvider ? 4 : 0, notifications.Length);
+            Assert.All(payloads.Concat(notifications), e => Assert.True(e.Category is "Lakona.Game.Rpc" or "Lakona.Game.Cluster.Rpc"));
+            Assert.All(notifications, e => Assert.DoesNotContain("do-not-log", e.Text));
             Assert.Equal(new byte[] { 1, 2 }, raw.Memory.ToArray());
             Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Cluster.Rpc" && e.Text.Contains("RawService.Echo"));
             Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Rpc" && e.Text.Contains("RawService.Echo"));
@@ -119,7 +137,7 @@ public sealed class GameRpcLoggingTests
             public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
             public void Log<TState>(LogLevel level, EventId id, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
             {
-                if (owner.FailPayload && category.EndsWith(".Payload")) throw new InvalidOperationException("Logging failed.");
+                if (owner.FailPayload && state is IEnumerable<KeyValuePair<string, object?>> fields && fields.Any(field => field.Key == "Payload")) throw new InvalidOperationException("Logging failed.");
                 owner.Entries.Enqueue((category, formatter(state, exception)));
             }
         }

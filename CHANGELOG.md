@@ -6,10 +6,10 @@ date and package versions of important releases are retained.
 
 ## 2026-11-18 — Readable RPC method and notification names
 
-**Key releases:** `Lakona.Rpc.Core 0.16.9`, `Lakona.Game.Server 0.54.14`,
-`Lakona.Tool 0.43.135`, and `Lakona.Hub 0.18.17`.
+**Key releases:** `Lakona.Rpc.Core 0.16.10`, `Lakona.Game.Server 0.54.15`,
+`Lakona.Tool 0.43.136`, and `Lakona.Hub 0.18.18`.
 
-- Notification send and receive logs identify the generated callback contract and method.
+- Notification logs identify the callback contract and method. The payload switch includes redacted DTOs for sends, receives, and generated replay.
 
 - Request, response and DTO logs display contract/method names across generated
   clients, registered server handlers and named cluster protocols. Numeric IDs

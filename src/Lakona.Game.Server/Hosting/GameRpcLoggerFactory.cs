@@ -17,7 +17,7 @@ internal sealed class GameRpcLoggerFactory(ILoggerFactory inner, string category
         if (categoryName is "Lakona.Rpc.Client.Request" or "Lakona.Rpc.Server.Request")
             return inner.CreateLogger(category);
         if (categoryName is "Lakona.Rpc.Client.Request.Payload" or "Lakona.Rpc.Server.Request.Payload")
-            return options.IncludePayload ? new PayloadLogger(inner.CreateLogger(category + ".Payload"), options) : NullLogger.Instance;
+            return options.IncludePayload ? new PayloadLogger(inner.CreateLogger(category), options) : NullLogger.Instance;
         return inner.CreateLogger(categoryName);
     }
 

@@ -266,10 +266,12 @@ supported. Rebuild generated clients with the matching Core/analyzer package to
 include names; hand-written descriptors can use the four-argument constructor
 with service and method names. Generated notification send and receive logs display the callback contract and method, followed by labeled IDs. Unknown notifications retain their numeric identity.
 
-Game payload logging requires both `IncludePayload=true` and an enabled Trace
-level for the corresponding `.Payload` category. Both switches default to false,
-even if all framework categories are set to Trace. Payload options are captured
-at host startup; changing them requires restarting the host.
+Notification DTOs use the same payload switch, size limit, and member redaction as requests and responses. Generated callbacks also identify the DTO type for encoded forwarding and replay. Untyped raw sends only log metadata.
+
+Set `Logging:LogLevel:Lakona.Game.Rpc` to `Trace` for client-facing RPC logs.
+`IncludePayload` controls
+whether those logs also show request, response, and notification DTOs. It defaults
+to `false`. Restart the host after changing the payload option.
 
 ```json
 {
@@ -293,10 +295,8 @@ at host startup; changing them requires restarting the host.
 ```
 
 Set `Lakona:Logging:Rpc:IncludePayload` to true to inspect client-facing DTOs
-under `Lakona.Game.Rpc.Payload`. For cluster DTOs, enable the independent
-ClusterRpc switch and set `Lakona.Game.Cluster.Rpc` to Trace. Standard category
-prefix matching applies; an explicit `.Payload=None` override disables payload
-output even when its switch is enabled.
+under `Lakona.Game.Rpc`. For cluster DTOs, enable the independent
+ClusterRpc switch and set `Lakona.Game.Cluster.Rpc` to Trace. Set IncludePayload to false to keep only lifecycle logs.
 
 Snapshots include public instance properties and fields, omit `JsonIgnore`
 members, and replace case-insensitive `Password`, `Token`, `AccessToken`,

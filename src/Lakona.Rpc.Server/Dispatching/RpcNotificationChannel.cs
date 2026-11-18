@@ -31,6 +31,17 @@ public sealed class RpcNotificationChannel
             cancellationToken);
     }
 
+    public ValueTask SendRawAsync<TPayload>(
+        int serviceId,
+        int methodId,
+        ReadOnlyMemory<byte> payload,
+        RpcPushMetadata? metadata,
+        CancellationToken cancellationToken)
+    {
+        _session.LogEncodedNotificationPayload<TPayload>(serviceId, methodId, payload);
+        return SendRawAsync(serviceId, methodId, payload, metadata, cancellationToken);
+    }
+
     public ValueTask SendRawAsync(
         int serviceId,
         int methodId,

@@ -354,7 +354,7 @@ public sealed class LakonaRpcSourceGeneratorTests
             : "return this._notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(global::Server.Generated.LakonaGameSessionCallbackProxy.ServiceId, 9, notice);", proxy);
         Assert.Contains("return _notifications.SendAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(serviceId, methodId, (global::Lakona.Game.Abstractions.SessionTerminationNotice)(object)payload!, metadata, cancellationToken);", proxy);
         Assert.Contains("ValueTask IRpcNotificationDispatchTarget.DispatchEncodedNotificationAsync(", proxy);
-        Assert.Contains("return _notifications.SendRawAsync(serviceId, methodId, payload, metadata, cancellationToken);", proxy);
+        Assert.Contains("return _notifications.SendRawAsync<global::Lakona.Game.Abstractions.SessionTerminationNotice>(serviceId, methodId, payload, metadata, cancellationToken);", proxy);
         Assert.DoesNotContain("LakonaInternalCodec", proxy);
         Assert.DoesNotContain("GameSessionNotificationRpcIds", proxy);
     }

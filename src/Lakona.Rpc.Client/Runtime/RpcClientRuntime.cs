@@ -244,12 +244,11 @@ namespace Lakona.Rpc.Client
             if (handler is null) throw new ArgumentNullException(nameof(handler));
             var registered = _notificationHandlers.TryAdd((method.ServiceId, method.MethodId), new RegisteredNotificationHandler(typeof(TArg), payload =>
             {
-                if (typeof(TArg) == typeof(RpcVoid))
-                {
-                    return handler((TArg)(object)RpcVoid.Instance);
-                }
-
-                var value = _serializer.Deserialize<TArg>(payload);
+                var value = typeof(TArg) == typeof(RpcVoid)
+                    ? (TArg)(object)RpcVoid.Instance
+                    : _serializer.Deserialize<TArg>(payload);
+                Lakona.Rpc.RpcPayloadLogging.WriteNotification(_payloadLogger, "received", method.ServiceId,
+                    method.MethodId, value, method.DisplayName);
                 return handler(value);
             }, method.DisplayName));
 
