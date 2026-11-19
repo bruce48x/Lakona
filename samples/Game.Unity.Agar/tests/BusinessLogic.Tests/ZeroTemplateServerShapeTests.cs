@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Xml.Linq;
 using Xunit;
 
 namespace Agar.Unity.Tests;
@@ -158,12 +159,14 @@ public sealed class ZeroTemplateServerShapeTests
     }
 
     [Fact]
-    public void Readme_build_commands_refresh_hotfix_output_before_running_server()
+    public void Server_solution_includes_app_and_hotfix_projects()
     {
-        var readme = File.ReadAllText(Path.Combine(Root, "samples", "Game.Unity.Agar", "README.md"));
+        var solution = XDocument.Load(Path.Combine(Root, "samples", "Game.Unity.Agar", "Server", "Server.slnx"));
+        var projects = solution.Descendants("Project").Attributes("Path")
+            .Select(path => path.Value.Replace('\\', '/')).ToArray();
 
-        Assert.Contains("dotnet build Server/Hotfix/Server.Hotfix.csproj", readme, StringComparison.Ordinal);
-        Assert.DoesNotContain("dotnet build Server/App/Server.App.csproj\ndotnet build Server/App/Server.App.csproj", readme, StringComparison.Ordinal);
+        Assert.Contains("App/Server.App.csproj", projects);
+        Assert.Contains("Hotfix/Server.Hotfix.csproj", projects);
     }
 
     private static string FindRepoRoot()
