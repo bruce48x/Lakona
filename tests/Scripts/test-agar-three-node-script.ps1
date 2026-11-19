@@ -61,8 +61,13 @@ function docker {
     }
     else { throw 'Unexpected Docker command in port test.' }
 }
-function Test-TcpPortFree { param([int]$Port) return $Port -ne $script:busyTcpPort }
-function Test-UdpPortFree { param([int]$Port) return $Port -ne $script:busyUdpPort }
+$assertLoopbackPort = {
+    param([int]$Port, [string]$Protocol)
+    if (($Protocol -eq 'tcp' -and $Port -eq $script:busyTcpPort) -or
+        ($Protocol -eq 'udp' -and $Port -eq $script:busyUdpPort)) {
+        throw "Cannot bind 127.0.0.1:$Port/$Protocol exclusively."
+    }
+}
 function Assert-PortFailure {
     param([string]$Expected, [switch]$AllowTargetProject)
     $message = ''
@@ -88,22 +93,22 @@ $script:containers = @([pscustomobject]@{
 })
 $script:busyTcpPort = 20000
 Assert-RequiredPortsAvailable -AllowTargetProject
-Assert-PortFailure '*20000/tcp*outside the expected target binding*'
+Assert-PortFailure '*20000/tcp*conflicts with a published port*'
 $script:containers[0].Config.Labels['com.docker.compose.project'] = 'another-project'
-Assert-PortFailure '*outside the expected target binding*' -AllowTargetProject
+Assert-PortFailure '*conflicts with a published port*' -AllowTargetProject
 $script:containers[0].Config.Labels['com.docker.compose.project'] = $ProjectName
 $script:containers[0].Config.Labels['com.docker.compose.service'] = 'battle-1'
-Assert-PortFailure '*outside the expected target binding*' -AllowTargetProject
+Assert-PortFailure '*conflicts with a published port*' -AllowTargetProject
 $script:containers[0].Config.Labels['com.docker.compose.service'] = 'gateway-1'
-$script:containers[0].NetworkSettings.Ports = @{ '12345/tcp' = @(@{ HostPort = '20000' }) }
-Assert-PortFailure '*outside the expected target binding*' -AllowTargetProject
+$script:containers[0].NetworkSettings.Ports = @{ '12345/tcp' = @(@{ HostIp = '127.0.0.1'; HostPort = '20000' }) }
+Assert-PortFailure '*conflicts with a published port*' -AllowTargetProject
 # A UDP mapping must never authorize a TCP listener using the same port number.
 $script:containers[0].NetworkSettings.Ports = @{ '20000/udp' = @(@{ HostPort = '20000' }) }
-Assert-PortFailure '*20000/tcp*non-target process*' -AllowTargetProject
+Assert-PortFailure '*20000/tcp*exclusively*' -AllowTargetProject
 $script:containers = @()
 $script:busyTcpPort = 0
 $script:busyUdpPort = 20001
-Assert-PortFailure '*20001/udp*non-target process*' -AllowTargetProject
+Assert-PortFailure '*20001/udp*exclusively*' -AllowTargetProject
 $script:dockerExitCode = 1
 Assert-PortFailure '*Could not inspect running Docker containers*' -AllowTargetProject
 

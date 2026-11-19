@@ -47,6 +47,7 @@ $lifecycleReport = Join-Path $artifactRoot "lifecycle-report.json"
 $topologyReady = Join-Path $artifactRoot "topology-traffic.ready"
 $topologyRelease = Join-Path $artifactRoot "topology-traffic.release"
 $unityResultValidator = Join-Path $scriptRoot "assert-unity-test-results.ps1"
+$assertLoopbackPort = Join-Path $scriptRoot "assert-agar-loopback-port.ps1"
 $defaultSmokeTest = "SampleClient.Gameplay.Tests.DotArenaThreeNodePlayModeTests.UnityClientCompletesThreeNodeMultiplayerSmoke"
 $deadline = $null
 
@@ -466,7 +467,7 @@ function Assert-RequiredPortsAvailable {
             }
             continue
         }
-        & (Join-Path $scriptRoot 'assert-agar-loopback-port.ps1') -Port $port.Port -Protocol $port.Protocol
+        & $assertLoopbackPort -Port $port.Port -Protocol $port.Protocol
     }
 }
 
