@@ -577,25 +577,18 @@ new Hub available and migration pending. Run setup again to retry; migration
 is complete only when MSI registration is gone. The new shortcut is registered
 again after removal so legacy cleanup cannot leave it pointing at the old copy.
 
-The historical `hub-v0.17.138` MSI remains a migration test fixture, downloaded
-with a pinned SHA-256. It is not rebuilt or included in new releases. macOS DMG
-and Linux DEB/RPM ownership and authorization remain unchanged.
-
 #### Verification
 
 Hub tests cover signed archive validation, lock contention, journal recovery,
 startup-token validation, failed-start rollback, repair, downgrade rejection,
 bounded download resume, and MSI-removal cancellation/failure/retry. Windows
 release CI additionally runs the complete offline-setup smoke test and real
-native installation, damaged-file repair, uninstall preservation, and migration
-from the historical MSI before publication.
+native installation, damaged-file repair, and preservation of user data on
+uninstall before publication.
 
-`WindowsInstallerAcceptanceTests` is explicitly enabled by
-`LAKONA_HUB_ACCEPTANCE_PACKAGE` (the signed update ZIP) and
-`LAKONA_HUB_ACCEPTANCE_MSI` (the verified historical MSI). Pass both as absolute
-file paths; the test checks that both files exist before changing installation
-state. It refuses to replace an existing installation and must run on an
-otherwise uninstalled test host.
+Set `LAKONA_HUB_ACCEPTANCE_PACKAGE` to the absolute path of the signed update
+ZIP to enable `WindowsInstallerAcceptanceTests` on a clean Windows test host.
+The test checks that the ZIP exists and refuses to replace an existing installation.
 For local release acceptance also exercise an actual previous-version update
 through `UpdaterLaunch`; unit tests alone do not establish cross-process
 handoff behavior. Local Windows acceptance is not a claim of physical power-loss

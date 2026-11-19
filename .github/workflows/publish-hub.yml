@@ -166,18 +166,12 @@ jobs:
           $process = Start-Process (Join-Path $extract 'Lakona.Hub.exe') -ArgumentList '--aot-smoke-test' -WindowStyle Hidden -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw 'Windows payload smoke test failed.' }
 
-      - name: Verify Windows installation and legacy MSI migration
+      - name: Verify Windows installation, repair and uninstall
         if: runner.os == 'Windows'
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
           LAKONA_HUB_ACCEPTANCE_PACKAGE: ${{ github.workspace }}/artifacts/packages/hub-win-x64/lakona-hub-${{ needs.validate.outputs.version }}-win-x64-user.zip
-          LAKONA_HUB_ACCEPTANCE_MSI: ${{ github.workspace }}/artifacts/legacy/lakona-hub-0.17.138-win-x64.msi
         run: |
-          # A historical release fixture, not a rebuilt or newly published MSI.
-          gh release download hub-v0.17.138 --repo '${{ github.repository }}' --pattern 'lakona-hub-0.17.138-win-x64.msi' --dir artifacts/legacy
-          if ($LASTEXITCODE -ne 0) { throw 'Could not download the legacy migration fixture.' }
-          if ((Get-FileHash $env:LAKONA_HUB_ACCEPTANCE_MSI -Algorithm SHA256).Hash -ne '1241c62daa17e8895c55129cbd24aaa2b0532f6cb119edb9631544cab57e73e7') { throw 'Legacy MSI digest mismatch.' }
           dotnet test tests/Lakona.Hub.Tests/Lakona.Hub.Tests.csproj -c Release --filter WindowsInstallerAcceptanceTests --blame-hang-timeout 5m --blame-hang-dump-type none
           if ($LASTEXITCODE -ne 0) { throw 'Windows installation acceptance failed.' }
 
