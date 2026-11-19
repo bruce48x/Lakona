@@ -111,6 +111,14 @@ public sealed partial class MatchmakingBehavior
         var index = self.PendingTickets.FindIndex(ticket => ticket.UserId == userId && ticket.TicketId == request.TicketId);
         if (index < 0)
         {
+            if (self.PendingAssignments.Any(room => room.Players.Any(player =>
+                player.UserId == userId && player.TicketId == request.TicketId)))
+            {
+                await ClearQueueAsync(new PlayerSessionQueueClearRequest
+                {
+                    UserId = userId, TicketId = request.TicketId, ClearedAtUtc = cancelledAtUtc, Reason = request.Reason
+                }).ConfigureAwait(false);
+            }
             return new MatchmakingCancelResult
             {
                 UserId = userId,
@@ -156,7 +164,7 @@ public sealed partial class MatchmakingBehavior
         }
 
         var normalizedObservedAtUtc = NormalizeUtc(request.ObservedAtUtc);
-        var assignments = await TryMatchAsync(self, normalizedObservedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
-        PublishMatched(assignments.Values);
+        await TryMatchAsync(self, normalizedObservedAtUtc, allowExpiredPartialBatch: true).ConfigureAwait(false);
+        await ConfirmAssignmentsAsync(self).ConfigureAwait(false);
     }
 }

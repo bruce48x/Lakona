@@ -41,6 +41,13 @@ internal static class DirectBehaviorTestExtensions
     public static async ValueTask<PlayerSessionSnapshot> AssignRoomAsync(this UserActor actor, PlayerRoomAssignment request, CancellationToken ct = default)
     {
         var behavior = CreateBehavior<UserBehavior>(actor);
+        var session = await behavior.GetSnapshotAsync(actor, new PlayerSessionSnapshotRequest());
+        request.ControlSessionId = session.ControlSessionId;
+        request.TicketId = Guid.NewGuid().ToString("N");
+        await behavior.MarkQueuedAsync(actor, new PlayerSessionQueueRequest
+        {
+            UserId = request.UserId, ControlSessionId = session.ControlSessionId, TicketId = request.TicketId
+        });
         await behavior.AssignRoomAsync(actor, request);
         return await behavior.GetSnapshotAsync(actor, new PlayerSessionSnapshotRequest());
     }

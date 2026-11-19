@@ -255,6 +255,7 @@ public sealed partial class UserBehavior
         session.ControlSessionId = request.ControlSessionId;
         session.RealtimeSessionId = "";
         session.MatchmakingTicketId = "";
+        session.AssignedTicketId = "";
         session.CurrentRoomId = "";
         session.CurrentMatchId = "";
         session.SeatIndex = -1;
@@ -321,7 +322,8 @@ public sealed partial class UserBehavior
     public ValueTask<PlayerSessionQueueResult> MarkQueuedAsync(UserActor self, PlayerSessionQueueRequest request)
     {
         var session = self.State.Session;
-        if (!OwnsControlSession(session, request.ControlSessionId) || session.SessionToken.Length == 0)
+        if (!OwnsControlSession(session, request.ControlSessionId) || session.SessionToken.Length == 0 ||
+            session.CurrentRoomId.Length != 0)
             return ValueTask.FromResult(new PlayerSessionQueueResult());
 
         session.MatchmakingTicketId = request.TicketId;
@@ -337,19 +339,30 @@ public sealed partial class UserBehavior
         return default;
     }
 
-    public ValueTask AssignRoomAsync(UserActor self, PlayerRoomAssignment request)
+    public ValueTask<RoomAssignmentReply> AssignRoomAsync(UserActor self, PlayerRoomAssignment request)
     {
         var session = self.State.Session;
-        if (session.SessionToken.Length == 0 || session.SessionToken != request.SessionToken)
-            return default;
+        if (!OwnsControlSession(session, request.ControlSessionId) || session.SessionToken.Length == 0 ||
+            session.SessionToken != request.SessionToken || request.TicketId.Length == 0)
+            return ValueTask.FromResult(new RoomAssignmentReply());
 
+        if (session.CurrentRoomId.Length != 0)
+            return ValueTask.FromResult(new RoomAssignmentReply
+            {
+                Accepted = session.CurrentRoomId == request.RoomId && session.CurrentMatchId == request.MatchId &&
+                    session.AssignedTicketId == request.TicketId
+            });
+        if (session.MatchmakingTicketId != request.TicketId)
+            return ValueTask.FromResult(new RoomAssignmentReply());
+
+        session.AssignedTicketId = request.TicketId;
         session.CurrentRoomId = request.RoomId;
         session.CurrentMatchId = request.MatchId;
         session.SeatIndex = request.SeatIndex;
         session.MatchmakingTicketId = "";
         session.RuntimeGateway = CloneGateway(request.RuntimeGateway);
 
-        return default;
+        return ValueTask.FromResult(new RoomAssignmentReply { Accepted = true });
     }
 
     public ValueTask ClearRoomAsync(UserActor self, PlayerRoomClearRequest request)
@@ -361,6 +374,7 @@ public sealed partial class UserBehavior
         if (string.IsNullOrWhiteSpace(request.RoomId) || string.Equals(session.CurrentRoomId, request.RoomId, StringComparison.Ordinal))
         {
             session.CurrentRoomId = "";
+            session.AssignedTicketId = "";
             session.CurrentMatchId = "";
             session.SeatIndex = -1;
         }

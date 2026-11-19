@@ -95,6 +95,9 @@ namespace Server.App.Sessions
     [MemoryPackable(GenerateType.VersionTolerant)]
     public sealed partial class PlayerRoomAssignment
     {
+        [MemoryPackOrder(9)]
+        public string TicketId { get; set; } = "";
+
         [MemoryPackOrder(0)]
         public string UserId { get; set; } = "";
 
@@ -193,8 +196,17 @@ namespace Server.App.Sessions
         public GatewayEndpointDescriptor RuntimeGateway { get; set; } = new();
     }
 
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class RoomAssignmentReply
+    {
+        [MemoryPackOrder(0)]
+        public bool Accepted { get; set; }
+    }
+
     public sealed class PlayerSessionState
     {
+        public string AssignedTicketId { get; set; } = "";
+
         public string UserId { get; set; } = "";
 
         public string SessionToken { get; set; } = "";

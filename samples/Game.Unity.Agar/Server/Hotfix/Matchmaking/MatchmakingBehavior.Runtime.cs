@@ -41,13 +41,11 @@ public sealed partial class MatchmakingBehavior
         self.DestroyTimer(timerId);
     }
 
-    private async ValueTask<Dictionary<string, RoomAssignment>> TryMatchAsync(
+    private async ValueTask TryMatchAsync(
         MatchmakingActor self,
         DateTime nowUtc,
         bool allowExpiredPartialBatch)
     {
-        var assignments = new Dictionary<string, RoomAssignment>(StringComparer.Ordinal);
-
         while (TryTakeMatchBatch(self, nowUtc, allowExpiredPartialBatch, out var batch))
         {
             try
@@ -58,6 +56,7 @@ public sealed partial class MatchmakingBehavior
                 var playerAssignments = batch.Select((ticket, seatIndex) => new PlayerRoomAssignment
                 {
                     UserId = ticket.UserId,
+                    TicketId = ticket.TicketId,
                     RoomId = roomId,
                     MatchId = matchId,
                     SeatIndex = seatIndex,
@@ -95,7 +94,6 @@ public sealed partial class MatchmakingBehavior
                 foreach (var playerAssignment in playerAssignments)
                 {
                     playerAssignment.RuntimeGateway = CloneGateway(runtimeGateway);
-                    await AssignRoomAsync(playerAssignment).ConfigureAwait(false);
                 }
 
                 var roomAssignment = new RoomAssignment
@@ -103,15 +101,11 @@ public sealed partial class MatchmakingBehavior
                     RoomId = roomId,
                     MatchId = matchId,
                     AssignedAtUtc = nowUtc,
-                    Players = playerAssignments.Select(CloneAssignment).ToList(),
+                    Players = playerAssignments,
                     RuntimeGateway = CloneGateway(runtimeGateway)
                 };
 
-                foreach (var playerAssignment in playerAssignments)
-                {
-                    assignments[playerAssignment.UserId] = roomAssignment;
-                }
-
+                self.PendingAssignments.Add(roomAssignment);
             }
             catch
             {
@@ -120,17 +114,44 @@ public sealed partial class MatchmakingBehavior
             }
         }
 
-        return assignments;
     }
 
-    private void PublishMatched(IEnumerable<RoomAssignment> assignments)
+    private async Task ConfirmAssignmentsAsync(MatchmakingActor self)
     {
-        foreach (var assignment in assignments
-            .Where(static assignment => !string.IsNullOrWhiteSpace(assignment.RoomId))
-            .GroupBy(static assignment => assignment.RoomId, StringComparer.Ordinal)
-            .Select(static group => group.First()))
+        foreach (var assignment in self.PendingAssignments.ToArray())
         {
-            PlayerService.PublishMatched(_notifier, assignment);
+            try
+            {
+                foreach (var player in assignment.Players.ToArray())
+                {
+                    if (await AcceptSeatAsync(player).ConfigureAwait(false))
+                        continue;
+
+                    try
+                    {
+                        await _actors.Route<RoomActor>(new RoomId(player.RoomId))
+                            .CallAsync(static behavior => behavior.LeaveAsync, new RoomPlayerLeaveRequest
+                            {
+                                RoomId = player.RoomId,
+                                UserId = player.UserId,
+                                ControlSessionId = player.ControlSessionId,
+                                Reason = "Matchmaking ticket expired",
+                                LeftAtUtc = DateTime.UtcNow
+                            }).ConfigureAwait(false);
+                    }
+                    catch (ActorNotFoundException)
+                    {
+                        // The old room is already gone.
+                    }
+                    assignment.Players.Remove(player);
+                }
+                PlayerService.PublishMatched(_notifier, assignment);
+                self.PendingAssignments.Remove(assignment);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Will retry seat confirmation for room {RoomId}.", assignment.RoomId);
+            }
         }
     }
 
@@ -148,11 +169,18 @@ public sealed partial class MatchmakingBehavior
             request);
     }
 
-    private ValueTask AssignRoomAsync(PlayerRoomAssignment request)
+    private async ValueTask<bool> AcceptSeatAsync(PlayerRoomAssignment request)
     {
-        return _actors.Route<UserActor>(new UserId(request.UserId)).CallAsync(
-            static behavior => behavior.AssignRoomAsync,
-            request);
+        try
+        {
+            var reply = await _actors.Route<UserActor>(new UserId(request.UserId))
+                .CallAsync(static behavior => behavior.AssignRoomAsync, request).ConfigureAwait(false);
+            return reply.Accepted;
+        }
+        catch (ActorNotFoundException)
+        {
+            return false;
+        }
     }
 
     private async ValueTask<RoomSettlementResult> AllocateRoomAsync(
@@ -303,6 +331,7 @@ public sealed partial class MatchmakingBehavior
         return new PlayerRoomAssignment
         {
             UserId = assignment.UserId,
+            TicketId = assignment.TicketId,
             RoomId = assignment.RoomId,
             MatchId = assignment.MatchId,
             SeatIndex = assignment.SeatIndex,

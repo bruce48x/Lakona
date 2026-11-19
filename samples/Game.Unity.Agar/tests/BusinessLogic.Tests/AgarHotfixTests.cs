@@ -242,6 +242,11 @@ public sealed class AgarHotfixTests
             RoomId = roomId, MatchId = "match", Players = [assignment,
                 new PlayerRoomAssignment { UserId = "peer", ControlSessionId = "peer-session", SeatIndex = 1 }]
         }, ct);
+        assignment.TicketId = "first-ticket";
+        await user.CallAsync(static b => b.MarkQueuedAsync, new PlayerSessionQueueRequest
+        {
+            UserId = assignment.UserId, ControlSessionId = assignment.ControlSessionId, TicketId = assignment.TicketId
+        }, ct);
         await user.CallAsync(static b => b.AssignRoomAsync, assignment, ct);
         var room = access.Route<RoomActor>(roomKey);
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await Login("wrong", "second"));

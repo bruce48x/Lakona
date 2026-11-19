@@ -12,5 +12,6 @@ public sealed class MatchmakingActor : Actor<MatchmakingQueueId>
 {
     internal TimerId MatchmakingTimerId;
     internal string PendingRoomCleanupId = "";
+    internal List<RoomAssignment> PendingAssignments { get; } = new();
     internal List<MatchmakingQueueTicket> PendingTickets { get; set; } = new();
 }
