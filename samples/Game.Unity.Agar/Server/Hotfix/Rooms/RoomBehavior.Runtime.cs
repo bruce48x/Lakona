@@ -211,6 +211,7 @@ public sealed partial class RoomBehavior
         }
 
         existing.SessionToken = request.SessionToken;
+        existing.HasLeftRoom = false;
         existing.ConnectionId = request.ConnectionId;
         existing.ControlSessionId = request.ControlSessionId;
         existing.SeatIndex = request.SeatIndex;

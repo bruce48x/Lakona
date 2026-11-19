@@ -312,6 +312,8 @@ namespace Server.App.Rooms
 
     public sealed class RoomPlayerState
     {
+        public bool HasLeftRoom { get; set; }
+
         public string UserId { get; set; } = "";
 
         public string SessionToken { get; set; } = "";

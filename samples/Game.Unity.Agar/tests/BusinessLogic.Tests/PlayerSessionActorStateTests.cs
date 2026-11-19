@@ -20,6 +20,64 @@ public sealed class PlayerSessionActorStateTests
     private const string RealtimeInputSessionId = "realtime-session-1";
 
     [Fact]
+    public async Task LastControlLeaveReleasesRoomWithoutSettlementAndAllowsRecoveryUntilThen()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var provider = CreateActorServices();
+        var actors = provider.GetRequiredService<IActorRuntime>();
+        const string roomId = "abandoned-room";
+        var id = ActorIdentity.Create<RoomActor, RoomId>(new RoomId(roomId));
+        await provider.GetRequiredService<ActorActivationCatalog>().EnsureAsync<RoomActor>(id, ct);
+        var store = provider.GetRequiredService<PostgresUserStore>();
+        foreach (var user in new[] { "first", "last" })
+            await TestPersistence.InsertUserAsync(provider, new PersistedUser
+            {
+                UserId = user, VictoryPoints = 7, WinCount = 2,
+                CreatedAtUtc = DateTime.UtcNow, LastLoginAtUtc = DateTime.UtcNow
+            }, ct);
+
+        await CreateRoomAsync(provider, roomId, new RoomCreateRequest
+        {
+            RoomId = roomId, MatchId = "match",
+            Players = [
+                new PlayerRoomAssignment { UserId = "first", ControlSessionId = "one" },
+                new PlayerRoomAssignment { UserId = "last", ControlSessionId = "two", SeatIndex = 1 }
+            ]
+        }, ct);
+        ValueTask<RoomSettlementResult> Leave(string player, string session) =>
+            actors.AskAsync<RoomActor, RoomSettlementResult>(id, async (actor, _) =>
+            {
+                using var timerScope = TestHotfixTimerScope.Enter();
+                return await provider.GetRequiredService<RoomBehavior>().LeaveAsync(actor,
+                    new RoomPlayerLeaveRequest { UserId = player, RoomId = roomId, ControlSessionId = session });
+            }, ct);
+        ValueTask<RoomSettlementResult> Connect(string realtime) =>
+            actors.AskAsync<RoomActor, RoomSettlementResult>(id, (actor, _) => actor.SetReadyAsync(
+                new RoomPlayerReadyRequest { UserId = "last", IsReady = true, RealtimeSessionId = realtime }), ct);
+
+        Assert.True((await Leave("first", "one")).Succeeded);
+        Assert.True((await Connect("initial")).Succeeded);
+        var disconnected = await actors.AskAsync<RoomActor, RoomSettlementResult>(id, (actor, _) =>
+            actor.ClearRealtimeAsync(new RoomRealtimeClearRequest { UserId = "last", RealtimeSessionId = "initial" }), ct);
+        Assert.Equal(0, disconnected.Snapshot.ConnectedCount);
+        Assert.False((await Leave("last", "stale")).Succeeded);
+        Assert.Equal(1, (await Connect("reconnected")).Snapshot.ConnectedCount);
+
+        var abandoned = await Leave("last", "two");
+        Assert.True(abandoned.Succeeded);
+        Assert.Empty(abandoned.Snapshot.SettlementId);
+        Assert.Empty(abandoned.Snapshot.WinnerUserId);
+        await actors.WaitForDeactivationAsync(id, ct);
+        foreach (var user in new[] { "first", "last" })
+        {
+            var profile = await store.LoadAsync(user, ct);
+            Assert.NotNull(profile);
+            Assert.Equal(7, profile.VictoryPoints);
+            Assert.Equal(2, profile.WinCount);
+        }
+    }
+
+    [Fact]
     public async Task UserActorLoginAndAttachUpdatesAccountAndControlSessionInOneTurn()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

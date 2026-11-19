@@ -151,7 +151,7 @@ public sealed partial class RoomBehavior
             return new ValueTask<RoomSettlementResult>(BuildFailure(self, "Room has not been created.", joinedAtUtc));
         }
 
-        if (self.State.Status == RoomStatus.Finished)
+        if (self.State.Status is RoomStatus.Finished or RoomStatus.Cancelled)
         {
             return new ValueTask<RoomSettlementResult>(BuildFailure(self, "Room is already finished.", joinedAtUtc));
         }
@@ -186,11 +186,17 @@ public sealed partial class RoomBehavior
         }
 
         var player = FindPlayer(self, request.UserId);
-        if (player is null || player.ControlSessionId != request.ControlSessionId)
+        if (player is null || string.IsNullOrEmpty(request.ControlSessionId) || player.ControlSessionId != request.ControlSessionId)
         {
             return new ValueTask<RoomSettlementResult>(BuildFailure(self, "Player is not in the room.", leftAtUtc));
         }
 
+        if (player.HasLeftRoom)
+            return ValueTask.FromResult(BuildSuccess(self, "Player already left the room.", leftAtUtc));
+
+        player.HasLeftRoom = true;
+        player.RealtimeSessionId = "";
+        player.PendingCheatMass = false;
         player.IsConnected = false;
         player.IsReady = false;
         player.LeftAtUtc = leftAtUtc;
@@ -199,6 +205,14 @@ public sealed partial class RoomBehavior
 
         self.State.Revision += 1;
         self.State.LastUpdatedAtUtc = leftAtUtc;
+
+        if (self.State.Status != RoomStatus.Finished && self.State.Players.All(member => member.HasLeftRoom))
+        {
+            self.State.Status = RoomStatus.Cancelled;
+            self.State.FinishedAtUtc = leftAtUtc;
+            DestroyFrameRelayTimer(self);
+            self.Context.RequestDeactivation();
+        }
 
         return new ValueTask<RoomSettlementResult>(BuildSuccess(self, "Player left the room.", leftAtUtc));
     }
@@ -213,7 +227,7 @@ public sealed partial class RoomBehavior
         }
 
         var player = FindPlayer(self, request.UserId);
-        if (player is null)
+        if (player is null || player.HasLeftRoom)
         {
             return new ValueTask<RoomSettlementResult>(BuildFailure(self, "Player is not in the room.", updatedAtUtc));
         }
