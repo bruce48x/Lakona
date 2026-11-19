@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -28,11 +30,6 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         Assert.Contains("subnet: 10.10.0.0/24", script, StringComparison.Ordinal);
         Assert.Contains("gateway: 10.10.0.254", script, StringComparison.Ordinal);
         Assert.Contains("ip_range: 10.10.0.128/25", script, StringComparison.Ordinal);
-        Assert.Contains("Test-TcpPortFree", script, StringComparison.Ordinal);
-        Assert.Contains("Test-UdpPortFree", script, StringComparison.Ordinal);
-        Assert.Contains("Test-DockerPublishedPortFree", script, StringComparison.Ordinal);
-        Assert.Contains("Port 20000/tcp is already in use", script, StringComparison.Ordinal);
-        Assert.Contains("Port 20001/udp is already in use", script, StringComparison.Ordinal);
         Assert.Contains("Test-ReadinessEndpoint", script, StringComparison.Ordinal);
         Assert.Contains("data-1 ready", script, StringComparison.Ordinal);
         Assert.Contains("gateway-1 ready", script, StringComparison.Ordinal);
@@ -100,6 +97,37 @@ public sealed class AgarThreeNodeLocalTestScriptTests
         Assert.Contains("local-only", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("github.event", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("GITHUB_ACTIONS", script, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("tcp")]
+    [InlineData("udp")]
+    public async Task LoopbackPreflightRejectsOccupiedPortAndAcceptsReleasedPort(string protocol)
+    {
+        using var socket = protocol == "tcp"
+            ? new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
+            : new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        socket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        if (protocol == "tcp") socket.Listen(1);
+        var port = ((IPEndPoint)socket.LocalEndPoint!).Port;
+
+        var script = Path.Combine(FindRepositoryRoot(), "scripts", "game", "ci", "assert-agar-loopback-port.ps1");
+        var command = new ProcessStartInfo("pwsh")
+        {
+            ArgumentList = { "-NoProfile", "-File", script, "-Port", port.ToString(), "-Protocol", protocol },
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        using var occupied = Process.Start(command)!;
+        var error = await occupied.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
+        await occupied.WaitForExitAsync(TestContext.Current.CancellationToken);
+        Assert.NotEqual(0, occupied.ExitCode);
+        Assert.Contains($"127.0.0.1:{port}/{protocol}", error);
+
+        socket.Close();
+        using var released = Process.Start(command)!;
+        await released.WaitForExitAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(0, released.ExitCode);
     }
 
     [Fact]

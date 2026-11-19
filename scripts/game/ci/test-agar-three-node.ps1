@@ -248,6 +248,9 @@ function Write-OverrideComposeFile {
 services:
   data-1:
     container_name: lakona-agar-three-node-test-data-1
+    ports: !override
+      - "127.0.0.1:20081:20080"
+      - "127.0.0.1:21000:21000"
     environment:
       Lakona__Health__ClusterDiagnosticsEnabled: "true"
       Lakona__Cluster__Endpoint: tcp://10.10.0.1:21001
@@ -256,6 +259,9 @@ services:
         ipv4_address: 10.10.0.1
   gateway-1:
     container_name: lakona-agar-three-node-test-gateway-1
+    ports: !override
+      - "127.0.0.1:20000:20000"
+      - "127.0.0.1:20080:20080"
     environment:
       Lakona__Health__ClusterDiagnosticsEnabled: "true"
       Lakona__Endpoints: >-
@@ -277,6 +283,9 @@ services:
         ipv4_address: 10.10.0.2
   battle-1:
     container_name: lakona-agar-three-node-test-battle-1
+    ports: !override
+      - "127.0.0.1:20001:20001/udp"
+      - "127.0.0.1:20082:20080"
     environment:
       Lakona__Health__ClusterDiagnosticsEnabled: "true"
       Lakona__Endpoints: >-
@@ -401,41 +410,6 @@ function Test-TcpPort {
     }
 }
 
-function Test-TcpPortFree {
-    param([int]$Port)
-    $listener = $null
-    try {
-        $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $Port)
-        $listener.Start()
-        return $true
-    }
-    catch {
-        return $false
-    }
-    finally {
-        if ($null -ne $listener) {
-            $listener.Stop()
-        }
-    }
-}
-
-function Test-UdpPortFree {
-    param([int]$Port)
-    $client = $null
-    try {
-        $client = [System.Net.Sockets.UdpClient]::new($Port)
-        return $true
-    }
-    catch {
-        return $false
-    }
-    finally {
-        if ($null -ne $client) {
-            $client.Dispose()
-        }
-    }
-}
-
 function Get-DockerPublishedPorts {
     $ids = @(& docker ps -q)
     if ($LASTEXITCODE -ne 0) { throw 'Could not inspect running Docker containers.' }
@@ -450,6 +424,7 @@ function Get-DockerPublishedPorts {
                     Port = [int]$binding.HostPort
                     Protocol = $parts[1]
                     ContainerPort = [int]$parts[0]
+                    HostAddress = $binding.HostIp
                     Name = $container.Name
                     Project = $container.Config.Labels.'com.docker.compose.project'
                     Service = $container.Config.Labels.'com.docker.compose.service'
@@ -474,20 +449,24 @@ function Assert-RequiredPortsAvailable {
         @{ Port = 26379; Protocol = 'tcp'; Service = 'redis'; ContainerPort = 6379 }
     )
     foreach ($port in $required) {
-        $owners = @($published | Where-Object { $_.Port -eq $port.Port -and $_.Protocol -eq $port.Protocol })
+        $owners = @($published | Where-Object {
+            $_.Port -eq $port.Port -and $_.Protocol -eq $port.Protocol -and
+                ($_.HostAddress -in @('127.0.0.1', '0.0.0.0', '') -or
+                    ($ReuseEnvironment -and $_.Project -ceq $ProjectName -and $_.Service -ceq $port.Service))
+        })
         if ($owners.Count -gt 0) {
             foreach ($owner in $owners) {
                 if (-not $AllowTargetProject -or $owner.Project -cne $ProjectName -or
                     $owner.Service -cne $port.Service -or $owner.ContainerPort -ne $port.ContainerPort) {
-                    throw "Port $($port.Port)/$($port.Protocol) is published by '$($owner.Name)' outside the expected target binding."
+                    throw "127.0.0.1:$($port.Port)/$($port.Protocol) conflicts with a published port of '$($owner.Name)'."
+                }
+                if ($ReuseEnvironment -and $owner.HostAddress -ne '127.0.0.1') {
+                    throw "Cannot reuse '$($owner.Name)': expected 127.0.0.1:$($port.Port)/$($port.Protocol), found '$($owner.HostAddress)'."
                 }
             }
             continue
         }
-        $free = if ($port.Protocol -eq 'udp') { Test-UdpPortFree $port.Port } else { Test-TcpPortFree $port.Port }
-        if (-not $free) {
-            throw "Port $($port.Port)/$($port.Protocol) is already in use by a non-target process."
-        }
+        & (Join-Path $scriptRoot 'assert-agar-loopback-port.ps1') -Port $port.Port -Protocol $port.Protocol
     }
 }
 
