@@ -8,6 +8,9 @@ using Lakona.Game.Server.Hotfix;
 using Lakona.Game.Server.Hotfix.Abstractions;
 using Server.App.Leaderboard;
 using Server.App.Rooms;
+using Server.Hotfix.Rooms;
+using Lakona.Game.Server.Hotfix.Timers;
+using Microsoft.Extensions.Logging;
 
 namespace Server.Hotfix.Users;
 
@@ -17,10 +20,13 @@ public sealed partial class UserBehavior
     private readonly PostgresUserStore _userStore;
     private readonly ActorAccess _actors;
 
-    public UserBehavior(PostgresUserStore userStore, ActorAccess actors)
+    private readonly ILogger<UserBehavior> _logger;
+
+    public UserBehavior(PostgresUserStore userStore, ActorAccess actors, ILogger<UserBehavior> logger)
     {
         _userStore = userStore;
         _actors = actors;
+        _logger = logger;
     }
 
     [ActorMethod("login-and-attach")]
@@ -34,8 +40,62 @@ public sealed partial class UserBehavior
 
         await EnsureProfileLoadedAsync(self, CancellationToken.None).ConfigureAwait(false);
         var result = await LoginAsync(self, request.Password).ConfigureAwait(false);
+        var previous = self.State.Session;
+        if (previous.CurrentRoomId.Length != 0 && previous.ControlSessionId != request.ControlSessionId)
+        {
+            if (!self.RoomLeaveRetryTimer.IsValid)
+            {
+                var interval = TimeSpan.FromSeconds(10);
+                self.RoomLeaveRetryTimer = self.CreatePeriodicTimer(
+                    static (UserBehavior behavior) => behavior.RetryRoomLeavesAsync, interval, interval);
+            }
+            self.PendingRoomLeaves.Add(new RoomPlayerLeaveRequest
+            {
+                UserId = result.UserId,
+                RoomId = previous.CurrentRoomId,
+                ControlSessionId = previous.ControlSessionId,
+                LeftAtUtc = result.LastLoginAtUtc,
+                Reason = "Control session replaced"
+            });
+        }
         AttachSession(self, result, request);
+        result.HasPendingRoomLeaves = self.PendingRoomLeaves.Count != 0;
         return result;
+    }
+
+    [global::Lakona.Game.Server.Hotfix.Abstractions.ActorTimer]
+    private ValueTask RetryRoomLeavesAsync(UserActor self, TimerTick tick) => FlushRoomLeavesAsync(self, new());
+
+    public async ValueTask FlushRoomLeavesAsync(UserActor self, FlushRoomLeavesRequest request)
+    {
+        for (var index = self.PendingRoomLeaves.Count - 1; index >= 0; index--)
+        {
+            var leave = self.PendingRoomLeaves[index];
+            try
+            {
+                // Leave also checks the old control session ID. A missing seat is already clean.
+                await _actors.Route<RoomActor>(new RoomId(leave.RoomId))
+                    .CallAsync(static behavior => behavior.LeaveAsync, leave).ConfigureAwait(false);
+            }
+            catch (ActorNotFoundException)
+            {
+                // The old room has already been released.
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Will retry leaving room {RoomId} for player {UserId}.", leave.RoomId, leave.UserId);
+                continue;
+            }
+            self.PendingRoomLeaves.RemoveAt(index);
+        }
+
+        if (self.PendingRoomLeaves.Count == 0 && self.RoomLeaveRetryTimer.IsValid)
+        {
+            self.DestroyTimer(self.RoomLeaveRetryTimer);
+            self.RoomLeaveRetryTimer = default;
+            if (!self.State.IsOnline)
+                RequestDeactivation(self);
+        }
     }
 
     private async ValueTask<UserLoginResult> LoginAsync(UserActor self, string password)
@@ -108,8 +168,8 @@ public sealed partial class UserBehavior
         if (OwnsControlSession(session, request.SessionId) && session.SessionToken.Length == 0)
         {
             self.State.IsOnline = false;
-            self.Context.RequestDeactivation();
-            self.DeactivationRequested = true;
+            if (self.PendingRoomLeaves.Count == 0)
+                RequestDeactivation(self);
         }
 
         return default;
@@ -117,6 +177,12 @@ public sealed partial class UserBehavior
 
     private static bool OwnsControlSession(PlayerSessionState session, string sessionId) =>
         !string.IsNullOrEmpty(sessionId) && session.ControlSessionId == sessionId;
+
+    private static void RequestDeactivation(UserActor self)
+    {
+        self.Context.RequestDeactivation();
+        self.DeactivationRequested = true;
+    }
 
     public async ValueTask AddWinAsync(
         UserActor self,

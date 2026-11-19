@@ -1,6 +1,8 @@
 using Server.App.Routing;
 using Server.App.Users;
 using Server.App.Sessions;
+using Server.App.Rooms;
+using Lakona.Game.Server.Hotfix.Timers;
 using Lakona.Game.Server.Actors;
 using Lakona.Game.Server;
 
@@ -38,5 +40,7 @@ public sealed class UserActor : Actor<UserId>
     internal bool RecordExists;
     internal bool SessionRecordExists;
     internal bool DeactivationRequested;
+    internal readonly List<RoomPlayerLeaveRequest> PendingRoomLeaves = new();
+    internal TimerId RoomLeaveRetryTimer;
     internal UserState State = new();
 }

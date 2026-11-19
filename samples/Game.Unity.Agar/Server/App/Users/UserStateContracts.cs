@@ -24,6 +24,11 @@ namespace Server.App.Users
 
         [MemoryPackOrder(5)]
         public int VictoryPoints { get; set; }
+
+        [MemoryPackOrder(6)]
+        public bool HasPendingRoomLeaves { get; set; }
     }
 
+    [MemoryPackable(GenerateType.VersionTolerant)]
+    public sealed partial class FlushRoomLeavesRequest { }
 }

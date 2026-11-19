@@ -202,6 +202,93 @@ public sealed class AgarHotfixTests
         Assert.Equal(connection, current.ConnectionId);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AccountReloginReturnsOnlyTheReplacedRoomSeat(bool missImmediateCleanup)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLakonaGameServer();
+        services.AddGeneratedActorSelectorTestDependencies();
+        services.AddSingleton(new LakonaGameRuntimeOptions
+        {
+            Node = new LakonaGameNodeOptions { Id = "gateway-1", Roles = ["data", "battle"] }
+        });
+        await using var provider = services.BuildReadyServiceProvider(ct);
+        await TestHotfix.LoadCurrentRuntimeAsync(provider, ct);
+        var access = provider.GetRequiredService<ActorAccess>();
+        var runtime = provider.GetRequiredService<IActorRuntime>();
+        var login = ActivatorUtilities.CreateInstance<LoginService>(provider);
+        var server = new TestGameServer();
+        ValueTask<LoginReply> Login(string password, string connection) => login.LoginAsync(new LoginServiceCall<LoginRequest>(
+            new LoginRequest { Account = "player", Password = password }, connection, null, GameSessionItems.Empty,
+            provider, runtime, server));
+        var first = await Login("password", "first");
+        var user = access.Route<UserActor>(new UserId("player"));
+        var original = await user.CallAsync(static b => b.GetSnapshotAsync, new PlayerSessionSnapshotRequest(), ct);
+        const string roomId = "old-room";
+        var assignment = new PlayerRoomAssignment
+        {
+            UserId = "player", RoomId = roomId, MatchId = "match", SessionToken = first.Token,
+            ControlSessionId = original.ControlSessionId
+        };
+        var roomKey = new RoomId(roomId);
+        var roomIdentity = ActorIdentity.Create<RoomActor, RoomId>(roomKey);
+        await provider.GetRequiredService<ActorActivationCatalog>().EnsureAsync<RoomActor>(roomIdentity, ct);
+        await TestHotfix.CreateRoomAsync(provider, runtime, roomId, new RoomCreateRequest
+        {
+            RoomId = roomId, MatchId = "match", Players = [assignment,
+                new PlayerRoomAssignment { UserId = "peer", ControlSessionId = "peer-session", SeatIndex = 1 }]
+        }, ct);
+        await user.CallAsync(static b => b.AssignRoomAsync, assignment, ct);
+        var room = access.Route<RoomActor>(roomKey);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await Login("wrong", "second"));
+        Assert.Equal(roomId, (await user.CallAsync(static b => b.GetSnapshotAsync, new PlayerSessionSnapshotRequest(), ct)).CurrentRoomId);
+        Assert.Equal(2, (await room.CallAsync(static b => b.GetSnapshotAsync, new RoomSnapshotRequest(), ct)).ConnectedCount);
+
+        string nextToken;
+        if (missImmediateCleanup)
+        {
+            // The player actor committed the login, but the gateway never dispatched cleanup.
+            var replacement = await user.CallAsync(static b => b.LoginAndAttachAsync,
+                new UserLoginAndAttachRequest { Password = "password", ConnectionId = "third", ControlSessionId = "new" }, ct);
+            Assert.True(replacement.HasPendingRoomLeaves);
+            nextToken = replacement.SessionToken;
+            var scheduler = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>()
+                .Single(service => service.GetType().Name == "LakonaTimerScheduler");
+            await scheduler.StartAsync(ct);
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            deadline.CancelAfter(TimeSpan.FromSeconds(30));
+            while ((await room.CallAsync(static b => b.GetSnapshotAsync, new RoomSnapshotRequest(), deadline.Token)).ConnectedCount == 2)
+                await Task.Delay(100, deadline.Token);
+        }
+        else
+        {
+            nextToken = (await Login("password", "third")).Token;
+        }
+        var remaining = await room.CallAsync(static b => b.GetSnapshotAsync, new RoomSnapshotRequest(), ct);
+        Assert.True(Assert.Single(remaining.Players, p => p.UserId == "peer").IsConnected);
+        Assert.False(Assert.Single(remaining.Players, p => p.UserId == "player").IsConnected);
+        await room.CallAsync(static b => b.LeaveAsync, new RoomPlayerLeaveRequest
+        {
+            UserId = "peer", RoomId = roomId, ControlSessionId = "peer-session"
+        }, ct);
+        await runtime.WaitForDeactivationAsync(roomIdentity, ct);
+        var current = await user.CallAsync(static b => b.GetSnapshotAsync, new PlayerSessionSnapshotRequest(), ct);
+        Assert.Equal(nextToken, current.SessionToken);
+        Assert.Empty(current.CurrentRoomId);
+        var queueId = ActorId.From("default");
+        await provider.GetRequiredService<ActorActivationCatalog>().EnsureAsync<MatchmakingActor>(queueId, ct);
+        var queued = await runtime.AskAsync<MatchmakingActor, MatchmakingEnqueueResult>(queueId,
+            (actor, _) => actor.EnqueueAsync(new MatchmakingEnqueueRequest
+            {
+                UserId = "player", ControlSessionId = current.ControlSessionId, SessionToken = nextToken
+            }), ct);
+        Assert.True(queued.Queued);
+    }
+
     [Fact]
     public async Task Leaderboard_query_uses_existing_global_leaderboard_actor()
     {

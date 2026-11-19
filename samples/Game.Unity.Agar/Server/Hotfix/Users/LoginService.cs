@@ -66,6 +66,20 @@ public sealed class LoginService
             throw;
         }
 
+        if (loginResult.HasPendingRoomLeaves)
+        {
+            try
+            {
+                await _actors.Route<UserActor>(new UserId(account))
+                    .CallAsync(static behavior => behavior.FlushRoomLeavesAsync, new FlushRoomLeavesRequest())
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not dispatch room cleanup for {UserId}; the player actor owns the retry.", account);
+            }
+        }
+
         return new LoginReply
         {
             Code = LoginResultCodes.Ok,
