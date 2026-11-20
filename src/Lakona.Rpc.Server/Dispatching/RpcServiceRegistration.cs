@@ -48,14 +48,15 @@ public sealed class RpcServiceRegistration<TService>
                     return badRequestResponse;
                 }
 
-                session.LogPayload(request, "request", argument);
+                if (session.PayloadLogger is { } logging)
+                    session.LogRequestReceived(request, logging.Capture(argument));
                 var service = _activate(session);
                 await invoke(service, argument, cancellationToken).ConfigureAwait(false);
-                session.LogPayload<object?>(request, "response", null);
-                return RpcServerResponse.Encode(request.RequestId, RpcStatus.Ok, ReadOnlyMemory<byte>.Empty);
+                return RpcServerResponse.Encode(request.RequestId, RpcStatus.Ok, ReadOnlyMemory<byte>.Empty,
+                    snapshot: session.PayloadLogger?.Capture<object?>(null));
             },
             _serviceName,
-            methodName);
+            methodName, typedRequest: true);
     }
 
     public void Register<TRequest, TResponse>(
@@ -75,7 +76,8 @@ public sealed class RpcServiceRegistration<TService>
                     return badRequestResponse;
                 }
 
-                session.LogPayload(request, "request", argument);
+                if (session.PayloadLogger is { } logging)
+                    session.LogRequestReceived(request, logging.Capture(argument));
                 var service = _activate(session);
                 using var scope = session.OpenServiceScope?.Invoke();
                 TResponse result;
@@ -93,11 +95,10 @@ public sealed class RpcServiceRegistration<TService>
                         return RpcServerResponse.InternalError(request.RequestId);
                 }
 
-                session.LogPayload(request, "response", result);
-                return RpcServerResponse.Serialize(request.RequestId, session.Serializer, result);
+                return RpcServerResponse.Serialize(request.RequestId, session.Serializer, result, session.PayloadLogger?.Capture(result));
             },
             _serviceName,
-            methodName);
+            methodName, typedRequest: true);
     }
 
     private static bool TryDeserializeRequest<TRequest>(

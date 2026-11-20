@@ -52,14 +52,19 @@ public sealed class GameRpcLoggingTests
             await client.StartAsync(deadline.Token);
             var reply = await client.CallAsync(new RpcMethod<Login, Login>(77, 1, "LoginService", "LoginAsync"), new Login("alice", "do-not-log"), deadline.Token);
             Assert.Equal("alice", reply.Name);
-            Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Rpc");
-            Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Cluster.Rpc");
+            if (!failingProvider)
+                while (!provider.Entries.Any(e => e.Category == "Lakona.Game.Rpc" && e.Text.Contains("RPC request completed LoginService.LoginAsync")))
+                    await Task.Delay(10, deadline.Token);
             var payloads = provider.Entries.Where(e => e.Text.Contains("payload=")).ToArray();
             Assert.Equal(include && !failingProvider ? 4 : 0, payloads.Length);
             Assert.All(payloads, e => { Assert.Contains("alice", e.Text); Assert.DoesNotContain("do-not-log", e.Text); });
             Assert.All(payloads, e => Assert.Contains("LoginService.LoginAsync", e.Text));
-            Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Cluster.Rpc" && e.Text.Contains("RPC request completed LoginService.LoginAsync requestId=") && e.Text.Contains("status=Ok serviceId=77 methodId=1"));
-            Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Rpc" && e.Text.Contains("RPC request received LoginService.LoginAsync requestId=") && e.Text.Contains("serviceId=77 methodId=1 connectionId="));
+            if (!failingProvider)
+            {
+                Assert.Equal(4, provider.Entries.Count(e => e.Text.Contains("LoginService.LoginAsync")));
+                Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Cluster.Rpc" && e.Text.Contains("RPC request completed LoginService.LoginAsync requestId=") && e.Text.Contains("status=Ok serviceId=77 methodId=1"));
+                Assert.Contains(provider.Entries, e => e.Category == "Lakona.Game.Rpc" && e.Text.Contains("RPC request received LoginService.LoginAsync requestId=") && e.Text.Contains("serviceId=77 methodId=1 connectionId="));
+            }
             Assert.DoesNotContain(provider.Entries, e => e.Category.StartsWith("Lakona.Rpc.Server.Request") || e.Category.StartsWith("Lakona.Rpc.Client.Request"));
             var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var count = 0;
@@ -72,6 +77,7 @@ public sealed class GameRpcLoggingTests
             await received.Task.WaitAsync(deadline.Token);
             var notifications = provider.Entries.Where(e => e.Text.Contains("payload=") && e.Text.Contains("notify-alice")).ToArray();
             Assert.Equal(include && !failingProvider ? 4 : 0, notifications.Length);
+            if (!failingProvider) Assert.Equal(4, provider.Entries.Count(e => e.Text.StartsWith("RPC notification ")));
             Assert.All(payloads.Concat(notifications), e => Assert.True(e.Category is "Lakona.Game.Rpc" or "Lakona.Game.Cluster.Rpc"));
             Assert.All(notifications, e => Assert.DoesNotContain("do-not-log", e.Text));
             Assert.Equal(new byte[] { 1, 2 }, raw.Memory.ToArray());
@@ -108,6 +114,7 @@ public sealed class GameRpcLoggingTests
         var snapshot = new Lakona.Rpc.PayloadSnapshot(options);
         var redacted = snapshot.Format(new { Nested = new Dictionary<string, object> { ["Password"] = "secret" } });
         Assert.DoesNotContain("secret", redacted);
+        Assert.DoesNotContain("login-credential", snapshot.Format(new { LoginToken = "login-credential" }));
         Assert.Contains("redacted", redacted);
         Assert.True(snapshot.Format(new { Text = new string('x', 10000) }).Length <= 128);
         Assert.Equal("[payload unavailable]", snapshot.Format(new Broken()));
@@ -123,7 +130,7 @@ public sealed class GameRpcLoggingTests
         var logger = Lakona.Rpc.RpcPayloadLogging.Create(factory, "Rpc.Test",
             new RpcPayloadLoggingOptions { IncludePayload = include });
         var probe = new GetterProbe();
-        logger?.Write("request", 1, 1, 1, probe);
+        logger?.Capture(probe);
         Assert.False(probe.WasRead);
         Assert.Empty(provider.Entries);
     }

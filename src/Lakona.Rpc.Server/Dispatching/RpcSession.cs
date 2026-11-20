@@ -111,16 +111,15 @@ namespace Lakona.Rpc.Server
 
         internal RpcPayloadLogging? PayloadLogger { get; set; }
 
-        internal void LogPayload<T>(RpcRequestFrame request, string direction, T payload)
+        internal void LogRequestReceived(RpcRequestFrame request, string? snapshot = null)
         {
-            try
-            {
-                if (PayloadLogger?.IsEnabled != true) return;
-                PayloadLogger.Write(direction, request.RequestId,
-                    request.ServiceId, request.MethodId, payload, ConnectionId,
-                    _registry.ResolveDisplayName(request.ServiceId, request.MethodId));
-            }
-            catch { /* Optional diagnostics cannot change dispatch. */ }
+            const string template = "RPC request received {RpcMethod} requestId={RequestId} serviceId={ServiceId} methodId={MethodId} connectionId={ConnectionId}; payloadBytes={PayloadBytes}";
+            if (snapshot is not null)
+                PayloadLogger!.Trace(template + " payload={Payload}", _registry.ResolveDisplayName(request.ServiceId, request.MethodId),
+                    request.RequestId, request.ServiceId, request.MethodId, ConnectionId, request.Payload.Length, snapshot);
+            else if (_requestLogger.IsEnabled(LogLevel.Trace))
+                _requestLogger.LogTrace(template + ".", _registry.ResolveDisplayName(request.ServiceId, request.MethodId),
+                    request.RequestId, request.ServiceId, request.MethodId, ConnectionId, request.Payload.Length);
         }
 
         internal RpcConnectionInfo ConnectionInfo => new(ConnectionId, RemoteEndPoint);
@@ -250,8 +249,7 @@ namespace Lakona.Rpc.Server
 
             var payloadLength = writer.PayloadLength;
             using var bytes = RpcEnvelopeCodec.CompletePayload(writer);
-            LogNotificationPayload(serviceId, methodId, arg);
-            LogNotificationSent(serviceId, methodId, payloadLength);
+            LogNotificationSent(serviceId, methodId, payloadLength, PayloadLogger?.Capture(arg));
             await SendFrameAsyncSerialized(bytes.Memory, ct).ConfigureAwait(false);
         }
 
@@ -274,7 +272,11 @@ namespace Lakona.Rpc.Server
             int methodId,
             ReadOnlyMemory<byte> payload,
             RpcPushMetadata? metadata,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default) =>
+            await SendRawNotificationAsync(serviceId, methodId, payload, metadata, cancellationToken, null).ConfigureAwait(false);
+
+        internal async ValueTask SendRawNotificationAsync(int serviceId, int methodId, ReadOnlyMemory<byte> payload,
+            RpcPushMetadata? metadata, CancellationToken cancellationToken, string? snapshot)
         {
             ThrowIfDisposed();
             using var writer = RpcEnvelopeCodec.BeginPushPayload(
@@ -283,33 +285,25 @@ namespace Lakona.Rpc.Server
                 metadata);
             writer.Write(payload.Span);
             using var bytes = RpcEnvelopeCodec.CompletePayload(writer);
-            LogNotificationSent(serviceId, methodId, payload.Length);
+            LogNotificationSent(serviceId, methodId, payload.Length, snapshot);
             await SendFrameAsyncSerialized(bytes.Memory, cancellationToken).ConfigureAwait(false);
         }
 
-        private void LogNotificationPayload<T>(int serviceId, int methodId, T payload)
+        internal string? CaptureEncodedNotification<T>(ReadOnlyMemory<byte> bytes)
         {
-            try
-            {
-                if (PayloadLogger?.IsEnabled != true) return;
-                PayloadLogger.WriteNotification("sent", serviceId, methodId,
-                    payload, _registry.ResolveNotificationName(serviceId, methodId), ConnectionId);
-            }
-            catch { /* Optional diagnostics cannot interrupt delivery. */ }
+            if (PayloadLogger?.IsEnabled != true) return null;
+            try { return PayloadLogger.Capture(bytes.IsEmpty ? default : _serializer.Deserialize<T>(bytes)); }
+            catch { return "[payload unavailable]"; }
         }
 
-        internal void LogEncodedNotificationPayload<T>(int serviceId, int methodId, ReadOnlyMemory<byte> bytes)
+        private void LogNotificationSent(int serviceId, int methodId, int payloadBytes, string? snapshot)
         {
-            try
+            if (snapshot is not null)
             {
-                if (PayloadLogger?.IsEnabled != true) return;
-                LogNotificationPayload(serviceId, methodId, bytes.IsEmpty ? default : _serializer.Deserialize<T>(bytes));
+                PayloadLogger!.Trace("RPC notification sent {RpcMethod} serviceId={ServiceId} methodId={MethodId} payloadBytes={PayloadBytes} connectionId={ConnectionId} payload={Payload}",
+                    _registry.ResolveNotificationName(serviceId, methodId), serviceId, methodId, payloadBytes, ConnectionId, snapshot);
+                return;
             }
-            catch { /* A failed diagnostic decode cannot interrupt forwarding. */ }
-        }
-
-        private void LogNotificationSent(int serviceId, int methodId, int payloadBytes)
-        {
             if (!_requestLogger.IsEnabled(LogLevel.Trace)) return;
             _requestLogger.LogTrace(
                 "RPC notification sent {RpcMethod} serviceId={ServiceId} methodId={MethodId} payloadBytes={PayloadBytes} connectionId={ConnectionId}.",

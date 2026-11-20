@@ -58,13 +58,14 @@ public sealed class RpcServiceRegistry
         int methodId,
         RpcSessionHandler handler,
         string? serviceName = null,
-        string? methodName = null)
+        string? methodName = null,
+        bool typedRequest = false)
     {
         if (handler is null) throw new ArgumentNullException(nameof(handler));
         var key = (serviceId, methodId);
         var entry = new RpcServiceRegistryEntry(
             handler,
-            new RpcMethodDescriptor(serviceId, methodId, serviceName, methodName));
+            new RpcMethodDescriptor(serviceId, methodId, serviceName, methodName), typedRequest);
         if (!_entries.TryAdd(key, entry))
         {
             throw new InvalidOperationException(
@@ -191,12 +192,15 @@ public sealed class RpcServiceRegistry
         return false;
     }
 
+    internal bool IsTypedRequest(int serviceId, int methodId) =>
+        _entries.TryGetValue((serviceId, methodId), out var entry) && entry.TypedRequest;
+
     internal string ResolveDisplayName(int serviceId, int methodId) =>
         _entries.TryGetValue((serviceId, methodId), out var entry) ? entry.DisplayName : $"{serviceId}:{methodId}";
 
     private sealed record RpcServiceRegistryEntry(
         RpcSessionHandler Handler,
-        RpcMethodDescriptor Descriptor)
+        RpcMethodDescriptor Descriptor, bool TypedRequest)
     {
         internal string DisplayName { get; } = Descriptor.DisplayName;
     }

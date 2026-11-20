@@ -4,6 +4,12 @@ This changelog records significant product and architecture milestones. Routine
 maintenance and individual patch details are intentionally omitted, while the
 date and package versions of important releases are retained.
 
+## 2026-11-20 — Inline RPC payloads
+
+**Key releases:** `Lakona.Rpc.Core 0.16.12` and `Lakona.Game.Server 0.54.18`.
+
+- Opting into DTO logging adds a redacted snapshot to the request, completion, or notification event. `LoginToken` is redacted by default.
+
 ## 2026-11-18 — Readable RPC logs and cross-platform server packaging
 
 **Key releases:** `Lakona.Rpc.Core 0.16.11`, `Lakona.Rpc.Client 0.14.23`,

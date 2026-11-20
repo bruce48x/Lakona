@@ -30,11 +30,21 @@ internal sealed class ServerRequestDispatcher
         long startedAt,
         Action? onEntered = null)
     {
-        LogRequestReceived(session, req);
+        var deferReceived = session.PayloadLogger is not null && _registry.IsTypedRequest(req.ServiceId, req.MethodId);
+        if (!deferReceived) session.LogRequestReceived(req);
 
-        var rejection = await EvaluateGatesAsync(session, req, ct).ConfigureAwait(false);
+        RpcServerResponse? rejection;
+        try { rejection = await EvaluateGatesAsync(session, req, ct).ConfigureAwait(false); }
+        catch
+        {
+            if (deferReceived) session.LogRequestReceived(req);
+            throw;
+        }
         if (rejection.HasValue)
+        {
+            if (deferReceived) session.LogRequestReceived(req);
             return await SendResponseAsync(session, req, rejection.Value, ct, startedAt).ConfigureAwait(false);
+        }
 
         if (_registry.TryGetHandler(req.ServiceId, req.MethodId, out var sessionHandler))
         {
@@ -146,7 +156,7 @@ internal sealed class ServerRequestDispatcher
         using (response)
         {
             await _connection.SendAsync(response.Memory, ct).ConfigureAwait(false);
-            LogRequestCompleted(session, req, response.Status, GetElapsedTime(startedAt), response.ErrorMessage, response.Memory.Length);
+            LogRequestCompleted(session, req, response.Status, GetElapsedTime(startedAt), response.ErrorMessage, response.Memory.Length, response.PayloadSnapshot);
             return response.Status;
         }
     }
@@ -179,27 +189,21 @@ internal sealed class ServerRequestDispatcher
         return Stopwatch.GetElapsedTime(startedAt);
     }
 
-    private void LogRequestReceived(RpcSession session, RpcRequestFrame req)
-    {
-        if (!_logger.IsEnabled(LogLevel.Trace)) return;
-        _logger.LogTrace(
-            "RPC request received {RpcMethod} requestId={RequestId} serviceId={ServiceId} methodId={MethodId} connectionId={ConnectionId}; payloadBytes={PayloadBytes}.",
-            ResolveRpcMethod(req),
-            req.RequestId,
-            req.ServiceId,
-            req.MethodId,
-            session.ConnectionId, req.Payload.Length);
-    }
-
     private void LogRequestCompleted(
         RpcSession session,
         RpcRequestFrame req,
         RpcStatus status,
         TimeSpan elapsed,
-        string? errorMessage, int responseFrameBytes)
+        string? errorMessage, int responseFrameBytes, string? snapshot)
     {
         if (status == RpcStatus.Ok)
         {
+            if (snapshot is not null)
+            {
+                session.PayloadLogger!.Trace("RPC request completed {RpcMethod} requestId={RequestId} status={Status} serviceId={ServiceId} methodId={MethodId} connectionId={ConnectionId} elapsedMs={ElapsedMs}; responseFrameBytes={ResponseFrameBytes} payload={Payload}",
+                    ResolveRpcMethod(req), req.RequestId, status, req.ServiceId, req.MethodId, session.ConnectionId, elapsed.TotalMilliseconds, responseFrameBytes, snapshot);
+                return;
+            }
             if (!_logger.IsEnabled(LogLevel.Trace)) return;
             _logger.LogTrace(
                 "RPC request completed {RpcMethod} requestId={RequestId} status={Status} serviceId={ServiceId} methodId={MethodId} connectionId={ConnectionId} elapsedMs={ElapsedMs}; responseFrameBytes={ResponseFrameBytes}.",

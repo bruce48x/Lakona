@@ -9,7 +9,7 @@ namespace Lakona.Rpc.Core
         /// <summary>Member and dictionary key names always masked in snapshots.</summary>
         public static IReadOnlyList<string> DefaultRedactedMembers { get; } = Array.AsReadOnly(new[]
         {
-            "Password", "Token", "AccessToken", "RefreshToken", "ResumeTicket", "Secret", "Payload"
+            "Password", "LoginToken", "Token", "AccessToken", "RefreshToken", "ResumeTicket", "Secret", "Payload"
         });
 
         /// <summary>Enables bounded, redacted payload snapshots. Defaults to false.</summary>

@@ -247,8 +247,7 @@ namespace Lakona.Rpc.Client
                 var value = typeof(TArg) == typeof(RpcVoid)
                     ? (TArg)(object)RpcVoid.Instance
                     : _serializer.Deserialize<TArg>(payload);
-                _payloadLogger?.WriteNotification("received", method.ServiceId,
-                    method.MethodId, value, method.DisplayName);
+                LogNotificationReceived(method.ServiceId, method.MethodId, method.DisplayName, payload.Length, _payloadLogger?.Capture(value));
                 return handler(value);
             }, method.DisplayName));
 
@@ -268,7 +267,11 @@ namespace Lakona.Rpc.Client
 
             var registered = _notificationHandlers.TryAdd((serviceId, methodId), new RegisteredNotificationHandler(
                 typeof(ReadOnlyMemory<byte>),
-                payload => handler(payload)));
+                payload =>
+                {
+                    LogNotificationReceived(serviceId, methodId, null, payload.Length, null);
+                    return handler(payload);
+                }));
 
             if (!registered)
                 throw new InvalidOperationException(
@@ -295,7 +298,6 @@ namespace Lakona.Rpc.Client
             return BeginCall(method.ServiceId, method.MethodId,
                 id =>
                 {
-                    _payloadLogger?.Write("request", id, method.ServiceId, method.MethodId, arg, rpcMethod: method.DisplayName);
                     using var writer = RpcEnvelopeCodec.BeginRequestPayload(id, method.ServiceId, method.MethodId);
                     if (arg is not null) _serializer.Serialize(writer, arg);
                     return RpcEnvelopeCodec.CompletePayload(writer);
@@ -305,9 +307,8 @@ namespace Lakona.Rpc.Client
                     var result = typeof(TResult) == typeof(RpcVoid)
                         ? (TResult)(object)RpcVoid.Instance
                         : _serializer.Deserialize<TResult>(response.Payload.Memory)!;
-                    _payloadLogger?.Write("response", response.RequestId, method.ServiceId, method.MethodId, result, rpcMethod: method.DisplayName);
                     return result;
-                }, ct, method.DisplayName);
+                }, ct, method.DisplayName, _payloadLogger is null ? null : () => _payloadLogger.Capture(arg));
         }
 
         [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
@@ -338,19 +339,30 @@ namespace Lakona.Rpc.Client
         }
 
         private ValueTask<T> BeginCall<T>(int serviceId, int methodId,
-            Func<uint, TransportFrame> encode, Func<RpcResponseFrame, T> convert, CancellationToken ct, string? rpcMethod = null)
+            Func<uint, TransportFrame> encode, Func<RpcResponseFrame, T> convert, CancellationToken ct, string? rpcMethod = null, Func<string?>? captureRequest = null)
         {
             ThrowIfDisposed();
             if (_cts.IsCancellationRequested)
                 throw new InvalidOperationException("RPC connection has ended.", _disconnectReason);
             var startedAt = Stopwatch.GetTimestamp();
+            var captureResponse = captureRequest is not null;
             var call = new RpcPendingRequestCollection.PendingCall<T>(response =>
             {
-                LogRequestCompleted(response.RequestId, serviceId, methodId, response.Status,
-                    GetElapsedTime(startedAt), response.ErrorMessage, rpcMethod);
-                if (response.Status != RpcStatus.Ok)
-                    throw new RpcException(response.Status, response.ErrorMessage, response.RequestId, serviceId, methodId);
-                return convert(response);
+                var elapsed = GetElapsedTime(startedAt);
+                string? snapshot = null;
+                try
+                {
+                    if (response.Status != RpcStatus.Ok)
+                        throw new RpcException(response.Status, response.ErrorMessage, response.RequestId, serviceId, methodId);
+                    var result = convert(response);
+                    if (captureResponse) snapshot = _payloadLogger!.Capture(result);
+                    return result;
+                }
+                finally
+                {
+                    LogRequestCompleted(response.RequestId, serviceId, methodId, response.Status,
+                        elapsed, response.ErrorMessage, rpcMethod, snapshot);
+                }
             });
             var id = _pending.Reserve(ref _nextId, call);
             if (call.Task.IsCompleted) return call.Task;
@@ -368,7 +380,11 @@ namespace Lakona.Rpc.Client
                 }
                 ct.ThrowIfCancellationRequested();
                 frame = encode(id);
-                if (_requestLogger.IsEnabled(LogLevel.Trace))
+                var snapshot = captureRequest?.Invoke();
+                if (snapshot is not null)
+                    _payloadLogger!.Trace("RPC request sent {RpcMethod} requestId={RequestId} serviceId={ServiceId} methodId={MethodId} payload={Payload}",
+                        ResolveName(rpcMethod, serviceId, methodId), id, serviceId, methodId, snapshot);
+                else if (_requestLogger.IsEnabled(LogLevel.Trace))
                     _requestLogger.LogTrace("RPC request sent {RpcMethod} requestId={RequestId} serviceId={ServiceId} methodId={MethodId}.", ResolveName(rpcMethod, serviceId, methodId), id, serviceId, methodId);
                 // Sending owns the request frame; awaiting the response never waits for send completion first.
                 call.SetCancellationRegistration(ct.Register(() => _pending.TryCancel(id, ct)));
@@ -613,6 +629,15 @@ namespace Lakona.Rpc.Client
             _ = ProcessPushAsync((RpcPushFrame)message);
         }
 
+        private void LogNotificationReceived(int serviceId, int methodId, string? name, int payloadBytes, string? snapshot)
+        {
+            const string template = "RPC notification received {RpcMethod} serviceId={ServiceId} methodId={MethodId} payloadBytes={PayloadBytes}";
+            if (snapshot is not null)
+                _payloadLogger!.Trace(template + " payload={Payload}", ResolveName(name, serviceId, methodId), serviceId, methodId, payloadBytes, snapshot);
+            else if (_requestLogger.IsEnabled(LogLevel.Trace))
+                _requestLogger.LogTrace(template + ".", ResolveName(name, serviceId, methodId), serviceId, methodId, payloadBytes);
+        }
+
         private async Task ProcessPushAsync(RpcPushFrame push)
         {
             using (push)
@@ -634,14 +659,6 @@ namespace Lakona.Rpc.Client
                         push.ServiceId,
                         push.MethodId);
                     return;
-                }
-
-                if (_requestLogger.IsEnabled(LogLevel.Trace))
-                {
-                    _requestLogger.LogTrace(
-                        "RPC notification received {RpcMethod} serviceId={ServiceId} methodId={MethodId} payloadBytes={PayloadBytes}.",
-                        ResolveName(registration.DisplayName, push.ServiceId, push.MethodId),
-                        push.ServiceId, push.MethodId, push.Payload.Length);
                 }
 
                 try
@@ -859,8 +876,14 @@ namespace Lakona.Rpc.Client
             int methodId,
             RpcStatus status,
             TimeSpan elapsed,
-            string? errorMessage, string? rpcMethod)
+            string? errorMessage, string? rpcMethod, string? snapshot)
         {
+            if (snapshot is not null)
+            {
+                _payloadLogger!.Trace("RPC request completed {RpcMethod} requestId={RequestId} status={Status} serviceId={ServiceId} methodId={MethodId} elapsedMs={ElapsedMs} payload={Payload}",
+                    ResolveName(rpcMethod, serviceId, methodId), requestId, status, serviceId, methodId, elapsed.TotalMilliseconds, snapshot);
+                return;
+            }
             if (status == RpcStatus.Ok)
             {
                 if (!_requestLogger.IsEnabled(LogLevel.Trace)) return;

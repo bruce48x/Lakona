@@ -25,37 +25,21 @@ namespace Lakona.Rpc
                 ? new RpcPayloadLogging(factory.CreateLogger(category + ".Payload"), options)
                 : null;
 
-        public bool IsEnabled => _logger.IsEnabled(LogLevel.Trace);
-
-        internal void WriteNotification<T>(string direction, int serviceId, int methodId,
-            T payload, string? rpcMethod, string? connectionId = null)
+        internal bool IsEnabled
         {
-            try
+            get
             {
-                if (!_logger.IsEnabled(LogLevel.Trace)) return;
-                _logger.LogTrace("RPC notification payload {RpcMethod} direction={Direction} serviceId={ServiceId} methodId={MethodId} connectionId={ConnectionId} payload={Payload}",
-                    rpcMethod ?? $"{serviceId}:{methodId}", direction, serviceId, methodId, connectionId, _snapshot.Format(payload));
-            }
-            catch
-            {
-                // Optional diagnostics must not interrupt notification delivery.
+                try { return _logger.IsEnabled(LogLevel.Trace); }
+                catch { return false; }
             }
         }
 
-        internal void Write<T>(string direction, uint requestId,
-            int serviceId, int methodId, T payload, string? connectionId = null, string? rpcMethod = null)
+        internal string? Capture<T>(T value) => IsEnabled ? _snapshot.Format(value) : null;
+
+        internal void Trace(string template, params object?[] fields)
         {
-            try
-            {
-                if (!_logger.IsEnabled(LogLevel.Trace)) return;
-                _logger.LogTrace("RPC {Direction} payload {RpcMethod} requestId={RequestId} serviceId={ServiceId} methodId={MethodId} connectionId={ConnectionId} payload={Payload}",
-                    direction, string.IsNullOrWhiteSpace(rpcMethod) ? $"{serviceId}:{methodId}" : rpcMethod,
-                    requestId, serviceId, methodId, connectionId, _snapshot.Format(payload));
-            }
-            catch
-            {
-                // Optional diagnostics must not change invocation or response delivery.
-            }
+            try { _logger.LogTrace(template, fields); }
+            catch { /* Optional diagnostics must not affect delivery. */ }
         }
     }
 

@@ -38,8 +38,8 @@ public sealed class RpcNotificationChannel
         RpcPushMetadata? metadata,
         CancellationToken cancellationToken)
     {
-        _session.LogEncodedNotificationPayload<TPayload>(serviceId, methodId, payload);
-        return SendRawAsync(serviceId, methodId, payload, metadata, cancellationToken);
+        return _session.SendRawNotificationAsync(serviceId, methodId, payload, metadata, cancellationToken,
+            _session.CaptureEncodedNotification<TPayload>(payload));
     }
 
     public ValueTask SendRawAsync(

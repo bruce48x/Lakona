@@ -266,6 +266,8 @@ supported. Rebuild generated clients with the matching Core/analyzer package to
 include names; hand-written descriptors can use the four-argument constructor
 with service and method names. Generated notification send and receive logs display the callback contract and method, followed by labeled IDs. Unknown notifications retain their numeric identity.
 
+Each request, completion, and notification event is logged once per endpoint. With payload logging enabled, the event includes a bounded, redacted DTO snapshot when available. Typed requests are logged after decoding and before service execution. Rejections and invalid payloads retain their diagnostics.
+
 Notification DTOs use the same payload switch, size limit, and member redaction as requests and responses. Generated callbacks also identify the DTO type for encoded forwarding and replay. Untyped raw sends only log metadata.
 
 Set `Logging:LogLevel:Lakona.Game.Rpc` to `Trace` for client-facing RPC logs.
@@ -299,7 +301,7 @@ under `Lakona.Game.Rpc`. For cluster DTOs, enable the independent
 ClusterRpc switch and set `Lakona.Game.Cluster.Rpc` to Trace. Set IncludePayload to false to keep only lifecycle logs.
 
 Snapshots include public instance properties and fields, omit `JsonIgnore`
-members, and replace case-insensitive `Password`, `Token`, `AccessToken`,
+members, and replace case-insensitive `LoginToken`, `Password`, `Token`, `AccessToken`,
 `RefreshToken`, `ResumeTicket`, `Secret`, and `Payload` members or dictionary
 keys with `[redacted]`. Configured `RedactedMembers` add to that list. This is
 name-based exclusion, not automatic detection of sensitive values; applications
@@ -316,10 +318,10 @@ collectible Hotfix type metadata. DTO getters should be inexpensive and free of
 side effects; these bounds cannot interrupt a blocking getter or enumerator.
 
 Request snapshots follow successful typed deserialization on the server.
-Response snapshots describe the returned (including exception-mapped) DTO,
-before response serialization and transmission; the separate completion log
-reports successful transmission. Correlate them by request, service, method,
-and server connection identifiers. Invalid payloads and rejected requests have
+Response snapshots capture the returned DTO, including exception-mapped results,
+before serialization. The server includes the snapshot in its completion event
+after sending the response. Correlate requests and completions by request ID and
+connection ID. Invalid payloads and rejected requests have
 no decoded DTO. Raw handlers, including the Cluster Actor wire protocol, retain
 length/metadata diagnostics rather than decoding unknown binary content.
 Typed notifications use the same snapshot policy.
