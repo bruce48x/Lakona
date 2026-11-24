@@ -52,6 +52,21 @@ public abstract partial class MembershipTableContractTests
     });
 
     [Fact]
+    public Task ConcurrentAllocationsReturnDistinctGenerations() => RunAsync(async (table, ct) =>
+    {
+        var first = await table.AllocateGenerationAsync(BuildTag, ct);
+        var generations = await Task.WhenAll(Enumerable.Range(0, 16).Select(_ =>
+            table.AllocateGenerationAsync(BuildTag, ct).AsTask()));
+
+        Assert.All(generations, generation =>
+        {
+            Assert.Equal(first.Cluster, generation.Cluster);
+            Assert.True(generation.Value > first.Value);
+        });
+        Assert.Distinct(generations.Select(generation => generation.Value));
+    });
+
+    [Fact]
     public Task FirstGenerationEstablishesBuildTagAndRejectsAnotherBuildTag() => RunAsync(async (table, ct) =>
     {
         await table.AllocateGenerationAsync(BuildTag, ct);

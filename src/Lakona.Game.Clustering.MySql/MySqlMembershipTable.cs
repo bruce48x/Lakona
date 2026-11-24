@@ -34,7 +34,7 @@ internal sealed class MySqlMembershipTable : IMembershipTable, IAsyncDisposable
         await ValidateSchemaAsync(cancellationToken).ConfigureAwait(false);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        await EnsureMetadataAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
+        await EnsureMetadataAsync(connection, transaction, forUpdate: true, cancellationToken).ConfigureAwait(false);
 
         string? clusterBuildTag;
         await using (var metadata = new MySqlCommand(
@@ -119,7 +119,7 @@ internal sealed class MySqlMembershipTable : IMembershipTable, IAsyncDisposable
         await using var transaction = await connection.BeginTransactionAsync(
             IsolationLevel.ReadCommitted,
             cancellationToken).ConfigureAwait(false);
-        await EnsureMetadataAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
+        await EnsureMetadataAsync(connection, transaction, forUpdate: false, cancellationToken).ConfigureAwait(false);
 
         ClusterIncarnationId cluster;
         string? buildTag;
@@ -388,12 +388,16 @@ internal sealed class MySqlMembershipTable : IMembershipTable, IAsyncDisposable
     private static async ValueTask EnsureMetadataAsync(
         MySqlConnection connection,
         MySqlTransaction transaction,
+        bool forUpdate,
         CancellationToken cancellationToken)
     {
-        await using var create = new MySqlCommand(
-            "INSERT IGNORE INTO lakona_membership_cluster(singleton, incarnation, build_tag, version, next_generation) VALUES (1, @incarnation, NULL, 0, 1);",
-            connection,
-            transaction);
+        const string row = "INTO lakona_membership_cluster(singleton, incarnation, build_tag, version, next_generation) VALUES (1, @incarnation, NULL, 0, 1)";
+        // Allocators need an exclusive lock even on an existing row. INSERT IGNORE
+        // would take a shared lock that concurrent allocators then race to upgrade.
+        var sql = forUpdate
+            ? "INSERT " + row + " ON DUPLICATE KEY UPDATE singleton = 1;"
+            : "INSERT IGNORE " + row + ";";
+        await using var create = new MySqlCommand(sql, connection, transaction);
         create.Parameters.AddWithValue("@incarnation", Guid.NewGuid().ToString("D"));
         await create.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
