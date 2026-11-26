@@ -58,6 +58,25 @@ public sealed class HubEnvironmentWorkflowTests : IDisposable
     }
 
     [Fact]
+    public async Task CachedRiderKeepsItsFlatpakScopeBeforeDetectionCompletes()
+    {
+        var executable = CreateExecutable("rider");
+        var rider = new LocalApplicationInstallation(LocalApplicationKind.Rider, "Rider", executable)
+        {
+            FlatpakScope = FlatpakInstallationScope.User
+        };
+        using var workflow = Workflow(new RecordingSdkManager(ReadySdk()), new RecordingApplicationSource([rider]));
+        await workflow.DetectApplicationsAsync(TestContext.Current.CancellationToken);
+
+        using var restarted = Workflow(
+            new RecordingSdkManager(ReadySdk()),
+            new RecordingApplicationSource([]),
+            workflow.CaptureDetectedApplications());
+
+        Assert.Equal(FlatpakInstallationScope.User, restarted.ServerEditorSelection.SelectedEditor?.FlatpakScope);
+    }
+
+    [Fact]
     public async Task FindClientEditorPath_SelectsEditorFromTheRequestedUnityStream()
     {
         var executable = CreateExecutable("Unity");
@@ -180,14 +199,15 @@ public sealed class HubEnvironmentWorkflowTests : IDisposable
 
     private HubEnvironmentWorkflow Workflow(
         IHubSdkManager sdkManager,
-        IApplicationProbeSource applicationSource) =>
+        IApplicationProbeSource applicationSource,
+        IReadOnlyList<HubDetectedApplicationSettings>? cachedApplications = null) =>
         new(
             new HubLocalization(HubLanguage.English),
             sdkManager,
             new InstalledApplicationCatalog(applicationSource),
             new ManualApplicationStore(Path.Combine(root, "manual-applications.json")),
             null,
-            []);
+            cachedApplications ?? []);
 
     private string CreateExecutable(string fileName)
     {

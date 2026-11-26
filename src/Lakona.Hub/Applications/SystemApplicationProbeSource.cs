@@ -28,6 +28,14 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
 
             yield return installation;
         }
+
+        if (OperatingSystem.IsLinux())
+        {
+            foreach (var installation in FlatpakRider.FindInstallations())
+            {
+                yield return installation;
+            }
+        }
     }
 
     internal static bool TryCreateInstallation(
@@ -130,6 +138,7 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
 
         if (OperatingSystem.IsLinux())
         {
+            AddLinuxRiderPaths(candidates, localAppData);
             AddFile(candidates, LocalApplicationKind.UnityHub, "/opt/unityhub/unityhub");
             AddFile(candidates, LocalApplicationKind.UnityHub, "/usr/bin/unityhub");
 
@@ -147,6 +156,25 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
                 "Editor",
                 "Tuanjie");
         }
+    }
+
+    private static void AddLinuxRiderPaths(
+        ICollection<(LocalApplicationKind, string)> candidates,
+        string localAppData)
+    {
+        if (Environment.GetEnvironmentVariable("RIDER_HOME") is { Length: > 0 } riderHome)
+        {
+            var script = Path.Combine(riderHome, "bin", "rider.sh");
+            AddFile(candidates, LocalApplicationKind.Rider, File.Exists(script) ? script : Path.Combine(riderHome, "bin", "rider"));
+        }
+
+        AddVersionedEditorFiles(candidates, LocalApplicationKind.Rider, "/opt", "bin", "rider.sh");
+        AddVersionedEditorFiles(
+            candidates,
+            LocalApplicationKind.Rider,
+            Path.Combine(localAppData, "JetBrains", "Toolbox", "apps"),
+            "bin",
+            "rider.sh");
     }
 
     private static void AddPortableGodotInstallations(ICollection<(LocalApplicationKind, string)> candidates)
@@ -191,6 +219,11 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         {
             AddFile(candidates, LocalApplicationKind.Rider, Path.Combine(directory, "rider64.exe"));
             AddFile(candidates, LocalApplicationKind.Rider, Path.Combine(directory, "rider.exe"));
+            if (OperatingSystem.IsLinux())
+            {
+                AddFile(candidates, LocalApplicationKind.Rider, Path.Combine(directory, "rider"));
+                AddFile(candidates, LocalApplicationKind.Rider, Path.Combine(directory, "rider.sh"));
+            }
             AddFile(candidates, LocalApplicationKind.VisualStudio, Path.Combine(directory, "devenv.exe"));
             AddFile(candidates, LocalApplicationKind.VisualStudioCode, Path.Combine(directory, "Code.exe"));
             AddFile(candidates, LocalApplicationKind.UnityHub, Path.Combine(directory, "Unity Hub.exe"));
@@ -411,7 +444,8 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         {
             LocalApplicationKind.Rider => fileName.Equals("rider64.exe", StringComparison.OrdinalIgnoreCase) ||
                                           fileName.Equals("rider.exe", StringComparison.OrdinalIgnoreCase) ||
-                                          fileName.Equals("rider", StringComparison.OrdinalIgnoreCase),
+                                          fileName.Equals("rider", StringComparison.OrdinalIgnoreCase) ||
+                                          (OperatingSystem.IsLinux() && fileName == "rider.sh"),
             LocalApplicationKind.VisualStudio => fileName.Equals("devenv.exe", StringComparison.OrdinalIgnoreCase) ||
                                                  fileName.Equals("VisualStudio", StringComparison.OrdinalIgnoreCase),
             LocalApplicationKind.VisualStudioCode => fileName.Equals("Code.exe", StringComparison.OrdinalIgnoreCase) ||

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Lakona.Hub.Applications;
 
 namespace Lakona.Hub;
 
@@ -14,7 +15,12 @@ internal sealed record StoredHubProjectSettings(
     DateTimeOffset? LastOpenedAtUtc,
     DateTimeOffset? AddedAtUtc = null);
 
-internal sealed record HubDetectedApplicationSettings(string Kind, string DisplayName, string ExecutablePath, string? Version);
+internal sealed record HubDetectedApplicationSettings(
+    string Kind,
+    string DisplayName,
+    string ExecutablePath,
+    string? Version,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] FlatpakInstallationScope? FlatpakScope = null);
 
 internal sealed record HubCreationDraft(
     string ProjectName,

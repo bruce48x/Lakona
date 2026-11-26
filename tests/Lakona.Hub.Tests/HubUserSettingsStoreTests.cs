@@ -1,5 +1,6 @@
 using Xunit;
 using System.Text.Json;
+using Lakona.Hub.Applications;
 
 namespace Lakona.Hub.Tests;
 
@@ -25,7 +26,8 @@ public sealed class HubUserSettingsStoreTests : IDisposable
             Path.Combine(root, "Rider.exe"),
             [new HubProjectSettings(projectPaths[0], checkedAt, addedAt),
              new HubProjectSettings(projectPaths[1], null)],
-            [new HubDetectedApplicationSettings("Unity", "Unity 6", Path.Combine(root, "Unity.exe"), "6000.3.3f1")],
+            [new HubDetectedApplicationSettings("Unity", "Unity 6", Path.Combine(root, "Unity.exe"), "6000.3.3f1"),
+             new HubDetectedApplicationSettings("Rider", "Rider", Path.Combine(root, "rider"), "2026.2.4", FlatpakInstallationScope.User)],
             new HubCreationDraft("SavedGame", root, "godot", "4.6", "tcp", "json", "embedded"),
             "Settings",
             new HubWindowSettings(120, 80, 1280, 900, "Maximized"),
@@ -41,7 +43,7 @@ public sealed class HubUserSettingsStoreTests : IDisposable
         Assert.Equal(settings.SelectedServerEditorPath, loaded.SelectedServerEditorPath);
         Assert.Equal(settings.Projects[0].LastOpenedAtUtc, loaded.Projects[0].LastOpenedAtUtc);
         Assert.Equal(settings.Projects[0].AddedAtUtc, loaded.Projects[0].AddedAtUtc);
-        Assert.Equal(settings.DetectedApplications[0], Assert.Single(loaded.DetectedApplications));
+        Assert.Equal(settings.DetectedApplications, loaded.DetectedApplications);
         Assert.Equal(settings.CreationDraft, loaded.CreationDraft);
         Assert.Equal(settings.CurrentPage, loaded.CurrentPage);
         Assert.Equal(settings.Window, loaded.Window);

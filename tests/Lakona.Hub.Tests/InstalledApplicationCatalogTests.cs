@@ -185,6 +185,22 @@ public sealed class InstalledApplicationCatalogTests
     }
 
     [Fact]
+    public void TryCreateManualInstallation_RecognizesNativeLinuxRiderScript()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        using var executables = TestExecutables.Create("rider.sh");
+
+        Assert.True(SystemApplicationProbeSource.TryCreateManualInstallation(
+            executables["rider.sh"],
+            out var rider));
+        Assert.Equal(LocalApplicationKind.Rider, rider.Kind);
+    }
+
+    [Fact]
     public void TryCreateInstallation_ResolvesMacApplicationBundle()
     {
         var root = Path.Combine(Path.GetTempPath(), "Lakona.Hub.Tests", Guid.NewGuid().ToString("N"));

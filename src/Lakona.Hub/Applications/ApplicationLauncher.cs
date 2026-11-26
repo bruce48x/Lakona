@@ -93,7 +93,9 @@ internal static class ApplicationLaunchPlanner
             throw new FileNotFoundException("Application executable was not found.", application.ExecutablePath);
         }
 
-        return new ApplicationLaunchPlan(application.ExecutablePath, workingDirectory, arguments);
+        return application is { Kind: LocalApplicationKind.Rider, FlatpakScope: { } scope }
+            ? FlatpakRider.CreateLaunchPlan(scope, workingDirectory, arguments)
+            : new ApplicationLaunchPlan(application.ExecutablePath, workingDirectory, arguments);
     }
 
     private static string ResolveProjectRoot(string projectRoot)

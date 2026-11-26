@@ -330,7 +330,8 @@ public sealed class HubEnvironmentWorkflow : INotifyPropertyChanged, IDisposable
                 application.Kind.ToString(),
                 application.DisplayName,
                 application.ExecutablePath,
-                application.Version))
+                application.Version,
+                application.FlatpakScope))
             .ToArray();
 
     public void Dispose()
@@ -475,7 +476,10 @@ public sealed class HubEnvironmentWorkflow : INotifyPropertyChanged, IDisposable
                 Enum.Parse<LocalApplicationKind>(application.Kind),
                 application.DisplayName,
                 application.ExecutablePath,
-                application.Version))
+                application.Version)
+            {
+                FlatpakScope = application.FlatpakScope
+            })
             .ToArray();
 
     private static string FormatByteSize(long bytes)

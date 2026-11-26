@@ -19,6 +19,8 @@ public sealed record LocalApplicationInstallation(
     string ExecutablePath,
     string? Version = null)
 {
+    internal FlatpakInstallationScope? FlatpakScope { get; init; }
+
     public override string ToString() => DisplayName;
 }
 
