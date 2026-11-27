@@ -127,7 +127,7 @@ public sealed class ApplicationLaunchPlannerTests
         public LocalApplicationInstallation Application(LocalApplicationKind kind)
         {
             var executable = Path.Combine(RootPath, kind + ".exe");
-            File.WriteAllText(executable, string.Empty);
+            TestApplicationExecutable.Create(executable);
             return new LocalApplicationInstallation(kind, kind.ToString(), executable);
         }
 

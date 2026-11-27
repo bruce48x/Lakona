@@ -201,7 +201,7 @@ internal sealed class HubUserSettingsStore
         .Where(application =>
             !string.IsNullOrWhiteSpace(application.DisplayName) &&
             Path.IsPathFullyQualified(application.ExecutablePath))
-        .DistinctBy(application => application.ExecutablePath, StringComparer.OrdinalIgnoreCase)
+        .DistinctBy(application => application.ExecutablePath, ApplicationExecutable.PathComparer)
         .ToArray();
 
     private static HubWindowSettings? ParseWindow(HubWindowSettings? window) =>

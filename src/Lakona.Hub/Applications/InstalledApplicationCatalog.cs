@@ -18,12 +18,12 @@ internal sealed class InstalledApplicationCatalog
     {
         return source.FindApplications()
             .Where(application => Path.IsPathFullyQualified(application.ExecutablePath))
-            .Where(application => File.Exists(application.ExecutablePath))
-            .DistinctBy(application => application.ExecutablePath, StringComparer.OrdinalIgnoreCase)
+            .Where(application => ApplicationExecutable.IsRunnable(application.ExecutablePath))
+            .DistinctBy(InstallationKey, ApplicationExecutable.PathComparer)
             .OrderBy(application => LocalApplicationKinds.Order(application.Kind))
             .ThenByDescending(application => ParseSemanticVersion(application.Version))
             .ThenByDescending(application => application.Version, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(application => application.ExecutablePath, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(application => application.ExecutablePath, ApplicationExecutable.PathComparer)
             .ToArray();
     }
 
@@ -40,16 +40,19 @@ internal sealed class InstalledApplicationCatalog
         IReadOnlyList<LocalApplicationInstallation> automaticallyDetected,
         IReadOnlyList<LocalApplicationInstallation> manuallyConfigured)
     {
-        return automaticallyDetected
-            .Concat(manuallyConfigured)
+        var manualPaths = manuallyConfigured.Select(app => app.ExecutablePath).ToHashSet(ApplicationExecutable.PathComparer);
+        return manuallyConfigured
+            .Concat(automaticallyDetected)
+            .DistinctBy(InstallationKey, ApplicationExecutable.PathComparer)
             .OrderBy(application => LocalApplicationKinds.Order(application.Kind))
-            .ThenBy(application => manuallyConfigured.Any(manual =>
-                string.Equals(manual.ExecutablePath, application.ExecutablePath, StringComparison.OrdinalIgnoreCase)) ? 0 : 1)
+            .ThenByDescending(application => manualPaths.Contains(application.ExecutablePath))
             .ThenByDescending(application => ParseSemanticVersion(application.Version))
             .ThenByDescending(application => application.Version, StringComparer.OrdinalIgnoreCase)
-            .DistinctBy(application => application.ExecutablePath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
+
+    private static string InstallationKey(LocalApplicationInstallation application) =>
+        ApplicationExecutable.InstallationKey(application.Kind, application.ExecutablePath);
 
     private static Version? ParseSemanticVersion(string? value) =>
         Version.TryParse(value, out var version) ? version : null;

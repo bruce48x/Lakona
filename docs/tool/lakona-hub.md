@@ -268,12 +268,19 @@ compatibility version; Hub resolves the user-facing Tuanjie product version
 through Tuanjie Hub's `versionMapping.json` and falls back to the compatibility
 version only when that mapping is unavailable.
 
-On Linux, Hub discovers native Rider launchers on `PATH`, under `RIDER_HOME`,
+On Linux, Hub checks execute permission and uses case-sensitive paths. It
+discovers VS Code (`code`), Unity and Tuanjie Hubs and Editors, Godot, and Rider
+on `PATH`. It also checks the VS Code Snap launcher, the Hub-managed editor
+directories, `UNITY_HOME`, `TUANJIE_HOME`, and `GODOT_HOME`. Official Godot
+Linux binaries, including the versioned .NET download, can be registered
+directly. Symlinks to the same Unity Hub installation produce one entry.
+
+Rider discovery accepts both `bin/rider.sh` and `bin/rider` under `RIDER_HOME`,
 in installations directly under `/opt`, and in the default JetBrains Toolbox
-apps directory. Hub also discovers Rider (`com.jetbrains.Rider`) in the
-standard per-user and system-wide Flatpak installations on Fedora and Debian.
-When opening a project in Flatpak Rider, Hub runs `flatpak run` for the detected
-installation scope and passes the solution or project path to Rider.
+apps directory. For Rider (`com.jetbrains.Rider`) in a user or system Flatpak
+installation, automatic discovery and manual registration use the active
+deployment's stable path. Hub opens projects with `flatpak run` in the selected
+installation scope, including after a Hub restart or a Flatpak update.
 
 When Hub creates a Unity or Tuanjie project, it passes the selected detected
 editor executable to ProjectSystem. Editor compatibility is checked by the

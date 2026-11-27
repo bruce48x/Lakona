@@ -14,7 +14,7 @@ public sealed class FlatpakRiderTests : IDisposable
     public void DetectedRiderOpensServerAndConsoleClientThroughItsFlatpakInstallation(string installation, string scopeArgument)
     {
         var files = Path.Combine(root, installation, "app", "com.jetbrains.Rider", "current", "active", "files");
-        var riderPath = CreateFile(Path.Combine(files, "bin", "rider"));
+        var riderPath = TestApplicationExecutable.Create(Path.Combine(files, "bin", "rider"));
         CreateFile(Path.Combine(files, "product-info.json"), """{"version":"2026.2.4"}""");
         var solution = CreateFile(Path.Combine(root, "Server", "Server.slnx"), "<Solution />");
         var client = CreateFile(Path.Combine(root, "Client", "Client.csproj"), "<Project />");
@@ -40,8 +40,8 @@ public sealed class FlatpakRiderTests : IDisposable
     public void OnlyActiveRiderInstallationsWithAFlatpakLauncherAreDetected()
     {
         var relativeAppPath = Path.Combine("app", "com.jetbrains.Rider");
-        CreateFile(Path.Combine(root, "system", relativeAppPath, "current", "old-revision", "files", "bin", "rider"));
-        CreateFile(Path.Combine(root, "user", relativeAppPath, "current", "active", "files", "bin", "rider"));
+        TestApplicationExecutable.Create(Path.Combine(root, "system", relativeAppPath, "current", "old-revision", "files", "bin", "rider"));
+        TestApplicationExecutable.Create(Path.Combine(root, "user", relativeAppPath, "current", "active", "files", "bin", "rider"));
 
         Assert.Empty(FindInstallations(flatpakAvailable: false));
         Assert.Null(Assert.Single(FindInstallations(flatpakAvailable: true)).Version);

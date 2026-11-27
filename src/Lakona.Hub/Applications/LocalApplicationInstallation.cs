@@ -46,6 +46,7 @@ internal static class LocalApplicationKinds
     public static IReadOnlySet<LocalApplicationKind> DefaultVisibleKinds { get; } =
         AutomaticallyDetectedKinds
             .Where(kind => kind is not LocalApplicationKind.TuanjieHub and not LocalApplicationKind.Tuanjie)
+            .Where(kind => kind != LocalApplicationKind.VisualStudio || !OperatingSystem.IsLinux())
             .ToHashSet();
 
     public static int Order(LocalApplicationKind kind) => kind switch

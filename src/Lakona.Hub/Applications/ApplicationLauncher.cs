@@ -88,9 +88,9 @@ internal static class ApplicationLaunchPlanner
         string workingDirectory,
         IReadOnlyList<string> arguments)
     {
-        if (!Path.IsPathFullyQualified(application.ExecutablePath) || !File.Exists(application.ExecutablePath))
+        if (!Path.IsPathFullyQualified(application.ExecutablePath) || !ApplicationExecutable.IsRunnable(application.ExecutablePath))
         {
-            throw new FileNotFoundException("Application executable was not found.", application.ExecutablePath);
+            throw new FileNotFoundException("Application executable is unavailable.", application.ExecutablePath);
         }
 
         return application is { Kind: LocalApplicationKind.Rider, FlatpakScope: { } scope }

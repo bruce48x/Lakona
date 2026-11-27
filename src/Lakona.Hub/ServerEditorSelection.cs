@@ -59,9 +59,15 @@ public sealed class ServerEditorSelection : INotifyPropertyChanged
             isRefreshing = false;
         }
 
-        SelectedEditor = Editors.FirstOrDefault(editor =>
-                             string.Equals(editor.ExecutablePath, preferredPath, StringComparison.OrdinalIgnoreCase)) ??
-                         Editors.FirstOrDefault();
+        var preferred = Editors.FirstOrDefault(editor => ApplicationExecutable.PathComparer.Equals(editor.ExecutablePath, preferredPath));
+        if (preferred is null && OperatingSystem.IsLinux() && preferredPath is not null)
+        {
+            // A refresh may keep a different alias of the same installation.
+            preferred = Editors.FirstOrDefault(editor =>
+                ApplicationExecutable.InstallationKey(editor.Kind, editor.ExecutablePath) ==
+                ApplicationExecutable.InstallationKey(editor.Kind, preferredPath));
+        }
+        SelectedEditor = preferred ?? Editors.FirstOrDefault();
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>

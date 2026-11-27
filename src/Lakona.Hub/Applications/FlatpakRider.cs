@@ -11,14 +11,58 @@ internal enum FlatpakInstallationScope
 internal static class FlatpakRider
 {
     private const string ApplicationId = "com.jetbrains.Rider";
-    private const string FlatpakExecutable = "/usr/bin/flatpak";
+    private const string DefaultExecutable = "/usr/bin/flatpak";
 
-    public static IEnumerable<LocalApplicationInstallation> FindInstallations() => FindInstallations(
-        Environment.GetEnvironmentVariable("FLATPAK_USER_DIR") ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify),
-            "flatpak"),
-        Environment.GetEnvironmentVariable("FLATPAK_SYSTEM_DIR") ?? "/var/lib/flatpak",
-        File.Exists(FlatpakExecutable));
+    private static string UserRoot => Environment.GetEnvironmentVariable("FLATPAK_USER_DIR") ?? Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify),
+        "flatpak");
+    private static string SystemRoot => Environment.GetEnvironmentVariable("FLATPAK_SYSTEM_DIR") ?? "/var/lib/flatpak";
+
+    private static string? FindExecutable()
+    {
+        if (ApplicationExecutable.IsRunnable(DefaultExecutable))
+        {
+            return DefaultExecutable;
+        }
+        return (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator)
+            .Where(Path.IsPathFullyQualified)
+            .Select(directory => Path.Combine(directory, "flatpak"))
+            .FirstOrDefault(ApplicationExecutable.IsRunnable);
+    }
+
+    public static IEnumerable<LocalApplicationInstallation> FindInstallations() =>
+        FindInstallations(UserRoot, SystemRoot, FindExecutable() is not null);
+
+    public static FlatpakInstallationScope? GetLauncherScope(string path)
+    {
+        var resolved = ApplicationExecutable.ResolveLinuxPath(path);
+        foreach (var (root, scope) in Roots(UserRoot, SystemRoot))
+        {
+            var appDirectory = Path.Combine(root, "app", ApplicationId);
+            if (IsDeploymentLauncher(path, appDirectory) ||
+                IsDeploymentLauncher(resolved, ApplicationExecutable.ResolveLinuxPath(appDirectory)))
+            {
+                return scope;
+            }
+        }
+        return null;
+    }
+
+    private static bool IsDeploymentLauncher(string path, string appDirectory) =>
+        path.StartsWith(appDirectory + "/", StringComparison.Ordinal) &&
+        (path.EndsWith("/files/bin/rider", StringComparison.Ordinal) || path.EndsWith("/files/bin/rider.sh", StringComparison.Ordinal));
+
+    private static IEnumerable<(string Root, FlatpakInstallationScope Scope)> Roots(string userRoot, string systemRoot)
+    {
+        if (Path.IsPathFullyQualified(userRoot))
+        {
+            yield return (userRoot, FlatpakInstallationScope.User);
+        }
+        if (Path.IsPathFullyQualified(systemRoot))
+        {
+            yield return (systemRoot, FlatpakInstallationScope.System);
+        }
+    }
 
     internal static IEnumerable<LocalApplicationInstallation> FindInstallations(
         string userRoot,
@@ -30,21 +74,12 @@ internal static class FlatpakRider
             yield break;
         }
 
-        foreach (var (root, scope) in new[]
-                 {
-                     (userRoot, FlatpakInstallationScope.User),
-                     (systemRoot, FlatpakInstallationScope.System)
-                 })
+        foreach (var (root, scope) in Roots(userRoot, systemRoot))
         {
-            if (!Path.IsPathFullyQualified(root))
-            {
-                continue;
-            }
-
             // Flatpak keeps this path stable across revisions of the installed app.
             var files = Path.Combine(root, "app", ApplicationId, "current", "active", "files");
             var executable = Path.Combine(files, "bin", "rider");
-            if (File.Exists(executable))
+            if (ApplicationExecutable.IsRunnable(executable))
             {
                 yield return new LocalApplicationInstallation(
                     LocalApplicationKind.Rider,
@@ -69,7 +104,8 @@ internal static class FlatpakRider
             FlatpakInstallationScope.System => "--system",
             _ => throw new ArgumentOutOfRangeException(nameof(scope))
         };
-        return new ApplicationLaunchPlan(FlatpakExecutable, workingDirectory, ["run", installation, ApplicationId, .. arguments]);
+        return new ApplicationLaunchPlan(FindExecutable() ?? DefaultExecutable, workingDirectory,
+            ["run", installation, ApplicationId, .. arguments]);
     }
 
     private static string? ReadVersion(string productInfoPath)

@@ -209,13 +209,7 @@ public sealed class HubEnvironmentWorkflowTests : IDisposable
             null,
             cachedApplications ?? []);
 
-    private string CreateExecutable(string fileName)
-    {
-        Directory.CreateDirectory(root);
-        var path = Path.Combine(root, fileName);
-        File.WriteAllText(path, string.Empty);
-        return path;
-    }
+    private string CreateExecutable(string fileName) => TestApplicationExecutable.Create(Path.Combine(root, fileName));
 
     private string SdkExecutable() => CreateExecutable("dotnet.exe");
 

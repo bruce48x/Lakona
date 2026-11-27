@@ -37,7 +37,9 @@ internal sealed class HubApplicationRegistry : IDisposable
 
     public bool TryAddManual(ManualApplicationRegistration registration)
     {
-        if (InstalledApplications.Any(application => SamePath(application.ExecutablePath, registration.ExecutablePath)) ||
+        var key = ApplicationExecutable.InstallationKey(registration.Kind, registration.ExecutablePath);
+        if (InstalledApplications.Any(application => SamePath(
+                ApplicationExecutable.InstallationKey(application.Kind, application.ExecutablePath), key)) ||
             manualApplications.Any(application => SamePath(application.ExecutablePath, registration.ExecutablePath)))
         {
             return false;
@@ -58,8 +60,9 @@ internal sealed class HubApplicationRegistry : IDisposable
             return false;
         }
 
+        var key = ApplicationExecutable.InstallationKey(tool.Kind, path);
         var updated = manualApplications
-            .Where(application => !SamePath(application.ExecutablePath, path))
+            .Where(application => !SamePath(ApplicationExecutable.InstallationKey(application.Kind, application.ExecutablePath), key))
             .ToArray();
         store.Save(updated);
         manualApplications.Clear();
@@ -79,15 +82,26 @@ internal sealed class HubApplicationRegistry : IDisposable
 
     private void Rebuild()
     {
-        var manuallyConfigured = manualApplications
-            .Select(registration => SystemApplicationProbeSource.TryCreateInstallation(
-                    registration.Kind,
-                    registration.ExecutablePath,
-                    out var installation)
-                ? installation with { DisplayName = registration.DisplayName }
-                : null)
-            .OfType<LocalApplicationInstallation>()
-            .ToArray();
+        var manuallyConfigured = new List<LocalApplicationInstallation>();
+        for (var i = 0; i < manualApplications.Count; i++)
+        {
+            var registration = manualApplications[i];
+            // Older Linux settings can contain Godot or Tuanjie Hub saved as a generic IDE.
+            var recognized = OperatingSystem.IsLinux() && registration.Kind == LocalApplicationKind.Other
+                ? SystemApplicationProbeSource.TryCreateManualInstallation(registration.ExecutablePath, out var installation)
+                : SystemApplicationProbeSource.TryCreateInstallation(registration.Kind, registration.ExecutablePath, out installation);
+            if (!recognized)
+            {
+                continue;
+            }
+
+            if (installation.Kind == registration.Kind)
+            {
+                installation = installation with { DisplayName = registration.DisplayName };
+            }
+            manualApplications[i] = new(installation.Kind, installation.DisplayName, installation.ExecutablePath);
+            manuallyConfigured.Add(installation);
+        }
         InstalledApplications = InstalledApplicationCatalog.MergePreferred(
             AutomaticApplications,
             manuallyConfigured);
@@ -104,5 +118,5 @@ internal sealed class HubApplicationRegistry : IDisposable
     }
 
     private static bool SamePath(string left, string right) =>
-        string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+        ApplicationExecutable.PathComparer.Equals(left, right);
 }

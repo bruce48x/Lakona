@@ -4,7 +4,7 @@ using Microsoft.Win32;
 
 namespace Lakona.Hub.Applications;
 
-internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
+internal sealed partial class SystemApplicationProbeSource : IApplicationProbeSource
 {
     private static readonly string[] UninstallRoots =
     [
@@ -49,6 +49,18 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
             return false;
         }
 
+        if (OperatingSystem.IsLinux() && kind == LocalApplicationKind.Rider &&
+            FlatpakRider.GetLauncherScope(executablePath) is { } scope)
+        {
+            var flatpak = FlatpakRider.FindInstallations().FirstOrDefault(app => app.FlatpakScope == scope);
+            if (flatpak is null)
+            {
+                return false;
+            }
+            installation = flatpak;
+            return true;
+        }
+
         installation = new LocalApplicationInstallation(
             kind,
             kind == LocalApplicationKind.Other
@@ -76,6 +88,12 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
 
     private static void AddKnownPaths(ICollection<(LocalApplicationKind, string)> candidates)
     {
+        if (OperatingSystem.IsLinux())
+        {
+            AddLinuxKnownPaths(candidates);
+            return;
+        }
+
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
         var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
@@ -135,46 +153,6 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
                 "MacOS",
                 "Tuanjie");
         }
-
-        if (OperatingSystem.IsLinux())
-        {
-            AddLinuxRiderPaths(candidates, localAppData);
-            AddFile(candidates, LocalApplicationKind.UnityHub, "/opt/unityhub/unityhub");
-            AddFile(candidates, LocalApplicationKind.UnityHub, "/usr/bin/unityhub");
-
-            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            AddVersionedEditorFiles(
-                candidates,
-                LocalApplicationKind.Unity,
-                Path.Combine(userProfile, "Unity", "Hub", "Editor"),
-                "Editor",
-                "Unity");
-            AddVersionedEditorFiles(
-                candidates,
-                LocalApplicationKind.Tuanjie,
-                Path.Combine(userProfile, "Tuanjie", "Hub", "Editor"),
-                "Editor",
-                "Tuanjie");
-        }
-    }
-
-    private static void AddLinuxRiderPaths(
-        ICollection<(LocalApplicationKind, string)> candidates,
-        string localAppData)
-    {
-        if (Environment.GetEnvironmentVariable("RIDER_HOME") is { Length: > 0 } riderHome)
-        {
-            var script = Path.Combine(riderHome, "bin", "rider.sh");
-            AddFile(candidates, LocalApplicationKind.Rider, File.Exists(script) ? script : Path.Combine(riderHome, "bin", "rider"));
-        }
-
-        AddVersionedEditorFiles(candidates, LocalApplicationKind.Rider, "/opt", "bin", "rider.sh");
-        AddVersionedEditorFiles(
-            candidates,
-            LocalApplicationKind.Rider,
-            Path.Combine(localAppData, "JetBrains", "Toolbox", "apps"),
-            "bin",
-            "rider.sh");
     }
 
     private static void AddPortableGodotInstallations(ICollection<(LocalApplicationKind, string)> candidates)
@@ -215,15 +193,16 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
     {
         foreach (var directory in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
                      .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                     .Distinct(StringComparer.OrdinalIgnoreCase))
+                     .Distinct(ApplicationExecutable.PathComparer))
         {
-            AddFile(candidates, LocalApplicationKind.Rider, Path.Combine(directory, "rider64.exe"));
-            AddFile(candidates, LocalApplicationKind.Rider, Path.Combine(directory, "rider.exe"));
             if (OperatingSystem.IsLinux())
             {
-                AddFile(candidates, LocalApplicationKind.Rider, Path.Combine(directory, "rider"));
-                AddFile(candidates, LocalApplicationKind.Rider, Path.Combine(directory, "rider.sh"));
+                AddLinuxPathCandidates(candidates, directory);
+                continue;
             }
+
+            AddFile(candidates, LocalApplicationKind.Rider, Path.Combine(directory, "rider64.exe"));
+            AddFile(candidates, LocalApplicationKind.Rider, Path.Combine(directory, "rider.exe"));
             AddFile(candidates, LocalApplicationKind.VisualStudio, Path.Combine(directory, "devenv.exe"));
             AddFile(candidates, LocalApplicationKind.VisualStudioCode, Path.Combine(directory, "Code.exe"));
             AddFile(candidates, LocalApplicationKind.UnityHub, Path.Combine(directory, "Unity Hub.exe"));
@@ -405,7 +384,7 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
                 fullPath = ResolveApplicationBundleExecutable(kind, fullPath) ?? string.Empty;
             }
 
-            if (!File.Exists(fullPath) || !MatchesExecutable(kind, Path.GetFileName(fullPath)))
+            if (!MatchesExecutable(kind, Path.GetFileName(fullPath)) || !ApplicationExecutable.IsRunnable(fullPath))
             {
                 return false;
             }
@@ -440,12 +419,16 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
 
     private static bool MatchesExecutable(LocalApplicationKind kind, string fileName)
     {
+        if (OperatingSystem.IsLinux())
+        {
+            return MatchesLinuxExecutable(kind, fileName);
+        }
+
         return kind switch
         {
             LocalApplicationKind.Rider => fileName.Equals("rider64.exe", StringComparison.OrdinalIgnoreCase) ||
                                           fileName.Equals("rider.exe", StringComparison.OrdinalIgnoreCase) ||
-                                          fileName.Equals("rider", StringComparison.OrdinalIgnoreCase) ||
-                                          (OperatingSystem.IsLinux() && fileName == "rider.sh"),
+                                          fileName.Equals("rider", StringComparison.OrdinalIgnoreCase),
             LocalApplicationKind.VisualStudio => fileName.Equals("devenv.exe", StringComparison.OrdinalIgnoreCase) ||
                                                  fileName.Equals("VisualStudio", StringComparison.OrdinalIgnoreCase),
             LocalApplicationKind.VisualStudioCode => fileName.Equals("Code.exe", StringComparison.OrdinalIgnoreCase) ||
@@ -474,6 +457,10 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
         if (kind is LocalApplicationKind.Unity or LocalApplicationKind.Tuanjie)
         {
             var versionDirectory = FindVersionDirectory(executablePath);
+            if (versionDirectory is null && OperatingSystem.IsLinux())
+            {
+                versionDirectory = FindVersionDirectory(ApplicationExecutable.ResolveLinuxPath(executablePath));
+            }
             if (versionDirectory is not null)
             {
                 return kind == LocalApplicationKind.Tuanjie
@@ -487,7 +474,7 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
             var version = FileVersionInfo.GetVersionInfo(executablePath).ProductVersion;
             return string.IsNullOrWhiteSpace(version) ? null : version;
         }
-        catch (FileNotFoundException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return null;
         }
@@ -530,7 +517,8 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
             }
 
             using var document = JsonDocument.Parse(File.ReadAllText(mappingFilePath));
-            return document.RootElement.TryGetProperty(compatibilityVersion, out var mapped) &&
+            return document.RootElement.ValueKind == JsonValueKind.Object &&
+                   document.RootElement.TryGetProperty(compatibilityVersion, out var mapped) &&
                    mapped.ValueKind == JsonValueKind.String &&
                    !string.IsNullOrWhiteSpace(mapped.GetString())
                 ? mapped.GetString()!
@@ -555,7 +543,7 @@ internal sealed class SystemApplicationProbeSource : IApplicationProbeSource
                 return name.Trim();
             }
         }
-        catch (FileNotFoundException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Fall back to the executable name below.
         }

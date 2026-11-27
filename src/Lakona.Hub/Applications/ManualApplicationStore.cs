@@ -61,7 +61,7 @@ internal sealed class ManualApplicationStore
             .Where(application =>
                 !string.IsNullOrWhiteSpace(application.DisplayName) &&
                 Path.IsPathFullyQualified(application.ExecutablePath))
-            .DistinctBy(application => application.ExecutablePath, StringComparer.OrdinalIgnoreCase)
+            .DistinctBy(application => application.ExecutablePath, ApplicationExecutable.PathComparer)
             .Select(application => new StoredManualApplication(
                 application.Kind.ToString(),
                 application.DisplayName.Trim(),
@@ -97,7 +97,7 @@ internal sealed class ManualApplicationStore
                 ParseKind(application.Kind),
                 application.DisplayName.Trim(),
                 application.ExecutablePath))
-            .DistinctBy(application => application.ExecutablePath, StringComparer.OrdinalIgnoreCase)
+            .DistinctBy(application => application.ExecutablePath, ApplicationExecutable.PathComparer)
             .ToArray();
     }
 

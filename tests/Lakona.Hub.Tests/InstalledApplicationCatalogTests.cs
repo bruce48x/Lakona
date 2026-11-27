@@ -60,14 +60,13 @@ public sealed class InstalledApplicationCatalogTests
     public void TryCreateInstallation_RecognizesTuanjieHubAndEditorVersionLayout()
     {
         var root = Path.Combine(Path.GetTempPath(), "Lakona.Hub.Tests", Guid.NewGuid().ToString("N"));
-        var hub = Path.Combine(root, "Tuanjie Hub", "Tuanjie Hub.exe");
-        var editor = Path.Combine(root, "Tuanjie", "Hub", "Editor", "2022.3.999t1", "Editor", "Tuanjie.exe");
+        var hub = Path.Combine(root, "Tuanjie Hub", OperatingSystem.IsLinux() ? "tuanjiehub" : "Tuanjie Hub.exe");
+        var editor = Path.Combine(root, "Tuanjie", "Hub", "Editor", "2022.3.999t1", "Editor",
+            OperatingSystem.IsLinux() ? "Tuanjie" : "Tuanjie.exe");
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(hub)!);
-            Directory.CreateDirectory(Path.GetDirectoryName(editor)!);
-            File.WriteAllText(hub, string.Empty);
-            File.WriteAllText(editor, string.Empty);
+            TestApplicationExecutable.Create(hub);
+            TestApplicationExecutable.Create(editor);
 
             Assert.True(SystemApplicationProbeSource.TryCreateInstallation(
                 LocalApplicationKind.TuanjieHub,
@@ -149,11 +148,12 @@ public sealed class InstalledApplicationCatalogTests
     [Fact]
     public void TryCreateInstallation_ValidatesExecutableForSelectedKind()
     {
-        using var executables = TestExecutables.Create("rider64.exe", "Godot_v4.6.exe");
+        var riderName = OperatingSystem.IsLinux() ? "rider" : "rider64.exe";
+        using var executables = TestExecutables.Create(riderName, "Godot_v4.6.exe");
 
         Assert.True(SystemApplicationProbeSource.TryCreateInstallation(
             LocalApplicationKind.Rider,
-            executables["rider64.exe"],
+            executables[riderName],
             out var rider));
         Assert.Equal(LocalApplicationKind.Rider, rider.Kind);
         Assert.False(SystemApplicationProbeSource.TryCreateInstallation(
@@ -165,15 +165,17 @@ public sealed class InstalledApplicationCatalogTests
     [Fact]
     public void TryCreateManualInstallation_RecognizesEngineHubsAndAcceptsArbitraryIde()
     {
-        using var executables = TestExecutables.Create("Unity Hub.exe", "Tuanjie Hub.exe", "CustomIde.exe");
+        var unityHubName = OperatingSystem.IsLinux() ? "unityhub" : "Unity Hub.exe";
+        var tuanjieHubName = OperatingSystem.IsLinux() ? "tuanjiehub" : "Tuanjie Hub.exe";
+        using var executables = TestExecutables.Create(unityHubName, tuanjieHubName, "CustomIde.exe");
 
         Assert.True(SystemApplicationProbeSource.TryCreateManualInstallation(
-            executables["Unity Hub.exe"],
+            executables[unityHubName],
             out var unityHub));
         Assert.Equal(LocalApplicationKind.UnityHub, unityHub.Kind);
 
         Assert.True(SystemApplicationProbeSource.TryCreateManualInstallation(
-            executables["Tuanjie Hub.exe"],
+            executables[tuanjieHubName],
             out var tuanjieHub));
         Assert.Equal(LocalApplicationKind.TuanjieHub, tuanjieHub.Kind);
 
@@ -209,7 +211,7 @@ public sealed class InstalledApplicationCatalogTests
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(executable)!);
-            File.WriteAllText(executable, string.Empty);
+            TestApplicationExecutable.Create(executable);
 
             Assert.True(SystemApplicationProbeSource.TryCreateInstallation(
                 LocalApplicationKind.Rider,
@@ -241,7 +243,7 @@ public sealed class InstalledApplicationCatalogTests
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(executable)!);
-            File.WriteAllText(executable, string.Empty);
+            TestApplicationExecutable.Create(executable);
 
             var detected = SystemApplicationProbeSource.FindVersionedEditorFiles(
                 root,
@@ -288,7 +290,7 @@ public sealed class InstalledApplicationCatalogTests
             Directory.CreateDirectory(executables.root);
             foreach (var name in names)
             {
-                File.WriteAllText(executables[name], string.Empty);
+                TestApplicationExecutable.Create(executables[name]);
             }
 
             return executables;

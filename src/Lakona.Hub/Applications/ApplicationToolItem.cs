@@ -97,7 +97,7 @@ internal static class ApplicationToolList
     {
         var manualPaths = manualApplications
             .Select(application => application.ExecutablePath)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .ToHashSet(ApplicationExecutable.PathComparer);
         var result = new List<ApplicationToolItem>();
         foreach (var kind in LocalApplicationKinds.AutomaticallyDetectedKinds.Append(LocalApplicationKind.Other))
         {
@@ -106,6 +106,7 @@ internal static class ApplicationToolList
                 .ToArray();
             var registrations = manualApplications
                 .Where(application => application.Kind == kind)
+                .DistinctBy(application => ApplicationExecutable.InstallationKey(kind, application.ExecutablePath), ApplicationExecutable.PathComparer)
                 .ToArray();
             if (LocalApplicationKinds.DefaultVisibleKinds.Contains(kind) &&
                 installations.Length == 0 &&
@@ -119,10 +120,8 @@ internal static class ApplicationToolList
                 localization,
                 manualPaths.Contains(installation.ExecutablePath))));
             result.AddRange(registrations
-                .Where(registration => installations.All(installation => !string.Equals(
-                    installation.ExecutablePath,
-                    registration.ExecutablePath,
-                    StringComparison.OrdinalIgnoreCase)))
+                .Where(registration => installations.All(installation => !ApplicationExecutable.PathComparer.Equals(
+                    installation.ExecutablePath, registration.ExecutablePath)))
                 .Select(registration => new ApplicationToolItem(registration, localization)));
         }
 
